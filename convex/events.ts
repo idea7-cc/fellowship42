@@ -1,0 +1,151 @@
+import { query, mutation } from "convex/server";
+import { v } from "convex/values";
+import { requireChurchAccess } from "./lib/access";
+
+/**
+ * List upcoming events for a church, ordered by start date.
+ * Public callers see only published events. Authenticated users with
+ * church access see all statuses.
+ */
+export const listByChurch = query({
+  args: { churchId: v.id("churches") },
+  handler: async (ctx, { churchId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+
+    if (identity) {
+      try {
+        await requireChurchAccess(ctx, churchId);
+        return await ctx.db
+          .query("events")
+          .withIndex("by_church_and_start_date", (q) =>
+            q.eq("churchId", churchId)
+          )
+          .order("desc")
+          .collect();
+      } catch {
+        // Fall through to public view
+      }
+    }
+
+    // Public: only published, ordered by start date descending
+    const allPublished = await ctx.db
+      .query("events")
+      .withIndex("by_church_and_start_date", (q) =>
+        q.eq("churchId", churchId)
+      )
+      .order("desc")
+      .collect();
+
+    return allPublished.filter((e) => e.status === "published");
+  },
+});
+
+/**
+ * Get an event by church ID and slug.
+ * Public for published events.
+ */
+export const getBySlug = query({
+  args: { churchId: v.id("churches"), slug: v.string() },
+  handler: async (ctx, { churchId, slug }) => {
+    const event = await ctx.db
+      .query("events")
+      .withIndex("by_church_and_slug", (q) =>
+        q.eq("churchId", churchId).eq("slug", slug)
+      )
+      .unique();
+
+    if (!event) return null;
+
+    if (event.status === "published") return event;
+
+    try {
+      await requireChurchAccess(ctx, churchId);
+      return event;
+    } catch {
+      return null;
+    }
+  },
+});
+
+/**
+ * Create a new event.
+ * Requires church-level access.
+ */
+export const create = mutation({
+  args: {
+    churchId: v.id("churches"),
+    title: v.string(),
+    slug: v.string(),
+    status: v.union(v.literal("draft"), v.literal("published")),
+    summary: v.string(),
+    startDate: v.number(),
+    endDate: v.optional(v.number()),
+    location: v.string(),
+    registrationUrl: v.optional(v.string()),
+    featured: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireChurchAccess(ctx, args.churchId);
+
+    const existing = await ctx.db
+      .query("events")
+      .withIndex("by_church_and_slug", (q) =>
+        q.eq("churchId", args.churchId).eq("slug", args.slug)
+      )
+      .unique();
+    if (existing) {
+      throw new Error(
+        `An event with slug "${args.slug}" already exists in this church`
+      );
+    }
+
+    return await ctx.db.insert("events", args);
+  },
+});
+
+/**
+ * Update an existing event.
+ * Requires church-level access.
+ */
+export const update = mutation({
+  args: {
+    eventId: v.id("events"),
+    title: v.optional(v.string()),
+    slug: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    summary: v.optional(v.string()),
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+    location: v.optional(v.string()),
+    registrationUrl: v.optional(v.string()),
+    featured: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { eventId, ...fields }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found");
+
+    await requireChurchAccess(ctx, event.churchId);
+
+    if (fields.slug && fields.slug !== event.slug) {
+      const existing = await ctx.db
+        .query("events")
+        .withIndex("by_church_and_slug", (q) =>
+          q.eq("churchId", event.churchId).eq("slug", fields.slug!)
+        )
+        .unique();
+      if (existing) {
+        throw new Error(
+          `An event with slug "${fields.slug}" already exists in this church`
+        );
+      }
+    }
+
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) patch[key] = value;
+    }
+
+    await ctx.db.patch(eventId, patch);
+    return eventId;
+  },
+});

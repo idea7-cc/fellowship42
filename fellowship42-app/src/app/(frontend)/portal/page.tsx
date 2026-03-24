@@ -1,6 +1,14 @@
 import Link from 'next/link'
 
 import { joinGroupAction, startCourseAction } from '@/app/(frontend)/portal/actions'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { CardGrid } from '@/components/card-grid'
+import { Eyebrow } from '@/components/eyebrow'
+import { Hero, HeroActions } from '@/components/hero'
+import { PageShell } from '@/components/page-shell'
+import { Section } from '@/components/section'
 import { SignOutButton } from '@/components/SignOutButton'
 import { getPortalDashboard } from '@/lib/portal'
 import { requireSessionUser } from '@/lib/session'
@@ -13,169 +21,189 @@ export default async function PortalPage() {
 
   if (!portal) {
     return (
-      <div className="site-shell">
-        <section className="section">
-          <div className="section-heading">
+      <PageShell>
+        <Section>
+          <div className="grid gap-2">
             <h1>Portal unavailable</h1>
             <p>Your account needs a church and person record before the portal can load.</p>
-            <div className="hero-actions">
-              <Link className="button secondary" href="/">
-                Back to site
-              </Link>
+            <HeroActions>
+              <Button asChild variant="secondary">
+                <Link href="/">Back to site</Link>
+              </Button>
               <SignOutButton />
-            </div>
+            </HeroActions>
           </div>
-        </section>
-      </div>
+        </Section>
+      </PageShell>
     )
   }
 
   const displayName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email
 
   return (
-    <div className="site-shell portal-shell">
-      <section className="section">
-        <div className="section-heading">
-          <div className="eyebrow">Member portal</div>
-          <h1>{displayName}</h1>
-          <p>
-            {portal.church.name} member workspace for groups, classes, and personal progress through
-            church training.
-          </p>
-          <div className="hero-actions">
-            <Link className="button secondary" href="/">
-              Back to site
-            </Link>
-            <SignOutButton />
-            {user.roles?.includes('ministry-leader') || user.roles?.includes('church-admin') ? (
-              <Link className="button primary" href="/portal/leader">
-                Open leader view
-              </Link>
-            ) : null}
-          </div>
-        </div>
-      </section>
+    <PageShell padBottom>
+      <Section>
+        <Eyebrow>Member portal</Eyebrow>
+        <h1>{displayName}</h1>
+        <p className="mt-2">
+          {portal.church.name} member workspace for groups, classes, and personal progress through
+          church training.
+        </p>
+        <HeroActions>
+          <Button asChild variant="secondary">
+            <Link href="/">Back to site</Link>
+          </Button>
+          <SignOutButton />
+          {user.roles?.includes('ministry-leader') || user.roles?.includes('church-admin') ? (
+            <Button asChild>
+              <Link href="/portal/leader">Open leader view</Link>
+            </Button>
+          ) : null}
+        </HeroActions>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Your groups</h2>
-          <p>Current group memberships, Sunday school classes, and recurring gatherings.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Your groups"
+        description="Current group memberships, Sunday school classes, and recurring gatherings."
+      >
+        <CardGrid>
           {portal.memberships.map((membership) => {
             const group = typeof membership.group === 'object' && membership.group ? membership.group : null
-            if (!group) {
-              return null
-            }
+            if (!group) return null
 
             return (
-              <article className="feature-card" key={membership.id}>
-                <span className="kicker">{group.groupType.replace('-', ' ')}</span>
-                <h3>{group.title}</h3>
-                <p>{group.summary}</p>
-                <p className="muted">
-                  {group.schedule}
-                  {group.location ? ` · ${group.location}` : ''}
-                </p>
-                <p className="muted">Status: {membership.status}</p>
-              </article>
+              <Card key={membership.id}>
+                <CardHeader>
+                  <Badge>{group.groupType.replace('-', ' ')}</Badge>
+                  <CardTitle>{group.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{group.summary}</CardDescription>
+                  <p className="text-sm text-muted-foreground">
+                    {group.schedule}
+                    {group.location ? ` · ${group.location}` : ''}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Status: {membership.status}</p>
+                </CardContent>
+              </Card>
             )
           })}
           {!portal.memberships.length && (
-            <article className="feature-card empty">
-              <h3>No groups joined yet</h3>
-              <p>Join a group below to start participating in classes, Bible studies, or small groups.</p>
-            </article>
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle>No groups joined yet</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Join a group below to start participating in classes, Bible studies, or small groups.
+                </CardDescription>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Discover groups</h2>
-          <p>Open-enrollment groups and classes available for this member account.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Discover groups"
+        description="Open-enrollment groups and classes available for this member account."
+      >
+        <CardGrid>
           {portal.availableGroups.map((group) => (
-            <article className="feature-card" key={group.id}>
-              <span className="kicker">{group.groupType.replace('-', ' ')}</span>
-              <h3>{group.title}</h3>
-              <p>{group.summary}</p>
-              <p className="muted">
-                {group.schedule}
-                {group.location ? ` · ${group.location}` : ''}
-              </p>
-              <form action={joinGroupAction}>
-                <input name="groupID" type="hidden" value={String(group.id)} />
-                <button className="button primary" type="submit">
-                  Join group
-                </button>
-              </form>
-            </article>
+            <Card key={group.id}>
+              <CardHeader>
+                <Badge>{group.groupType.replace('-', ' ')}</Badge>
+                <CardTitle>{group.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{group.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  {group.schedule}
+                  {group.location ? ` · ${group.location}` : ''}
+                </p>
+              </CardContent>
+              <CardFooter>
+                <form action={joinGroupAction}>
+                  <input name="groupID" type="hidden" value={String(group.id)} />
+                  <Button size="sm" type="submit">Join group</Button>
+                </form>
+              </CardFooter>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Your courses</h2>
-          <p>Track progress through membership classes, volunteer training, and discipleship content.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Your courses"
+        description="Track progress through membership classes, volunteer training, and discipleship content."
+      >
+        <CardGrid>
           {portal.enrollments.map((enrollment) => {
             const course = typeof enrollment.course === 'object' && enrollment.course ? enrollment.course : null
-            if (!course) {
-              return null
-            }
+            if (!course) return null
 
             return (
-              <article className="feature-card" key={enrollment.id}>
-                <span className="kicker">{course.deliveryMode.replace('-', ' ')}</span>
-                <h3>{course.title}</h3>
-                <p>{course.summary}</p>
-                <p className="muted">
-                  Progress: {enrollment.progressPercent}% · {enrollment.status}
-                </p>
-                <Link className="inline-link" href={`/portal/courses/${course.slug}`}>
-                  Open course
-                </Link>
-              </article>
+              <Card key={enrollment.id}>
+                <CardHeader>
+                  <Badge>{course.deliveryMode.replace('-', ' ')}</Badge>
+                  <CardTitle>{course.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{course.summary}</CardDescription>
+                  <p className="text-sm text-muted-foreground">
+                    Progress: {enrollment.progressPercent}% · {enrollment.status}
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild variant="link" size="sm">
+                    <Link href={`/portal/courses/${course.slug}`}>Open course</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
             )
           })}
           {!portal.enrollments.length && (
-            <article className="feature-card empty">
-              <h3>No active courses yet</h3>
-              <p>Start a course below to begin member onboarding or volunteer training.</p>
-            </article>
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle>No active courses yet</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>
+                  Start a course below to begin member onboarding or volunteer training.
+                </CardDescription>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Available courses</h2>
-          <p>Courses can be taken individually or as part of a group or training cohort.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Available courses"
+        description="Courses can be taken individually or as part of a group or training cohort."
+      >
+        <CardGrid>
           {portal.availableCourses.map((course) => (
-            <article className="feature-card" key={course.id}>
-              <span className="kicker">{course.courseType.replace('-', ' ')}</span>
-              <h3>{course.title}</h3>
-              <p>{course.summary}</p>
-              <p className="muted">
-                {course.duration} · {course.lessons?.length ?? 0} lessons
-              </p>
-              <form action={startCourseAction}>
-                <input name="courseID" type="hidden" value={String(course.id)} />
-                <input name="courseSlug" type="hidden" value={course.slug} />
-                <button className="button primary" type="submit">
-                  Start course
-                </button>
-              </form>
-            </article>
+            <Card key={course.id}>
+              <CardHeader>
+                <Badge>{course.courseType.replace('-', ' ')}</Badge>
+                <CardTitle>{course.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{course.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  {course.duration} · {course.lessons?.length ?? 0} lessons
+                </p>
+              </CardContent>
+              <CardFooter>
+                <form action={startCourseAction}>
+                  <input name="courseID" type="hidden" value={String(course.id)} />
+                  <input name="courseSlug" type="hidden" value={course.slug} />
+                  <Button size="sm" type="submit">Start course</Button>
+                </form>
+              </CardFooter>
+            </Card>
           ))}
-        </div>
-      </section>
-    </div>
+        </CardGrid>
+      </Section>
+    </PageShell>
   )
 }

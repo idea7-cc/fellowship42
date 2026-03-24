@@ -1,0 +1,23 @@
+{
+  "name": "fellowship42",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@fellowship42/app",
+    "dev:worker": "npm run dev --workspace=@fellowship42/worker",
+    "dev:web": "npm run dev --workspace=@fellowship42/web",
+    "dev:convex": "npx convex dev",
+    "build": "npm run build --workspace=@fellowship42/app",
+    "build:worker": "npm run build --workspace=@fellowship42/worker",
+    "build:web": "npm run build --workspace=@fellowship42/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "deploy:worker": "npm run deploy --workspace=@fellowship42/worker"
+  },
+  "devDependencies": {
+    "convex": "^1.17.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,101 @@
+/*
+ * Fellowship42 — Global styles for the React SPA
+ *
+ * Architecture:
+ *   1. Tailwind CSS v4 (preflight + theme + utilities)
+ *   2. Brand design tokens (shared @fellowship42/brand package)
+ *   3. Tailwind theme mapping (brand tokens -> Tailwind utilities)
+ *   4. Base layer (typography, global resets)
+ */
+
+/* 1. TAILWIND */
+@import 'tailwindcss';
+
+/* 2. BRAND TOKENS */
+@import '@brand/tokens.css';
+
+/* 3. TAILWIND THEME — maps brand tokens to Tailwind utility classes */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-accent-strong: var(--f42-accent-strong);
+
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* 4. BASE LAYER */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    background: var(--f42-gradient-hero);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--church-body-font, var(--font-serif));
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--church-heading-font, var(--font-serif));
+    font-weight: 700;
+    line-height: 0.95;
+  }
+
+  h1 {
+    font-size: clamp(3rem, 8vw, 5.8rem);
+    letter-spacing: -0.06em;
+  }
+
+  h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    letter-spacing: -0.04em;
+  }
+
+  h3 {
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    color: var(--muted-foreground);
+    line-height: 1.6;
+  }
+}

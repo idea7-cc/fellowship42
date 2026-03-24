@@ -1,0 +1,75 @@
+---
+/**
+ * Fellowship42 Marketing Homepage
+ *
+ * This page is built with Astro — static HTML, zero JS by default.
+ * Interactive elements (e.g. signup forms, demos) use React islands.
+ * All styling comes from the shared brand token layer.
+ */
+import Base from '../layouts/Base.astro'
+import Hero from '../components/Hero.astro'
+import FeatureCard from '../components/FeatureCard.astro'
+
+const features = [
+  {
+    title: 'People & households',
+    body: 'One record for every person. Link family members, track membership status, and manage pastoral care notes.',
+  },
+  {
+    title: 'Ministries & groups',
+    body: 'Organize by ministry, then let people join groups: Sunday school, small groups, Bible studies, and volunteer teams.',
+  },
+  {
+    title: 'Online giving',
+    body: 'Recurring gifts, fund designations, donor history, and year-end statements — all in one place.',
+  },
+  {
+    title: 'Events & facilities',
+    body: 'Publish events, accept registrations, and schedule rooms and resources without double-booking.',
+  },
+  {
+    title: 'Courses & training',
+    body: 'Build new-member classes, volunteer training, and curriculum-based discipleship with progress tracking.',
+  },
+  {
+    title: 'Church website',
+    body: 'Every church gets a branded public site with service times, sermons, events, and a page builder.',
+  },
+]
+---
+
+<Base
+  title="Fellowship42 — Run the church from one system"
+  description="Church software for ministries, members, giving, events, facilities, and public websites."
+>
+  <div class="shell">
+    <Hero
+      eyebrow="Church software that works together"
+      headline="Run the church from one system instead of five."
+      body="Fellowship42 is built for churches that need one place to manage ministries, people, contributions, events, facilities, and a visitor-ready website."
+    >
+      <a class="f42-button f42-button--primary" href="/demo">See a demo</a>
+      <a class="f42-button f42-button--secondary" href="/pricing">View pricing</a>
+    </Hero>
+
+    <section class="f42-section">
+      <div class="f42-section-heading">
+        <h2>Everything your church needs</h2>
+        <p>One platform. No integration headaches.</p>
+      </div>
+      <div class="f42-card-grid">
+        {features.map((f) => (
+          <FeatureCard title={f.title} body={f.body} />
+        ))}
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .shell {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+</style>

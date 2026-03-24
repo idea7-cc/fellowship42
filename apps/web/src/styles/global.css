@@ -1,0 +1,68 @@
+/*
+ * Fellowship42 Marketing Site — Global styles
+ *
+ * Imports the shared brand tokens and recipes from @fellowship42/brand.
+ * This keeps the marketing site visually consistent with the app while
+ * remaining free of Tailwind or any app-framework dependency.
+ */
+
+/* ── Brand tokens & recipes from shared package ─────────────────── */
+@import '@fellowship42/brand/tokens.css';
+@import '@fellowship42/brand/recipes.css';
+
+/* ── Base reset ──────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--f42-gradient-hero);
+  color: var(--foreground);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  line-height: 0.95;
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(3rem, 8vw, 5.8rem);
+  letter-spacing: -0.06em;
+}
+
+h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+h3 {
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+p {
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

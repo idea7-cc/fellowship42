@@ -1,0 +1,25 @@
+---
+/**
+ * Static feature card — renders at build time with zero JS.
+ * Uses the shared brand glass-card recipe.
+ */
+interface Props {
+  title: string
+  body: string
+}
+
+const { title, body } = Astro.props
+---
+
+<article class="f42-glass-card feature-card">
+  <h3>{title}</h3>
+  <p>{body}</p>
+</article>
+
+<style>
+  .feature-card {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1.4rem;
+  }
+</style>

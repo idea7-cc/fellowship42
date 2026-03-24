@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+.astro
+.vercel
+
+# Convex
+convex/.tmp
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Turborepo / build cache
+.turbo
+
+# Wrangler
+.wrangler
+
+# Testing
+coverage
+
+# Misc
+.fellowship42-dev-state.json

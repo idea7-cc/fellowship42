@@ -1,0 +1,39 @@
+---
+/**
+ * Static hero section — renders at build time with zero JS.
+ * Uses the shared brand recipes from @fellowship42/brand.
+ */
+interface Props {
+  eyebrow?: string
+  headline: string
+  body?: string
+}
+
+const { eyebrow, headline, body } = Astro.props
+---
+
+<section class="hero">
+  {eyebrow && <span class="f42-eyebrow">{eyebrow}</span>}
+  <h1>{headline}</h1>
+  {body && <p class="hero__body">{body}</p>}
+  <div class="hero__actions">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: 2rem 0 4rem;
+  }
+  .hero__body {
+    font-size: 1.25rem;
+    max-width: 52rem;
+    margin-top: 1rem;
+  }
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+  }
+</style>

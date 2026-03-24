@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+import { ChurchTheme } from '@/components/church-theme'
 import { LandingPageRenderer, type LandingBlock } from '@/components/LandingPageRenderer'
 import { getMinistryLandingPageData } from '@/lib/landing-pages'
-import { themeStyleVars } from '@/lib/theme'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,10 @@ export default async function MinistryLandingPage({ params }: Args) {
   }
 
   return (
-    <div className="church-site landing-page" style={themeStyleVars(data.theme)}>
+    <ChurchTheme
+      className="mx-auto max-w-[1200px] px-5"
+      theme={data.themeInput}
+    >
       <LandingPageRenderer
         blocks={data.landingPage?.blocks as LandingBlock[] | undefined}
         church={data.church}
@@ -46,6 +49,6 @@ export default async function MinistryLandingPage({ params }: Args) {
         relatedCourses={data.relatedCourses}
         relatedGroups={data.relatedGroups}
       />
-    </div>
+    </ChurchTheme>
   )
 }

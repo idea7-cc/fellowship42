@@ -1,4 +1,17 @@
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { CardGrid } from '@/components/card-grid'
+import { Eyebrow } from '@/components/eyebrow'
+import { Hero, HeroActions } from '@/components/hero'
+import { Section } from '@/components/section'
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
 
 export type LandingBlock = Record<string, unknown> & {
   blockType?: string
@@ -24,7 +37,11 @@ type BasicEntity = Record<string, unknown> & {
   id: number | string
   lessons?: Lesson[] | null
   location?: string | null
-  ministry?: number | string | { id?: number | string | null; slug?: string | null; title?: string | null } | null
+  ministry?:
+    | number
+    | string
+    | { id?: number | string | null; slug?: string | null; title?: string | null }
+    | null
   openEnrollment?: boolean | null
   schedule?: string | null
   slug?: string | null
@@ -80,9 +97,15 @@ type PersonCard = {
   membershipStatus?: string | null
 }
 
-const readArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
 
-const personName = (person: PersonCard) => [person.firstName, person.lastName].filter(Boolean).join(' ')
+const readArray = <T,>(value: unknown): T[] =>
+  Array.isArray(value) ? (value as T[]) : []
+
+const personName = (person: PersonCard) =>
+  [person.firstName, person.lastName].filter(Boolean).join(' ')
 
 const getFeedLink = ({
   churchSlug,
@@ -93,24 +116,27 @@ const getFeedLink = ({
   feedType: string
   item: RelatedFeedItem
 }) => {
-  if (feedType === 'groups' && item.slug) {
-    return `/churches/${churchSlug}/groups/${item.slug}`
-  }
-
-  if (feedType === 'courses' && item.slug) {
-    return `/churches/${churchSlug}/courses/${item.slug}`
-  }
-
-  if (feedType === 'events') {
-    return item.registrationUrl ? String(item.registrationUrl) : null
-  }
-
-  if (feedType === 'sermons') {
-    return item.videoUrl ? String(item.videoUrl) : null
-  }
-
+  if (feedType === 'groups' && item.slug) return `/churches/${churchSlug}/groups/${item.slug}`
+  if (feedType === 'courses' && item.slug) return `/churches/${churchSlug}/courses/${item.slug}`
+  if (feedType === 'events') return item.registrationUrl ? String(item.registrationUrl) : null
+  if (feedType === 'sermons') return item.videoUrl ? String(item.videoUrl) : null
   return null
 }
+
+/** Cards inside a landing page use a slightly lighter church surface */
+const landingCardStyle: CSSProperties = {
+  background: 'color-mix(in srgb, var(--card) 82%, white 18%)',
+}
+
+/** Signup card uses a subtle accent gradient */
+const signupCardStyle: CSSProperties = {
+  background:
+    'linear-gradient(145deg, color-mix(in srgb, var(--primary) 8%, white 92%), color-mix(in srgb, var(--card) 88%, white 12%))',
+}
+
+/* ------------------------------------------------------------------ */
+/* Block renderer                                                      */
+/* ------------------------------------------------------------------ */
 
 const renderBlock = ({
   block,
@@ -124,186 +150,274 @@ const renderBlock = ({
   switch (block.blockType) {
     case 'hero':
       return (
-        <section className="landing-hero landing-block" key={block.id || `hero-${index}`}>
-          {block.eyebrow ? <div className="eyebrow">{String(block.eyebrow)}</div> : null}
-          <h1>{String(block.headline || '')}</h1>
-          {block.body ? <p className="lede">{String(block.body)}</p> : null}
-          <div className="hero-actions">
-            {block.primaryLabel && block.primaryHref ? (
-              <a className="button primary" href={String(block.primaryHref)}>
-                {String(block.primaryLabel)}
-              </a>
+        <div className={index > 0 ? 'mt-8' : ''} key={block.id || `hero-${index}`}>
+          <Hero variant="landing">
+            {block.eyebrow ? <Eyebrow>{String(block.eyebrow)}</Eyebrow> : null}
+            <h1>{String(block.headline || '')}</h1>
+            {block.body ? (
+              <p className="mt-4 max-w-[52rem] text-lg">{String(block.body)}</p>
             ) : null}
-            {block.secondaryLabel && block.secondaryHref ? (
-              <a className="button secondary" href={String(block.secondaryHref)}>
-                {String(block.secondaryLabel)}
-              </a>
-            ) : null}
-          </div>
-        </section>
+            <HeroActions>
+              {block.primaryLabel && block.primaryHref ? (
+                <Button asChild>
+                  <a href={String(block.primaryHref)}>{String(block.primaryLabel)}</a>
+                </Button>
+              ) : null}
+              {block.secondaryLabel && block.secondaryHref ? (
+                <Button asChild variant="secondary">
+                  <a href={String(block.secondaryHref)}>{String(block.secondaryLabel)}</a>
+                </Button>
+              ) : null}
+            </HeroActions>
+          </Hero>
+        </div>
       )
+
     case 'copy':
       return (
-        <section className="section landing-block" key={block.id || `copy-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || '')}</h2>
-            <p>{String(block.body || '')}</p>
-          </div>
-        </section>
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          description={String(block.body || '')}
+          key={block.id || `copy-${index}`}
+          title={String(block.title || '')}
+        />
       )
+
     case 'featureList':
       return (
-        <section className="section landing-block" key={block.id || `feature-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || '')}</h2>
-            {block.intro ? <p>{String(block.intro)}</p> : null}
-          </div>
-          <div className="card-grid">
-            {readArray<{ body: string; title: string }>(block.items).map((item, itemIndex: number) => (
-              <article className="feature-card" key={`${block.id || index}-${itemIndex}`}>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          description={block.intro ? String(block.intro) : undefined}
+          key={block.id || `feature-${index}`}
+          title={String(block.title || '')}
+        >
+          <CardGrid>
+            {readArray<{ body: string; title: string }>(block.items).map(
+              (item, itemIndex: number) => (
+                <Card key={`${block.id || index}-${itemIndex}`} style={landingCardStyle}>
+                  <CardHeader>
+                    <CardTitle>{item.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>{item.body}</CardDescription>
+                  </CardContent>
+                </Card>
+              ),
+            )}
+          </CardGrid>
+        </Section>
       )
+
     case 'cta':
       return (
-        <section className="section landing-block" key={block.id || `cta-${index}`}>
-          <article className="feature-card cta-card">
-            <h2>{String(block.title || '')}</h2>
-            {block.body ? <p>{String(block.body)}</p> : null}
-            <a className="button primary" href={String(block.href || '#')}>
-              {String(block.label || 'Learn more')}
-            </a>
-          </article>
-        </section>
+        <Section className={index > 0 ? 'mt-8' : ''} key={block.id || `cta-${index}`}>
+          <Card className="items-start" style={landingCardStyle}>
+            <CardHeader>
+              <h2>{String(block.title || '')}</h2>
+            </CardHeader>
+            <CardContent>
+              {block.body ? <CardDescription>{String(block.body)}</CardDescription> : null}
+            </CardContent>
+            <CardFooter>
+              <Button asChild>
+                <a href={String(block.href || '#')}>{String(block.label || 'Learn more')}</a>
+              </Button>
+            </CardFooter>
+          </Card>
+        </Section>
       )
+
     case 'faq':
       return (
-        <section className="section landing-block" key={block.id || `faq-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || '')}</h2>
-          </div>
-          <div className="card-grid">
-            {readArray<{ answer: string; question: string }>(block.questions).map((item, itemIndex: number) => (
-              <article className="feature-card" key={`${block.id || index}-${itemIndex}`}>
-                <h3>{item.question}</h3>
-                <p>{item.answer}</p>
-              </article>
-            ))}
-          </div>
-        </section>
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          key={block.id || `faq-${index}`}
+          title={String(block.title || '')}
+        >
+          <CardGrid>
+            {readArray<{ answer: string; question: string }>(block.questions).map(
+              (item, itemIndex: number) => (
+                <Card key={`${block.id || index}-${itemIndex}`} style={landingCardStyle}>
+                  <CardHeader>
+                    <CardTitle>{item.question}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription>{item.answer}</CardDescription>
+                  </CardContent>
+                </Card>
+              ),
+            )}
+          </CardGrid>
+        </Section>
       )
+
     case 'testimonials':
       return (
-        <section className="section landing-block" key={block.id || `testimonials-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || '')}</h2>
-            {block.intro ? <p>{String(block.intro)}</p> : null}
-          </div>
-          <div className="card-grid">
-            {readArray<{ name: string; quote: string; role?: string }>(block.items).map((item, itemIndex: number) => (
-              <article className="feature-card quote-card" key={`${block.id || index}-${itemIndex}`}>
-                <p className="quote-card__quote">&ldquo;{item.quote}&rdquo;</p>
-                <div className="mini-stack">
-                  <strong>{item.name}</strong>
-                  {item.role ? <span className="muted">{item.role}</span> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          description={block.intro ? String(block.intro) : undefined}
+          key={block.id || `testimonials-${index}`}
+          title={String(block.title || '')}
+        >
+          <CardGrid>
+            {readArray<{ name: string; quote: string; role?: string }>(block.items).map(
+              (item, itemIndex: number) => (
+                <Card key={`${block.id || index}-${itemIndex}`} style={landingCardStyle}>
+                  <CardContent>
+                    <p className="text-base text-foreground">&ldquo;{item.quote}&rdquo;</p>
+                    <div className="grid gap-1">
+                      <strong className="text-sm">{item.name}</strong>
+                      {item.role ? (
+                        <span className="text-sm text-muted-foreground">{item.role}</span>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              ),
+            )}
+          </CardGrid>
+        </Section>
       )
+
     case 'leaderCards':
       return (
-        <section className="section landing-block" key={block.id || `leaders-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || '')}</h2>
-            {block.intro ? <p>{String(block.intro)}</p> : null}
-          </div>
-          <div className="card-grid">
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          description={block.intro ? String(block.intro) : undefined}
+          key={block.id || `leaders-${index}`}
+          title={String(block.title || '')}
+        >
+          <CardGrid>
             {readArray<PersonCard>(block.leaders).map((person, itemIndex: number) => (
-              <article className="feature-card" key={`${block.id || index}-${itemIndex}`}>
-                <span className="kicker">{String(person.membershipStatus || 'leader').replace('-', ' ')}</span>
-                <h3>{personName(person) || 'Leader'}</h3>
-                {person.email ? <p>{person.email}</p> : <p>Connect with a ministry leader through the church office.</p>}
-              </article>
+              <Card key={`${block.id || index}-${itemIndex}`} style={landingCardStyle}>
+                <CardHeader>
+                  <Badge>
+                    {String(person.membershipStatus || 'leader').replace('-', ' ')}
+                  </Badge>
+                  <CardTitle>{personName(person) || 'Leader'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>
+                    {person.email
+                      ? person.email
+                      : 'Connect with a ministry leader through the church office.'}
+                  </CardDescription>
+                </CardContent>
+              </Card>
             ))}
-          </div>
-        </section>
+          </CardGrid>
+        </Section>
       )
+
     case 'signupForm':
       return (
-        <section className="section landing-block" key={block.id || `signup-${index}`}>
-          <article className="feature-card cta-card signup-card">
-            <span className="kicker">{String(block.formType || 'next step').replace('-', ' ')}</span>
-            <h2>{String(block.title || '')}</h2>
-            {block.body ? <p>{String(block.body)}</p> : null}
-            <div className="hero-actions">
-              {block.buttonLabel && block.buttonHref ? (
-                <a className="button primary" href={String(block.buttonHref)}>
-                  {String(block.buttonLabel)}
-                </a>
+        <Section className={index > 0 ? 'mt-8' : ''} key={block.id || `signup-${index}`}>
+          <Card className="items-start" style={signupCardStyle}>
+            <CardHeader>
+              <Badge>
+                {String(block.formType || 'next step').replace('-', ' ')}
+              </Badge>
+              <h2>{String(block.title || '')}</h2>
+            </CardHeader>
+            <CardContent>
+              {block.body ? <CardDescription>{String(block.body)}</CardDescription> : null}
+              <HeroActions className="mt-0">
+                {block.buttonLabel && block.buttonHref ? (
+                  <Button asChild>
+                    <a href={String(block.buttonHref)}>{String(block.buttonLabel)}</a>
+                  </Button>
+                ) : null}
+                {block.emailDestination ? (
+                  <Button asChild variant="secondary">
+                    <a href={`mailto:${String(block.emailDestination)}`}>Email the team</a>
+                  </Button>
+                ) : null}
+              </HeroActions>
+              {block.helperText ? (
+                <p className="text-sm text-muted-foreground">{String(block.helperText)}</p>
               ) : null}
-              {block.emailDestination ? (
-                <a className="button secondary" href={`mailto:${String(block.emailDestination)}`}>
-                  Email the team
-                </a>
-              ) : null}
-            </div>
-            {block.helperText ? <p className="muted">{String(block.helperText)}</p> : null}
-          </article>
-        </section>
+            </CardContent>
+          </Card>
+        </Section>
       )
+
     case 'relatedFeed': {
       const feedType = String(block.feedType || '')
       const items = readArray<RelatedFeedItem>(block.resolvedItems)
 
-      if (!items.length) {
-        return null
-      }
+      if (!items.length) return null
 
       return (
-        <section className="section landing-block" key={block.id || `feed-${index}`}>
-          <div className="section-heading">
-            <h2>{String(block.title || 'Related content')}</h2>
-            {block.intro ? <p>{String(block.intro)}</p> : null}
-          </div>
-          <div className="card-grid">
+        <Section
+          className={index > 0 ? 'mt-8' : ''}
+          description={block.intro ? String(block.intro) : undefined}
+          key={block.id || `feed-${index}`}
+          title={String(block.title || 'Related content')}
+        >
+          <CardGrid>
             {items.map((item, itemIndex: number) => {
-              const href = getFeedLink({
-                churchSlug: church.slug,
-                feedType,
-                item,
-              })
+              const href = getFeedLink({ churchSlug: church.slug, feedType, item })
 
               return (
-                <article className="feature-card" key={`${block.id || index}-${item.id || itemIndex}`}>
-                  <span className="kicker">{feedType.replace('-', ' ')}</span>
-                  <h3>{String(item.title || 'Untitled')}</h3>
-                  {item.summary ? <p>{String(item.summary)}</p> : null}
-                  {item.startDate ? <p className="muted">{new Date(String(item.startDate)).toLocaleDateString()}</p> : null}
-                  {item.preachedAt ? <p className="muted">{new Date(String(item.preachedAt)).toLocaleDateString()}</p> : null}
-                  {item.location ? <p className="muted">{String(item.location)}</p> : null}
-                  {item.speaker ? <p className="muted">{String(item.speaker)}</p> : null}
+                <Card
+                  key={`${block.id || index}-${item.id || itemIndex}`}
+                  style={landingCardStyle}
+                >
+                  <CardHeader>
+                    <Badge>{feedType.replace('-', ' ')}</Badge>
+                    <CardTitle>{String(item.title || 'Untitled')}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {item.summary ? (
+                      <CardDescription>{String(item.summary)}</CardDescription>
+                    ) : null}
+                    {item.startDate ? (
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(String(item.startDate)).toLocaleDateString()}
+                      </p>
+                    ) : null}
+                    {item.preachedAt ? (
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(String(item.preachedAt)).toLocaleDateString()}
+                      </p>
+                    ) : null}
+                    {item.location ? (
+                      <p className="text-sm text-muted-foreground">{String(item.location)}</p>
+                    ) : null}
+                    {item.speaker ? (
+                      <p className="text-sm text-muted-foreground">{String(item.speaker)}</p>
+                    ) : null}
+                  </CardContent>
                   {href ? (
-                    <a className="inline-link" href={href}>
-                      Open {feedType === 'events' ? 'registration' : feedType === 'sermons' ? 'message' : 'page'}
-                    </a>
+                    <CardFooter>
+                      <Button asChild size="sm" variant="link">
+                        <a href={href}>
+                          Open{' '}
+                          {feedType === 'events'
+                            ? 'registration'
+                            : feedType === 'sermons'
+                              ? 'message'
+                              : 'page'}
+                        </a>
+                      </Button>
+                    </CardFooter>
                   ) : null}
-                </article>
+                </Card>
               )
             })}
-          </div>
-        </section>
+          </CardGrid>
+        </Section>
       )
     }
+
     default:
       return null
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Main component                                                      */
+/* ------------------------------------------------------------------ */
 
 export function LandingPageRenderer({
   blocks,
@@ -314,156 +428,172 @@ export function LandingPageRenderer({
   relatedGroups = [],
 }: LandingPageRendererProps) {
   const entityLabel =
-    pageType === 'ministry' ? 'Ministry landing page' : pageType === 'group' ? 'Group landing page' : 'Course landing page'
+    pageType === 'ministry'
+      ? 'Ministry landing page'
+      : pageType === 'group'
+        ? 'Group landing page'
+        : 'Course landing page'
 
   const hasCustomBlocks = Boolean(blocks?.length)
 
   return (
-    <div className="landing-shell">
+    <div className="py-8 pb-16">
       {hasCustomBlocks ? (
-        blocks?.map((block, index) =>
-          renderBlock({
-            block,
-            church,
-            index,
-          }),
-        )
+        blocks?.map((block, index) => renderBlock({ block, church, index }))
       ) : (
-        <section className="landing-hero">
-          <div className="eyebrow">{entityLabel}</div>
+        <Hero variant="landing">
+          <Eyebrow>{entityLabel}</Eyebrow>
           <h1>{String(entity.title || '')}</h1>
-          <p className="lede">{String(entity.summary || '')}</p>
-          <div className="hero-actions">
+          <p className="mt-4 max-w-[52rem] text-lg">{String(entity.summary || '')}</p>
+          <HeroActions>
             {church.givingUrl ? (
-              <a className="button primary" href={church.givingUrl}>
-                Give online
-              </a>
+              <Button asChild>
+                <a href={church.givingUrl}>Give online</a>
+              </Button>
             ) : null}
-            <Link className="button secondary" href={`/churches/${church.slug}`}>
-              Back to church
-            </Link>
-          </div>
-        </section>
+            <Button asChild variant="secondary">
+              <Link href={`/churches/${church.slug}`}>Back to church</Link>
+            </Button>
+          </HeroActions>
+        </Hero>
       )}
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Quick details</h2>
-          <p>These default sections always inherit the church theme unless the page has scoped overrides.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        description="These default sections always inherit the church theme unless the page has scoped overrides."
+        title="Quick details"
+      >
+        <CardGrid>
           {pageType === 'ministry' ? (
             <>
-              <article className="feature-card">
-                <h3>Audience</h3>
-                <p>{String(entity.audience || '')}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Schedule</h3>
-                <p>{String(entity.schedule || '')}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Overview</h3>
-                <p>{String(entity.summary || '')}</p>
-              </article>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Audience</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.audience || '')}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Schedule</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.schedule || '')}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Overview</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.summary || '')}</CardDescription></CardContent>
+              </Card>
             </>
           ) : null}
 
           {pageType === 'group' ? (
             <>
-              <article className="feature-card">
-                <h3>Schedule</h3>
-                <p>{String(entity.schedule || '')}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Location</h3>
-                <p>{entity.location || 'Location shared after signup'}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Enrollment</h3>
-                <p>{entity.openEnrollment ? 'Open now' : 'Request to join'}</p>
-              </article>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Schedule</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.schedule || '')}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Location</CardTitle></CardHeader>
+                <CardContent><CardDescription>{entity.location || 'Location shared after signup'}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Enrollment</CardTitle></CardHeader>
+                <CardContent><CardDescription>{entity.openEnrollment ? 'Open now' : 'Request to join'}</CardDescription></CardContent>
+              </Card>
             </>
           ) : null}
 
           {pageType === 'course' ? (
             <>
-              <article className="feature-card">
-                <h3>Duration</h3>
-                <p>{String(entity.duration || '')}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Format</h3>
-                <p>{String(entity.deliveryMode || '').replace('-', ' ')}</p>
-              </article>
-              <article className="feature-card">
-                <h3>Audience</h3>
-                <p>{String(entity.audience || '')}</p>
-              </article>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Duration</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.duration || '')}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Format</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.deliveryMode || '').replace('-', ' ')}</CardDescription></CardContent>
+              </Card>
+              <Card style={landingCardStyle}>
+                <CardHeader><CardTitle>Audience</CardTitle></CardHeader>
+                <CardContent><CardDescription>{String(entity.audience || '')}</CardDescription></CardContent>
+              </Card>
             </>
           ) : null}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
       {pageType === 'ministry' && relatedGroups.length ? (
-        <section className="section">
-          <div className="section-heading">
-            <h2>Related groups</h2>
-            <p>Groups inherit church branding by default, with optional landing-page customization.</p>
-          </div>
-          <div className="card-grid">
+        <Section
+          description="Groups inherit church branding by default, with optional landing-page customization."
+          title="Related groups"
+        >
+          <CardGrid>
             {relatedGroups.map((group) => (
-              <article className="feature-card" key={group.id}>
-                <span className="kicker">{String(group.groupType || '').replace('-', ' ')}</span>
-                <h3>{String(group.title || '')}</h3>
-                <p>{String(group.summary || '')}</p>
-                <Link className="inline-link" href={`/churches/${church.slug}/groups/${group.slug || ''}`}>
-                  Open group page
-                </Link>
-              </article>
+              <Card key={group.id} style={landingCardStyle}>
+                <CardHeader>
+                  <Badge>{String(group.groupType || '').replace('-', ' ')}</Badge>
+                  <CardTitle>{String(group.title || '')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{String(group.summary || '')}</CardDescription>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild size="sm" variant="link">
+                    <Link href={`/churches/${church.slug}/groups/${group.slug || ''}`}>
+                      Open group page
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
             ))}
-          </div>
-        </section>
+          </CardGrid>
+        </Section>
       ) : null}
 
       {pageType !== 'course' && relatedCourses.length ? (
-        <section className="section">
-          <div className="section-heading">
-            <h2>Related courses</h2>
-            <p>Use courses for volunteer training, member onboarding, and curriculum-based discipleship.</p>
-          </div>
-          <div className="card-grid">
+        <Section
+          description="Use courses for volunteer training, member onboarding, and curriculum-based discipleship."
+          title="Related courses"
+        >
+          <CardGrid>
             {relatedCourses.map((course) => (
-              <article className="feature-card" key={course.id}>
-                <span className="kicker">{String(course.courseType || '').replace('-', ' ')}</span>
-                <h3>{String(course.title || '')}</h3>
-                <p>{String(course.summary || '')}</p>
-                <p className="muted">{String(course.duration || '')}</p>
-                <Link className="inline-link" href={`/churches/${church.slug}/courses/${course.slug || ''}`}>
-                  Open course page
-                </Link>
-              </article>
+              <Card key={course.id} style={landingCardStyle}>
+                <CardHeader>
+                  <Badge>{String(course.courseType || '').replace('-', ' ')}</Badge>
+                  <CardTitle>{String(course.title || '')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{String(course.summary || '')}</CardDescription>
+                  <p className="text-sm text-muted-foreground">
+                    {String(course.duration || '')}
+                  </p>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild size="sm" variant="link">
+                    <Link href={`/churches/${church.slug}/courses/${course.slug || ''}`}>
+                      Open course page
+                    </Link>
+                  </Button>
+                </CardFooter>
+              </Card>
             ))}
-          </div>
-        </section>
+          </CardGrid>
+        </Section>
       ) : null}
 
       {pageType === 'course' && entity.lessons?.length ? (
-        <section className="section">
-          <div className="section-heading">
-            <h2>Course outline</h2>
-            <p>Landing pages can add editorial content while the structured lesson list stays synchronized.</p>
-          </div>
-          <div className="card-grid">
+        <Section
+          description="Landing pages can add editorial content while the structured lesson list stays synchronized."
+          title="Course outline"
+        >
+          <CardGrid>
             {entity.lessons.map((lesson, index: number) => (
-              <article className="feature-card" key={lesson.id || `${entity.id}-${index}`}>
-                <span className="kicker">{lesson.estimatedMinutes || 15} minutes</span>
-                <h3>{String(lesson.title || '')}</h3>
-                <p>{String(lesson.summary || '')}</p>
-              </article>
+              <Card key={lesson.id || `${entity.id}-${index}`} style={landingCardStyle}>
+                <CardHeader>
+                  <Badge>{lesson.estimatedMinutes || 15} minutes</Badge>
+                  <CardTitle>{String(lesson.title || '')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{String(lesson.summary || '')}</CardDescription>
+                </CardContent>
+              </Card>
             ))}
-          </div>
-        </section>
+          </CardGrid>
+        </Section>
       ) : null}
     </div>
   )

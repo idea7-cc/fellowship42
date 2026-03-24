@@ -1,14 +1,15 @@
 import Link from 'next/link'
 
+import { Button } from '@/components/ui/button'
+
 type Props = {
-  className?: string
   label?: string
 }
 
-export function SignOutButton({ className = 'button secondary', label = 'Log out' }: Props) {
+export function SignOutButton({ label = 'Log out' }: Props) {
   return (
-    <Link className={className} href="/logout">
-      {label}
-    </Link>
+    <Button asChild variant="secondary">
+      <Link href="/logout">{label}</Link>
+    </Button>
   )
 }

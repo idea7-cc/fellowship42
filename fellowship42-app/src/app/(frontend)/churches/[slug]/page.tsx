@@ -1,8 +1,15 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import type { CSSProperties } from 'react'
 
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { CardGrid } from '@/components/card-grid'
+import { ChurchTheme } from '@/components/church-theme'
+import { Eyebrow } from '@/components/eyebrow'
+import { Hero, HeroActions } from '@/components/hero'
+import { Section } from '@/components/section'
 import { formatEventDate } from '@/lib/formatters'
 import { getChurchSiteData } from '@/lib/public-site'
 
@@ -39,178 +46,200 @@ export default async function ChurchPage({ params }: Args) {
   }
 
   const { church, ministries, groups, courses, events, sermons } = site
-  const accent = church.theme?.accent || '#b85c38'
-  const surface = church.theme?.surface || '#f4ede3'
-  const ink = church.theme?.ink || '#1d120c'
 
   return (
-    <div
-      className="church-site"
-      style={
-        {
-          ['--church-accent' as string]: accent,
-          ['--church-surface' as string]: surface,
-          ['--church-ink' as string]: ink,
-        } as CSSProperties
-      }
+    <ChurchTheme
+      className="mx-auto max-w-[1200px] px-5 py-8 pb-16"
+      theme={church.theme}
     >
-      <section className="church-hero">
-        <div className="eyebrow">Church website preview</div>
+      <Hero variant="church">
+        <Eyebrow>Church website preview</Eyebrow>
         <h1>{church.name}</h1>
-        <p className="lede">{church.tagline}</p>
-        <p>{church.summary}</p>
-        <div className="hero-actions">
+        <p className="mt-2 max-w-[52rem] text-lg">{church.tagline}</p>
+        <p className="mt-1">{church.summary}</p>
+        <HeroActions>
           {church.givingUrl ? (
-            <a className="button primary" href={church.givingUrl} rel="noreferrer" target="_blank">
-              Give online
-            </a>
+            <Button asChild>
+              <a href={church.givingUrl} rel="noreferrer" target="_blank">
+                Give online
+              </a>
+            </Button>
           ) : (
-            <Link className="button primary" href="/admin">
-              Configure giving
-            </Link>
+            <Button asChild>
+              <Link href="/admin">Configure giving</Link>
+            </Button>
           )}
-          <Link className="button secondary" href="/">
-            Back to platform
-          </Link>
-        </div>
-      </section>
+          <Button asChild variant="secondary">
+            <Link href="/">Back to platform</Link>
+          </Button>
+        </HeroActions>
+      </Hero>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Plan your visit</h2>
-          <p>
-            {church.address?.street}, {church.address?.city}, {church.address?.state}{' '}
-            {church.address?.postalCode}
-          </p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Plan your visit"
+        description={`${church.address?.street}, ${church.address?.city}, ${church.address?.state} ${church.address?.postalCode}`}
+      >
+        <CardGrid>
           {church.serviceTimes?.map((service, index) => (
-            <article className="feature-card" key={`${service.day}-${service.time}-${index}`}>
-              <h3>{service.label}</h3>
-              <p>{service.day}</p>
-              <p>{service.time}</p>
-            </article>
+            <Card key={`${service.day}-${service.time}-${index}`}>
+              <CardHeader>
+                <CardTitle>{service.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{service.day}</p>
+                <p className="text-sm text-muted-foreground">{service.time}</p>
+              </CardContent>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Featured ministries</h2>
-          <p>Use Payload to keep ministry pages and schedules current for attenders and volunteers.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Featured ministries"
+        description="Use Payload to keep ministry pages and schedules current for attenders and volunteers."
+      >
+        <CardGrid>
           {ministries.map((ministry) => (
-            <article className="feature-card" key={ministry.id}>
-              <span className="kicker">{ministry.audience}</span>
-              <h3>{ministry.title}</h3>
-              <p>{ministry.summary}</p>
-              <p className="muted">{ministry.schedule}</p>
-              <Link className="inline-link" href={`/churches/${church.slug}/ministries/${ministry.slug}`}>
-                Open landing page
-              </Link>
-            </article>
+            <Card key={ministry.id}>
+              <CardHeader>
+                <Badge>{ministry.audience}</Badge>
+                <CardTitle>{ministry.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{ministry.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">{ministry.schedule}</p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="link" size="sm">
+                  <Link href={`/churches/${church.slug}/ministries/${ministry.slug}`}>
+                    Open landing page
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Groups and classes</h2>
-          <p>
-            Ministries are the umbrella. Groups are the recurring gatherings people actually join:
-            Sunday school, small groups, Bible studies, and training cohorts.
-          </p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Groups and classes"
+        description="Ministries are the umbrella. Groups are the recurring gatherings people actually join: Sunday school, small groups, Bible studies, and training cohorts."
+      >
+        <CardGrid>
           {groups.map((group) => (
-            <article className="feature-card" key={group.id}>
-              <span className="kicker">{group.groupType.replace('-', ' ')}</span>
-              <h3>{group.title}</h3>
-              <p>{group.summary}</p>
-              <p className="muted">
-                {group.schedule}
-                {group.location ? ` · ${group.location}` : ''}
-              </p>
-              <Link className="inline-link" href={`/churches/${church.slug}/groups/${group.slug}`}>
-                Open landing page
-              </Link>
-            </article>
+            <Card key={group.id}>
+              <CardHeader>
+                <Badge>{group.groupType.replace('-', ' ')}</Badge>
+                <CardTitle>{group.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{group.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  {group.schedule}
+                  {group.location ? ` · ${group.location}` : ''}
+                </p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="link" size="sm">
+                  <Link href={`/churches/${church.slug}/groups/${group.slug}`}>
+                    Open landing page
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Courses and training</h2>
-          <p>
-            Structured training works for new-member pathways, volunteer readiness, and curriculum-based
-            discipleship.
-          </p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Courses and training"
+        description="Structured training works for new-member pathways, volunteer readiness, and curriculum-based discipleship."
+      >
+        <CardGrid>
           {courses.map((course) => (
-            <article className="feature-card" key={course.id}>
-              <span className="kicker">{course.deliveryMode.replace('-', ' ')}</span>
-              <h3>{course.title}</h3>
-              <p>{course.summary}</p>
-              <p className="muted">
-                {course.duration} · {course.audience}
-              </p>
-              <p className="muted">{course.lessons?.length ?? 0} lessons</p>
-              <Link className="inline-link" href={`/churches/${church.slug}/courses/${course.slug}`}>
-                Open landing page
-              </Link>
-            </article>
+            <Card key={course.id}>
+              <CardHeader>
+                <Badge>{course.deliveryMode.replace('-', ' ')}</Badge>
+                <CardTitle>{course.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{course.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  {course.duration} · {course.audience}
+                </p>
+                <p className="text-sm text-muted-foreground">{course.lessons?.length ?? 0} lessons</p>
+              </CardContent>
+              <CardFooter>
+                <Button asChild variant="link" size="sm">
+                  <Link href={`/churches/${church.slug}/courses/${course.slug}`}>
+                    Open landing page
+                  </Link>
+                </Button>
+              </CardFooter>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Upcoming events</h2>
-          <p>The same data model can power public promotion and internal operations.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Upcoming events"
+        description="The same data model can power public promotion and internal operations."
+      >
+        <CardGrid>
           {events.map((event) => (
-            <article className="feature-card" key={event.id}>
-              <span className="kicker">{formatEventDate(event.startDate)}</span>
-              <h3>{event.title}</h3>
-              <p>{event.summary}</p>
-              <p className="muted">{event.location}</p>
+            <Card key={event.id}>
+              <CardHeader>
+                <Badge>{formatEventDate(event.startDate)}</Badge>
+                <CardTitle>{event.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{event.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">{event.location}</p>
+              </CardContent>
               {event.registrationUrl && (
-                <a className="inline-link" href={event.registrationUrl} rel="noreferrer" target="_blank">
-                  Register
-                </a>
+                <CardFooter>
+                  <Button asChild variant="link" size="sm">
+                    <a href={event.registrationUrl} rel="noreferrer" target="_blank">
+                      Register
+                    </a>
+                  </Button>
+                </CardFooter>
               )}
-            </article>
+            </Card>
           ))}
-        </div>
-      </section>
+        </CardGrid>
+      </Section>
 
-      <section className="section">
-        <div className="section-heading">
-          <h2>Latest sermons</h2>
-          <p>Payload is also serving the publishing side of the product, not just the admin data.</p>
-        </div>
-        <div className="card-grid">
+      <Section
+        title="Latest sermons"
+        description="Payload is also serving the publishing side of the product, not just the admin data."
+      >
+        <CardGrid>
           {sermons.map((sermon) => (
-            <article className="feature-card" key={sermon.id}>
-              <span className="kicker">{sermon.series || 'Recent message'}</span>
-              <h3>{sermon.title}</h3>
-              <p>{sermon.summary}</p>
-              <p className="muted">
-                {sermon.speaker} · {formatEventDate(sermon.preachedAt)}
-              </p>
+            <Card key={sermon.id}>
+              <CardHeader>
+                <Badge>{sermon.series || 'Recent message'}</Badge>
+                <CardTitle>{sermon.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{sermon.summary}</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  {sermon.speaker} · {formatEventDate(sermon.preachedAt)}
+                </p>
+              </CardContent>
               {sermon.videoUrl && (
-                <a className="inline-link" href={sermon.videoUrl} rel="noreferrer" target="_blank">
-                  Watch sermon
-                </a>
+                <CardFooter>
+                  <Button asChild variant="link" size="sm">
+                    <a href={sermon.videoUrl} rel="noreferrer" target="_blank">
+                      Watch sermon
+                    </a>
+                  </Button>
+                </CardFooter>
               )}
-            </article>
+            </Card>
           ))}
-        </div>
-      </section>
-    </div>
+        </CardGrid>
+      </Section>
+    </ChurchTheme>
   )
 }

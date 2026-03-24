@@ -1,5 +1,5 @@
 import React from 'react'
-import './styles.css'
+import './globals.css'
 
 export const metadata = {
   description: 'Church software for ministries, members, giving, schedules, and public church websites.',

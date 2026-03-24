@@ -7,7 +7,7 @@ import {
   type LandingPageOwnerCollection,
   type LandingPageType,
 } from '@/lib/landing-page-urls'
-import { resolveThemeTokens } from '@/lib/theme'
+import { resolveTheme, type ChurchThemeInput } from '@/brand'
 
 type EntityCollection = LandingPageOwnerCollection
 type EntityDoc = Record<string, unknown> & {
@@ -49,7 +49,7 @@ type LandingPageContext = {
   publicPath: string
   relatedCourses: EntityDoc[]
   relatedGroups: EntityDoc[]
-  theme: ReturnType<typeof resolveThemeTokens>
+  themeInput: ChurchThemeInput
 }
 
 const readArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
@@ -479,10 +479,12 @@ const buildLandingPageContext = async ({
     }),
     relatedCourses: relatedCourses.docs as EntityDoc[],
     relatedGroups: relatedGroups.docs as EntityDoc[],
-    theme: resolveThemeTokens({
-      churchTheme: church.theme as Record<string, unknown>,
-      overrides: resolvedLandingPage?.themeMode === 'custom' ? (resolvedLandingPage.themeOverrides as Record<string, unknown>) : undefined,
-    }),
+    themeInput: {
+      ...(church.theme as ChurchThemeInput),
+      ...(resolvedLandingPage?.themeMode === 'custom'
+        ? (resolvedLandingPage.themeOverrides as ChurchThemeInput)
+        : {}),
+    },
   }
 }
 
