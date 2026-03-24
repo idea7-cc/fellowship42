@@ -1,12 +1,23 @@
 # Fellowship42 Product Plan
 
 ## Summary
-Fellowship42 is planned as a unified software platform for Christian churches to manage ministries, programs, members, contributions, facilities, schedules, and public web presence.
+Fellowship42 is a multi-tenant church management platform for Christian churches
+that combines church operations, member-facing experiences, and public website
+delivery in one product.
 
-The current recommendation is to use `Payload` as the primary backend and admin framework, backed by `Postgres`, unless a concrete product requirement emerges that Payload cannot satisfy cleanly. The default burden of proof should now be on `not using Payload`, not on using it.
+The active direction is now a `Convex-first` platform with three primary
+surfaces:
+- a `Vite + React` application for church staff and members
+- an `Astro` web surface for Fellowship42 marketing and public church pages
+- a `Hono` edge API for public data access, integrations, and webhooks
+
+The product thesis has not changed: smaller and midsize churches want one modern
+system for people, groups, courses, events, giving, content, and web presence
+without the operational weight of enterprise church software.
 
 ## Quick Market Survey
-This is a high-level synthesis of visitor-behavior research and current church software positioning, not a claim of exact market share.
+This is a high-level synthesis of visitor-behavior research and current church
+software positioning, not a claim of exact market share.
 
 Churches appear to care most about these website outcomes:
 - Service times, location, and first-visit information are immediately visible.
@@ -18,7 +29,7 @@ Churches appear to care most about these software outcomes:
 - One system for people, households, giving, events, ministries, and communications.
 - Easy recurring giving, statements, and donor history.
 - Volunteer coordination, attendance, and group management.
-- Facility scheduling and conflict-free room/resource booking.
+- Facility scheduling and conflict-free room and resource booking.
 - Low setup and training overhead for small and mid-size staff teams.
 
 Sources:
@@ -29,168 +40,198 @@ Sources:
 - https://equip.subsplash.com/groups-and-messaging
 
 ## Product Direction
-- Primary target: U.S. Protestant/Evangelical churches with lean admin teams.
-- Product shape: unified platform, not a loose integration hub.
-- Delivery strategy: responsive web first, mobile app later.
-- Core promise: one system of record for church operations plus a strong public-facing website.
+- Primary target: U.S. Protestant and Evangelical churches with lean admin teams.
+- Product shape: one platform, not a loose integration hub.
+- Delivery strategy: responsive web first, mobile later.
+- Core promise: one church-scoped system of record plus a strong public-facing website.
+- Operating principle: multi-tenant by default, with church-specific branding and publishing.
 
-## Payload Decision
-### Recommendation
-Use `Payload + Postgres` as the default architecture for v1 planning.
+## Architecture Decision
+### Decision
+Use `Convex + Hono + Vite React + Astro` as the default architecture for active
+planning and implementation.
 
-### Why Payload fits this product
-Payload is not just a publishing CMS. It is a `Next.js-native backend, admin UI, API layer, auth layer, and application framework` that already supports many of the primitives this product needs:
+### Why this stack fits the product
+Fellowship42 is no longer best modeled as a CMS-centered application. The
+product now clearly spans:
+- operational workflows for staff and ministry leaders
+- member-facing application screens
+- public church websites and marketing pages
+- background automation and integration entry points
 
-- Code-defined schemas and generated admin for CRUD-heavy church records
-- REST, GraphQL, and Local API access for web and future mobile clients
-- Auth and role-based access control for staff, finance, ministry leaders, and members
-- Hooks and custom endpoints for domain-specific workflows
-- Jobs queue and scheduling for reminders, statements, and follow-up flows
-- File/media handling for sermons, images, and documents
-- Custom admin components when default collection views are not enough
-- Postgres support as a first-class option
+The current stack fits that shape well:
+- `Convex` provides the primary data model, auth integration point, file storage,
+  real-time subscriptions, and server functions.
+- `Vite + React` gives the main app a fast, flexible SPA runtime for dashboards,
+  forms, and church-scoped admin workflows.
+- `Astro` keeps public pages fast, SEO-friendly, and easy to compose while still
+  allowing React islands where interactivity is needed.
+- `Hono` on `Cloudflare Workers` gives a narrow edge API for public endpoints,
+  webhooks, and server-side integration logic that should not live in the browser.
 
-Payload references:
-- https://payloadcms.com/docs/getting-started/installation/
-- https://payloadcms.com/docs/access-control/collections/
-- https://payloadcms.com/docs/authentication/operations/
-- https://payloadcms.com/docs/jobs-queue/overview
-- https://payloadcms.com/docs/rest-api/overview
+### Why the old Payload direction is no longer the default
+The previous Payload and Postgres recommendation made sense when the product was
+framed more like a single application with CMS-style administration. That is no
+longer the primary shape of the codebase or the product.
 
-### Why Postgres is the right database default
-For this product, `Postgres` is a better fit than `MongoDB` unless the product intentionally prioritizes document flexibility over relational correctness.
+The decisive shifts are:
+- realtime app behavior is now a first-class primitive
+- the backend is intentionally decoupled from a `Next.js` runtime
+- the system is split into distinct product surfaces with one shared backend
+- custom domain logic and church-scoped access control are central, not secondary
 
-Postgres advantages for this use case:
-- Households, members, ministries, rooms, events, registrations, funds, and donations are relational by nature.
-- Financial records benefit from stronger transactional guarantees and clearer constraints.
-- Reporting, exports, statements, reconciliation, and year-end summaries are more natural in SQL.
-- Deduplication, uniqueness, and cross-entity integrity are easier to enforce.
-- Facility scheduling and conflict detection rely heavily on structured querying.
+## Product Surfaces
+### Church App
+Purpose:
+- primary application for staff, ministry leaders, finance users, and members
+- place where operational workflows live
 
-MongoDB would make more sense if one or more of these became dominant product needs:
-- Highly dynamic, per-church document structures with minimal normalization
-- Extremely document-centric developer preferences on the team
-- Large denormalized activity/event streams as the core data model
+Current implementation target:
+- `apps/app`
+- `React 19`
+- `Vite`
+- `React Router`
+- `Convex React hooks`
 
-None of those are currently the center of this product.
+Core responsibilities:
+- dashboard and church overview
+- people and households
+- ministries and groups
+- courses and enrollments
+- events and sermons
+- contributions and finance access
+- landing pages and church theme management
 
-### What would justify not using Payload
-Do not reject Payload because it is "a CMS." Reject it only if a real requirement points away from it.
+### Public Web Surface
+Purpose:
+- Fellowship42 marketing presence
+- public church pages and SEO-sensitive content
 
-The strongest reasons to avoid Payload would be:
-- Realtime query subscriptions become a first-class product primitive across most screens.
-- The system needs a backend runtime shape that should not be coupled to `Next.js`.
-- The app requires extensive custom workflow execution or event-driven infrastructure that would be awkward to express through Payload hooks, endpoints, jobs, and admin extensions.
-- The team explicitly wants to avoid adopting Payload's conventions as the backbone of the platform.
+Current implementation target:
+- `apps/web`
+- `Astro 5`
+- shared `@fellowship42/brand` tokens and presets
 
-At the moment, none of those look strong enough to outweigh the leverage Payload provides.
+Core responsibilities:
+- product marketing
+- church profile pages
+- public ministry, event, sermon, and giving pages
+- plan-your-visit and conversion-oriented landing pages
 
-## What should live in Payload
-These domains fit well in Payload as first-class collections, globals, hooks, and custom endpoints:
-- Churches and settings
-- Users, roles, permissions, and member accounts
-- People and households
-- Ministries, programs, groups, Sunday school classes, and volunteer teams
-- Courses, curriculum libraries, and training enrollments
-- Events, registrations, calendars, rooms, and resources
-- Donations, funds, campaigns, recurring gifts, and statements metadata
-- Pages, sermons, media, forms, and public website content
-- Communications, templates, and workflow/job definitions
+### Edge API and Integrations
+Purpose:
+- public API routes that should not be exposed directly from the browser
+- webhook ingestion and future integration orchestration
 
-The likely split is not "Payload for content, custom backend for operations."
-The better default is:
-- Payload owns the primary data model, admin foundation, API layer, and auth
-- Custom React UI is added where the default admin experience is not enough
-- Custom endpoints, hooks, and jobs handle domain logic that should not remain generic CRUD
+Current implementation target:
+- `apps/worker`
+- `Hono`
+- `Cloudflare Workers`
+- server-side calls into the `Convex` HTTP API
 
-## What should be custom even if Payload is the backend
-Using Payload does not mean the entire product should look like a stock CMS admin.
+Core responsibilities:
+- public church API responses
+- Clerk and Stripe webhook handling
+- future rate limiting, caching, and integration endpoints
 
-These areas will likely need custom application UI or custom backend logic:
-- Calendar and facility scheduling UX
-- Volunteer roster and assignment views
-- Member self-service portal
-- Check-in or kiosk flows
-- Reporting dashboards
-- Payment reconciliation and giving statement generation
-- Website theme system and church-specific starter templates
+## Core Domain Model
+The current Convex schema centers on church-scoped multi-tenant records.
 
-Payload should be treated as the foundation, not as a limit on product design.
+Primary domains already represented in the active schema:
+- churches and theming
+- users and church access
+- people
+- ministries
+- groups and group memberships
+- group sessions and attendance records
+- courses and course enrollments
+- events
+- sermons
+- facilities
+- contributions
+- media
+- landing pages
+
+Product implication:
+- Fellowship42 should be treated as an operations platform with integrated
+  publishing, not as a content system with a few church admin extensions.
 
 ## Recommended Tech Stack
-- Framework: `Next.js` with `Payload`
+- Backend platform: `Convex Cloud`
+- Edge API: `Hono` on `Cloudflare Workers`
+- App UI: `Vite + React 19`
+- Public site: `Astro 5`
 - Language: `TypeScript`
-- Database: `Postgres`
-- ORM / DB layer: Payload's Postgres adapter and direct SQL only where justified
-- Object storage: `Cloudflare R2`
-- Hosting target: `Cloudflare` first
+- Styling: `Tailwind CSS v4`
+- Component base: owned `shadcn/ui` source in the app workspace
+- Shared brand system: `@fellowship42/brand`
+- Auth provider target: `Clerk`
 - Payments: `Stripe`
-- Email: `Postmark` or `Resend`
-- SMS: `Twilio`
-- Analytics / errors: `PostHog` and `Sentry`
+- Object storage: `Convex storage` first, with `Cloudflare R2` still viable for future external asset needs
+- Analytics and errors: `PostHog` and `Sentry`
+- Messaging: `Twilio` for SMS when needed
 
 ## Deployment and Infrastructure
 ### Recommended default
-- App runtime: `Cloudflare Workers`
-- CDN / edge / DNS / caching: `Cloudflare`
-- File storage: `Cloudflare R2`
-- Optional narrow realtime layer later: `Cloudflare Durable Objects`
-- Primary database: `managed Postgres hosted outside Cloudflare`
-- Worker-to-database connectivity: `Cloudflare Hyperdrive`
+- React app on `Cloudflare Pages`
+- Astro web surface on `Cloudflare Pages`
+- Hono worker on `Cloudflare Workers`
+- Backend and data model on `Convex Cloud`
 
-### Where Postgres should be hosted
-Cloudflare does not offer a managed Postgres product. If we deploy the application primarily on Cloudflare, the practical shape is:
-- Payload app on `Cloudflare`
-- Postgres on an external managed provider
-- `Hyperdrive` between Workers and Postgres for connection management and better compatibility with Worker execution
+### Tenant model
+The default multi-tenant posture is:
+- one shared backend per environment
+- explicit `churchId` scoping in every tenant-sensitive query and mutation
+- role-based access enforced server-side
+- public queries return published-only content for unauthenticated callers
 
-### Default recommendation
-Use `Neon` for the first implementation unless a later compliance or enterprise requirement points elsewhere.
-
-Why Neon is the best default fit:
-- It is purpose-built for serverless and connection-pooled access patterns.
-- Branching is unusually useful for this product during development, staging, support, and safe testing.
-- Autoscaling fits a likely church-software traffic profile well.
-- Read replicas are available if reporting or dashboard reads need to scale later.
-
-### Good alternatives
-- `Supabase Postgres`
-  - Better if we want a more batteries-included database platform with built-in dashboard tooling and managed backups.
-  - Less opinionated toward branching workflows, but very practical.
-- `AWS RDS / Aurora Postgres`
-  - Better if we later need a more conventional enterprise production posture, tighter infrastructure control, or stronger procurement familiarity.
-  - Higher ops and platform overhead than Neon or Supabase.
-
-### Multi-tenant database model
-The starting assumption should be:
-- one primary Postgres project per environment
-- shared database, not one database per church
-- tenant isolation enforced in the application model with `church_id` / `tenant_id`
-- optional future escalation to stricter row-level security or isolated enterprise deployments only if needed
-
-This is the right default unless the business later targets very large churches or special compliance constraints.
+This should remain the default unless a later enterprise requirement forces
+isolated deployments for specific churches.
 
 ## Initial High-Level Features
 - Church profile, branding, settings, and domain management
-- Public website with page builder, sermons, events, giving, and plan-your-visit pages
-- People and household records
-- Membership and pastoral care notes
-- Ministries, programs, groups, Sunday school classes, and volunteer management
-- Online courses, curriculum libraries, and training progress
-- Events, registrations, room/resource reservations, and schedules
-- Contributions, recurring giving, funds, donor history, and statements
-- Segmented communication by ministry, group, or member status
-- Reporting and exports
-- Member portal for profile, giving history, event signups, and group participation
+- Public website presence with sermons, events, giving, and plan-your-visit pages
+- People records and church membership workflows
+- Ministries, groups, Sunday school classes, and volunteer coordination
+- Courses, curriculum, and training progress
+- Events, registrations, and scheduling
+- Contributions, donor history, and finance-scoped reporting
+- Landing pages for ministries, groups, and courses
+- Member portal for profile, participation, and self-service tasks
+
+## Delivery Priorities
+### Near-term
+- initialize and type the Convex backend locally
+- wire Clerk auth end to end
+- connect the SPA routes to live Convex data
+- replace worker placeholder routes with real Convex-backed responses
+- expand app forms for create and edit flows across core domains
+
+### Beta path
+- complete missing functions for facilities, attendance, sessions, and media
+- add church-scoped publishing and landing page editing flows
+- add webhook handling for user provisioning and contribution recording
+- seed a demo church and validate end-to-end church admin workflows
+
+### Later
+- richer workflow automation
+- deeper reporting and exports
+- more advanced facility scheduling and conflict management
+- real-time collaboration and check-in flows
+- mobile clients sharing the same backend model
 
 ## Working Assumptions
 - Initial market is U.S.-based churches.
-- Initial denominational fit is Protestant/Evangelical, even if the platform broadens later.
-- Mobile apps are not a v1 requirement.
-- Postgres is preferred over MongoDB.
-- The default question is now "how should we use Payload well?" rather than "should Payload only be a CMS?"
+- Initial denominational fit is Protestant and Evangelical, though the data model
+  should remain extensible.
+- Mobile apps are not required for v1.
+- Real-time updates are valuable enough to influence the backend choice.
+- The current question is no longer whether Fellowship42 should use a CMS-driven
+  architecture. The active question is how far the current Convex-centered
+  platform should be pushed before adding new infrastructure.
 
 ## Open Questions
-- Whether the first production Postgres host should be `Neon` or `Supabase`
-- How much of the first admin UX should use stock Payload admin views versus custom application surfaces
-- Whether donations should be modeled entirely inside Payload collections or partially separated for finance-specific services and audit boundaries
+- How far the first release should go on live online giving versus contribution recording and reporting.
+- How much church website publishing should live directly in Convex before a richer editor is built.
+- Which staff workflows most need real-time behavior in the first beta.
+- Whether future public church sites should stay inside one multi-tenant Astro surface or grow into a more specialized delivery model.

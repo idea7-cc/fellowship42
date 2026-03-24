@@ -137,7 +137,7 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 |----------|--------|
 | `docs/architecture.md` | **Complete** -- stack diagram, data flow, auth flow, dev commands, deployment targets |
 | `docs/ui-design-system.md` | **Complete** -- updated for new stack, component reference, 7 presets, token system, Convex data model, file structure |
-| `docs/fellowship42-product-plan.md` | **Outdated** -- still references Payload + Postgres as the recommended stack. Content/feature vision is still valid. |
+| `docs/fellowship42-product-plan.md` | **Complete** -- updated for the active Convex + Hono + Vite React + Astro direction. |
 | `docs/handover.md` | This document |
 
 ---
@@ -164,9 +164,7 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 
 6. **`landingPages.ts` uses `as any` casts** in the `getByOwner` function for owner ID types. This is a pragmatic workaround since the owner ID could be for different tables. Once `_generated` types are available, this could be refined.
 
-7. **Product plan document is stale.** `docs/fellowship42-product-plan.md` still recommends Payload + Postgres. The architectural direction has shifted to Convex + Hono + Vite. The feature list and market analysis are still valid, but the tech stack recommendations should be considered superseded by `docs/architecture.md`.
-
-8. **Legacy `fellowship42-app/` directory.** The old Next.js + Payload CMS app is still present on disk but excluded from the npm workspace config. It contains useful reference code (especially `LandingPageRenderer.tsx` at 601 lines and the portal action flows) but is not part of the active build.
+7. **Legacy `fellowship42-app/` directory.** The old Next.js + Payload CMS app is still present on disk but excluded from the npm workspace config. It contains useful reference code (especially `LandingPageRenderer.tsx` at 601 lines and the portal action flows) but is not part of the active build.
 
 ---
 
@@ -213,7 +211,6 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 - [ ] **File uploads** -- Convex storage API for media (church hero images, sermon audio, lesson resources)
 - [ ] **Tests** -- unit tests for Convex functions (Convex has a test harness), component tests for shadcn/ui
 - [ ] **CI/CD** -- GitHub Actions for typecheck, lint, test, and Cloudflare Pages deploy
-- [ ] **Update `docs/fellowship42-product-plan.md`** to reflect the new tech stack
 
 ### Tier 5: Stretch
 
