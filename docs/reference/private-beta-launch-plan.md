@@ -39,9 +39,9 @@ workflows in the areas above.
 - core create and update flows exist for the main operational records
 
 ### Technical
-- `npm install` completes from a clean checkout
-- `npx convex dev` runs successfully and generates typed server artifacts
-- `npm run typecheck` passes
+- `pnpm install` completes from a clean checkout
+- `pnpm dev:convex` runs successfully and generates typed server artifacts
+- `pnpm typecheck` passes
 - worker routes that are exposed publicly are backed by real data or explicitly disabled
 - auth and access control remain enforced server-side
 
@@ -54,15 +54,15 @@ workflows in the areas above.
 ## Active Workstreams
 ### 1. Infrastructure and auth
 Must complete before beta:
-- initialize Convex locally and generate `_generated` artifacts
-- configure Clerk issuer settings for Convex
+- confirm linked Convex deployment setup and regenerate `_generated` artifacts as needed
+- replace the placeholder Clerk issuer domain in `convex/auth.config.ts`
 - wire app auth providers and sign-in state
 - provision or upsert users from authenticated identity
 
 ### 2. Live data wiring
 Must complete before beta:
-- replace SPA route placeholders with `useQuery` and `useMutation` flows
-- connect worker church routes to the Convex HTTP API
+- expand the current live read routes into authenticated `useQuery` and `useMutation` flows
+- extend worker church routes beyond the current Convex-backed public reads where needed
 - validate public versus authenticated content behavior
 
 ### 3. Core CRUD coverage
@@ -91,10 +91,10 @@ Should complete before launch:
 ## Execution Order
 Follow this order unless blocked:
 
-1. `npm install` and `npx convex dev`
+1. `pnpm install` and `pnpm dev:convex`
 2. Clerk auth end to end
-3. Live SPA data wiring
-4. Worker route integration with Convex
+3. Finish protected SPA data wiring and mutation flows
+4. Expand worker route integration beyond the current live read paths
 5. Core CRUD forms and flows
 6. Missing backend domains needed by the pilot church
 7. Seed data and manual beta validation

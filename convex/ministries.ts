@@ -1,6 +1,6 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/access";
 
 /**
  * List ministries for a church.
@@ -10,19 +10,11 @@ import { requireChurchAccess } from "./lib/access";
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    if (identity) {
-      // Attempt church-access check; fall back to public view on failure
-      try {
-        await requireChurchAccess(ctx, churchId);
-        return await ctx.db
-          .query("ministries")
-          .withIndex("by_church", (q) => q.eq("churchId", churchId))
-          .collect();
-      } catch {
-        // User is authenticated but lacks access — return published only
-      }
+    if (await hasChurchAccess(ctx, churchId)) {
+      return await ctx.db
+        .query("ministries")
+        .withIndex("by_church", (q) => q.eq("churchId", churchId))
+        .collect();
     }
 
     return await ctx.db
@@ -54,12 +46,11 @@ export const getBySlug = query({
     if (ministry.status === "published") return ministry;
 
     // Draft ministries require church access
-    try {
-      await requireChurchAccess(ctx, churchId);
+    if (await hasChurchAccess(ctx, churchId)) {
       return ministry;
-    } catch {
-      return null;
     }
+
+    return null;
   },
 });
 

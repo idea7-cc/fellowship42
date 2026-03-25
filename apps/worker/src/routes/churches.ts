@@ -1,4 +1,6 @@
-import { Hono } from 'hono'
+import { Context, Hono } from 'hono'
+
+import { convexQuery } from '@/lib/convex'
 
 type Env = {
   Bindings: {
@@ -6,35 +8,70 @@ type Env = {
   }
 }
 
+type ChurchRecord = {
+  _id: string
+  slug: string
+}
+
 export const churchRoutes = new Hono<Env>()
+
+function requireConvexUrl(c: Context<Env>): string {
+  const convexUrl = c.env.CONVEX_URL?.trim()
+
+  if (!convexUrl) {
+    throw new Error('CONVEX_URL is not configured')
+  }
+
+  return convexUrl
+}
+
+async function getChurchBySlug(convexUrl: string, slug: string) {
+  return convexQuery<ChurchRecord | null>(convexUrl, 'churches:getBySlug', {
+    slug,
+  })
+}
 
 // GET /api/churches - List published churches
 churchRoutes.get('/', async (c) => {
-  // TODO: Fetch from Convex HTTP API
-  // const convexUrl = c.env.CONVEX_URL
-  // const response = await fetch(`${convexUrl}/api/query`, { ... })
+  const convexUrl = requireConvexUrl(c)
+  const churches = await convexQuery(convexUrl, 'churches:list')
+
   return c.json({
-    churches: [],
-    message: 'Connect Convex to populate church data',
+    churches,
   })
 })
 
 // GET /api/churches/:slug - Get church by slug
 churchRoutes.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  // TODO: Fetch from Convex HTTP API
+  const convexUrl = requireConvexUrl(c)
+  const church = await getChurchBySlug(convexUrl, slug)
+
+  if (!church) {
+    return c.json({ error: 'Church not found' }, 404)
+  }
+
   return c.json({
-    church: null,
-    slug,
-    message: 'Connect Convex to populate church data',
+    church,
   })
 })
 
 // GET /api/churches/:slug/ministries - List ministries
 churchRoutes.get('/:slug/ministries', async (c) => {
   const slug = c.req.param('slug')
+  const convexUrl = requireConvexUrl(c)
+  const church = await getChurchBySlug(convexUrl, slug)
+
+  if (!church) {
+    return c.json({ error: 'Church not found' }, 404)
+  }
+
+  const ministries = await convexQuery(convexUrl, 'ministries:listByChurch', {
+    churchId: church._id,
+  })
+
   return c.json({
-    ministries: [],
+    ministries,
     churchSlug: slug,
   })
 })
@@ -42,8 +79,19 @@ churchRoutes.get('/:slug/ministries', async (c) => {
 // GET /api/churches/:slug/groups - List groups
 churchRoutes.get('/:slug/groups', async (c) => {
   const slug = c.req.param('slug')
+  const convexUrl = requireConvexUrl(c)
+  const church = await getChurchBySlug(convexUrl, slug)
+
+  if (!church) {
+    return c.json({ error: 'Church not found' }, 404)
+  }
+
+  const groups = await convexQuery(convexUrl, 'groups:listByChurch', {
+    churchId: church._id,
+  })
+
   return c.json({
-    groups: [],
+    groups,
     churchSlug: slug,
   })
 })
@@ -51,8 +99,19 @@ churchRoutes.get('/:slug/groups', async (c) => {
 // GET /api/churches/:slug/events - List upcoming events
 churchRoutes.get('/:slug/events', async (c) => {
   const slug = c.req.param('slug')
+  const convexUrl = requireConvexUrl(c)
+  const church = await getChurchBySlug(convexUrl, slug)
+
+  if (!church) {
+    return c.json({ error: 'Church not found' }, 404)
+  }
+
+  const events = await convexQuery(convexUrl, 'events:listByChurch', {
+    churchId: church._id,
+  })
+
   return c.json({
-    events: [],
+    events,
     churchSlug: slug,
   })
 })
@@ -60,8 +119,19 @@ churchRoutes.get('/:slug/events', async (c) => {
 // GET /api/churches/:slug/sermons - List recent sermons
 churchRoutes.get('/:slug/sermons', async (c) => {
   const slug = c.req.param('slug')
+  const convexUrl = requireConvexUrl(c)
+  const church = await getChurchBySlug(convexUrl, slug)
+
+  if (!church) {
+    return c.json({ error: 'Church not found' }, 404)
+  }
+
+  const sermons = await convexQuery(convexUrl, 'sermons:listByChurch', {
+    churchId: church._id,
+  })
+
   return c.json({
-    sermons: [],
+    sermons,
     churchSlug: slug,
   })
 })

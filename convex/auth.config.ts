@@ -1,7 +1,10 @@
+// Replace this before enabling real Clerk auth for a deployment.
+const clerkIssuerDomain = "https://replace-me.clerk.accounts.dev";
+
 export default {
   providers: [
     {
-      domain: process.env.CLERK_JWT_ISSUER_DOMAIN!,
+      domain: clerkIssuerDomain,
       applicationID: "convex",
     },
   ],

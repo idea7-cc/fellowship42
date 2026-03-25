@@ -1,21 +1,7 @@
-import { QueryCtx, MutationCtx } from "convex/server";
-import { Id } from "../_generated/dataModel";
+import { Doc, Id } from "../_generated/dataModel";
+import { MutationCtx, QueryCtx } from "../_generated/server";
 
-/**
- * User document shape from the users table.
- * Mirrors the schema definition so helpers can inspect roles/churchIds.
- */
-export interface UserDoc {
-  _id: Id<"users">;
-  _creationTime: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  roles: string[];
-  churchIds: Id<"churches">[];
-  personId?: Id<"people">;
-  clerkId?: string;
-}
+export type UserDoc = Doc<"users">;
 
 // ── Identity helpers ────────────────────────────────────────────────────
 
@@ -32,22 +18,37 @@ export async function requireAuth(ctx: QueryCtx | MutationCtx) {
 }
 
 /**
- * Resolves the authenticated caller to a `users` document.
- * Throws if the identity has no matching row (user must be provisioned first).
+ * Returns the authenticated user's row, or `null` when the caller is either
+ * unauthenticated or not yet provisioned in the `users` table.
  */
-export async function requireUser(ctx: QueryCtx | MutationCtx): Promise<UserDoc> {
-  const identity = await requireAuth(ctx);
+export async function getCurrentUser(
+  ctx: QueryCtx | MutationCtx
+): Promise<UserDoc | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
 
-  // Clerk stores the user ID in the `subject` field of the JWT
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .unique();
 
+  return user ?? null;
+}
+
+/**
+ * Resolves the authenticated caller to a `users` document.
+ * Throws if the identity has no matching row (user must be provisioned first).
+ */
+export async function requireUser(ctx: QueryCtx | MutationCtx): Promise<UserDoc> {
+  await requireAuth(ctx);
+  const user = await getCurrentUser(ctx);
+
   if (!user) {
     throw new Error("User record not found. Please complete onboarding.");
   }
-  return user as UserDoc;
+  return user;
 }
 
 // ── Role helpers ────────────────────────────────────────────────────────
@@ -89,6 +90,22 @@ export async function requireRole(
 export function canManageChurch(user: UserDoc, churchId: Id<"churches">): boolean {
   if (isSuperAdmin(user)) return true;
   return user.churchIds.some((id) => id === churchId);
+}
+
+/**
+ * Returns `true` when the current caller is authenticated, provisioned, and
+ * authorized to access the supplied church.
+ */
+export async function hasChurchAccess(
+  ctx: QueryCtx | MutationCtx,
+  churchId: Id<"churches">
+): Promise<boolean> {
+  const user = await getCurrentUser(ctx);
+  if (!user) {
+    return false;
+  }
+
+  return canManageChurch(user, churchId);
 }
 
 /**

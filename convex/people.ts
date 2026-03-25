@@ -1,6 +1,6 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { getCurrentUser, hasChurchAccess, requireChurchAccess } from "./lib/access";
 
 /**
  * List all people belonging to a church.
@@ -10,6 +10,29 @@ export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
     await requireChurchAccess(ctx, churchId);
+    return await ctx.db
+      .query("people")
+      .withIndex("by_church", (q) => q.eq("churchId", churchId))
+      .collect();
+  },
+});
+
+/**
+ * Viewer-safe people lookup for the SPA.
+ * Returns `null` when the caller is unauthenticated or lacks church access.
+ */
+export const listByChurchForViewer = query({
+  args: { churchId: v.id("churches") },
+  handler: async (ctx, { churchId }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    if (!(await hasChurchAccess(ctx, churchId))) {
+      return null;
+    }
+
     return await ctx.db
       .query("people")
       .withIndex("by_church", (q) => q.eq("churchId", churchId))

@@ -1,4 +1,4 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireRole, requireChurchAccess } from "./lib/access";
 
@@ -28,6 +28,19 @@ export const getBySlug = query({
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .unique();
 
+    if (!church || church.status !== "published") return null;
+    return church;
+  },
+});
+
+/**
+ * Get a published church by document ID.
+ * Public — returns `null` for missing or unpublished churches.
+ */
+export const getPublishedById = query({
+  args: { churchId: v.id("churches") },
+  handler: async (ctx, { churchId }) => {
+    const church = await ctx.db.get(churchId);
     if (!church || church.status !== "published") return null;
     return church;
   },
@@ -85,7 +98,7 @@ export const create = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    await requireRole(ctx, ["super-admin", "church-admin"]);
+    await requireRole(ctx, ["church-admin"]);
 
     // Ensure slug uniqueness
     const existing = await ctx.db

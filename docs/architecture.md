@@ -40,8 +40,8 @@ fellowship42/
   docs/                 Architecture and design system docs
 ```
 
-**Workspace manager:** npm workspaces
-**Package linking:** `workspace:*` protocol
+**Workspace manager:** pnpm workspaces
+**Package linking:** `workspace:*` protocol via pnpm workspaces
 
 ---
 
@@ -145,22 +145,22 @@ All shadcn/ui components         (consume vars automatically)
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start Convex dev server (watches for schema/function changes)
-npm run dev:convex
+pnpm dev:convex
 
 # Start Vite React SPA (port 5173)
-npm run dev
+pnpm dev
 
 # Start Hono worker (port 8787)
-npm run dev:worker
+pnpm dev:worker
 
 # Start Astro marketing site (port 4321)
-npm run dev:web
+pnpm dev:web
 
 # Type-check all workspaces
-npm run typecheck
+pnpm typecheck
 ```
 
 ### Environment variables
@@ -170,7 +170,6 @@ Copy `.env.example` to `.env` and fill in:
 | Variable | Where | Purpose |
 |----------|-------|---------|
 | `VITE_CONVEX_URL` | apps/app | Convex deployment URL |
-| `CLERK_JWT_ISSUER_DOMAIN` | convex | Clerk JWT validation |
 | `CLERK_WEBHOOK_SECRET` | apps/worker | Clerk webhook verification |
 | `STRIPE_WEBHOOK_SECRET` | apps/worker | Stripe webhook verification |
 | `STRIPE_SECRET_KEY` | apps/worker | Stripe API calls |

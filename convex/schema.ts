@@ -49,7 +49,15 @@ export default defineSchema({
     firstName: v.string(),
     lastName: v.string(),
     email: v.string(),
-    roles: v.array(v.string()),
+    roles: v.array(
+      v.union(
+        v.literal("super-admin"),
+        v.literal("church-admin"),
+        v.literal("finance"),
+        v.literal("ministry-leader"),
+        v.literal("member")
+      )
+    ),
     churchIds: v.array(v.id("churches")),
     personId: v.optional(v.id("people")),
     clerkId: v.optional(v.string()),
@@ -226,6 +234,7 @@ export default defineSchema({
     summary: v.string(),
     lessons: v.array(
       v.object({
+        lessonId: v.string(),
         title: v.string(),
         summary: v.string(),
         content: v.optional(v.string()),
@@ -266,6 +275,7 @@ export default defineSchema({
   })
     .index("by_church", ["churchId"])
     .index("by_course", ["courseId"])
+    .index("by_course_and_group", ["courseId", "groupId"])
     .index("by_person", ["personId"])
     .index("by_course_and_person", ["courseId", "personId"]),
 

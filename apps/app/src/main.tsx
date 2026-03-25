@@ -6,7 +6,13 @@ import { ConvexProvider, ConvexReactClient } from 'convex/react'
 import { App } from './App'
 import './globals.css'
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string)
+const convexUrl = import.meta.env.VITE_CONVEX_URL
+
+if (!convexUrl) {
+  throw new Error('Missing VITE_CONVEX_URL. Set it before starting the app.')
+}
+
+const convex = new ConvexReactClient(convexUrl)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

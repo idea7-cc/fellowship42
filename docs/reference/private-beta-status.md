@@ -16,12 +16,13 @@ As of `2026-03-24`, the repo has an active monorepo with:
 
 ## Implemented
 ### Platform shape
-- active npm workspace monorepo
+- active pnpm workspace monorepo
 - Convex backend files committed
-- Vite React app scaffold committed
+- Vite React app committed with live Convex read routes
 - Astro web surface committed
-- Hono worker scaffold committed
+- Hono worker committed with live public church reads
 - shared brand package committed
+- GitHub Actions baseline committed for typecheck and build
 
 ### Backend foundation
 - 16-table Convex schema committed
@@ -34,7 +35,8 @@ As of `2026-03-24`, the repo has an active monorepo with:
 - shared token system and 7 church presets committed
 - owned shadcn/ui primitives committed in the app workspace
 - core product components committed
-- route scaffolds committed for major app surfaces
+- dashboard, church, group, course, and event routes wired to live Convex reads
+- people route is auth-aware but still blocked on Clerk wiring
 
 ### Documentation foundation
 - architecture documentation is current
@@ -43,17 +45,19 @@ As of `2026-03-24`, the repo has an active monorepo with:
 
 ## Not Yet Completed
 ### Local environment
-- `npm install` has not yet been validated in this rewritten workspace state
-- `npx convex dev` has not yet been run in this repo state
-- generated Convex types are therefore not yet committed
+- `pnpm install` completes successfully from the current workspace state
+- `pnpm dev:convex` has not yet been run in this repo state
+- generated Convex types are committed
 
 ### Auth
 - Clerk is not wired through the SPA yet
 - user provisioning and authenticated session flows are not complete end to end
 
 ### Live data
-- SPA routes still need live Convex wiring
-- worker routes still return placeholder data in key places
+- SPA routes now have live Convex read coverage for the major browse surfaces
+- protected app flows still need Clerk and mutation wiring
+- worker church routes now read live data from Convex
+- webhook routes are explicitly disabled until verification is implemented
 
 ### Missing backend coverage
 - group session functions
@@ -67,21 +71,21 @@ As of `2026-03-24`, the repo has an active monorepo with:
 - webhook verification and operational hardening remain incomplete
 
 ## Current Beta Blockers
-- no verified local install and type generation loop
+- no verified end-to-end auth loop
 - no end-to-end auth path
 - no end-to-end live app workflow for a church admin
 - no seeded demo or pilot church validation path
 - no production-grade webhook or observability setup
 
 ## Recommended Next Order
-1. run the local install and Convex initialization loop
+1. finish Clerk and Convex auth setup for the linked deployment
 2. wire Clerk auth through the app and backend
 3. connect the SPA screens to live Convex data
-4. connect worker routes to real backend calls
+4. expand worker routes and public church pages beyond the current read paths
 5. fill in the missing backend domains required for the first pilot church
 6. build the create and edit flows needed for the pilot church workflow
 
 ## Legacy Note
-The `fellowship42-app/` directory remains in the repo as a legacy reference from
-the earlier Next.js and Payload implementation. It should be treated as source
-material for patterns and components, not as the active product runtime.
+The earlier Next.js + Payload implementation has been removed from the repo.
+Feature gaps discovered during that cleanup are captured in
+`docs/reference/legacy-payload-feature-audit.md`.

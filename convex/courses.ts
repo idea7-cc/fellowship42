@@ -1,6 +1,23 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { requireChurchScopedDocument } from "./lib/records";
+
+function assertUniqueLessonIds(
+  lessons: {
+    lessonId: string;
+  }[]
+) {
+  const lessonIds = new Set<string>();
+
+  for (const lesson of lessons) {
+    if (lessonIds.has(lesson.lessonId)) {
+      throw new Error(`Duplicate lessonId "${lesson.lessonId}" on course`);
+    }
+
+    lessonIds.add(lesson.lessonId);
+  }
+}
 
 /**
  * List courses for a church.
@@ -10,18 +27,11 @@ import { requireChurchAccess } from "./lib/access";
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    if (identity) {
-      try {
-        await requireChurchAccess(ctx, churchId);
-        return await ctx.db
-          .query("courses")
-          .withIndex("by_church", (q) => q.eq("churchId", churchId))
-          .collect();
-      } catch {
-        // Fall through to public view
-      }
+    if (await hasChurchAccess(ctx, churchId)) {
+      return await ctx.db
+        .query("courses")
+        .withIndex("by_church", (q) => q.eq("churchId", churchId))
+        .collect();
     }
 
     return await ctx.db
@@ -51,12 +61,11 @@ export const getBySlug = query({
 
     if (course.status === "published") return course;
 
-    try {
-      await requireChurchAccess(ctx, churchId);
+    if (await hasChurchAccess(ctx, churchId)) {
       return course;
-    } catch {
-      return null;
     }
+
+    return null;
   },
 });
 
@@ -92,6 +101,7 @@ export const create = mutation({
     summary: v.string(),
     lessons: v.array(
       v.object({
+        lessonId: v.string(),
         title: v.string(),
         summary: v.string(),
         content: v.optional(v.string()),
@@ -103,6 +113,15 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
+    if (args.ministryId) {
+      await requireChurchScopedDocument(
+        ctx,
+        args.ministryId,
+        args.churchId,
+        "Ministry"
+      );
+    }
+    assertUniqueLessonIds(args.lessons);
 
     const existing = await ctx.db
       .query("courses")
@@ -157,6 +176,7 @@ export const update = mutation({
     lessons: v.optional(
       v.array(
         v.object({
+          lessonId: v.string(),
           title: v.string(),
           summary: v.string(),
           content: v.optional(v.string()),
@@ -172,6 +192,17 @@ export const update = mutation({
     if (!course) throw new Error("Course not found");
 
     await requireChurchAccess(ctx, course.churchId);
+    if (fields.ministryId) {
+      await requireChurchScopedDocument(
+        ctx,
+        fields.ministryId,
+        course.churchId,
+        "Ministry"
+      );
+    }
+    if (fields.lessons) {
+      assertUniqueLessonIds(fields.lessons);
+    }
 
     if (fields.slug && fields.slug !== course.slug) {
       const existing = await ctx.db

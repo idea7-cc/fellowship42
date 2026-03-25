@@ -1,4 +1,7 @@
+import { useState } from 'react'
+import { useQuery } from 'convex/react'
 import { Link, useParams } from 'react-router-dom'
+import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
@@ -8,12 +11,25 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { asId } from '@/lib/convex'
 
 export function GroupsPage() {
   const { churchId } = useParams<{ churchId: string }>()
+  const [search, setSearch] = useState('')
+  const churchArgs = churchId ? { churchId: asId<'churches'>(churchId) } : 'skip'
+  const church = useQuery(api.churches.getPublishedById, churchArgs)
+  const groups = useQuery(api.groups.listByChurch, churchArgs)
+  const filteredGroups =
+    groups?.filter((group) => {
+      const query = search.trim().toLowerCase()
+      if (!query) {
+        return true
+      }
 
-  // TODO: Replace with useQuery(api.groups.list, { churchId }) once Convex is connected
-  const groups: { _id: string; name: string; description?: string; memberCount?: number; type?: string }[] = []
+      return [group.title, group.summary, group.groupType, group.schedule, group.location]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query))
+    }) ?? []
 
   return (
     <PageShell>
@@ -28,49 +44,68 @@ export function GroupsPage() {
       <Section>
         <Eyebrow>Groups</Eyebrow>
         <h1>Groups &amp; teams</h1>
-        <p className="mt-2">Small groups, teams, and committees</p>
+        <p className="mt-2">
+          {church ? `Published groups for ${church.name}` : 'Published groups and teams'}
+        </p>
       </Section>
 
       <Section>
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <Input placeholder="Search groups..." className="max-w-sm" />
-          <Button size="sm">Create group</Button>
-        </div>
+        {groups === undefined ? (
+          <Card className="flex flex-col items-center justify-center border-dashed p-8">
+            <CardContent>
+              <p className="text-center text-muted-foreground">Loading groups...</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <Input
+                placeholder="Search groups..."
+                className="max-w-sm"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Button size="sm" disabled>
+                Group creation requires auth
+              </Button>
+            </div>
 
-        {groups.length > 0 ? (
+        {filteredGroups.length > 0 ? (
           <CardGrid minWidth="280px">
-            {groups.map((group) => (
+            {filteredGroups.map((group) => (
               <Card key={group._id}>
                 <CardHeader>
-                  <CardTitle>{group.name}</CardTitle>
-                  {group.description && (
-                    <CardDescription>{group.description}</CardDescription>
+                  <CardTitle>{group.title}</CardTitle>
+                  {group.summary && (
+                    <CardDescription>{group.summary}</CardDescription>
                   )}
                 </CardHeader>
                 <CardContent>
-                  {group.type && <Badge variant="pill">{group.type}</Badge>}
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="pill">{group.groupType}</Badge>
+                    {group.openEnrollment ? <Badge variant="outline">Open enrollment</Badge> : null}
+                  </div>
                 </CardContent>
                 <CardFooter>
                   <span className="text-sm text-muted-foreground">
-                    {group.memberCount ?? 0} members
+                    {group.location ? `${group.location} · ` : ''}{group.schedule}
                   </span>
                 </CardFooter>
               </Card>
             ))}
           </CardGrid>
         ) : (
-          <Card className="flex flex-col items-center justify-center p-8 border-dashed">
+          <Card className="flex flex-col items-center justify-center border-dashed p-8">
             <CardContent>
               <p className="text-center text-muted-foreground">
-                No groups yet. Create small groups, teams, or committees.
+                {groups.length > 0
+                  ? 'No groups match your current search.'
+                  : 'No published groups are available for this church yet.'}
               </p>
-              <div className="mt-4 flex justify-center">
-                <Button variant="outline" size="sm">
-                  Create your first group
-                </Button>
-              </div>
             </CardContent>
           </Card>
+        )}
+          </>
         )}
       </Section>
     </PageShell>

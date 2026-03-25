@@ -344,4 +344,4 @@ fellowship42/
 | Separate brand package | Enables sharing between all apps in the monorepo |
 | 7 presets as starting point | Covers the spectrum of U.S. Protestant/Evangelical church aesthetics |
 | Clerk for auth | Production-ready auth with JWT-based Convex integration |
-| `workspace:*` dependencies | Clean monorepo linking via npm workspaces |
+| `workspace:*` dependencies | Clean monorepo linking via pnpm workspaces |

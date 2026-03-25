@@ -42,11 +42,10 @@ fellowship42/
   apps/app/             @fellowship42/app -- Vite + React 19 SPA (Tailwind v4, shadcn/ui)
   apps/worker/          @fellowship42/worker -- Hono on Cloudflare Workers
   apps/web/             @fellowship42/web -- Astro 5 marketing site
-  fellowship42-app/     [LEGACY] Old Next.js + Payload app -- still present, excluded from workspaces
   docs/                 Architecture, design system, product plan, this handover
 ```
 
-Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` and `apps/*`).
+Workspace manager: **pnpm workspaces** (`pnpm-workspace.yaml` includes `packages/*` and `apps/*`).
 
 ---
 
@@ -57,11 +56,11 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 | Area | Status | Details |
 |------|--------|---------|
 | Schema | **Complete** | 16 tables, all validators typed (union literals for enums, nested objects for addresses/themes/lessons), 40+ indexes |
-| Access control | **Complete** | `convex/lib/access.ts` with `requireAuth`, `requireUser`, `requireRole`, `requireChurchAccess`, `isSuperAdmin`, `canManageChurch` |
+| Access control | **Complete** | `convex/lib/access.ts` with `requireAuth`, `getCurrentUser`, `requireUser`, `requireRole`, `requireChurchAccess`, `hasChurchAccess`, `isSuperAdmin`, `canManageChurch` |
 | Auth config | **Scaffolded** | `convex/auth.config.ts` wired for Clerk JWT validation (needs real Clerk credentials) |
-| Church functions | **Complete** | `list`, `getBySlug`, `getById`, `create`, `update` |
+| Church functions | **Complete** | `list`, `getBySlug`, `getPublishedById`, `getById`, `create`, `update` |
 | User functions | **Complete** | `getOrCreateFromClerk`, `getCurrent`, `updateRoles` |
-| People functions | **Complete** | `listByChurch`, `getById`, `create`, `update` |
+| People functions | **Complete** | `listByChurch`, `listByChurchForViewer`, `getById`, `create`, `update` |
 | Ministry functions | **Complete** | `listByChurch`, `getBySlug`, `create`, `update` |
 | Group functions | **Complete** | `listByChurch`, `listByMinistry`, `getBySlug`, `create`, `update` |
 | Course functions | **Complete** | `listByChurch`, `getBySlug`, `create`, `update` |
@@ -82,7 +81,7 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 - Slug uniqueness is enforced within church scope on create/update
 - Update mutations accept partial fields and build a patch object
 
-**Note on imports:** Functions import `query`/`mutation` from `"convex/server"` (generic types). Once `npx convex dev` is run, the `convex/_generated/` directory will be created with schema-aware typed exports. You can optionally switch imports to `./_generated/server` for stricter typing at that point.
+**Note on imports:** Functions import from `./_generated/server`, and the generated Convex artifacts are checked into version control for local type safety and editor support.
 
 ### Vite React SPA (1,264 lines)
 
@@ -94,8 +93,8 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 | UI primitives | **Complete** | Button (CVA, 6 variants, 4 sizes, asChild), Card suite, Badge (5 variants), Input, Separator -- all ported exactly from the Phase 2 work |
 | Product components | **Complete** | PageShell, Section, Hero (3 variants), CardGrid, ChurchTheme, Eyebrow, StatPanel |
 | Theme system | **Complete** | `lib/theme.ts` re-exports from `@fellowship42/brand` + provides `themeToCSS()` with `CSSProperties` return type |
-| Route pages | **Scaffolded** | 9 routes with placeholder content: Dashboard, Churches, ChurchDetail, People, Groups, Courses, CourseDetail, Events, NotFound |
-| Convex wiring | **Not yet** | Route pages have `TODO` comments showing which `useQuery`/`useMutation` calls to add. No live data yet. |
+| Route pages | **Live read flows** | Dashboard, Churches, ChurchDetail, Groups, Courses, CourseDetail, and Events now read live Convex data; People is auth-aware and protected; NotFound remains static |
+| Convex wiring | **Partial** | Read routes use `useQuery`; create/edit mutations and richer authenticated workflows are still missing |
 | Auth (Clerk) | **Not yet** | No Clerk provider or sign-in/sign-out flows in the SPA |
 | Forms | **Not yet** | Create/edit forms for churches, people, groups, etc. not built |
 
@@ -104,11 +103,11 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 | Area | Status | Details |
 |------|--------|---------|
 | App structure | **Complete** | Hono with CORS, logger, error handling middleware |
-| Church API | **Scaffolded** | Routes for list, by-slug, ministries, groups, events, sermons -- return placeholder data |
-| Webhooks | **Scaffolded** | Clerk and Stripe webhook endpoints (signature verification not implemented) |
+| Church API | **Complete (public reads)** | Routes for list, by-slug, ministries, groups, events, sermons now read live data from Convex |
+| Webhooks | **Explicitly disabled** | Clerk and Stripe webhook endpoints return `501` until signature verification and persistence are implemented |
 | Health check | **Complete** | `GET /` and `GET /health` |
 | Convex HTTP client | **Complete** | `lib/convex.ts` with `convexQuery()` and `convexMutation()` helpers |
-| Live data | **Not yet** | Church routes need to call Convex HTTP API using the helpers |
+| Live data | **Partial** | Public church read routes are wired; webhook flows and richer public APIs remain |
 | Wrangler config | **Complete** | `wrangler.toml` with `nodejs_compat` flag and `CONVEX_URL` binding |
 
 ### Brand package (418 lines)
@@ -144,27 +143,27 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 
 ## 4. Known issues and technical debt
 
-### Must fix before first `npm run dev`
+### Current setup notes
 
-1. **`npm install` has not been run** on the new workspace configuration. The root `package.json` was updated but `node_modules` were not refreshed. Run `npm install` from the root first.
+1. **`pnpm install`, `pnpm typecheck`, and `pnpm build` pass** in the current workspace state.
 
-2. **Convex project not initialized.** `npx convex dev` has never been run. This will:
-   - Create the `convex/_generated/` directory with typed function builders
-   - Prompt you to create a Convex project (free tier available)
-   - Push the schema to Convex Cloud
-   - Start the dev sync process
+2. **Generated Convex artifacts are checked in.** This keeps local typechecking green without requiring codegen on every clone.
 
-3. **No `.env` file exists.** Copy `.env.example` to `.env` and fill in at minimum `VITE_CONVEX_URL` (Convex will print this during init).
+3. **`pnpm codegen:convex` now succeeds** against the linked deployment and refreshes the checked-in generated bindings.
+
+4. **A baseline CI workflow now exists.** `.github/workflows/ci.yml` runs install, typecheck, and build on pushes and pull requests.
 
 ### Code-level issues to be aware of
 
-4. **Convex function imports use generic types.** All function files import `query`/`mutation` from `"convex/server"` rather than `./_generated/server`. This works but provides loose typing. After running `npx convex dev`, consider switching to the generated imports for full schema-aware IntelliSense.
+4. **The SPA is still mostly read-only.** Major app routes now read live Convex data, but Clerk auth, write flows, and a persistent signed-in shell are still missing.
 
-5. **`convex/lib/access.ts` imports from `../_generated/dataModel`.** This file will not exist until Convex codegen runs. TypeScript will show errors in this file (and only this file) until then. Not a runtime issue -- Convex bundles functions server-side.
+5. **Protected directory access depends on Clerk wiring.** The People route is auth-aware and ready for church-scoped reads, but it intentionally stays locked until Clerk is configured.
 
-6. **`landingPages.ts` uses `as any` casts** in the `getByOwner` function for owner ID types. This is a pragmatic workaround since the owner ID could be for different tables. Once `_generated` types are available, this could be refined.
+6. **Missing backend domains remain.** `groupSessions`, `attendanceRecords`, `facilities`, and media/file upload flows still need function coverage.
 
-7. **Legacy `fellowship42-app/` directory.** The old Next.js + Payload CMS app is still present on disk but excluded from the npm workspace config. It contains useful reference code (especially `LandingPageRenderer.tsx` at 601 lines and the portal action flows) but is not part of the active build.
+7. **Webhook verification is still incomplete.** Clerk and Stripe endpoints are now explicitly disabled with `501` responses until signatures and persistence are implemented.
+
+8. **Legacy feature gaps are documented, not implemented.** See `docs/reference/legacy-payload-feature-audit.md` for the public-site, landing-page, member-portal, and leader-dashboard behaviors removed with the old app.
 
 ---
 
@@ -172,22 +171,20 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 
 ### Tier 1: Make it run (infrastructure)
 
-- [ ] **Run `npm install`** at the repository root to wire up workspaces
-- [ ] **Run `npx convex dev`** to initialize the Convex project, push schema, and generate types
-- [ ] **Set up Clerk** -- create a Clerk application, add the JWT issuer domain to `convex/auth.config.ts`, install `@clerk/clerk-react` in the SPA
+- [ ] **Replace the placeholder Clerk issuer domain in `convex/auth.config.ts`** before enabling real auth
+- [ ] **Run `pnpm dev:convex`** against the linked project and confirm schema/codegen stay in sync
+- [ ] **Set up Clerk** -- create a Clerk application, replace the issuer domain in `convex/auth.config.ts`, install `@clerk/clerk-react` in the SPA
 - [ ] **Wire ConvexProvider with Clerk** -- wrap the SPA's `ConvexProvider` in a `ClerkProvider` and use `ConvexProviderWithClerk` from `convex/react-clerk`
-- [ ] **Verify `npm run dev`** starts the Vite SPA and renders the dashboard route
-- [ ] **Verify `npm run dev:worker`** starts the Hono worker on port 8787
-- [ ] **Verify `npm run dev:web`** starts the Astro site on port 4321
+- [ ] **Verify `pnpm dev`** starts the Vite SPA and renders the dashboard route
+- [ ] **Verify `pnpm dev:worker`** starts the Hono worker on port 8787
+- [ ] **Verify `pnpm dev:web`** starts the Astro site on port 4321
 
 ### Tier 2: Connect live data (core feature loop)
 
-- [ ] **Wire dashboard to Convex** -- use `useQuery(api.churches.list)` on the dashboard to show the user's churches
-- [ ] **Wire church detail page** -- load church by ID, display real stats (people count, group count, event count)
-- [ ] **Wire people page** -- `useQuery(api.people.listByChurch, { churchId })` with real card rendering
-- [ ] **Wire groups page** -- same pattern, plus membership counts
-- [ ] **Wire courses page** -- same pattern, plus enrollment status
-- [ ] **Wire events page** -- same pattern, sorted by start date
+- [ ] **Finish SPA auth wiring** -- install Clerk in the app, use `ConvexProviderWithClerk`, and unlock protected route states
+- [ ] **Turn read routes into real workflows** -- add create/edit/delete mutations and mutation-aware empty/error states
+- [ ] **Upgrade church detail metrics** -- replace list-length stats with dedicated aggregate queries for people, groups, courses, and events
+- [ ] **Deepen list routes** -- add filters, pagination, and richer church-scoped metadata where needed
 - [ ] **Build create/edit forms** -- start with Church create form, then People, Groups, Courses, Events
 - [ ] **Add sign-in/sign-out flows** -- Clerk `<SignInButton>` and `<UserButton>` components in the SPA header
 - [ ] **Build a persistent app shell** -- sidebar or top nav with church selector, section links, user menu
@@ -195,9 +192,9 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 ### Tier 3: Close the feature gaps
 
 - [ ] **Write missing Convex functions** for `groupSessions`, `attendanceRecords`, `facilities`, and `media` (file upload)
-- [ ] **Port `LandingPageRenderer`** from the legacy app -- it's 601 lines with 10 block types and is the most complex UI component. Reference: `fellowship42-app/src/components/LandingPageRenderer.tsx`
-- [ ] **Wire the Hono worker to Convex** -- replace placeholder responses in church API routes with real Convex HTTP API calls using `lib/convex.ts`
-- [ ] **Implement Clerk webhook handling** in the Hono worker -- verify signatures, call `users.getOrCreateFromClerk` on `user.created` events
+- [ ] **Rebuild landing-page rendering and editing** using `docs/reference/legacy-payload-feature-audit.md` as the source of truth for missing behavior
+- [ ] **Expand the Hono worker beyond church read routes** with richer public APIs, error handling, and cache strategy where needed
+- [ ] **Implement Clerk webhook handling** in the Hono worker -- verify signatures and provision users from trusted Clerk events
 - [ ] **Implement Stripe webhook handling** -- verify signatures, record contributions via `contributions.create`
 - [ ] **Build the member self-service portal** -- profile, giving history, course progress, group participation
 
@@ -210,7 +207,7 @@ Workspace manager: **npm workspaces** (root `package.json` lists `packages/*` an
 - [ ] **Search** -- Convex full-text search indexes for people, groups, events
 - [ ] **File uploads** -- Convex storage API for media (church hero images, sermon audio, lesson resources)
 - [ ] **Tests** -- unit tests for Convex functions (Convex has a test harness), component tests for shadcn/ui
-- [ ] **CI/CD** -- GitHub Actions for typecheck, lint, test, and Cloudflare Pages deploy
+- [ ] **Expand CI/CD** -- extend the new GitHub Actions baseline beyond typecheck/build into test and deployment workflows
 
 ### Tier 5: Stretch
 
@@ -240,14 +237,12 @@ When working on the codebase, these are the most important files to understand:
 | `apps/app/src/App.tsx` | All route definitions in one place. |
 | `apps/worker/src/index.ts` | Hono app entry point. Middleware stack, route mounting, error handling. |
 
-### Legacy reference files (in `fellowship42-app/`)
+### Legacy audit
 
-| File | What to reference |
-|------|-------------------|
-| `src/components/LandingPageRenderer.tsx` | 601-line component with 10 block types. Port this to the SPA when landing page editing is needed. |
-| `src/lib/landing-pages.ts` | Complex data resolution logic for landing pages (block enrichment, feed resolution, leader lookup). Port the patterns to Convex functions. |
-| `src/collections/*.ts` | All 16 Payload collection definitions. Useful for cross-referencing field validations against the Convex schema. |
-| `src/access/helpers.ts` | Original access control patterns. The Convex `lib/access.ts` is a simplified port of these. |
+The retired Payload implementation has been removed from the repository.
+Feature gaps discovered during that cleanup are documented in:
+
+- `docs/reference/legacy-payload-feature-audit.md`
 
 ---
 
@@ -255,25 +250,25 @@ When working on the codebase, these are the most important files to understand:
 
 ```bash
 # Install dependencies (run first!)
-npm install
+pnpm install
 
 # Start Convex dev server (run in a dedicated terminal)
-npm run dev:convex
+pnpm dev:convex
 
 # Start Vite React SPA (port 5173)
-npm run dev
+pnpm dev
 
 # Start Hono edge worker (port 8787)
-npm run dev:worker
+pnpm dev:worker
 
 # Start Astro marketing site (port 4321)
-npm run dev:web
+pnpm dev:web
 
 # Type-check all workspaces
-npm run typecheck
+pnpm typecheck
 
 # Deploy Hono worker to Cloudflare
-npm run deploy:worker
+pnpm deploy:worker
 ```
 
 ---
@@ -284,8 +279,7 @@ See `.env.example` at the repository root. Minimum needed to start:
 
 | Variable | Required for | How to get it |
 |----------|-------------|---------------|
-| `VITE_CONVEX_URL` | Vite SPA | Printed by `npx convex dev` on first run |
-| `CLERK_JWT_ISSUER_DOMAIN` | Convex auth | Clerk dashboard > JWT Templates |
+| `VITE_CONVEX_URL` | Vite SPA | Printed by `pnpm dev:convex` on first run |
 | `CLERK_WEBHOOK_SECRET` | Hono worker | Clerk dashboard > Webhooks |
 
 Stripe variables are optional until contribution/giving features are wired.

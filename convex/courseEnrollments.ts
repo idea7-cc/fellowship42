@@ -1,6 +1,7 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireChurchAccess } from "./lib/access";
+import { requireChurchScopedDocument, requireDocument } from "./lib/records";
 
 /**
  * List all enrollments for a given course.
@@ -60,6 +61,25 @@ export const enroll = mutation({
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
+    if (!args.personId && !args.groupId) {
+      throw new Error("Course enrollments require either a personId or a groupId");
+    }
+    if (args.personId && args.groupId) {
+      throw new Error("Course enrollments must target either a person or a group");
+    }
+
+    await requireChurchScopedDocument(ctx, args.courseId, args.churchId, "Course");
+    if (args.personId) {
+      await requireChurchScopedDocument(
+        ctx,
+        args.personId,
+        args.churchId,
+        "Person"
+      );
+    }
+    if (args.groupId) {
+      await requireChurchScopedDocument(ctx, args.groupId, args.churchId, "Group");
+    }
 
     // If enrolling a person, check for existing enrollment
     if (args.personId) {
@@ -71,6 +91,18 @@ export const enroll = mutation({
         .unique();
       if (existing) {
         throw new Error("This person is already enrolled in this course");
+      }
+    }
+
+    if (args.groupId) {
+      const existing = await ctx.db
+        .query("courseEnrollments")
+        .withIndex("by_course_and_group", (q) =>
+          q.eq("courseId", args.courseId).eq("groupId", args.groupId)
+        )
+        .unique();
+      if (existing) {
+        throw new Error("This group is already enrolled in this course");
       }
     }
 
@@ -98,13 +130,17 @@ export const toggleLessonCompletion = mutation({
   args: {
     enrollmentId: v.id("courseEnrollments"),
     lessonId: v.string(),
-    lessonTitle: v.string(),
   },
-  handler: async (ctx, { enrollmentId, lessonId, lessonTitle }) => {
+  handler: async (ctx, { enrollmentId, lessonId }) => {
     const enrollment = await ctx.db.get(enrollmentId);
     if (!enrollment) throw new Error("Enrollment not found");
 
     await requireChurchAccess(ctx, enrollment.churchId);
+    const course = await requireDocument(ctx, enrollment.courseId, "Course");
+    const lesson = course.lessons.find((candidate) => candidate.lessonId === lessonId);
+    if (!lesson) {
+      throw new Error("Lesson not found on this course");
+    }
 
     const completedLessons = [...enrollment.completedLessons];
     const existingIndex = completedLessons.findIndex(
@@ -118,25 +154,30 @@ export const toggleLessonCompletion = mutation({
       // Mark the lesson as completed
       completedLessons.push({
         lessonId,
-        title: lessonTitle,
+        title: lesson.title,
         completedAt: Date.now(),
       });
     }
 
     // Recalculate progress based on the parent course's lesson count
-    const course = await ctx.db.get(enrollment.courseId);
     const totalLessons = course?.lessons.length ?? 1;
     const progressPercent = Math.round(
       (completedLessons.length / totalLessons) * 100
     );
 
     const isComplete = progressPercent >= 100;
+    const nextStatus =
+      enrollment.status === "archived"
+        ? "archived"
+        : isComplete
+          ? "completed"
+          : "active";
 
     await ctx.db.patch(enrollmentId, {
       completedLessons,
       progressPercent,
-      status: isComplete ? "completed" : enrollment.status,
-      completedAt: isComplete ? Date.now() : enrollment.completedAt,
+      status: nextStatus,
+      completedAt: isComplete ? Date.now() : undefined,
     });
 
     return enrollmentId;

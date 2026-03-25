@@ -201,10 +201,9 @@ isolated deployments for specific churches.
 
 ## Delivery Priorities
 ### Near-term
-- initialize and type the Convex backend locally
 - wire Clerk auth end to end
-- connect the SPA routes to live Convex data
-- replace worker placeholder routes with real Convex-backed responses
+- expand the current live SPA routes into authenticated write flows
+- expand worker routes beyond the current Convex-backed public responses
 - expand app forms for create and edit flows across core domains
 
 ### Beta path

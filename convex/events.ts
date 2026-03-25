@@ -1,6 +1,6 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/access";
 
 /**
  * List upcoming events for a church, ordered by start date.
@@ -10,33 +10,32 @@ import { requireChurchAccess } from "./lib/access";
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
-    const identity = await ctx.auth.getUserIdentity();
+    const now = Date.now();
 
-    if (identity) {
-      try {
-        await requireChurchAccess(ctx, churchId);
-        return await ctx.db
-          .query("events")
-          .withIndex("by_church_and_start_date", (q) =>
-            q.eq("churchId", churchId)
-          )
-          .order("desc")
-          .collect();
-      } catch {
-        // Fall through to public view
-      }
+    if (await hasChurchAccess(ctx, churchId)) {
+      const events = await ctx.db
+        .query("events")
+        .withIndex("by_church_and_start_date", (q) =>
+          q.eq("churchId", churchId)
+        )
+        .order("asc")
+        .collect();
+
+      return events.filter((event) => event.startDate >= now);
     }
 
-    // Public: only published, ordered by start date descending
+    // Public: only published, ordered by start date ascending
     const allPublished = await ctx.db
       .query("events")
       .withIndex("by_church_and_start_date", (q) =>
         q.eq("churchId", churchId)
       )
-      .order("desc")
+      .order("asc")
       .collect();
 
-    return allPublished.filter((e) => e.status === "published");
+    return allPublished.filter(
+      (event) => event.status === "published" && event.startDate >= now
+    );
   },
 });
 
@@ -58,12 +57,11 @@ export const getBySlug = query({
 
     if (event.status === "published") return event;
 
-    try {
-      await requireChurchAccess(ctx, churchId);
+    if (await hasChurchAccess(ctx, churchId)) {
       return event;
-    } catch {
-      return null;
     }
+
+    return null;
   },
 });
 

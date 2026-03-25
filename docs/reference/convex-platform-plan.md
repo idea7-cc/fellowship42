@@ -99,8 +99,7 @@ insufficient platform breadth.
 - Coupling the core backend to a `Next.js` runtime
 
 ## Immediate Priorities
-- finish Convex initialization and generated types
 - wire Clerk through the app and backend
-- connect the app routes to live data
-- replace worker placeholders with real Convex-backed queries and mutations
+- expand the current live app routes into authenticated write flows
+- expand worker routes beyond the current Convex-backed public reads
 - complete the remaining unimplemented schema domains

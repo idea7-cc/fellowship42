@@ -1,4 +1,6 @@
+import { useQuery } from 'convex/react'
 import { Link } from 'react-router-dom'
+import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
@@ -8,15 +10,14 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 
 export function ChurchesPage() {
-  // TODO: Replace with useQuery(api.churches.list) once Convex is connected
-  const churches: { _id: string; name: string; city?: string }[] = []
+  const churches = useQuery(api.churches.list)
 
   return (
     <PageShell>
       <Section>
         <Eyebrow>Churches</Eyebrow>
-        <h1>Your churches</h1>
-        <p className="mt-2">Manage your church communities</p>
+        <h1>Published churches</h1>
+        <p className="mt-2">Browse the church records available in this deployment.</p>
       </Section>
 
       <Section>
@@ -26,19 +27,25 @@ export function ChurchesPage() {
               Back to dashboard
             </Button>
           </Link>
-          <Button size="sm">Add church</Button>
+          <Button size="sm" disabled>
+            Church creation requires auth
+          </Button>
         </div>
 
-        {churches.length > 0 ? (
+        {churches === undefined ? (
+          <Card className="flex flex-col items-center justify-center border-dashed p-8">
+            <CardContent>
+              <p className="text-center text-muted-foreground">Loading churches...</p>
+            </CardContent>
+          </Card>
+        ) : churches.length > 0 ? (
           <CardGrid>
             {churches.map((church) => (
               <Link key={church._id} to={`/churches/${church._id}`}>
-                <Card className="hover:-translate-y-px hover:shadow-md transition-all duration-200">
+                <Card className="transition-all duration-200 hover:-translate-y-px hover:shadow-md">
                   <CardHeader>
                     <CardTitle>{church.name}</CardTitle>
-                    {church.city && (
-                      <CardDescription>{church.city}</CardDescription>
-                    )}
+                    <CardDescription>{church.summary}</CardDescription>
                   </CardHeader>
                 </Card>
               </Link>
@@ -48,13 +55,8 @@ export function ChurchesPage() {
           <Card className="flex flex-col items-center justify-center p-8 border-dashed">
             <CardContent>
               <p className="text-center text-muted-foreground">
-                No churches yet. Connect your Convex backend to get started.
+                No published churches are available yet.
               </p>
-              <div className="mt-4 flex justify-center">
-                <Button variant="outline" size="sm">
-                  Add your first church
-                </Button>
-              </div>
             </CardContent>
           </Card>
         )}

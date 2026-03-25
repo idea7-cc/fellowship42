@@ -1,6 +1,6 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/access";
 
 /**
  * List recent sermons for a church, ordered by preached date descending.
@@ -9,21 +9,14 @@ import { requireChurchAccess } from "./lib/access";
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    if (identity) {
-      try {
-        await requireChurchAccess(ctx, churchId);
-        return await ctx.db
-          .query("sermons")
-          .withIndex("by_church_and_preached_at", (q) =>
-            q.eq("churchId", churchId)
-          )
-          .order("desc")
-          .collect();
-      } catch {
-        // Fall through to public view
-      }
+    if (await hasChurchAccess(ctx, churchId)) {
+      return await ctx.db
+        .query("sermons")
+        .withIndex("by_church_and_preached_at", (q) =>
+          q.eq("churchId", churchId)
+        )
+        .order("desc")
+        .collect();
     }
 
     const allPublished = await ctx.db
@@ -56,12 +49,11 @@ export const getBySlug = query({
 
     if (sermon.status === "published") return sermon;
 
-    try {
-      await requireChurchAccess(ctx, churchId);
+    if (await hasChurchAccess(ctx, churchId)) {
       return sermon;
-    } catch {
-      return null;
     }
+
+    return null;
   },
 });
 

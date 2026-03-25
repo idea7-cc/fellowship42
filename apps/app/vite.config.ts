@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, './src'),
       '@brand': resolve(__dirname, '../../packages/brand/src'),
+      '@convex': resolve(__dirname, '../../convex'),
     },
   },
 })

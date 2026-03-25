@@ -1,6 +1,7 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireChurchAccess } from "./lib/access";
+import { requireChurchScopedDocument } from "./lib/records";
 
 /**
  * List all memberships for a given group.
@@ -66,6 +67,8 @@ export const join = mutation({
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
+    await requireChurchScopedDocument(ctx, args.groupId, args.churchId, "Group");
+    await requireChurchScopedDocument(ctx, args.personId, args.churchId, "Person");
 
     // Prevent duplicate memberships
     const existing = await ctx.db

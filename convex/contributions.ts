@@ -1,6 +1,7 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireRole, requireChurchAccess } from "./lib/access";
+import { canManageChurch, requireRole } from "./lib/access";
+import { requireChurchScopedDocument } from "./lib/records";
 
 /**
  * List contributions for a church, ordered by donation date descending.
@@ -13,8 +14,8 @@ export const listByChurch = query({
     const user = await requireRole(ctx, ["finance", "church-admin"]);
 
     // Also verify the user can access this specific church
-    if (!user.roles.includes("super-admin")) {
-      await requireChurchAccess(ctx, churchId);
+    if (!canManageChurch(user, churchId)) {
+      throw new Error("You do not have access to this church");
     }
 
     return await ctx.db
@@ -56,7 +57,19 @@ export const create = mutation({
     donatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    await requireChurchAccess(ctx, args.churchId);
+    const user = await requireRole(ctx, ["finance", "church-admin"]);
+    if (!canManageChurch(user, args.churchId)) {
+      throw new Error("You do not have access to this church");
+    }
+    if (args.personId) {
+      await requireChurchScopedDocument(
+        ctx,
+        args.personId,
+        args.churchId,
+        "Person"
+      );
+    }
+
     return await ctx.db.insert("contributions", args);
   },
 });

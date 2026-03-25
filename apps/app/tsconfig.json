@@ -14,7 +14,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@brand/*": ["../../packages/brand/src/*"]
+      "@brand/*": ["../../packages/brand/src/*"],
+      "@convex/*": ["../../convex/*"]
     }
   },
   "include": ["src", "../../convex/_generated"]

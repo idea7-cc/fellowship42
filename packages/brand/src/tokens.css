@@ -2,7 +2,7 @@
  * @fellowship42/brand — Portable design tokens
  *
  * This is the canonical token source shared between:
- *   - The Next.js app (fellowship42-app) via Tailwind / shadcn-ui
+ *   - The Vite React app (apps/app) via Tailwind / shadcn-ui
  *   - The Astro marketing site (apps/web)
  *   - Any future consumer (email templates, native apps, etc.)
  *

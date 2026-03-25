@@ -1,23 +1,24 @@
 {
   "name": "fellowship42",
+  "packageManager": "pnpm@10.32.1",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
   "scripts": {
-    "dev": "npm run dev --workspace=@fellowship42/app",
-    "dev:worker": "npm run dev --workspace=@fellowship42/worker",
-    "dev:web": "npm run dev --workspace=@fellowship42/web",
-    "dev:convex": "npx convex dev",
-    "build": "npm run build --workspace=@fellowship42/app",
-    "build:worker": "npm run build --workspace=@fellowship42/worker",
-    "build:web": "npm run build --workspace=@fellowship42/web",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "deploy:worker": "npm run deploy --workspace=@fellowship42/worker"
+    "dev": "pnpm --filter @fellowship42/app dev",
+    "dev:worker": "pnpm --filter @fellowship42/worker dev",
+    "dev:web": "pnpm --filter @fellowship42/web dev",
+    "dev:convex": "pnpm exec convex dev",
+    "codegen:convex": "pnpm exec convex codegen",
+    "build": "pnpm -r --if-present build",
+    "build:worker": "pnpm --filter @fellowship42/worker build",
+    "build:web": "pnpm --filter @fellowship42/web build",
+    "typecheck": "pnpm typecheck:workspaces && pnpm typecheck:convex",
+    "typecheck:workspaces": "pnpm -r --if-present typecheck",
+    "typecheck:convex": "pnpm exec tsc -p convex/tsconfig.json --noEmit",
+    "deploy:worker": "pnpm --filter @fellowship42/worker deploy"
   },
   "devDependencies": {
-    "convex": "^1.17.0",
+    "@types/node": "^24.0.0",
+    "convex": "^1.34.0",
     "typescript": "^5.7.0"
   }
 }

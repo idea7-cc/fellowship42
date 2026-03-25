@@ -28,6 +28,7 @@ convex/.tmp
 
 # Testing
 coverage
+*.tsbuildinfo
 
 # Misc
 .fellowship42-dev-state.json

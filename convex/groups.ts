@@ -1,6 +1,7 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { requireChurchScopedDocument } from "./lib/records";
 
 /**
  * List groups for a church.
@@ -10,18 +11,11 @@ import { requireChurchAccess } from "./lib/access";
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
   handler: async (ctx, { churchId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    if (identity) {
-      try {
-        await requireChurchAccess(ctx, churchId);
-        return await ctx.db
-          .query("groups")
-          .withIndex("by_church", (q) => q.eq("churchId", churchId))
-          .collect();
-      } catch {
-        // Fall through to public view
-      }
+    if (await hasChurchAccess(ctx, churchId)) {
+      return await ctx.db
+        .query("groups")
+        .withIndex("by_church", (q) => q.eq("churchId", churchId))
+        .collect();
     }
 
     return await ctx.db
@@ -45,15 +39,12 @@ export const listByMinistry = query({
       .withIndex("by_ministry", (q) => q.eq("ministryId", ministryId))
       .collect();
 
-    const identity = await ctx.auth.getUserIdentity();
+    if (groups.length === 0) {
+      return groups;
+    }
 
-    if (identity && groups.length > 0) {
-      try {
-        await requireChurchAccess(ctx, groups[0].churchId);
-        return groups;
-      } catch {
-        // Fall through to published filter
-      }
+    if (await hasChurchAccess(ctx, groups[0].churchId)) {
+      return groups;
     }
 
     return groups.filter((g) => g.status === "published");
@@ -78,12 +69,11 @@ export const getBySlug = query({
 
     if (group.status === "published") return group;
 
-    try {
-      await requireChurchAccess(ctx, churchId);
+    if (await hasChurchAccess(ctx, churchId)) {
       return group;
-    } catch {
-      return null;
     }
+
+    return null;
   },
 });
 
@@ -117,6 +107,20 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
+    if (args.ministryId) {
+      await requireChurchScopedDocument(
+        ctx,
+        args.ministryId,
+        args.churchId,
+        "Ministry"
+      );
+    }
+
+    await Promise.all(
+      args.leaderIds.map((leaderId) =>
+        requireChurchScopedDocument(ctx, leaderId, args.churchId, "Leader")
+      )
+    );
 
     const existing = await ctx.db
       .query("groups")
@@ -169,6 +173,22 @@ export const update = mutation({
     if (!group) throw new Error("Group not found");
 
     await requireChurchAccess(ctx, group.churchId);
+    if (fields.ministryId) {
+      await requireChurchScopedDocument(
+        ctx,
+        fields.ministryId,
+        group.churchId,
+        "Ministry"
+      );
+    }
+
+    if (fields.leaderIds) {
+      await Promise.all(
+        fields.leaderIds.map((leaderId) =>
+          requireChurchScopedDocument(ctx, leaderId, group.churchId, "Leader")
+        )
+      );
+    }
 
     if (fields.slug && fields.slug !== group.slug) {
       const existing = await ctx.db

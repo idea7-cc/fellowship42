@@ -10,24 +10,18 @@ type Env = {
 
 export const webhookRoutes = new Hono<Env>()
 
+function notImplemented(provider: 'Clerk' | 'Stripe') {
+  return {
+    error: `${provider} webhook handling is not implemented in this worker yet`,
+  }
+}
+
 // POST /api/webhooks/clerk - Clerk auth webhooks
 webhookRoutes.post('/clerk', async (c) => {
-  // TODO: Verify Clerk webhook signature
-  // TODO: Handle user.created, user.updated, user.deleted events
-  // TODO: Sync user data to Convex
-  const body = await c.req.json()
-  console.log('Clerk webhook received:', body.type)
-
-  return c.json({ received: true })
+  return c.json(notImplemented('Clerk'), 501)
 })
 
 // POST /api/webhooks/stripe - Stripe payment webhooks
 webhookRoutes.post('/stripe', async (c) => {
-  // TODO: Verify Stripe webhook signature
-  // TODO: Handle payment_intent.succeeded, etc.
-  // TODO: Record contributions in Convex
-  const body = await c.req.json()
-  console.log('Stripe webhook received:', body.type)
-
-  return c.json({ received: true })
+  return c.json(notImplemented('Stripe'), 501)
 })

@@ -1,6 +1,6 @@
-import { query, mutation } from "convex/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAuth, requireRole } from "./lib/access";
+import { getCurrentUser, requireAuth, requireRole } from "./lib/access";
 
 /**
  * Upsert a user record from a Clerk identity.
@@ -15,6 +15,11 @@ export const getOrCreateFromClerk = mutation({
     lastName: v.string(),
   },
   handler: async (ctx, { clerkId, email, firstName, lastName }) => {
+    const identity = await requireAuth(ctx);
+    if (identity.subject !== clerkId) {
+      throw new Error("Authenticated user does not match the supplied Clerk ID");
+    }
+
     // Look up existing user by Clerk ID
     const existing = await ctx.db
       .query("users")
@@ -45,17 +50,7 @@ export const getOrCreateFromClerk = mutation({
  */
 export const getCurrent = query({
   args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-
-    return user ?? null;
-  },
+  handler: async (ctx) => getCurrentUser(ctx),
 });
 
 /**
@@ -65,7 +60,15 @@ export const getCurrent = query({
 export const updateRoles = mutation({
   args: {
     userId: v.id("users"),
-    roles: v.array(v.string()),
+    roles: v.array(
+      v.union(
+        v.literal("super-admin"),
+        v.literal("church-admin"),
+        v.literal("finance"),
+        v.literal("ministry-leader"),
+        v.literal("member")
+      )
+    ),
   },
   handler: async (ctx, { userId, roles }) => {
     await requireRole(ctx, ["super-admin"]);

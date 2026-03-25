@@ -1,4 +1,6 @@
+import { useQuery } from 'convex/react'
 import { Link, useParams } from 'react-router-dom'
+import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
@@ -8,21 +10,17 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { asId } from '@/lib/convex'
 
 export function CourseDetailPage() {
   const { churchId, slug } = useParams<{ churchId: string; slug: string }>()
-
-  // TODO: Replace with useQuery(api.courses.getBySlug, { churchId, slug }) once Convex is connected
-  const course = {
-    _id: slug,
-    title: 'Course Title',
-    slug,
-    description: 'Course description will appear here once connected to Convex.',
-    status: 'draft',
-  }
-
-  // TODO: Replace with useQuery(api.lessons.list, { courseId: course._id }) once Convex is connected
-  const lessons: { _id: string; title: string; order: number; duration?: string }[] = []
+  const churchArgs = churchId ? { churchId: asId<'churches'>(churchId) } : 'skip'
+  const church = useQuery(api.churches.getPublishedById, churchArgs)
+  const course = useQuery(
+    api.courses.getBySlug,
+    churchId && slug ? { churchId: asId<'churches'>(churchId), slug } : 'skip',
+  )
+  const lessons = course?.lessons ?? []
 
   return (
     <PageShell>
@@ -34,57 +32,88 @@ export function CourseDetailPage() {
         </Link>
       </Section>
 
-      <Hero variant="landing">
-        <Eyebrow>Course</Eyebrow>
-        <h1>{course.title}</h1>
-        <p className="mt-2">{course.description}</p>
-        <div className="mt-4 flex items-center gap-3">
-          <Badge variant="pill">{course.status}</Badge>
-          <span className="text-sm text-muted-foreground">
-            {lessons.length} lessons
-          </span>
-        </div>
-      </Hero>
-
-      <Section title="Lessons" description="Course content and materials.">
-        {lessons.length > 0 ? (
-          <div className="grid gap-3">
-            {lessons.map((lesson, index) => (
-              <div key={lesson._id}>
-                <Card className="hover:-translate-y-px hover:shadow-md transition-all duration-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-accent-strong">
-                          {lesson.order}
-                        </span>
-                        <CardTitle>{lesson.title}</CardTitle>
-                      </div>
-                      {lesson.duration && (
-                        <CardDescription>{lesson.duration}</CardDescription>
-                      )}
-                    </div>
-                  </CardHeader>
-                </Card>
-                {index < lessons.length - 1 && <Separator className="my-1" />}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Card className="flex flex-col items-center justify-center p-8 border-dashed">
-            <CardContent>
-              <p className="text-center text-muted-foreground">
-                No lessons yet. Add lessons to build out this course.
-              </p>
-              <div className="mt-4 flex justify-center">
-                <Button variant="outline" size="sm">
-                  Add first lesson
-                </Button>
-              </div>
-            </CardContent>
+      {course === undefined ? (
+        <Section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Loading course...</CardTitle>
+              <CardDescription>Fetching course content from Convex.</CardDescription>
+            </CardHeader>
           </Card>
-        )}
-      </Section>
+        </Section>
+      ) : !course ? (
+        <Section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Course not found</CardTitle>
+              <CardDescription>
+                This route only shows published courses available from the active Convex deployment.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Section>
+      ) : (
+        <>
+          <Hero variant="landing">
+            <Eyebrow>Course</Eyebrow>
+            <h1>{course.title}</h1>
+            <p className="mt-2">{course.summary}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Badge variant="pill">{course.courseType}</Badge>
+              <Badge variant="outline">{course.deliveryMode}</Badge>
+              <span className="text-sm text-muted-foreground">
+                {lessons.length} lessons
+              </span>
+              {church ? (
+                <span className="text-sm text-muted-foreground">for {church.name}</span>
+              ) : null}
+            </div>
+          </Hero>
+
+          <Section title="Lessons" description="Course content and materials.">
+            {lessons.length > 0 ? (
+              <div className="grid gap-3">
+                {lessons.map((lesson, index) => (
+                  <div key={lesson.lessonId}>
+                    <Card className="transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+                      <CardHeader>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-accent-strong">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <CardTitle>{lesson.title}</CardTitle>
+                              <CardDescription>{lesson.summary}</CardDescription>
+                            </div>
+                          </div>
+                          {lesson.estimatedMinutes ? (
+                            <CardDescription>{lesson.estimatedMinutes} min</CardDescription>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      {lesson.required ? (
+                        <CardContent>
+                          <Badge variant="outline">Required</Badge>
+                        </CardContent>
+                      ) : null}
+                    </Card>
+                    {index < lessons.length - 1 ? <Separator className="my-1" /> : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Card className="flex flex-col items-center justify-center border-dashed p-8">
+                <CardContent>
+                  <p className="text-center text-muted-foreground">
+                    This course does not have any lessons yet.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </Section>
+        </>
+      )}
     </PageShell>
   )
 }
