@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 
+import { useAuthState } from '@/lib/auth-provider'
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
 import { Eyebrow } from '@/components/eyebrow'
@@ -18,7 +19,7 @@ export function PeoplePage() {
   const [search, setSearch] = useState('')
   const churchArgs = churchId ? { churchId: asId<'churches'>(churchId) } : 'skip'
   const church = useQuery(api.churches.getPublishedById, churchArgs)
-  const viewer = useQuery(api.users.getCurrent)
+  const { isSignedIn, isLoading: authLoading } = useAuthState()
   const people = useQuery(api.people.listByChurchForViewer, churchArgs)
 
   const filteredPeople =
@@ -40,14 +41,6 @@ export function PeoplePage() {
   return (
     <PageShell>
       <Section>
-        <Link to={`/churches/${churchId}`}>
-          <Button variant="ghost" size="sm">
-            Back to church
-          </Button>
-        </Link>
-      </Section>
-
-      <Section>
         <Eyebrow>People</Eyebrow>
         <h1>Members &amp; contacts</h1>
         <p className="mt-2">
@@ -56,17 +49,17 @@ export function PeoplePage() {
       </Section>
 
       <Section>
-        {viewer === undefined || people === undefined ? (
+        {authLoading || people === undefined ? (
           <Card className="flex flex-col items-center justify-center border-dashed p-8">
             <CardContent>
               <p className="text-center text-muted-foreground">Loading directory access...</p>
             </CardContent>
           </Card>
-        ) : !viewer ? (
+        ) : !isSignedIn ? (
           <Card className="flex flex-col items-center justify-center border-dashed p-8">
             <CardContent>
               <p className="text-center text-muted-foreground">
-                People records stay private. Configure Clerk auth and sign in to use this route.
+                People records stay private. Sign in to access this directory.
               </p>
             </CardContent>
           </Card>

@@ -52,7 +52,7 @@ fellowship42/
 1. User authenticates via Clerk
 2. Clerk JWT is validated by Convex
 3. React components use `useQuery()` / `useMutation()` hooks
-4. Convex functions enforce access control via `convex/lib/access.ts`
+4. Convex functions enforce access control via `convex/lib/auth.ts`
 5. Real-time subscriptions keep UI in sync
 
 ### Public church pages (via edge worker)
@@ -111,7 +111,7 @@ All multi-tenant data is scoped by `churchId` with compound indexes.
 1. **Clerk** handles authentication (sign-up, sign-in, OAuth, MFA)
 2. **Convex auth.config.ts** validates Clerk JWTs
 3. **`users.getOrCreateFromClerk`** upserts user record on first login
-4. **`convex/lib/access.ts`** resolves identity to user document in every function
+4. **`convex/lib/auth.ts`** resolves identity to user document in every function
 
 ---
 

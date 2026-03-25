@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
 import { requireChurchScopedDocument } from "./lib/records";
+import { publishStatus, groupType } from "./lib/validators";
 
 /**
  * List groups for a church.
@@ -15,7 +16,7 @@ export const listByChurch = query({
       return await ctx.db
         .query("groups")
         .withIndex("by_church", (q) => q.eq("churchId", churchId))
-        .collect();
+        .take(200);
     }
 
     return await ctx.db
@@ -23,7 +24,7 @@ export const listByChurch = query({
       .withIndex("by_church_and_status", (q) =>
         q.eq("churchId", churchId).eq("status", "published")
       )
-      .collect();
+      .take(200);
   },
 });
 
@@ -37,7 +38,7 @@ export const listByMinistry = query({
     const groups = await ctx.db
       .query("groups")
       .withIndex("by_ministry", (q) => q.eq("ministryId", ministryId))
-      .collect();
+      .take(200);
 
     if (groups.length === 0) {
       return groups;
@@ -87,15 +88,8 @@ export const create = mutation({
     ministryId: v.optional(v.id("ministries")),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    groupType: v.union(
-      v.literal("small-group"),
-      v.literal("sunday-school"),
-      v.literal("bible-study"),
-      v.literal("support-group"),
-      v.literal("serving-team"),
-      v.literal("training-cohort")
-    ),
+    status: publishStatus,
+    groupType: groupType,
     audience: v.string(),
     schedule: v.string(),
     location: v.optional(v.string()),
@@ -148,17 +142,8 @@ export const update = mutation({
     ministryId: v.optional(v.id("ministries")),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
-    groupType: v.optional(
-      v.union(
-        v.literal("small-group"),
-        v.literal("sunday-school"),
-        v.literal("bible-study"),
-        v.literal("support-group"),
-        v.literal("serving-team"),
-        v.literal("training-cohort")
-      )
-    ),
+    status: v.optional(publishStatus),
+    groupType: v.optional(groupType),
     audience: v.optional(v.string()),
     schedule: v.optional(v.string()),
     location: v.optional(v.string()),
@@ -210,6 +195,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(groupId, patch);
+    return groupId;
+  },
+});
+
+/**
+ * Archive a group.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { groupId: v.id("groups") },
+  handler: async (ctx, { groupId }) => {
+    const group = await ctx.db.get(groupId);
+    if (!group) throw new Error("Group not found");
+
+    await requireChurchAccess(ctx, group.churchId);
+
+    await ctx.db.patch(groupId, { status: "archived" });
     return groupId;
   },
 });

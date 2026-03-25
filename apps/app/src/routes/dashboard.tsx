@@ -4,7 +4,6 @@ import { Section } from '@/components/section'
 import { Eyebrow } from '@/components/eyebrow'
 import { CardGrid } from '@/components/card-grid'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 

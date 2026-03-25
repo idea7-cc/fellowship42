@@ -34,14 +34,6 @@ export function CoursesPage() {
   return (
     <PageShell>
       <Section>
-        <Link to={`/churches/${churchId}`}>
-          <Button variant="ghost" size="sm">
-            Back to church
-          </Button>
-        </Link>
-      </Section>
-
-      <Section>
         <Eyebrow>Courses</Eyebrow>
         <h1>Courses &amp; studies</h1>
         <p className="mt-2">
@@ -72,29 +64,32 @@ export function CoursesPage() {
 
         {filteredCourses.length > 0 ? (
           <CardGrid minWidth="280px">
-            {filteredCourses.map((course) => (
-              <Link key={course._id} to={`/churches/${churchId}/courses/${course.slug}`}>
-                <Card className="h-full transition-all duration-200 hover:-translate-y-px hover:shadow-md">
-                  <CardHeader>
-                    <CardTitle>{course.title}</CardTitle>
-                    {course.summary && (
-                      <CardDescription>{course.summary}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="pill">{course.courseType}</Badge>
-                      <Badge variant="outline">{course.deliveryMode}</Badge>
-                    </div>
-                  </CardContent>
-                  <CardFooter>
-                    <span className="text-sm text-muted-foreground">
-                      {course.lessons.length} lessons
-                    </span>
-                  </CardFooter>
-                </Card>
-              </Link>
-            ))}
+            {filteredCourses.map((course) => {
+              const lessonCount = course.lessonCount ?? 0
+              return (
+                <Link key={course._id} to={`/churches/${churchId}/courses/${course.slug}`}>
+                  <Card className="h-full transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+                    <CardHeader>
+                      <CardTitle>{course.title}</CardTitle>
+                      {course.summary && (
+                        <CardDescription>{course.summary}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="pill">{course.courseType}</Badge>
+                        <Badge variant="outline">{course.deliveryMode}</Badge>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <span className="text-sm text-muted-foreground">
+                        {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
+                      </span>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              )
+            })}
           </CardGrid>
         ) : (
           <Card className="flex flex-col items-center justify-center border-dashed p-8">

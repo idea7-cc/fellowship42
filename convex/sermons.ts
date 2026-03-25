@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
+import { publishStatus } from "./lib/validators";
 
 /**
  * List recent sermons for a church, ordered by preached date descending.
@@ -16,7 +17,7 @@ export const listByChurch = query({
           q.eq("churchId", churchId)
         )
         .order("desc")
-        .collect();
+        .take(200);
     }
 
     const allPublished = await ctx.db
@@ -25,7 +26,7 @@ export const listByChurch = query({
         q.eq("churchId", churchId)
       )
       .order("desc")
-      .collect();
+      .take(200);
 
     return allPublished.filter((s) => s.status === "published");
   },
@@ -66,7 +67,7 @@ export const create = mutation({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     speaker: v.string(),
     series: v.optional(v.string()),
     summary: v.string(),
@@ -101,7 +102,7 @@ export const update = mutation({
     sermonId: v.id("sermons"),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    status: v.optional(publishStatus),
     speaker: v.optional(v.string()),
     series: v.optional(v.string()),
     summary: v.optional(v.string()),
@@ -134,6 +135,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(sermonId, patch);
+    return sermonId;
+  },
+});
+
+/**
+ * Archive a sermon.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { sermonId: v.id("sermons") },
+  handler: async (ctx, { sermonId }) => {
+    const sermon = await ctx.db.get(sermonId);
+    if (!sermon) throw new Error("Sermon not found");
+
+    await requireChurchAccess(ctx, sermon.churchId);
+
+    await ctx.db.patch(sermonId, { status: "archived" });
     return sermonId;
   },
 });

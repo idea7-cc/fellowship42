@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireChurchAccess } from "./lib/access";
-import { requireChurchScopedDocument, requireDocument } from "./lib/records";
+import { requireChurchAccess } from "./lib/auth";
+import { requireChurchScopedDocument } from "./lib/records";
+import { enrollmentStatus } from "./lib/validators";
 
 /**
  * List all enrollments for a given course.
@@ -18,7 +19,7 @@ export const listByCourse = query({
     return await ctx.db
       .query("courseEnrollments")
       .withIndex("by_course", (q) => q.eq("courseId", courseId))
-      .collect();
+      .take(200);
   },
 });
 
@@ -37,12 +38,13 @@ export const listByPerson = query({
     return await ctx.db
       .query("courseEnrollments")
       .withIndex("by_person", (q) => q.eq("personId", personId))
-      .collect();
+      .take(200);
   },
 });
 
 /**
  * Enroll a person (or group) in a course.
+ * Initializes with completedCount: 0 and progressPercent: 0.
  * Requires access to the course's church.
  */
 export const enroll = mutation({
@@ -51,24 +53,28 @@ export const enroll = mutation({
     courseId: v.id("courses"),
     personId: v.optional(v.id("people")),
     groupId: v.optional(v.id("groups")),
-    status: v.union(
-      v.literal("invited"),
-      v.literal("active"),
-      v.literal("completed"),
-      v.literal("archived")
-    ),
+    status: enrollmentStatus,
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
     if (!args.personId && !args.groupId) {
-      throw new Error("Course enrollments require either a personId or a groupId");
+      throw new Error(
+        "Course enrollments require either a personId or a groupId"
+      );
     }
     if (args.personId && args.groupId) {
-      throw new Error("Course enrollments must target either a person or a group");
+      throw new Error(
+        "Course enrollments must target either a person or a group"
+      );
     }
 
-    await requireChurchScopedDocument(ctx, args.courseId, args.churchId, "Course");
+    await requireChurchScopedDocument(
+      ctx,
+      args.courseId,
+      args.churchId,
+      "Course"
+    );
     if (args.personId) {
       await requireChurchScopedDocument(
         ctx,
@@ -78,7 +84,12 @@ export const enroll = mutation({
       );
     }
     if (args.groupId) {
-      await requireChurchScopedDocument(ctx, args.groupId, args.churchId, "Group");
+      await requireChurchScopedDocument(
+        ctx,
+        args.groupId,
+        args.churchId,
+        "Group"
+      );
     }
 
     // If enrolling a person, check for existing enrollment
@@ -113,72 +124,37 @@ export const enroll = mutation({
       groupId: args.groupId,
       status: args.status,
       progressPercent: 0,
+      completedCount: 0,
       startedAt: Date.now(),
-      completedLessons: [],
       notes: args.notes,
     });
   },
 });
 
 /**
- * Toggle a lesson's completion status for an enrollment.
- * If the lesson is already marked complete it will be removed;
- * otherwise it will be added.
+ * Remove an enrollment and all related lesson completions.
  * Requires access to the enrollment's church.
  */
-export const toggleLessonCompletion = mutation({
-  args: {
-    enrollmentId: v.id("courseEnrollments"),
-    lessonId: v.string(),
-  },
-  handler: async (ctx, { enrollmentId, lessonId }) => {
+export const remove = mutation({
+  args: { enrollmentId: v.id("courseEnrollments") },
+  handler: async (ctx, { enrollmentId }) => {
     const enrollment = await ctx.db.get(enrollmentId);
     if (!enrollment) throw new Error("Enrollment not found");
 
     await requireChurchAccess(ctx, enrollment.churchId);
-    const course = await requireDocument(ctx, enrollment.courseId, "Course");
-    const lesson = course.lessons.find((candidate) => candidate.lessonId === lessonId);
-    if (!lesson) {
-      throw new Error("Lesson not found on this course");
+
+    // Delete all related lesson completions
+    const completions = await ctx.db
+      .query("lessonCompletions")
+      .withIndex("by_enrollment", (q) => q.eq("enrollmentId", enrollmentId))
+      .take(200);
+
+    for (const completion of completions) {
+      await ctx.db.delete(completion._id);
     }
 
-    const completedLessons = [...enrollment.completedLessons];
-    const existingIndex = completedLessons.findIndex(
-      (l) => l.lessonId === lessonId
-    );
-
-    if (existingIndex >= 0) {
-      // Remove the lesson (un-complete it)
-      completedLessons.splice(existingIndex, 1);
-    } else {
-      // Mark the lesson as completed
-      completedLessons.push({
-        lessonId,
-        title: lesson.title,
-        completedAt: Date.now(),
-      });
-    }
-
-    // Recalculate progress based on the parent course's lesson count
-    const totalLessons = course?.lessons.length ?? 1;
-    const progressPercent = Math.round(
-      (completedLessons.length / totalLessons) * 100
-    );
-
-    const isComplete = progressPercent >= 100;
-    const nextStatus =
-      enrollment.status === "archived"
-        ? "archived"
-        : isComplete
-          ? "completed"
-          : "active";
-
-    await ctx.db.patch(enrollmentId, {
-      completedLessons,
-      progressPercent,
-      status: nextStatus,
-      completedAt: isComplete ? Date.now() : undefined,
-    });
+    // Delete the enrollment itself
+    await ctx.db.delete(enrollmentId);
 
     return enrollmentId;
   },

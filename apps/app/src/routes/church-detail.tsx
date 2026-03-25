@@ -1,14 +1,12 @@
 import { useQuery } from 'convex/react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
 import { Hero } from '@/components/hero'
 import { Eyebrow } from '@/components/eyebrow'
-import { CardGrid } from '@/components/card-grid'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { StatPanel } from '@/components/stat-panel'
 import { asId } from '@/lib/convex'
 
@@ -19,30 +17,6 @@ export function ChurchDetailPage() {
   const groups = useQuery(api.groups.listByChurch, churchArgs)
   const courses = useQuery(api.courses.listByChurch, churchArgs)
   const events = useQuery(api.events.listByChurch, churchArgs)
-
-  const navItems = [
-    {
-      label: 'People',
-      description: 'Protected directory view. Available after Clerk auth is wired.',
-      path: 'people',
-      disabled: true,
-    },
-    {
-      label: 'Groups',
-      description: 'Small groups, teams, and committees',
-      path: 'groups',
-    },
-    {
-      label: 'Courses',
-      description: 'Classes, studies, and training',
-      path: 'courses',
-    },
-    {
-      label: 'Events',
-      description: 'Services, gatherings, and activities',
-      path: 'events',
-    },
-  ]
 
   const isLoading =
     church === undefined ||
@@ -56,14 +30,6 @@ export function ChurchDetailPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Link to="/churches">
-          <Button variant="ghost" size="sm">
-            Back to churches
-          </Button>
-        </Link>
-      </Section>
-
       {isLoading ? (
         <Section>
           <Card>
@@ -112,30 +78,6 @@ export function ChurchDetailPage() {
               </Card>
             </div>
           </Hero>
-
-          <Section title="Areas" description="Browse the surfaces currently backed by live Convex data.">
-            <CardGrid>
-              {navItems.map((item) =>
-                item.disabled ? (
-                  <Card key={item.path} className="h-full border-dashed opacity-80">
-                    <CardHeader>
-                      <CardTitle>{item.label}</CardTitle>
-                      <CardDescription>{item.description}</CardDescription>
-                    </CardHeader>
-                  </Card>
-                ) : (
-                  <Link key={item.path} to={`/churches/${churchId}/${item.path}`}>
-                    <Card className="h-full transition-all duration-200 hover:-translate-y-px hover:shadow-md">
-                      <CardHeader>
-                        <CardTitle>{item.label}</CardTitle>
-                        <CardDescription>{item.description}</CardDescription>
-                      </CardHeader>
-                    </Card>
-                  </Link>
-                ),
-              )}
-            </CardGrid>
-          </Section>
         </>
       )}
     </PageShell>

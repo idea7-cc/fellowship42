@@ -1,11 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
+import { publishStatus } from "./lib/validators";
 
 /**
  * List ministries for a church.
  * Public callers see only published ministries. Authenticated users with
- * church access see all (draft + published).
+ * church access see all (draft + published + archived).
  */
 export const listByChurch = query({
   args: { churchId: v.id("churches") },
@@ -14,7 +15,7 @@ export const listByChurch = query({
       return await ctx.db
         .query("ministries")
         .withIndex("by_church", (q) => q.eq("churchId", churchId))
-        .collect();
+        .take(200);
     }
 
     return await ctx.db
@@ -22,7 +23,7 @@ export const listByChurch = query({
       .withIndex("by_church_and_status", (q) =>
         q.eq("churchId", churchId).eq("status", "published")
       )
-      .collect();
+      .take(200);
   },
 });
 
@@ -45,7 +46,7 @@ export const getBySlug = query({
     // Allow published ministries for everyone
     if (ministry.status === "published") return ministry;
 
-    // Draft ministries require church access
+    // Draft/archived ministries require church access
     if (await hasChurchAccess(ctx, churchId)) {
       return ministry;
     }
@@ -63,7 +64,7 @@ export const create = mutation({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     audience: v.string(),
     schedule: v.string(),
     featured: v.boolean(),
@@ -98,7 +99,7 @@ export const update = mutation({
     ministryId: v.id("ministries"),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    status: v.optional(publishStatus),
     audience: v.optional(v.string()),
     schedule: v.optional(v.string()),
     featured: v.optional(v.boolean()),
@@ -131,6 +132,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(ministryId, patch);
+    return ministryId;
+  },
+});
+
+/**
+ * Archive a ministry.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { ministryId: v.id("ministries") },
+  handler: async (ctx, { ministryId }) => {
+    const ministry = await ctx.db.get(ministryId);
+    if (!ministry) throw new Error("Ministry not found");
+
+    await requireChurchAccess(ctx, ministry.churchId);
+
+    await ctx.db.patch(ministryId, { status: "archived" });
     return ministryId;
   },
 });

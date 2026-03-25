@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
+import { publishStatus } from "./lib/validators";
 
 /**
  * List upcoming events for a church, ordered by start date.
@@ -19,7 +20,7 @@ export const listByChurch = query({
           q.eq("churchId", churchId)
         )
         .order("asc")
-        .collect();
+        .take(200);
 
       return events.filter((event) => event.startDate >= now);
     }
@@ -31,7 +32,7 @@ export const listByChurch = query({
         q.eq("churchId", churchId)
       )
       .order("asc")
-      .collect();
+      .take(200);
 
     return allPublished.filter(
       (event) => event.status === "published" && event.startDate >= now
@@ -74,7 +75,7 @@ export const create = mutation({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     summary: v.string(),
     startDate: v.number(),
     endDate: v.optional(v.number()),
@@ -110,7 +111,7 @@ export const update = mutation({
     eventId: v.id("events"),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    status: v.optional(publishStatus),
     summary: v.optional(v.string()),
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
@@ -144,6 +145,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(eventId, patch);
+    return eventId;
+  },
+});
+
+/**
+ * Archive an event.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { eventId: v.id("events") },
+  handler: async (ctx, { eventId }) => {
+    const event = await ctx.db.get(eventId);
+    if (!event) throw new Error("Event not found");
+
+    await requireChurchAccess(ctx, event.churchId);
+
+    await ctx.db.patch(eventId, { status: "archived" });
     return eventId;
   },
 });

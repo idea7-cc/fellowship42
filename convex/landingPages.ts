@@ -1,8 +1,15 @@
 import { mutation, query } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
 import { requireChurchScopedDocument } from "./lib/records";
+import {
+  landingPageBlock,
+  pageType,
+  themeMode,
+  heroTone,
+  publishStatus,
+} from "./lib/validators";
 
 type PageType = "ministry" | "group" | "course";
 
@@ -13,16 +20,18 @@ type PageOwnerFields = {
 };
 
 function assertOwnerFieldsMatchPageType(
-  pageType: PageType,
+  pt: PageType,
   owners: PageOwnerFields
 ) {
-  const providedOwners = ([
-    ["ministry", owners.ministryId],
-    ["group", owners.groupId],
-    ["course", owners.courseId],
-  ] as const).filter(([, ownerId]) => ownerId !== undefined);
+  const providedOwners = (
+    [
+      ["ministry", owners.ministryId],
+      ["group", owners.groupId],
+      ["course", owners.courseId],
+    ] as const
+  ).filter(([, ownerId]) => ownerId !== undefined);
 
-  if (providedOwners.length !== 1 || providedOwners[0][0] !== pageType) {
+  if (providedOwners.length !== 1 || providedOwners[0][0] !== pt) {
     throw new Error(
       "Landing pages must reference exactly one owner matching their pageType"
     );
@@ -32,10 +41,10 @@ function assertOwnerFieldsMatchPageType(
 async function ensureOwnerBelongsToChurch(
   ctx: Parameters<typeof requireChurchAccess>[0],
   churchId: Parameters<typeof requireChurchAccess>[1],
-  pageType: PageType,
+  pt: PageType,
   owners: PageOwnerFields
 ) {
-  if (pageType === "ministry" && owners.ministryId) {
+  if (pt === "ministry" && owners.ministryId) {
     await requireChurchScopedDocument(
       ctx,
       owners.ministryId,
@@ -44,11 +53,11 @@ async function ensureOwnerBelongsToChurch(
     );
   }
 
-  if (pageType === "group" && owners.groupId) {
+  if (pt === "group" && owners.groupId) {
     await requireChurchScopedDocument(ctx, owners.groupId, churchId, "Group");
   }
 
-  if (pageType === "course" && owners.courseId) {
+  if (pt === "course" && owners.courseId) {
     await requireChurchScopedDocument(ctx, owners.courseId, churchId, "Course");
   }
 }
@@ -56,10 +65,10 @@ async function ensureOwnerBelongsToChurch(
 async function findPageByOwner(
   ctx: Parameters<typeof requireChurchAccess>[0],
   churchId: Parameters<typeof requireChurchAccess>[1],
-  pageType: PageType,
+  pt: PageType,
   owners: PageOwnerFields
 ) {
-  if (pageType === "ministry" && owners.ministryId) {
+  if (pt === "ministry" && owners.ministryId) {
     return await ctx.db
       .query("landingPages")
       .withIndex("by_church_and_ministry", (q) =>
@@ -68,7 +77,7 @@ async function findPageByOwner(
       .first();
   }
 
-  if (pageType === "group" && owners.groupId) {
+  if (pt === "group" && owners.groupId) {
     return await ctx.db
       .query("landingPages")
       .withIndex("by_church_and_group", (q) =>
@@ -77,7 +86,7 @@ async function findPageByOwner(
       .first();
   }
 
-  if (pageType === "course" && owners.courseId) {
+  if (pt === "course" && owners.courseId) {
     return await ctx.db
       .query("landingPages")
       .withIndex("by_church_and_course", (q) =>
@@ -97,17 +106,13 @@ async function findPageByOwner(
 export const getByOwner = query({
   args: {
     churchId: v.id("churches"),
-    pageType: v.union(
-      v.literal("ministry"),
-      v.literal("group"),
-      v.literal("course")
-    ),
+    pageType: pageType,
     ownerId: v.union(v.id("ministries"), v.id("groups"), v.id("courses")),
   },
-  handler: async (ctx, { churchId, pageType, ownerId }) => {
+  handler: async (ctx, { churchId, pageType: pt, ownerId }) => {
     let page = null;
 
-    if (pageType === "ministry") {
+    if (pt === "ministry") {
       const ministryId = ownerId as Id<"ministries">;
       page = await ctx.db
         .query("landingPages")
@@ -115,7 +120,7 @@ export const getByOwner = query({
           q.eq("churchId", churchId).eq("ministryId", ministryId)
         )
         .first();
-    } else if (pageType === "group") {
+    } else if (pt === "group") {
       const groupId = ownerId as Id<"groups">;
       page = await ctx.db
         .query("landingPages")
@@ -123,7 +128,7 @@ export const getByOwner = query({
           q.eq("churchId", churchId).eq("groupId", groupId)
         )
         .first();
-    } else if (pageType === "course") {
+    } else if (pt === "course") {
       const courseId = ownerId as Id<"courses">;
       page = await ctx.db
         .query("landingPages")
@@ -138,7 +143,7 @@ export const getByOwner = query({
     // Published pages are public
     if (page.status === "published") return page;
 
-    // Draft pages require church access
+    // Draft/archived pages require church access
     if (await hasChurchAccess(ctx, churchId)) {
       return page;
     }
@@ -182,26 +187,22 @@ export const create = mutation({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    pageType: v.union(
-      v.literal("ministry"),
-      v.literal("group"),
-      v.literal("course")
-    ),
+    status: publishStatus,
+    pageType: pageType,
     ministryId: v.optional(v.id("ministries")),
     groupId: v.optional(v.id("groups")),
     courseId: v.optional(v.id("courses")),
-    themeMode: v.union(v.literal("inherit"), v.literal("custom")),
+    themeMode: themeMode,
     themeOverrides: v.optional(
       v.object({
         accent: v.optional(v.string()),
         surface: v.optional(v.string()),
         ink: v.optional(v.string()),
-        heroTone: v.optional(v.string()),
+        heroTone: v.optional(heroTone),
       })
     ),
     seoDescription: v.optional(v.string()),
-    blocks: v.array(v.any()),
+    blocks: v.array(landingPageBlock),
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
@@ -245,30 +246,22 @@ export const update = mutation({
     pageId: v.id("landingPages"),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
-    pageType: v.optional(
-      v.union(
-        v.literal("ministry"),
-        v.literal("group"),
-        v.literal("course")
-      )
-    ),
+    status: v.optional(publishStatus),
+    pageType: v.optional(pageType),
     ministryId: v.optional(v.id("ministries")),
     groupId: v.optional(v.id("groups")),
     courseId: v.optional(v.id("courses")),
-    themeMode: v.optional(
-      v.union(v.literal("inherit"), v.literal("custom"))
-    ),
+    themeMode: v.optional(themeMode),
     themeOverrides: v.optional(
       v.object({
         accent: v.optional(v.string()),
         surface: v.optional(v.string()),
         ink: v.optional(v.string()),
-        heroTone: v.optional(v.string()),
+        heroTone: v.optional(heroTone),
       })
     ),
     seoDescription: v.optional(v.string()),
-    blocks: v.optional(v.array(v.any())),
+    blocks: v.optional(v.array(landingPageBlock)),
   },
   handler: async (ctx, { pageId, ...fields }) => {
     const page = await ctx.db.get(pageId);
@@ -321,6 +314,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(pageId, patch);
+    return pageId;
+  },
+});
+
+/**
+ * Archive a landing page.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { pageId: v.id("landingPages") },
+  handler: async (ctx, { pageId }) => {
+    const page = await ctx.db.get(pageId);
+    if (!page) throw new Error("Landing page not found");
+
+    await requireChurchAccess(ctx, page.churchId);
+
+    await ctx.db.patch(pageId, { status: "archived" });
     return pageId;
   },
 });

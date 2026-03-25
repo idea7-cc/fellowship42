@@ -21,12 +21,7 @@ export function ChurchesPage() {
       </Section>
 
       <Section>
-        <div className="mb-6 flex items-center justify-between">
-          <Link to="/">
-            <Button variant="ghost" size="sm">
-              Back to dashboard
-            </Button>
-          </Link>
+        <div className="mb-6 flex items-center justify-end">
           <Button size="sm" disabled>
             Church creation requires auth
           </Button>

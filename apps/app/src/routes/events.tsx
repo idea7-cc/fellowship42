@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
 import { Section } from '@/components/section'
 import { Eyebrow } from '@/components/eyebrow'
 import { CardGrid } from '@/components/card-grid'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -33,14 +33,6 @@ export function EventsPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Link to={`/churches/${churchId}`}>
-          <Button variant="ghost" size="sm">
-            Back to church
-          </Button>
-        </Link>
-      </Section>
-
       <Section>
         <Eyebrow>Events</Eyebrow>
         <h1>Events &amp; services</h1>

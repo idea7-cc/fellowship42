@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireRole, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess, requireRole } from "./lib/auth";
+import { publishStatus, churchTheme, dayOfWeek } from "./lib/validators";
 
 /**
  * List all published churches.
@@ -12,7 +13,7 @@ export const list = query({
     return await ctx.db
       .query("churches")
       .withIndex("by_status", (q) => q.eq("status", "published"))
-      .collect();
+      .take(200);
   },
 });
 
@@ -66,12 +67,12 @@ export const create = mutation({
   args: {
     name: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     tagline: v.string(),
     summary: v.string(),
     heroImage: v.optional(v.id("media")),
     serviceTimes: v.array(
-      v.object({ label: v.string(), day: v.string(), time: v.string() })
+      v.object({ label: v.string(), day: dayOfWeek, time: v.string() })
     ),
     address: v.object({
       street: v.string(),
@@ -86,16 +87,7 @@ export const create = mutation({
     }),
     givingUrl: v.optional(v.string()),
     livestreamUrl: v.optional(v.string()),
-    theme: v.object({
-      preset: v.string(),
-      accent: v.string(),
-      surface: v.string(),
-      ink: v.string(),
-      heroTone: v.string(),
-      radius: v.string(),
-      headingFont: v.string(),
-      bodyFont: v.string(),
-    }),
+    theme: churchTheme,
   },
   handler: async (ctx, args) => {
     await requireRole(ctx, ["church-admin"]);
@@ -122,13 +114,13 @@ export const update = mutation({
     churchId: v.id("churches"),
     name: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
+    status: v.optional(publishStatus),
     tagline: v.optional(v.string()),
     summary: v.optional(v.string()),
     heroImage: v.optional(v.id("media")),
     serviceTimes: v.optional(
       v.array(
-        v.object({ label: v.string(), day: v.string(), time: v.string() })
+        v.object({ label: v.string(), day: dayOfWeek, time: v.string() })
       )
     ),
     address: v.optional(
@@ -148,18 +140,7 @@ export const update = mutation({
     ),
     givingUrl: v.optional(v.string()),
     livestreamUrl: v.optional(v.string()),
-    theme: v.optional(
-      v.object({
-        preset: v.string(),
-        accent: v.string(),
-        surface: v.string(),
-        ink: v.string(),
-        heroTone: v.string(),
-        radius: v.string(),
-        headingFont: v.string(),
-        bodyFont: v.string(),
-      })
-    ),
+    theme: v.optional(churchTheme),
   },
   handler: async (ctx, { churchId, ...fields }) => {
     await requireChurchAccess(ctx, churchId);
@@ -185,6 +166,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(churchId, patch);
+    return churchId;
+  },
+});
+
+/**
+ * Archive a church.
+ * Requires access to the target church.
+ */
+export const archive = mutation({
+  args: { churchId: v.id("churches") },
+  handler: async (ctx, { churchId }) => {
+    await requireChurchAccess(ctx, churchId);
+
+    const church = await ctx.db.get(churchId);
+    if (!church) throw new Error("Church not found");
+
+    await ctx.db.patch(churchId, { status: "archived" });
     return churchId;
   },
 });

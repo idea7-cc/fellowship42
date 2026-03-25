@@ -1,19 +1,47 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  attendanceStatus,
+  borderRadius,
+  brandPreset,
+  churchTheme,
+  courseType,
+  dayOfWeek,
+  deliveryMode,
+  enrollmentStatus,
+  fontFamily,
+  fundType,
+  groupMemberRole,
+  groupMemberStatus,
+  groupType,
+  heroTone,
+  landingPageBlock,
+  mediaType,
+  membershipStatus,
+  pageType,
+  paymentMethod,
+  paymentStatus,
+  publishStatus,
+  roomAvailability,
+  roomType,
+  sessionStatus,
+  themeMode,
+  userRole,
+} from "./lib/validators";
 
 export default defineSchema({
   // ── Churches ──────────────────────────────────────────────────────────
   churches: defineTable({
     name: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     tagline: v.string(),
     summary: v.string(),
     heroImage: v.optional(v.id("media")),
     serviceTimes: v.array(
       v.object({
         label: v.string(),
-        day: v.string(),
+        day: dayOfWeek,
         time: v.string(),
       })
     ),
@@ -30,73 +58,54 @@ export default defineSchema({
     }),
     givingUrl: v.optional(v.string()),
     livestreamUrl: v.optional(v.string()),
-    theme: v.object({
-      preset: v.string(),
-      accent: v.string(),
-      surface: v.string(),
-      ink: v.string(),
-      heroTone: v.string(),
-      radius: v.string(),
-      headingFont: v.string(),
-      bodyFont: v.string(),
-    }),
+    theme: churchTheme,
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"]),
 
   // ── Users ─────────────────────────────────────────────────────────────
+  // The `tokenIdentifier` comes from ctx.auth.getUserIdentity().tokenIdentifier
+  // and is provider-agnostic (works with Clerk, WorkOS, Auth0, etc.)
   users: defineTable({
+    tokenIdentifier: v.string(),
+    email: v.string(),
     firstName: v.string(),
     lastName: v.string(),
-    email: v.string(),
-    roles: v.array(
-      v.union(
-        v.literal("super-admin"),
-        v.literal("church-admin"),
-        v.literal("finance"),
-        v.literal("ministry-leader"),
-        v.literal("member")
-      )
-    ),
+    avatarUrl: v.optional(v.string()),
+    roles: v.array(userRole),
     churchIds: v.array(v.id("churches")),
     personId: v.optional(v.id("people")),
-    clerkId: v.optional(v.string()),
   })
-    .index("by_email", ["email"])
-    .index("by_clerk_id", ["clerkId"]),
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_email", ["email"]),
 
   // ── People ────────────────────────────────────────────────────────────
   people: defineTable({
     churchId: v.id("churches"),
     firstName: v.string(),
     lastName: v.string(),
+    fullName: v.string(),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     householdName: v.optional(v.string()),
-    membershipStatus: v.union(
-      v.literal("guest"),
-      v.literal("regular-attender"),
-      v.literal("member"),
-      v.literal("volunteer")
-    ),
+    membershipStatus: membershipStatus,
     volunteerReady: v.boolean(),
     notes: v.optional(v.string()),
   })
     .index("by_church", ["churchId"])
-    .index("by_church_and_email", ["churchId", "email"]),
+    .index("by_church_and_email", ["churchId", "email"])
+    .index("by_church_and_status", ["churchId", "membershipStatus"])
+    .searchIndex("search_name", {
+      searchField: "fullName",
+      filterFields: ["churchId", "membershipStatus"],
+    }),
 
   // ── Media ─────────────────────────────────────────────────────────────
   media: defineTable({
     churchId: v.optional(v.id("churches")),
-    resourceType: v.union(
-      v.literal("image"),
-      v.literal("worksheet"),
-      v.literal("lesson-guide"),
-      v.literal("video"),
-      v.literal("handbook")
-    ),
+    resourceType: mediaType,
     alt: v.string(),
-    storageId: v.string(),
+    storageId: v.id("_storage"),
     url: v.optional(v.string()),
   }).index("by_church", ["churchId"]),
 
@@ -105,7 +114,7 @@ export default defineSchema({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     audience: v.string(),
     schedule: v.string(),
     featured: v.boolean(),
@@ -121,15 +130,8 @@ export default defineSchema({
     ministryId: v.optional(v.id("ministries")),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    groupType: v.union(
-      v.literal("small-group"),
-      v.literal("sunday-school"),
-      v.literal("bible-study"),
-      v.literal("support-group"),
-      v.literal("serving-team"),
-      v.literal("training-cohort")
-    ),
+    status: publishStatus,
+    groupType: groupType,
     audience: v.string(),
     schedule: v.string(),
     location: v.optional(v.string()),
@@ -142,26 +144,19 @@ export default defineSchema({
     .index("by_church", ["churchId"])
     .index("by_church_and_slug", ["churchId", "slug"])
     .index("by_ministry", ["ministryId"])
-    .index("by_church_and_status", ["churchId", "status"]),
+    .index("by_church_and_status", ["churchId", "status"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["churchId", "status"],
+    }),
 
   // ── Group Memberships ─────────────────────────────────────────────────
   groupMemberships: defineTable({
     churchId: v.id("churches"),
     groupId: v.id("groups"),
     personId: v.id("people"),
-    role: v.union(
-      v.literal("member"),
-      v.literal("leader"),
-      v.literal("apprentice"),
-      v.literal("host")
-    ),
-    status: v.union(
-      v.literal("interested"),
-      v.literal("pending"),
-      v.literal("active"),
-      v.literal("paused"),
-      v.literal("completed")
-    ),
+    role: groupMemberRole,
+    status: groupMemberStatus,
     joinedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
@@ -178,10 +173,7 @@ export default defineSchema({
     sessionDate: v.number(),
     location: v.optional(v.string()),
     topic: v.optional(v.string()),
-    attendanceStatus: v.union(
-      v.literal("planned"),
-      v.literal("submitted")
-    ),
+    attendanceStatus: sessionStatus,
   })
     .index("by_church", ["churchId"])
     .index("by_group", ["groupId"])
@@ -193,12 +185,7 @@ export default defineSchema({
     groupId: v.id("groups"),
     sessionId: v.id("groupSessions"),
     personId: v.id("people"),
-    status: v.union(
-      v.literal("present"),
-      v.literal("absent"),
-      v.literal("excused"),
-      v.literal("serving")
-    ),
+    status: attendanceStatus,
     checkedInAt: v.optional(v.number()),
     notes: v.optional(v.string()),
   })
@@ -207,70 +194,63 @@ export default defineSchema({
     .index("by_person", ["personId"]),
 
   // ── Courses ───────────────────────────────────────────────────────────
+  // Lessons are stored in their own table (see `lessons` below).
+  // `lessonCount` is a denormalized counter maintained by lesson mutations.
   courses: defineTable({
     churchId: v.id("churches"),
     ministryId: v.optional(v.id("ministries")),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    courseType: v.union(
-      v.literal("new-member"),
-      v.literal("volunteer-training"),
-      v.literal("discipleship"),
-      v.literal("leadership"),
-      v.literal("bible-study"),
-      v.literal("curriculum")
-    ),
-    deliveryMode: v.union(
-      v.literal("self-paced"),
-      v.literal("group-led"),
-      v.literal("cohort"),
-      v.literal("hybrid")
-    ),
+    status: publishStatus,
+    courseType: courseType,
+    deliveryMode: deliveryMode,
     audience: v.string(),
     duration: v.string(),
     featured: v.boolean(),
     certificateOffered: v.boolean(),
     summary: v.string(),
-    lessons: v.array(
-      v.object({
-        lessonId: v.string(),
-        title: v.string(),
-        summary: v.string(),
-        content: v.optional(v.string()),
-        resourceId: v.optional(v.string()),
-        estimatedMinutes: v.optional(v.number()),
-        required: v.optional(v.boolean()),
-      })
-    ),
+    lessonCount: v.number(),
   })
     .index("by_church", ["churchId"])
     .index("by_church_and_slug", ["churchId", "slug"])
     .index("by_ministry", ["ministryId"])
-    .index("by_church_and_status", ["churchId", "status"]),
+    .index("by_church_and_status", ["churchId", "status"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["churchId", "status"],
+    }),
+
+  // ── Lessons ───────────────────────────────────────────────────────────
+  // Extracted from the old `courses.lessons` embedded array to avoid the
+  // Convex 1 MB document-size limit and enable individual-lesson updates.
+  lessons: defineTable({
+    churchId: v.id("churches"),
+    courseId: v.id("courses"),
+    title: v.string(),
+    summary: v.string(),
+    content: v.optional(v.string()),
+    resourceId: v.optional(v.id("media")),
+    estimatedMinutes: v.optional(v.number()),
+    required: v.boolean(),
+    sortOrder: v.number(),
+  })
+    .index("by_course", ["courseId"])
+    .index("by_course_and_order", ["courseId", "sortOrder"])
+    .index("by_church", ["churchId"]),
 
   // ── Course Enrollments ────────────────────────────────────────────────
+  // Lesson completion tracking is now in `lessonCompletions`.
+  // `completedCount` is a denormalized counter maintained by completion toggles.
   courseEnrollments: defineTable({
     churchId: v.id("churches"),
     courseId: v.id("courses"),
     personId: v.optional(v.id("people")),
     groupId: v.optional(v.id("groups")),
-    status: v.union(
-      v.literal("invited"),
-      v.literal("active"),
-      v.literal("completed"),
-      v.literal("archived")
-    ),
+    status: enrollmentStatus,
     progressPercent: v.number(),
+    completedCount: v.number(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
-    completedLessons: v.array(
-      v.object({
-        lessonId: v.string(),
-        title: v.string(),
-        completedAt: v.number(),
-      })
-    ),
     notes: v.optional(v.string()),
   })
     .index("by_church", ["churchId"])
@@ -279,12 +259,26 @@ export default defineSchema({
     .index("by_person", ["personId"])
     .index("by_course_and_person", ["courseId", "personId"]),
 
+  // ── Lesson Completions ────────────────────────────────────────────────
+  // Extracted from the old `courseEnrollments.completedLessons` array.
+  // Each row represents one person completing one lesson.
+  lessonCompletions: defineTable({
+    churchId: v.id("churches"),
+    enrollmentId: v.id("courseEnrollments"),
+    lessonId: v.id("lessons"),
+    completedAt: v.number(),
+  })
+    .index("by_enrollment", ["enrollmentId"])
+    .index("by_lesson", ["lessonId"])
+    .index("by_enrollment_and_lesson", ["enrollmentId", "lessonId"])
+    .index("by_church", ["churchId"]),
+
   // ── Events ────────────────────────────────────────────────────────────
   events: defineTable({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     summary: v.string(),
     startDate: v.number(),
     endDate: v.optional(v.number()),
@@ -294,14 +288,18 @@ export default defineSchema({
   })
     .index("by_church", ["churchId"])
     .index("by_church_and_slug", ["churchId", "slug"])
-    .index("by_church_and_start_date", ["churchId", "startDate"]),
+    .index("by_church_and_start_date", ["churchId", "startDate"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["churchId", "status"],
+    }),
 
   // ── Sermons ───────────────────────────────────────────────────────────
   sermons: defineTable({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
+    status: publishStatus,
     speaker: v.string(),
     series: v.optional(v.string()),
     summary: v.string(),
@@ -310,25 +308,19 @@ export default defineSchema({
   })
     .index("by_church", ["churchId"])
     .index("by_church_and_slug", ["churchId", "slug"])
-    .index("by_church_and_preached_at", ["churchId", "preachedAt"]),
+    .index("by_church_and_preached_at", ["churchId", "preachedAt"])
+    .searchIndex("search_title", {
+      searchField: "title",
+      filterFields: ["churchId", "status"],
+    }),
 
   // ── Facilities ────────────────────────────────────────────────────────
   facilities: defineTable({
     churchId: v.id("churches"),
     name: v.string(),
-    roomType: v.union(
-      v.literal("sanctuary"),
-      v.literal("classroom"),
-      v.literal("lobby"),
-      v.literal("office"),
-      v.literal("multipurpose")
-    ),
+    roomType: roomType,
     capacity: v.number(),
-    availability: v.union(
-      v.literal("available"),
-      v.literal("reserved"),
-      v.literal("maintenance")
-    ),
+    availability: roomAvailability,
     notes: v.optional(v.string()),
   }).index("by_church", ["churchId"]),
 
@@ -338,23 +330,9 @@ export default defineSchema({
     personId: v.optional(v.id("people")),
     donorName: v.string(),
     amount: v.number(),
-    fund: v.union(
-      v.literal("general"),
-      v.literal("missions"),
-      v.literal("benevolence"),
-      v.literal("building")
-    ),
-    paymentMethod: v.union(
-      v.literal("card"),
-      v.literal("ach"),
-      v.literal("cash"),
-      v.literal("check")
-    ),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("succeeded"),
-      v.literal("refunded")
-    ),
+    fund: fundType,
+    paymentMethod: paymentMethod,
+    status: paymentStatus,
     recurring: v.boolean(),
     donatedAt: v.number(),
   })
@@ -367,26 +345,22 @@ export default defineSchema({
     churchId: v.id("churches"),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    pageType: v.union(
-      v.literal("ministry"),
-      v.literal("group"),
-      v.literal("course")
-    ),
+    status: publishStatus,
+    pageType: pageType,
     ministryId: v.optional(v.id("ministries")),
     groupId: v.optional(v.id("groups")),
     courseId: v.optional(v.id("courses")),
-    themeMode: v.union(v.literal("inherit"), v.literal("custom")),
+    themeMode: themeMode,
     themeOverrides: v.optional(
       v.object({
         accent: v.optional(v.string()),
         surface: v.optional(v.string()),
         ink: v.optional(v.string()),
-        heroTone: v.optional(v.string()),
+        heroTone: v.optional(heroTone),
       })
     ),
     seoDescription: v.optional(v.string()),
-    blocks: v.array(v.any()),
+    blocks: v.array(landingPageBlock),
   })
     .index("by_church", ["churchId"])
     .index("by_church_and_slug", ["churchId", "slug"])

@@ -1,6 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser, hasChurchAccess, requireChurchAccess } from "./lib/access";
+import {
+  getCurrentUser,
+  hasChurchAccess,
+  requireChurchAccess,
+} from "./lib/auth";
+import { membershipStatus } from "./lib/validators";
 
 /**
  * List all people belonging to a church.
@@ -13,7 +18,7 @@ export const listByChurch = query({
     return await ctx.db
       .query("people")
       .withIndex("by_church", (q) => q.eq("churchId", churchId))
-      .collect();
+      .take(200);
   },
 });
 
@@ -36,7 +41,7 @@ export const listByChurchForViewer = query({
     return await ctx.db
       .query("people")
       .withIndex("by_church", (q) => q.eq("churchId", churchId))
-      .collect();
+      .take(200);
   },
 });
 
@@ -66,18 +71,15 @@ export const create = mutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     householdName: v.optional(v.string()),
-    membershipStatus: v.union(
-      v.literal("guest"),
-      v.literal("regular-attender"),
-      v.literal("member"),
-      v.literal("volunteer")
-    ),
+    membershipStatus: membershipStatus,
     volunteerReady: v.boolean(),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
-    return await ctx.db.insert("people", args);
+
+    const fullName = `${args.firstName} ${args.lastName}`;
+    return await ctx.db.insert("people", { ...args, fullName });
   },
 });
 
@@ -93,14 +95,7 @@ export const update = mutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     householdName: v.optional(v.string()),
-    membershipStatus: v.optional(
-      v.union(
-        v.literal("guest"),
-        v.literal("regular-attender"),
-        v.literal("member"),
-        v.literal("volunteer")
-      )
-    ),
+    membershipStatus: v.optional(membershipStatus),
     volunteerReady: v.optional(v.boolean()),
     notes: v.optional(v.string()),
   },
@@ -115,7 +110,31 @@ export const update = mutation({
       if (value !== undefined) patch[key] = value;
     }
 
+    // Recompute fullName if either name field changed
+    const firstName = fields.firstName ?? person.firstName;
+    const lastName = fields.lastName ?? person.lastName;
+    if (fields.firstName !== undefined || fields.lastName !== undefined) {
+      patch.fullName = `${firstName} ${lastName}`;
+    }
+
     await ctx.db.patch(personId, patch);
+    return personId;
+  },
+});
+
+/**
+ * Archive a person (set membership status to inactive).
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { personId: v.id("people") },
+  handler: async (ctx, { personId }) => {
+    const person = await ctx.db.get(personId);
+    if (!person) throw new Error("Person not found");
+
+    await requireChurchAccess(ctx, person.churchId);
+
+    await ctx.db.patch(personId, { membershipStatus: "inactive" });
     return personId;
   },
 });

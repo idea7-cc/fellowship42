@@ -258,7 +258,7 @@ The backend uses Convex with 16 tables. All multi-tenant data is scoped by
 
 ### Access control pattern
 
-Every Convex function uses helpers from `convex/lib/access.ts`:
+Every Convex function uses helpers from `convex/lib/auth.ts`:
 - `requireAuth(ctx)` -- Ensures JWT is present
 - `requireUser(ctx)` -- Resolves to user document
 - `requireRole(ctx, roles)` -- Checks user has at least one role

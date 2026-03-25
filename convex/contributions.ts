@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { canManageChurch, requireRole } from "./lib/access";
+import { canManageChurch, requireRole } from "./lib/auth";
 import { requireChurchScopedDocument } from "./lib/records";
+import { fundType, paymentMethod, paymentStatus } from "./lib/validators";
 
 /**
  * List contributions for a church, ordered by donation date descending.
@@ -22,13 +23,13 @@ export const listByChurch = query({
       .query("contributions")
       .withIndex("by_church_and_date", (q) => q.eq("churchId", churchId))
       .order("desc")
-      .collect();
+      .take(200);
   },
 });
 
 /**
  * Record a new contribution.
- * Requires church-level access.
+ * Requires finance or church-admin role and church access.
  */
 export const create = mutation({
   args: {
@@ -36,23 +37,9 @@ export const create = mutation({
     personId: v.optional(v.id("people")),
     donorName: v.string(),
     amount: v.number(),
-    fund: v.union(
-      v.literal("general"),
-      v.literal("missions"),
-      v.literal("benevolence"),
-      v.literal("building")
-    ),
-    paymentMethod: v.union(
-      v.literal("card"),
-      v.literal("ach"),
-      v.literal("cash"),
-      v.literal("check")
-    ),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("succeeded"),
-      v.literal("refunded")
-    ),
+    fund: fundType,
+    paymentMethod: paymentMethod,
+    status: paymentStatus,
     recurring: v.boolean(),
     donatedAt: v.number(),
   },

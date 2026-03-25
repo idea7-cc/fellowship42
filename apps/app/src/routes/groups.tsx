@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
@@ -33,14 +33,6 @@ export function GroupsPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Link to={`/churches/${churchId}`}>
-          <Button variant="ghost" size="sm">
-            Back to church
-          </Button>
-        </Link>
-      </Section>
-
       <Section>
         <Eyebrow>Groups</Eyebrow>
         <h1>Groups &amp; teams</h1>

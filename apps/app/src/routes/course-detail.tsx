@@ -1,5 +1,5 @@
 import { useQuery } from 'convex/react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '@convex/_generated/api'
 
 import { PageShell } from '@/components/page-shell'
@@ -7,7 +7,6 @@ import { Section } from '@/components/section'
 import { Hero } from '@/components/hero'
 import { Eyebrow } from '@/components/eyebrow'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { asId } from '@/lib/convex'
@@ -20,18 +19,18 @@ export function CourseDetailPage() {
     api.courses.getBySlug,
     churchId && slug ? { churchId: asId<'churches'>(churchId), slug } : 'skip',
   )
-  const lessons = course?.lessons ?? []
+
+  // Lessons come from a separate table query, keyed on the course _id
+  const courseId = course?._id
+  const lessons = useQuery(
+    api.lessons.listByCourse,
+    courseId ? { courseId } : 'skip',
+  )
+
+  const lessonCount = course?.lessonCount ?? 0
 
   return (
     <PageShell>
-      <Section>
-        <Link to={`/churches/${churchId}/courses`}>
-          <Button variant="ghost" size="sm">
-            Back to courses
-          </Button>
-        </Link>
-      </Section>
-
       {course === undefined ? (
         <Section>
           <Card>
@@ -62,7 +61,7 @@ export function CourseDetailPage() {
               <Badge variant="pill">{course.courseType}</Badge>
               <Badge variant="outline">{course.deliveryMode}</Badge>
               <span className="text-sm text-muted-foreground">
-                {lessons.length} lessons
+                {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
               </span>
               {church ? (
                 <span className="text-sm text-muted-foreground">for {church.name}</span>
@@ -71,10 +70,16 @@ export function CourseDetailPage() {
           </Hero>
 
           <Section title="Lessons" description="Course content and materials.">
-            {lessons.length > 0 ? (
+            {lessons === undefined ? (
+              <Card className="flex flex-col items-center justify-center border-dashed p-8">
+                <CardContent>
+                  <p className="text-center text-muted-foreground">Loading lessons...</p>
+                </CardContent>
+              </Card>
+            ) : lessons.length > 0 ? (
               <div className="grid gap-3">
                 {lessons.map((lesson, index) => (
-                  <div key={lesson.lessonId}>
+                  <div key={lesson._id}>
                     <Card className="transition-all duration-200 hover:-translate-y-px hover:shadow-md">
                       <CardHeader>
                         <div className="flex items-center justify-between gap-4">

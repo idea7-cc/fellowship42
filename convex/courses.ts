@@ -1,23 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { hasChurchAccess, requireChurchAccess } from "./lib/access";
+import { hasChurchAccess, requireChurchAccess } from "./lib/auth";
 import { requireChurchScopedDocument } from "./lib/records";
-
-function assertUniqueLessonIds(
-  lessons: {
-    lessonId: string;
-  }[]
-) {
-  const lessonIds = new Set<string>();
-
-  for (const lesson of lessons) {
-    if (lessonIds.has(lesson.lessonId)) {
-      throw new Error(`Duplicate lessonId "${lesson.lessonId}" on course`);
-    }
-
-    lessonIds.add(lesson.lessonId);
-  }
-}
+import { publishStatus, courseType, deliveryMode } from "./lib/validators";
 
 /**
  * List courses for a church.
@@ -31,7 +16,7 @@ export const listByChurch = query({
       return await ctx.db
         .query("courses")
         .withIndex("by_church", (q) => q.eq("churchId", churchId))
-        .collect();
+        .take(200);
     }
 
     return await ctx.db
@@ -39,7 +24,7 @@ export const listByChurch = query({
       .withIndex("by_church_and_status", (q) =>
         q.eq("churchId", churchId).eq("status", "published")
       )
-      .collect();
+      .take(200);
   },
 });
 
@@ -71,6 +56,7 @@ export const getBySlug = query({
 
 /**
  * Create a new course.
+ * Lessons are managed separately via the lessons module.
  * Requires church-level access.
  */
 export const create = mutation({
@@ -79,37 +65,14 @@ export const create = mutation({
     ministryId: v.optional(v.id("ministries")),
     title: v.string(),
     slug: v.string(),
-    status: v.union(v.literal("draft"), v.literal("published")),
-    courseType: v.union(
-      v.literal("new-member"),
-      v.literal("volunteer-training"),
-      v.literal("discipleship"),
-      v.literal("leadership"),
-      v.literal("bible-study"),
-      v.literal("curriculum")
-    ),
-    deliveryMode: v.union(
-      v.literal("self-paced"),
-      v.literal("group-led"),
-      v.literal("cohort"),
-      v.literal("hybrid")
-    ),
+    status: publishStatus,
+    courseType: courseType,
+    deliveryMode: deliveryMode,
     audience: v.string(),
     duration: v.string(),
     featured: v.boolean(),
     certificateOffered: v.boolean(),
     summary: v.string(),
-    lessons: v.array(
-      v.object({
-        lessonId: v.string(),
-        title: v.string(),
-        summary: v.string(),
-        content: v.optional(v.string()),
-        resourceId: v.optional(v.string()),
-        estimatedMinutes: v.optional(v.number()),
-        required: v.optional(v.boolean()),
-      })
-    ),
   },
   handler: async (ctx, args) => {
     await requireChurchAccess(ctx, args.churchId);
@@ -121,7 +84,6 @@ export const create = mutation({
         "Ministry"
       );
     }
-    assertUniqueLessonIds(args.lessons);
 
     const existing = await ctx.db
       .query("courses")
@@ -135,12 +97,16 @@ export const create = mutation({
       );
     }
 
-    return await ctx.db.insert("courses", args);
+    return await ctx.db.insert("courses", {
+      ...args,
+      lessonCount: 0,
+    });
   },
 });
 
 /**
  * Update an existing course.
+ * Does not touch lessonCount — that is managed by lesson mutations.
  * Requires church-level access.
  */
 export const update = mutation({
@@ -149,43 +115,14 @@ export const update = mutation({
     ministryId: v.optional(v.id("ministries")),
     title: v.optional(v.string()),
     slug: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("draft"), v.literal("published"))),
-    courseType: v.optional(
-      v.union(
-        v.literal("new-member"),
-        v.literal("volunteer-training"),
-        v.literal("discipleship"),
-        v.literal("leadership"),
-        v.literal("bible-study"),
-        v.literal("curriculum")
-      )
-    ),
-    deliveryMode: v.optional(
-      v.union(
-        v.literal("self-paced"),
-        v.literal("group-led"),
-        v.literal("cohort"),
-        v.literal("hybrid")
-      )
-    ),
+    status: v.optional(publishStatus),
+    courseType: v.optional(courseType),
+    deliveryMode: v.optional(deliveryMode),
     audience: v.optional(v.string()),
     duration: v.optional(v.string()),
     featured: v.optional(v.boolean()),
     certificateOffered: v.optional(v.boolean()),
     summary: v.optional(v.string()),
-    lessons: v.optional(
-      v.array(
-        v.object({
-          lessonId: v.string(),
-          title: v.string(),
-          summary: v.string(),
-          content: v.optional(v.string()),
-          resourceId: v.optional(v.string()),
-          estimatedMinutes: v.optional(v.number()),
-          required: v.optional(v.boolean()),
-        })
-      )
-    ),
   },
   handler: async (ctx, { courseId, ...fields }) => {
     const course = await ctx.db.get(courseId);
@@ -199,9 +136,6 @@ export const update = mutation({
         course.churchId,
         "Ministry"
       );
-    }
-    if (fields.lessons) {
-      assertUniqueLessonIds(fields.lessons);
     }
 
     if (fields.slug && fields.slug !== course.slug) {
@@ -224,6 +158,23 @@ export const update = mutation({
     }
 
     await ctx.db.patch(courseId, patch);
+    return courseId;
+  },
+});
+
+/**
+ * Archive a course.
+ * Requires church-level access.
+ */
+export const archive = mutation({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, { courseId }) => {
+    const course = await ctx.db.get(courseId);
+    if (!course) throw new Error("Course not found");
+
+    await requireChurchAccess(ctx, course.churchId);
+
+    await ctx.db.patch(courseId, { status: "archived" });
     return courseId;
   },
 });
