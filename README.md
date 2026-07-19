@@ -30,7 +30,7 @@ packages/
   brand/                    shared public visual system
   management-protocol/      public instance/control-plane contracts
 tooling/
-  f42ctl/                   planned portable deploy/export/import CLI
+  f42ctl/                   public lifecycle plan and diagnostic CLI
 docs/
   adr/                      durable architecture decisions
   architecture.md           runtime and ownership boundaries
@@ -89,12 +89,26 @@ The committed Wrangler configuration is development scaffolding, not a hosted
 multi-tenant environment. Hosted orchestration must produce the same portable
 instance shape as a church-managed deployment.
 
+Start with a strict desired-state manifest and inspect its deterministic plan:
+
+```bash
+pnpm f42ctl plan \
+  --manifest tooling/f42ctl/examples/deployment-manifest.local.json
+pnpm f42ctl doctor \
+  --manifest tooling/f42ctl/examples/deployment-manifest.local.json \
+  --offline
+```
+
+These commands do not create or mutate Cloudflare resources. See
+[Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Repository strategy](docs/repository-strategy.md)
 - [Management protocol](docs/management-protocol.md)
 - [Releases and immutable artifacts](docs/releases.md)
+- [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)

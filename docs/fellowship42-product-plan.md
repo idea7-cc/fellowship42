@@ -25,8 +25,9 @@ Each church instance is an independent Cloudflare application:
 - Durable Objects coordinate church-scoped realtime clients;
 - Cloudflare Access is the initial application authentication adapter;
 - Wrangler is the local and direct deployment toolchain;
-- the future public `f42ctl` wraps deterministic deploy, export, import,
-  verification, connect, and disconnect behavior.
+- the public `f42ctl` owns deterministic planning and doctor evidence and will
+  grow into deploy, export, import, verification, connect, and disconnect
+  behavior.
 
 Payments and communications remain external integrations. “All Cloudflare”
 means Fellowship42 needs no second application backend, not that Cloudflare
@@ -105,7 +106,9 @@ tables speculatively.
 - complete group, course/lesson, event, sermon, and R2 media publishing
   workflows with draft isolation and public-media integrity;
 - explicit public/private repository boundary;
-- initial compiled management protocol package.
+- initial compiled management protocol package;
+- portable deployment manifest, immutable release/source verification,
+  deterministic non-destructive deploy plan, and bounded doctor evidence.
 
 ### Instance beta
 
@@ -116,8 +119,8 @@ tables speculatively.
 
 ### Portability milestone
 
-- versioned release and export manifests;
-- `f42ctl doctor`, deploy, export, import, and verify-export;
+- versioned export manifests;
+- active `f42ctl` deploy reconciliation plus export, import, and verify-export;
 - D1 and R2 integrity verification;
 - credential rotation and domain cutover runbooks;
 - a tested hosted-to-church-owned migration exercise;

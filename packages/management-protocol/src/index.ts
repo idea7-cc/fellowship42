@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { semanticVersionSchema } from './releases.js'
 
 export * from './releases.js'
+export * from './lifecycle.js'
 
 export const MANAGEMENT_PROTOCOL_VERSION = '1' as const
 export const MANAGEMENT_API_PREFIX = '/api/management/v1' as const
@@ -19,7 +20,11 @@ export const managementCapabilitySchema = z.enum([
 export type ManagementCapability = z.infer<typeof managementCapabilitySchema>
 
 export const infrastructureOwnerSchema = z.enum(['fellowship42', 'church'])
-export const instanceOperatorSchema = z.enum(['fellowship42', 'church', 'partner'])
+export const instanceOperatorSchema = z.enum([
+  'fellowship42',
+  'church',
+  'partner',
+])
 
 export const instanceDescriptorSchema = z.object({
   protocolVersion: z.literal(MANAGEMENT_PROTOCOL_VERSION),
@@ -47,10 +52,13 @@ export const managementCommandSchema = z
     capability: managementCapabilitySchema,
     input: z.record(z.string(), z.unknown()).default({}),
   })
-  .refine((command) => Date.parse(command.expiresAt) > Date.parse(command.issuedAt), {
-    message: 'expiresAt must be later than issuedAt',
-    path: ['expiresAt'],
-  })
+  .refine(
+    (command) => Date.parse(command.expiresAt) > Date.parse(command.issuedAt),
+    {
+      message: 'expiresAt must be later than issuedAt',
+      path: ['expiresAt'],
+    },
+  )
 
 export type ManagementCommand = z.infer<typeof managementCommandSchema>
 
@@ -69,4 +77,6 @@ export const managementCommandResultSchema = z.object({
     .optional(),
 })
 
-export type ManagementCommandResult = z.infer<typeof managementCommandResultSchema>
+export type ManagementCommandResult = z.infer<
+  typeof managementCommandResultSchema
+>

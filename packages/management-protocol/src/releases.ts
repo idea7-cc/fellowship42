@@ -18,10 +18,20 @@ export const sha256DigestSchema = z
 export const releaseArtifactKindSchema = z.enum([
   'portable-instance-source',
   'management-protocol-package',
+  'lifecycle-cli-package',
 ])
 
+const requiredReleaseArtifactKinds = [
+  'portable-instance-source',
+  'management-protocol-package',
+] as const
+
 export const releaseArtifactSchema = z.object({
-  file: z.string().min(1).max(255).regex(/^[^/\\]+$/, 'Artifact must be a simple filename'),
+  file: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[^/\\]+$/, 'Artifact must be a simple filename'),
   kind: releaseArtifactKindSchema,
   bytes: z.number().int().positive(),
   sha256: sha256DigestSchema,
@@ -65,7 +75,7 @@ export const releaseManifestSchema = z
       kinds.add(artifact.kind)
     }
 
-    for (const requiredKind of releaseArtifactKindSchema.options) {
+    for (const requiredKind of requiredReleaseArtifactKinds) {
       if (!kinds.has(requiredKind)) {
         context.addIssue({
           code: 'custom',

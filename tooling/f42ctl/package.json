@@ -1,50 +1,52 @@
 {
-  "name": "@fellowship42/management-protocol",
-  "version": "0.3.0",
-  "description": "Public contracts between a portable Fellowship42 instance and optional management software",
+  "name": "@fellowship42/f42ctl",
+  "version": "0.1.0",
+  "description": "Public lifecycle planning and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "files": [
     "dist",
-    "fixtures",
     "README.md"
   ],
+  "bin": {
+    "f42ctl": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./fixtures/*": {
-      "default": "./fixtures/*"
+      "import": "./dist/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "prepack": "pnpm build",
+    "cli": "node dist/cli.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run && node --input-type=module --eval \"await import('./dist/index.js')\""
+    "pretest": "pnpm build",
+    "test": "vitest run"
   },
   "dependencies": {
-    "zod": "^4.4.3"
+    "@fellowship42/management-protocol": "workspace:*",
+    "jsonc-parser": "^3.3.1"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"
   },
+  "license": "Apache-2.0",
   "publishConfig": {
     "access": "public"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/idea7-cc/fellowship42.git",
-    "directory": "packages/management-protocol"
+    "url": "https://github.com/idea7-cc/fellowship42.git",
+    "directory": "tooling/f42ctl"
   },
   "homepage": "https://github.com/idea7-cc/fellowship42#readme",
   "bugs": {
     "url": "https://github.com/idea7-cc/fellowship42/issues"
-  },
-  "license": "Apache-2.0"
+  }
 }

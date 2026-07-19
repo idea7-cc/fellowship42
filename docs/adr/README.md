@@ -8,6 +8,7 @@ directory names alone.
 - [0003 — Management API with optional MCP adapter](0003-management-api-and-mcp-adapter.md)
 - [0004 — Access-gated first-owner bootstrap](0004-access-gated-first-owner-bootstrap.md)
 - [0005 — Instance-owned finance ingress and outbox Queue](0005-instance-owned-finance-ingress-and-outbox-queue.md)
+- [0006 — Public lifecycle manifest and evidence-only planning](0006-public-lifecycle-manifest-and-evidence-only-planning.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.
