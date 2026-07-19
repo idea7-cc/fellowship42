@@ -99,13 +99,13 @@ tables speculatively.
 - Durable Object invalidation foundation;
 - local migrations, seed data, Workers integration tests, and deploy dry-runs;
 - portable singleton instance identity;
+- production instance bootstrap and first-owner onboarding;
+- instance-first church navigation and draft visibility for members;
 - explicit public/private repository boundary;
 - initial compiled management protocol package.
 
 ### Instance beta
 
-- production instance bootstrap and owner onboarding;
-- replace demo-oriented church selection with an instance-first experience;
 - complete people and household workflows;
 - groups, courses, events, sermons, and R2 upload workflows;
 - pagination, search, error recovery, and accessible form states;

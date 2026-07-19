@@ -65,6 +65,10 @@ pnpm deploy:site:dry-run
 Worker tests run in Cloudflare's Vitest integration against fresh D1 migrations
 and deterministic development data.
 
+`seed.sql` is local demo data only. A production database is initialized by the
+Access-gated, one-time instance setup flow documented in
+[the deployment runbook](docs/deployment.md).
+
 ## Deploying an instance
 
 Each deployment needs dedicated D1 and R2 resources plus its own application

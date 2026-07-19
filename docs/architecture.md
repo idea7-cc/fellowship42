@@ -94,6 +94,14 @@ the Access JWT and maps its subject to an application user. Route authorization
 then comes from church membership roles; browser state is display information,
 not an authorization source.
 
+A migrated production database is initialized through the one-time public
+bootstrap flow, never `seed.sql`. A valid Access identity must match the
+deployment-scoped `BOOTSTRAP_OWNER_EMAIL` secret. The Worker then creates the
+church, portable instance identity, first owner membership, system roles, and
+audit evidence in one D1 batch. The church begins in `draft`; authenticated
+members may see it while public queries remain limited to published records.
+See [ADR 0004](adr/0004-access-gated-first-owner-bootstrap.md).
+
 Access is not the portable instance identity and must not become a requirement
 for management interoperability. A future authentication change should remain
 inside the instance boundary.

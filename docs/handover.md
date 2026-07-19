@@ -47,7 +47,7 @@ On 2026-07-18 the following completed successfully after the repository move:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 3 management-protocol tests and 6 Workers integration tests;
+- `pnpm test` — 5 management-protocol tests and 11 Workers integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -63,9 +63,8 @@ Remote deployment still needs:
 1. a target Cloudflare account and dedicated D1 database;
 2. a dedicated R2 bucket;
 3. an instance domain;
-4. a Cloudflare Access application, policies, team domain, and audience;
-5. a production onboarding flow that creates the church, portable instance
-   identity, first owner, and system roles without `seed.sql`.
+4. a Cloudflare Access application, policies, team domain, and audience; and
+5. the intended first owner's deployment-scoped bootstrap email secret.
 
 See `docs/deployment.md` for the direct Wrangler rollout shape.
 
@@ -75,8 +74,8 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 2. Specify and implement a versioned export bundle for D1, R2, configuration,
    checksums, and release metadata.
 3. Exercise a complete deploy/export/import/domain-cutover migration.
-4. Replace demo-oriented church selection with instance-first onboarding and
-   navigation while retaining `church_id` defense in depth.
+4. Complete owner-facing church profile and publication controls after the
+   instance-first bootstrap while retaining `church_id` defense in depth.
 5. Write the management enrollment/signing threat-model ADR before enabling any
    management route.
 6. Start `fellowship42-cloud` separately only when the public lifecycle contract
@@ -94,8 +93,11 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/migrations/0001_initial.sql` | canonical church domain model |
 | `apps/instance/migrations/0002_instance_identity.sql` | portable singleton instance identity |
 | `apps/instance/worker/index.ts` | middleware, health, logging, and route composition |
+| `apps/instance/worker/routes/bootstrap.ts` | one-time Access-gated production initialization |
+| `apps/instance/src/components/bootstrap-gate.tsx` | first-owner setup experience |
 | `apps/instance/worker/management/README.md` | reserved optional management boundary |
 | `apps/instance/test/api.spec.ts` | Workers/D1 integration baseline |
+| `apps/instance/test/bootstrap.spec.ts` | bootstrap ownership and atomicity coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
 | `tooling/f42ctl/README.md` | public lifecycle CLI scope and roadmap |

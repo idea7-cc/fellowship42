@@ -148,6 +148,26 @@ export interface SessionResponse {
   user: SessionUser | null
 }
 
+export interface ConfiguredChurchInstance {
+  churchId: string
+  churchName: string
+  churchSlug: string
+}
+
+export type BootstrapStatusResponse =
+  | { state: 'configured'; instance: ConfiguredChurchInstance }
+  | {
+      state: 'unconfigured'
+      authenticated: boolean
+      eligible: boolean
+      ownerConfigured: boolean
+    }
+
+export interface BootstrapResponse {
+  state: 'configured'
+  instance: ConfiguredChurchInstance & { id: string }
+}
+
 export interface CourseDetailResponse {
   course: Course
   lessons: Lesson[]
