@@ -11,6 +11,10 @@ software for managed updates, backups, monitoring, support, and partner fleet
 operations. Disconnecting that management relationship must never disable the
 church application or prevent export.
 
+The current beta includes Access-gated production setup, church-scoped roles,
+and a private people/household directory with CRUD, search, cursor pagination,
+optimistic concurrency, audit evidence, and realtime invalidation.
+
 ## Repository map
 
 ```text

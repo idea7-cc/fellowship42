@@ -83,6 +83,11 @@ The current data model covers:
 - events, sermons, facilities, bookings, contributions, and media;
 - webhook deduplication, idempotency, outbox delivery, and audit events.
 
+The implemented [people and household directory](directory-workflows.md) uses
+permission-scoped reads/writes, server-side search, stable cursor pagination,
+soft deletion, and optimistic version checks. Audit/outbox records intentionally
+exclude names, contact details, addresses, and note contents.
+
 D1 is authoritative. Durable Objects coordinate realtime clients but do not
 hold the business record. R2 stores objects while D1 stores their ownership,
 visibility, checksum, and authorization metadata.

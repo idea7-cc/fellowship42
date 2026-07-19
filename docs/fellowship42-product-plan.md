@@ -101,12 +101,12 @@ tables speculatively.
 - portable singleton instance identity;
 - production instance bootstrap and first-owner onboarding;
 - instance-first church navigation and draft visibility for members;
+- complete people and household CRUD, search, pagination, permissions, and audit workflow;
 - explicit public/private repository boundary;
 - initial compiled management protocol package.
 
 ### Instance beta
 
-- complete people and household workflows;
 - groups, courses, events, sermons, and R2 upload workflows;
 - pagination, search, error recovery, and accessible form states;
 - verified payment webhooks and finance-scoped contribution views;
