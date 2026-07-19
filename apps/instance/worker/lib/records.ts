@@ -57,7 +57,10 @@ export const churchSelect = `
   JOIN church_profiles p ON p.church_id = c.id
 `
 
-export function mapChurch(row: ChurchRow, serviceTimes: ServiceTimeRow[]): Church {
+export function mapChurch(
+  row: ChurchRow,
+  serviceTimes: ServiceTimeRow[],
+): Church {
   return {
     id: row.id,
     slug: row.slug,
@@ -136,10 +139,11 @@ export interface GroupRow {
   audience: string
   schedule: string
   location: string | null
-  enrollment_policy: string
+  enrollment_policy: Group['enrollmentPolicy']
   capacity: number | null
   featured: number
   summary: string
+  version: number
 }
 
 export function mapGroup(row: GroupRow): Group {
@@ -154,10 +158,12 @@ export function mapGroup(row: GroupRow): Group {
     audience: row.audience,
     schedule: row.schedule,
     location: row.location ?? undefined,
+    enrollmentPolicy: row.enrollment_policy,
     openEnrollment: row.enrollment_policy === 'open',
     capacity: row.capacity ?? undefined,
     featured: row.featured === 1,
     summary: row.summary,
+    version: row.version,
   }
 }
 
@@ -176,6 +182,7 @@ export interface CourseRow {
   certificate_offered: number
   summary: string
   lesson_count: number
+  version: number
 }
 
 export function mapCourse(row: CourseRow): Course {
@@ -194,6 +201,7 @@ export function mapCourse(row: CourseRow): Course {
     certificateOffered: row.certificate_offered === 1,
     summary: row.summary,
     lessonCount: row.lesson_count,
+    version: row.version,
   }
 }
 
@@ -205,6 +213,9 @@ export interface LessonRow {
   estimated_minutes: number | null
   required: number
   sort_order: number
+  content?: string | null
+  media_id?: string | null
+  version: number
 }
 
 export function mapLesson(row: LessonRow): Lesson {
@@ -216,6 +227,9 @@ export function mapLesson(row: LessonRow): Lesson {
     estimatedMinutes: row.estimated_minutes ?? undefined,
     required: row.required === 1,
     sortOrder: row.sort_order,
+    content: row.content ?? undefined,
+    mediaId: row.media_id ?? undefined,
+    version: row.version,
   }
 }
 
@@ -228,9 +242,12 @@ export interface EventRow {
   summary: string
   starts_at: number
   ends_at: number | null
+  timezone: string
   location: string
   registration_url: string | null
   featured: number
+  capacity: number | null
+  version: number
 }
 
 export function mapEvent(row: EventRow): EventRecord {
@@ -243,9 +260,12 @@ export function mapEvent(row: EventRow): EventRecord {
     summary: row.summary,
     startDate: row.starts_at,
     endDate: row.ends_at ?? undefined,
+    timezone: row.timezone,
     location: row.location,
     registrationUrl: row.registration_url ?? undefined,
     featured: row.featured === 1,
+    capacity: row.capacity ?? undefined,
+    version: row.version,
   }
 }
 
@@ -259,8 +279,10 @@ export interface SermonRow {
   series: string | null
   summary: string
   video_url: string | null
+  audio_media_id: string | null
   preached_at: number
   featured: number
+  version: number
 }
 
 export function mapSermon(row: SermonRow): Sermon {
@@ -274,8 +296,10 @@ export function mapSermon(row: SermonRow): Sermon {
     series: row.series ?? undefined,
     summary: row.summary,
     videoUrl: row.video_url ?? undefined,
+    audioMediaId: row.audio_media_id ?? undefined,
     preachedAt: row.preached_at,
     featured: row.featured === 1,
+    version: row.version,
   }
 }
 

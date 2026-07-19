@@ -6,9 +6,13 @@ import { INSTANCE_TOPOLOGY } from '@fellowship42/management-protocol'
 import { resolveAccessIdentity, type AccessIdentity } from './lib/auth'
 import { AppError } from './lib/errors'
 import { churchRoutes } from './routes/churches'
-import { mediaRoutes } from './routes/media'
+import { mediaManagementRoutes, mediaRoutes } from './routes/media'
 import { peopleRoutes } from './routes/people'
 import { householdRoutes } from './routes/households'
+import { groupRoutes } from './routes/groups'
+import { courseRoutes } from './routes/courses'
+import { eventRoutes } from './routes/events'
+import { sermonRoutes } from './routes/sermons'
 import { sessionRoutes } from './routes/session'
 import { bootstrapRoutes } from './routes/bootstrap'
 
@@ -25,7 +29,13 @@ type AppEnv = {
 const app = new Hono<AppEnv>()
 
 app.use('*', secureHeaders())
-app.use('/api/*', bodyLimit({ maxSize: 64 * 1024 }))
+const jsonBodyLimit = bodyLimit({ maxSize: 64 * 1024 })
+const mediaBodyLimit = bodyLimit({ maxSize: 20 * 1024 * 1024 })
+app.use('/api/*', (c, next) =>
+  c.req.path.startsWith('/api/media/')
+    ? mediaBodyLimit(c, next)
+    : jsonBodyLimit(c, next),
+)
 
 app.use('*', async (c, next) => {
   const requestId = c.req.header('cf-ray') ?? crypto.randomUUID()
@@ -53,7 +63,8 @@ app.onError((error, c) => {
   const requestId = c.get('requestId') ?? crypto.randomUUID()
   const status = error instanceof HTTPException ? error.status : 500
   const code = error instanceof AppError ? error.code : 'internal_error'
-  const publicMessage = error instanceof HTTPException ? error.message : 'Internal server error'
+  const publicMessage =
+    error instanceof HTTPException ? error.message : 'Internal server error'
 
   console.error(
     JSON.stringify({
@@ -95,6 +106,11 @@ app.route('/api/bootstrap', bootstrapRoutes)
 app.route('/api/churches', churchRoutes)
 app.route('/api/people', peopleRoutes)
 app.route('/api/households', householdRoutes)
+app.route('/api/groups', groupRoutes)
+app.route('/api/courses', courseRoutes)
+app.route('/api/events', eventRoutes)
+app.route('/api/sermons', sermonRoutes)
+app.route('/api/media', mediaManagementRoutes)
 app.route('/media', mediaRoutes)
 
 app.all('/api/*', (c) => {

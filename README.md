@@ -12,8 +12,10 @@ operations. Disconnecting that management relationship must never disable the
 church application or prevent export.
 
 The current beta includes Access-gated production setup, church-scoped roles,
-and a private people/household directory with CRUD, search, cursor pagination,
-optimistic concurrency, audit evidence, and realtime invalidation.
+the private people/household directory, and complete group, course/lesson,
+event, sermon, and R2 media publishing workflows. Protected mutations use
+strict validation, optimistic concurrency, audit/outbox evidence, and realtime
+invalidation while public routes expose only published content.
 
 ## Repository map
 
@@ -90,6 +92,7 @@ instance shape as a church-managed deployment.
 - [Repository strategy](docs/repository-strategy.md)
 - [Management protocol](docs/management-protocol.md)
 - [Releases and immutable artifacts](docs/releases.md)
+- [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Current handover](docs/handover.md)
 - [Product plan](docs/fellowship42-product-plan.md)

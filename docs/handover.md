@@ -1,6 +1,6 @@
 # Fellowship42 handover
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 ## Current direction
 
@@ -23,10 +23,12 @@ before changing the system shape.
   deletion, audit, outbox, webhook deduplication, and idempotency primitives;
 - `instance_metadata` establishes one portable instance identity and primary
   church independently of Cloudflare resource IDs;
-- public church, ministry, group, course, lesson, event, sermon, and R2 media APIs;
+- public church/ministry publishing APIs plus protected group, course/lesson,
+  event, sermon, and checksummed R2 media lifecycle APIs;
 - Cloudflare Access verification, user linking, suspended-user rejection, and
   church-scoped permissions;
-- protected people reads and creation with audit/outbox records;
+- complete people/household and ministry/publishing operator workflows with
+  optimistic concurrency, audit/outbox records, and realtime invalidation;
 - hibernatable `ChurchRoom` Durable Objects for protected invalidation;
 - typed React queries and Access session state;
 - Workers-runtime migration and API tests;
@@ -43,11 +45,11 @@ intentional scaffolding, not implied functionality.
 
 ## Verified baseline
 
-On 2026-07-18 the following completed successfully after the repository move:
+On 2026-07-19 the following completed successfully for the current beta:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 5 management-protocol tests and 14 Workers integration tests;
+- `pnpm test` — 5 management-protocol tests and 19 Workers/client integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -80,8 +82,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
    management route.
 6. Start `fellowship42-cloud` separately only when the public lifecycle contract
    can provision and migrate an instance without private code.
-7. Continue complete people/household, group, course, event, sermon, media, and
-   contribution workflows.
+7. Complete contribution and delivery-hardening workflows.
 
 ## Important files
 
@@ -99,6 +100,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/test/api.spec.ts` | Workers/D1 integration baseline |
 | `apps/instance/test/bootstrap.spec.ts` | bootstrap ownership and atomicity coverage |
 | `apps/instance/test/directory.spec.ts` | people/household permissions, concurrency, audit, and lifecycle coverage |
+| `apps/instance/test/content.spec.ts` | ministry publishing, permissions, R2 integrity, and public visibility coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
 | `tooling/f42ctl/README.md` | public lifecycle CLI scope and roadmap |
