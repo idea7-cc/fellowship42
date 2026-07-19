@@ -6,6 +6,7 @@ import type {
   Lesson,
   Ministry,
   Person,
+  PersonDetail,
   Sermon,
 } from '../../src/lib/api-types'
 
@@ -287,6 +288,8 @@ export interface PersonRow {
   phone: string | null
   membership_status: string
   volunteer_ready: number
+  version: number
+  notes?: string | null
 }
 
 export function mapPerson(row: PersonRow): Person {
@@ -299,5 +302,13 @@ export function mapPerson(row: PersonRow): Person {
     phone: row.phone ?? undefined,
     membershipStatus: row.membership_status,
     volunteerReady: row.volunteer_ready === 1,
+    version: row.version,
+  }
+}
+
+export function mapPersonDetail(row: PersonRow): PersonDetail {
+  return {
+    ...mapPerson(row),
+    notes: row.notes ?? undefined,
   }
 }

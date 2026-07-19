@@ -128,6 +128,39 @@ export interface Person {
   phone?: string
   membershipStatus: string
   volunteerReady: boolean
+  version: number
+}
+
+export interface PersonDetail extends Person {
+  notes?: string
+}
+
+export interface HouseholdMember {
+  personId: string
+  firstName: string
+  lastName: string
+  relationship: 'spouse' | 'child' | 'parent' | 'guardian' | 'other'
+  isPrimary: boolean
+}
+
+export interface Household {
+  id: string
+  churchId: string
+  name: string
+  address: {
+    street?: string
+    city?: string
+    state?: string
+    postalCode?: string
+    countryCode: string
+  }
+  members: HouseholdMember[]
+  version: number
+}
+
+export interface CursorPage {
+  limit: number
+  nextCursor: string | null
 }
 
 export interface SessionUser {

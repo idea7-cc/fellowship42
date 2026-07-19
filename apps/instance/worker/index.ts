@@ -8,6 +8,7 @@ import { AppError } from './lib/errors'
 import { churchRoutes } from './routes/churches'
 import { mediaRoutes } from './routes/media'
 import { peopleRoutes } from './routes/people'
+import { householdRoutes } from './routes/households'
 import { sessionRoutes } from './routes/session'
 import { bootstrapRoutes } from './routes/bootstrap'
 
@@ -93,6 +94,7 @@ app.route('/api/session', sessionRoutes)
 app.route('/api/bootstrap', bootstrapRoutes)
 app.route('/api/churches', churchRoutes)
 app.route('/api/people', peopleRoutes)
+app.route('/api/households', householdRoutes)
 app.route('/media', mediaRoutes)
 
 app.all('/api/*', (c) => {

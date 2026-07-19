@@ -47,7 +47,7 @@ On 2026-07-18 the following completed successfully after the repository move:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 5 management-protocol tests and 11 Workers integration tests;
+- `pnpm test` — 5 management-protocol tests and 14 Workers integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -98,6 +98,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/worker/management/README.md` | reserved optional management boundary |
 | `apps/instance/test/api.spec.ts` | Workers/D1 integration baseline |
 | `apps/instance/test/bootstrap.spec.ts` | bootstrap ownership and atomicity coverage |
+| `apps/instance/test/directory.spec.ts` | people/household permissions, concurrency, audit, and lifecycle coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
 | `tooling/f42ctl/README.md` | public lifecycle CLI scope and roadmap |
