@@ -16,7 +16,8 @@
     "documentation": "docs/releases.md",
     "workflow": ".github/workflows/release.yml",
     "builder": "scripts/build-release-artifacts.mjs",
-    "verifier": "scripts/verify-release-artifacts.mjs"
+    "verifier": "scripts/verify-release-artifacts.mjs",
+    "fixture": "packages/management-protocol/fixtures/release-manifest.v1.json"
   },
   "privateRepository": "fellowship42-cloud",
   "forbiddenPrivatePaths": [

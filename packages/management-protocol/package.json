@@ -1,6 +1,6 @@
 {
   "name": "@fellowship42/management-protocol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Public contracts between a portable Fellowship42 instance and optional management software",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,6 +8,7 @@
   "sideEffects": false,
   "files": [
     "dist",
+    "fixtures",
     "README.md"
   ],
   "exports": {
@@ -15,6 +16,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./fixtures/*": {
+      "default": "./fixtures/*"
     }
   },
   "scripts": {
