@@ -59,6 +59,10 @@ INSERT OR IGNORE INTO role_permissions (role_id, permission) VALUES
   ('role_demo_finance', 'contributions.write'),
   ('role_demo_leader', 'people.read'),
   ('role_demo_leader', 'groups.write'),
+  ('role_demo_leader', 'courses.write'),
+  ('role_demo_leader', 'events.write'),
+  ('role_demo_leader', 'sermons.write'),
+  ('role_demo_leader', 'media.write'),
   ('role_demo_leader', 'attendance.write'),
   ('role_demo_member', 'profile.read');
 

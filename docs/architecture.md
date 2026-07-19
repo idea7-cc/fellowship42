@@ -188,6 +188,8 @@ Implemented now:
 - full-stack Cloudflare instance runtime;
 - D1, R2, Access, and Durable Object foundations;
 - a portable singleton instance identity;
+- people/household operations plus group, course/lesson, event, sermon, and
+  authorized R2 media publishing workflows;
 - a compiled public management-contract package;
 - explicit public/private repository boundaries.
 

@@ -1,8 +1,15 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { syncCurrentUser, type AccessIdentity, type CurrentUser } from '../lib/auth'
+import {
+  syncCurrentUser,
+  type AccessIdentity,
+  type CurrentUser,
+} from '../lib/auth'
 import { AppError } from '../lib/errors'
-import type { BootstrapResponse, BootstrapStatusResponse } from '../../src/lib/api-types'
+import type {
+  BootstrapResponse,
+  BootstrapStatusResponse,
+} from '../../src/lib/api-types'
 
 type BootstrapBindings = Env & {
   BOOTSTRAP_OWNER_EMAIL?: string
@@ -18,10 +25,24 @@ type AppEnv = {
 
 const bootstrapInputSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  slug: z.string().trim().min(2).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  slug: z
+    .string()
+    .trim()
+    .min(2)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   timezone: z.string().trim().min(1).max(64),
-  locale: z.string().trim().min(2).max(35).regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/),
-  countryCode: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
+  locale: z
+    .string()
+    .trim()
+    .min(2)
+    .max(35)
+    .regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/),
+  countryCode: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{2}$/),
 })
 
 export type BootstrapInput = z.infer<typeof bootstrapInputSchema>
@@ -34,7 +55,12 @@ interface InstanceRow {
 }
 
 const systemRoles = [
-  { key: 'owner', name: 'Owner', description: 'Full church administration', permissions: ['*'] },
+  {
+    key: 'owner',
+    name: 'Owner',
+    description: 'Full church administration',
+    permissions: ['*'],
+  },
   {
     key: 'finance',
     name: 'Finance',
@@ -45,7 +71,15 @@ const systemRoles = [
     key: 'ministry-leader',
     name: 'Ministry leader',
     description: 'Ministry and group management',
-    permissions: ['people.read', 'groups.write', 'attendance.write'],
+    permissions: [
+      'people.read',
+      'groups.write',
+      'courses.write',
+      'events.write',
+      'sermons.write',
+      'media.write',
+      'attendance.write',
+    ],
   },
   {
     key: 'member',
@@ -57,7 +91,8 @@ const systemRoles = [
 
 async function findInstance(db: D1Database): Promise<InstanceRow | null> {
   return db
-    .prepare(`
+    .prepare(
+      `
       SELECT
         im.instance_id,
         c.id AS church_id,
@@ -66,7 +101,8 @@ async function findInstance(db: D1Database): Promise<InstanceRow | null> {
       FROM instance_metadata im
       JOIN churches c ON c.id = im.primary_church_id
       WHERE im.singleton = 1 AND c.deleted_at IS NULL
-    `)
+    `,
+    )
     .first<InstanceRow>()
 }
 
@@ -81,7 +117,10 @@ function configuredResponse(instance: InstanceRow): BootstrapStatusResponse {
   }
 }
 
-export function isBootstrapOwner(identity: AccessIdentity, configuredEmail: string | undefined) {
+export function isBootstrapOwner(
+  identity: AccessIdentity,
+  configuredEmail: string | undefined,
+) {
   return Boolean(
     configuredEmail?.trim() &&
       identity.email.toLowerCase() === configuredEmail.trim().toLowerCase(),
@@ -111,15 +150,28 @@ export async function bootstrapInstance(
     )
   }
   if (!isBootstrapOwner(identity, configuredOwnerEmail)) {
-    throw new AppError(403, 'bootstrap_owner_mismatch', 'This identity cannot initialize the instance')
+    throw new AppError(
+      403,
+      'bootstrap_owner_mismatch',
+      'This identity cannot initialize the instance',
+    )
   }
 
   const existing = await findInstance(db)
-  if (existing) throw new AppError(409, 'instance_already_configured', 'The instance is already configured')
+  if (existing)
+    throw new AppError(
+      409,
+      'instance_already_configured',
+      'The instance is already configured',
+    )
 
   const parsed = bootstrapInputSchema.safeParse(inputValue)
   if (!parsed.success) {
-    throw new AppError(400, 'invalid_bootstrap_input', 'Check the church setup details and try again')
+    throw new AppError(
+      400,
+      'invalid_bootstrap_input',
+      'Check the church setup details and try again',
+    )
   }
   validateTimezone(parsed.data.timezone)
 
@@ -128,14 +180,18 @@ export async function bootstrapInstance(
   const churchId = `church_${crypto.randomUUID()}`
   const instanceId = `instance_${crypto.randomUUID()}`
   const membershipId = `membership_${crypto.randomUUID()}`
-  const roleIds = new Map(systemRoles.map((role) => [role.key, `role_${crypto.randomUUID()}`]))
+  const roleIds = new Map(
+    systemRoles.map((role) => [role.key, `role_${crypto.randomUUID()}`]),
+  )
   const statements: D1PreparedStatement[] = [
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO churches (
           id, slug, name, status, plan, timezone, locale, created_at, updated_at
         ) VALUES (?, ?, ?, 'draft', 'community', ?, ?, ?, ?)
-      `)
+      `,
+      )
       .bind(
         churchId,
         parsed.data.slug,
@@ -146,24 +202,30 @@ export async function bootstrapInstance(
         now,
       ),
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO church_profiles (church_id, country_code, updated_at)
         VALUES (?, ?, ?)
-      `)
+      `,
+      )
       .bind(churchId, parsed.data.countryCode, now),
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO instance_metadata (
           singleton, instance_id, topology, primary_church_id, created_at, updated_at
         ) VALUES (1, ?, 'single-church', ?, ?, ?)
-      `)
+      `,
+      )
       .bind(instanceId, churchId, now, now),
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO church_memberships (
           id, church_id, user_id, status, joined_at, created_at, updated_at
         ) VALUES (?, ?, ?, 'active', ?, ?, ?)
-      `)
+      `,
+      )
       .bind(membershipId, churchId, owner.id, now, now, now),
   ]
 
@@ -171,15 +233,27 @@ export async function bootstrapInstance(
     const roleId = roleIds.get(role.key)!
     statements.push(
       db
-        .prepare(`
+        .prepare(
+          `
           INSERT INTO roles (
             id, church_id, key, name, description, is_system, created_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-        `)
-        .bind(roleId, churchId, role.key, role.name, role.description, now, now),
+        `,
+        )
+        .bind(
+          roleId,
+          churchId,
+          role.key,
+          role.name,
+          role.description,
+          now,
+          now,
+        ),
       ...role.permissions.map((permission) =>
         db
-          .prepare('INSERT INTO role_permissions (role_id, permission) VALUES (?, ?)')
+          .prepare(
+            'INSERT INTO role_permissions (role_id, permission) VALUES (?, ?)',
+          )
           .bind(roleId, permission),
       ),
     )
@@ -187,19 +261,23 @@ export async function bootstrapInstance(
 
   statements.push(
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO membership_roles (
           church_id, membership_id, role_id, assigned_at, assigned_by_user_id
         ) VALUES (?, ?, ?, ?, ?)
-      `)
+      `,
+      )
       .bind(churchId, membershipId, roleIds.get('owner'), now, owner.id),
     db
-      .prepare(`
+      .prepare(
+        `
         INSERT INTO audit_events (
           id, church_id, actor_user_id, action, entity_type, entity_id,
           request_id, after_json, metadata_json, occurred_at
         ) VALUES (?, ?, ?, 'instance.bootstrapped', 'instance', ?, ?, ?, ?, ?)
-      `)
+      `,
+      )
       .bind(
         crypto.randomUUID(),
         churchId,
@@ -216,7 +294,11 @@ export async function bootstrapInstance(
     await db.batch(statements)
   } catch (error) {
     if (await findInstance(db)) {
-      throw new AppError(409, 'instance_already_configured', 'The instance is already configured')
+      throw new AppError(
+        409,
+        'instance_already_configured',
+        'The instance is already configured',
+      )
     }
     throw error
   }
@@ -236,26 +318,38 @@ export const bootstrapRoutes = new Hono<AppEnv>()
 
 bootstrapRoutes.get('/', async (c) => {
   const existing = await findInstance(c.env.DB)
-  if (existing) return c.json<BootstrapStatusResponse>(configuredResponse(existing))
+  if (existing)
+    return c.json<BootstrapStatusResponse>(configuredResponse(existing))
 
   const identity = c.get('identity')
   return c.json<BootstrapStatusResponse>({
     state: 'unconfigured',
     authenticated: Boolean(identity),
-    eligible: Boolean(identity && isBootstrapOwner(identity, c.env.BOOTSTRAP_OWNER_EMAIL)),
+    eligible: Boolean(
+      identity && isBootstrapOwner(identity, c.env.BOOTSTRAP_OWNER_EMAIL),
+    ),
     ownerConfigured: Boolean(c.env.BOOTSTRAP_OWNER_EMAIL?.trim()),
   })
 })
 
 bootstrapRoutes.post('/', async (c) => {
   const identity = c.get('identity')
-  if (!identity) throw new AppError(401, 'authentication_required', 'Authentication is required')
+  if (!identity)
+    throw new AppError(
+      401,
+      'authentication_required',
+      'Authentication is required',
+    )
 
   let input: unknown
   try {
     input = await c.req.json()
   } catch {
-    throw new AppError(400, 'invalid_json', 'The request body must be valid JSON')
+    throw new AppError(
+      400,
+      'invalid_json',
+      'The request body must be valid JSON',
+    )
   }
 
   return c.json(

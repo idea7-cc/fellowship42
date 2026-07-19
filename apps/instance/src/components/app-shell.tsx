@@ -34,6 +34,7 @@ const churchNav: NavItem[] = [
   { label: 'Courses', path: '/courses' },
   { label: 'Events', path: '/events' },
   { label: 'Sermons', path: '/sermons' },
+  { label: 'Media', path: '/media' },
   { label: 'Facilities', path: '/facilities' },
   { label: 'Contributions', path: '/contributions', note: 'finance' },
 ]
@@ -54,7 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Fetch church name when inside a church context
   const churchQuery = useApiQuery<{ church: Church }>(
-    activeChurchId ? `/api/churches/${encodeURIComponent(activeChurchId)}` : null,
+    activeChurchId
+      ? `/api/churches/${encodeURIComponent(activeChurchId)}`
+      : null,
   )
   const church = churchQuery.data?.church
   useChurchRealtime(activeChurchId)
@@ -75,7 +78,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <HamburgerIcon />
           </button>
-          <Link to="/" className="flex items-center gap-2 font-sans text-sm font-bold tracking-tight">
+          <Link
+            to="/"
+            className="flex items-center gap-2 font-sans text-sm font-bold tracking-tight"
+          >
             <span className="text-accent-strong">Fellowship42</span>
           </Link>
         </div>
@@ -177,9 +183,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* ── Main content ────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   )
@@ -189,7 +193,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 // Sidebar building blocks
 // ---------------------------------------------------------------------------
 
-function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
+function SidebarSection({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <Card className="border-0 bg-transparent p-0 shadow-none">
       <span className="mb-1 block px-2 pt-2 font-mono text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -245,7 +255,11 @@ function extractChurchId(pathname: string): string | null {
 }
 
 /** Determine if a nav item should be marked active */
-function isNavActive(currentPath: string, itemPath: string, exact: boolean): boolean {
+function isNavActive(
+  currentPath: string,
+  itemPath: string,
+  exact: boolean,
+): boolean {
   if (exact) {
     // For church-scoped items: exact match needed so "Overview" doesn't stay active on sub-pages
     return currentPath === itemPath

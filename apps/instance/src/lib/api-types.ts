@@ -58,10 +58,12 @@ export interface Group {
   audience: string
   schedule: string
   location?: string
+  enrollmentPolicy: 'closed' | 'request' | 'open'
   openEnrollment: boolean
   capacity?: number
   featured: boolean
   summary: string
+  version: number
 }
 
 export interface Course {
@@ -79,6 +81,7 @@ export interface Course {
   certificateOffered: boolean
   summary: string
   lessonCount: number
+  version: number
 }
 
 export interface Lesson {
@@ -89,6 +92,9 @@ export interface Lesson {
   estimatedMinutes?: number
   required: boolean
   sortOrder: number
+  content?: string
+  mediaId?: string
+  version: number
 }
 
 export interface EventRecord {
@@ -100,9 +106,12 @@ export interface EventRecord {
   summary: string
   startDate: number
   endDate?: number
+  timezone: string
   location: string
   registrationUrl?: string
   featured: boolean
+  capacity?: number
+  version: number
 }
 
 export interface Sermon {
@@ -115,8 +124,24 @@ export interface Sermon {
   series?: string
   summary: string
   videoUrl?: string
+  audioMediaId?: string
   preachedAt: number
   featured: boolean
+  version: number
+}
+
+export interface MediaRecord {
+  id: string
+  churchId: string
+  mediaType: string
+  contentType: string
+  byteSize: number
+  checksum?: string
+  altText: string
+  visibility: 'public' | 'private'
+  createdAt: number
+  version: number
+  url?: string
 }
 
 export interface Person {

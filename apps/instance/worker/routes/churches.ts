@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import { AppError } from '../lib/errors'
-import { requireChurchMembership, requirePermission, syncCurrentUser } from '../lib/auth'
+import {
+  requireChurchMembership,
+  requirePermission,
+  syncCurrentUser,
+} from '../lib/auth'
 import {
   churchSelect,
   mapChurch,
@@ -30,9 +34,13 @@ type AppEnv = {
 
 export const churchRoutes = new Hono<AppEnv>()
 
-async function findVisibleChurch(c: Parameters<typeof requirePermission>[0], identifier: string) {
-  const church = await c.env.DB
-    .prepare(`${churchSelect} WHERE (c.id = ? OR c.slug = ?) AND c.deleted_at IS NULL`)
+async function findVisibleChurch(
+  c: Parameters<typeof requirePermission>[0],
+  identifier: string,
+) {
+  const church = await c.env.DB.prepare(
+    `${churchSelect} WHERE (c.id = ? OR c.slug = ?) AND c.deleted_at IS NULL`,
+  )
     .bind(identifier, identifier)
     .first<ChurchRow>()
   if (!church) throw new AppError(404, 'church_not_found', 'Church not found')
@@ -42,12 +50,14 @@ async function findVisibleChurch(c: Parameters<typeof requirePermission>[0], ide
 
 async function serviceTimes(db: D1Database, churchId: string) {
   const result = await db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, label, day_of_week, local_time
       FROM service_times
       WHERE church_id = ?
       ORDER BY sort_order, day_of_week, local_time
-    `)
+    `,
+    )
     .bind(churchId)
     .all<ServiceTimeRow>()
   return result.results
@@ -56,8 +66,8 @@ async function serviceTimes(db: D1Database, churchId: string) {
 churchRoutes.get('/', async (c) => {
   const identity = c.get('identity')
   const userId = identity ? (await syncCurrentUser(c.env.DB, identity)).id : ''
-  const result = await c.env.DB
-    .prepare(`${churchSelect}
+  const result = await c.env.DB.prepare(
+    `${churchSelect}
       WHERE c.deleted_at IS NULL AND (
         c.status = 'published' OR EXISTS (
           SELECT 1 FROM church_memberships cm
@@ -65,12 +75,13 @@ churchRoutes.get('/', async (c) => {
         )
       )
       ORDER BY c.name
-      LIMIT 200`)
+      LIMIT 200`,
+  )
     .bind(userId)
     .all<ChurchRow>()
 
-  const allServiceTimes = await c.env.DB
-    .prepare(`
+  const allServiceTimes = await c.env.DB.prepare(
+    `
       SELECT st.id, st.church_id, st.label, st.day_of_week, st.local_time
       FROM service_times st
       JOIN churches c ON c.id = st.church_id
@@ -81,7 +92,8 @@ churchRoutes.get('/', async (c) => {
         )
       )
       ORDER BY st.church_id, st.sort_order, st.day_of_week, st.local_time
-    `)
+    `,
+  )
     .bind(userId)
     .all<ServiceTimeRow & { church_id: string }>()
   const timesByChurch = new Map<string, ServiceTimeRow[]>()
@@ -98,19 +110,22 @@ churchRoutes.get('/', async (c) => {
 
 churchRoutes.get('/:identifier', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  return c.json({ church: mapChurch(church, await serviceTimes(c.env.DB, church.id)) })
+  return c.json({
+    church: mapChurch(church, await serviceTimes(c.env.DB, church.id)),
+  })
 })
 
 churchRoutes.get('/:identifier/ministries', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT id, church_id, slug, title, status, audience, schedule, featured, summary
       FROM ministries
       WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL
       ORDER BY featured DESC, title
       LIMIT 200
-    `)
+    `,
+  )
     .bind(church.id)
     .all<MinistryRow>()
   return c.json({ ministries: result.results.map(mapMinistry) })
@@ -118,15 +133,16 @@ churchRoutes.get('/:identifier/ministries', async (c) => {
 
 churchRoutes.get('/:identifier/groups', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT id, church_id, ministry_id, slug, title, status, group_type, audience,
-             schedule, location, enrollment_policy, capacity, featured, summary
+             schedule, location, enrollment_policy, capacity, featured, summary, version
       FROM groups
       WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL
       ORDER BY featured DESC, title
       LIMIT 200
-    `)
+    `,
+  )
     .bind(church.id)
     .all<GroupRow>()
   return c.json({ groups: result.results.map(mapGroup) })
@@ -134,18 +150,19 @@ churchRoutes.get('/:identifier/groups', async (c) => {
 
 churchRoutes.get('/:identifier/courses', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
              c.course_type, c.delivery_mode, c.audience, c.duration, c.featured,
-             c.certificate_offered, c.summary, COUNT(l.id) AS lesson_count
+             c.certificate_offered, c.summary, c.version, COUNT(l.id) AS lesson_count
       FROM courses c
       LEFT JOIN lessons l ON l.course_id = c.id
       WHERE c.church_id = ? AND c.status = 'published' AND c.deleted_at IS NULL
       GROUP BY c.id
       ORDER BY c.featured DESC, c.title
       LIMIT 200
-    `)
+    `,
+  )
     .bind(church.id)
     .all<CourseRow>()
   return c.json({ courses: result.results.map(mapCourse) })
@@ -153,44 +170,51 @@ churchRoutes.get('/:identifier/courses', async (c) => {
 
 churchRoutes.get('/:identifier/courses/:slug', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const row = await c.env.DB
-    .prepare(`
+  const row = await c.env.DB.prepare(
+    `
       SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
              c.course_type, c.delivery_mode, c.audience, c.duration, c.featured,
-             c.certificate_offered, c.summary, COUNT(l.id) AS lesson_count
+             c.certificate_offered, c.summary, c.version, COUNT(l.id) AS lesson_count
       FROM courses c
       LEFT JOIN lessons l ON l.course_id = c.id
       WHERE c.church_id = ? AND c.slug = ? COLLATE NOCASE
         AND c.status = 'published' AND c.deleted_at IS NULL
       GROUP BY c.id
-    `)
+    `,
+  )
     .bind(church.id, c.req.param('slug'))
     .first<CourseRow>()
   if (!row) throw new AppError(404, 'course_not_found', 'Course not found')
 
-  const lessonResult = await c.env.DB
-    .prepare(`
-      SELECT id, course_id, title, summary, estimated_minutes, required, sort_order
+  const lessonResult = await c.env.DB.prepare(
+    `
+      SELECT id, course_id, title, summary, content, media_id,
+             estimated_minutes, required, sort_order, version
       FROM lessons
       WHERE church_id = ? AND course_id = ?
       ORDER BY sort_order
-    `)
+    `,
+  )
     .bind(church.id, row.id)
     .all<LessonRow>()
-  return c.json({ course: mapCourse(row), lessons: lessonResult.results.map(mapLesson) })
+  return c.json({
+    course: mapCourse(row),
+    lessons: lessonResult.results.map(mapLesson),
+  })
 })
 
 churchRoutes.get('/:identifier/events', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT id, church_id, slug, title, status, summary, starts_at, ends_at,
-             location, registration_url, featured
+             timezone, location, registration_url, capacity, featured, version
       FROM events
       WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL AND starts_at >= ?
       ORDER BY starts_at
       LIMIT 200
-    `)
+    `,
+  )
     .bind(church.id, Date.now())
     .all<EventRow>()
   return c.json({ events: result.results.map(mapEvent) })
@@ -198,15 +222,16 @@ churchRoutes.get('/:identifier/events', async (c) => {
 
 churchRoutes.get('/:identifier/sermons', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT id, church_id, slug, title, status, speaker, series, summary,
-             video_url, preached_at, featured
+             video_url, audio_media_id, preached_at, featured, version
       FROM sermons
       WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL
       ORDER BY preached_at DESC
       LIMIT 200
-    `)
+    `,
+  )
     .bind(church.id)
     .all<SermonRow>()
   return c.json({ sermons: result.results.map(mapSermon) })

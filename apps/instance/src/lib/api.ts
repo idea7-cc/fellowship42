@@ -39,6 +39,7 @@ export async function apiRequest<T>(
     )
   }
 
+  if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
 
@@ -70,7 +71,11 @@ export function useApiQuery<T>(path: string | null) {
         setError(
           caught instanceof ApiError
             ? caught
-            : new ApiError('Unexpected request failure', 500, 'unexpected_error'),
+            : new ApiError(
+                'Unexpected request failure',
+                500,
+                'unexpected_error',
+              ),
         )
       }
     } finally {

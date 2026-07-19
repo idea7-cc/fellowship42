@@ -16,20 +16,26 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
-import type { Church, CursorPage, Group } from '@/lib/api-types'
+import type { Church, CursorPage, MediaRecord, Sermon } from '@/lib/api-types'
+import { formatTimestamp } from '@/lib/format'
 
 const fieldClass =
   'min-h-10 rounded-lg border border-input bg-card px-3 py-2 text-sm'
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
+function localDate(value?: number) {
+  return value ? new Date(value).toISOString().slice(0, 10) : ''
+}
 
-function GroupForm({
-  group,
+function SermonForm({
+  sermon,
+  media,
   onCancel,
   onSaved,
 }: {
-  group: Group | null
+  sermon: Sermon | null
+  media: MediaRecord[]
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
@@ -46,24 +52,25 @@ function GroupForm({
       slug: String(form.get('slug') ?? ''),
       title: String(form.get('title') ?? ''),
       status: String(form.get('status') ?? 'draft'),
-      groupType: String(form.get('groupType') ?? ''),
-      audience: String(form.get('audience') ?? ''),
-      schedule: String(form.get('schedule') ?? ''),
-      location: String(form.get('location') ?? '') || null,
-      enrollmentPolicy: String(form.get('enrollmentPolicy') ?? 'closed'),
-      capacity: form.get('capacity') ? Number(form.get('capacity')) : null,
-      featured: form.get('featured') === 'on',
+      speaker: String(form.get('speaker') ?? ''),
+      series: String(form.get('series') ?? '') || null,
       summary: String(form.get('summary') ?? ''),
+      videoUrl: String(form.get('videoUrl') ?? '') || null,
+      audioMediaId: String(form.get('audioMediaId') ?? '') || null,
+      preachedAt: new Date(
+        `${String(form.get('preachedAt'))}T12:00:00`,
+      ).getTime(),
+      featured: form.get('featured') === 'on',
     }
     try {
       await apiRequest(
-        group
-          ? `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
-          : `/api/groups/${encodeURIComponent(churchId)}`,
+        sermon
+          ? `/api/sermons/${encodeURIComponent(churchId)}/${encodeURIComponent(sermon.id)}`
+          : `/api/sermons/${encodeURIComponent(churchId)}`,
         {
-          method: group ? 'PATCH' : 'POST',
+          method: sermon ? 'PATCH' : 'POST',
           body: JSON.stringify(
-            group ? { version: group.version, ...value } : value,
+            sermon ? { version: sermon.version, ...value } : value,
           ),
         },
       )
@@ -72,7 +79,7 @@ function GroupForm({
       setError(
         caught instanceof ApiError
           ? caught.message
-          : 'The group could not be saved.',
+          : 'The sermon could not be saved.',
       )
       setSaving(false)
     }
@@ -80,9 +87,11 @@ function GroupForm({
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>{group ? `Edit ${group.title}` : 'Add a group'}</CardTitle>
+        <CardTitle>
+          {sermon ? `Edit ${sermon.title}` : 'Add a sermon'}
+        </CardTitle>
         <CardDescription>
-          Draft changes stay private until published.
+          Public sermons may reference only public audio in this church.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -93,8 +102,8 @@ function GroupForm({
               <Input
                 name="title"
                 required
-                maxLength={160}
-                defaultValue={group?.title}
+                maxLength={200}
+                defaultValue={sermon?.title}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -103,80 +112,81 @@ function GroupForm({
                 name="slug"
                 required
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                defaultValue={group?.slug}
+                defaultValue={sermon?.slug}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
-              Type
+              Speaker
               <Input
-                name="groupType"
+                name="speaker"
                 required
-                maxLength={80}
-                defaultValue={group?.groupType}
-              />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Audience
-              <Input
-                name="audience"
                 maxLength={160}
-                defaultValue={group?.audience}
+                defaultValue={sermon?.speaker}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
-              Schedule
+              Series
               <Input
-                name="schedule"
-                maxLength={240}
-                defaultValue={group?.schedule}
+                name="series"
+                maxLength={160}
+                defaultValue={sermon?.series}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
-              Location
+              Preached date
               <Input
-                name="location"
-                maxLength={240}
-                defaultValue={group?.location}
+                name="preachedAt"
+                type="date"
+                required
+                defaultValue={localDate(sermon?.preachedAt)}
               />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">
+              Video URL
+              <Input
+                name="videoUrl"
+                type="url"
+                defaultValue={sermon?.videoUrl}
+              />
+            </label>
+            <label className="grid gap-1 text-sm font-semibold">
+              Public audio
+              <select
+                name="audioMediaId"
+                className={fieldClass}
+                defaultValue={sermon?.audioMediaId ?? ''}
+              >
+                <option value="">No audio</option>
+                {media
+                  .filter(
+                    (item) =>
+                      item.visibility === 'public' &&
+                      item.mediaType === 'audio',
+                  )
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.altText || item.id}
+                    </option>
+                  ))}
+              </select>
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Status
               <select
                 name="status"
                 className={fieldClass}
-                defaultValue={group?.status ?? 'draft'}
+                defaultValue={sermon?.status ?? 'draft'}
               >
                 <option value="draft">Draft</option>
                 <option value="published">Published</option>
                 <option value="archived">Archived</option>
               </select>
             </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Enrollment
-              <select
-                name="enrollmentPolicy"
-                className={fieldClass}
-                defaultValue={group?.enrollmentPolicy ?? 'closed'}
-              >
-                <option value="closed">Closed</option>
-                <option value="request">By request</option>
-                <option value="open">Open</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Capacity
-              <Input
-                name="capacity"
-                type="number"
-                min={1}
-                defaultValue={group?.capacity}
-              />
-            </label>
-            <label className="flex items-center gap-2 self-end py-2 text-sm font-semibold">
+            <label className="flex items-center gap-2 text-sm font-semibold">
               <input
                 name="featured"
                 type="checkbox"
-                defaultChecked={group?.featured}
+                defaultChecked={sermon?.featured}
               />{' '}
               Featured
             </label>
@@ -185,10 +195,10 @@ function GroupForm({
             Summary
             <textarea
               name="summary"
-              rows={4}
-              maxLength={4000}
+              rows={5}
+              maxLength={10000}
               className={fieldClass}
-              defaultValue={group?.summary}
+              defaultValue={sermon?.summary}
             />
           </label>
           {error ? (
@@ -197,12 +207,12 @@ function GroupForm({
             </p>
           ) : null}
           <div className="flex gap-3">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? 'Saving…' : 'Save group'}
+            <Button size="sm" type="submit" disabled={saving}>
+              {saving ? 'Saving…' : 'Save sermon'}
             </Button>
             <Button
-              type="button"
               size="sm"
+              type="button"
               variant="outline"
               onClick={onCancel}
             >
@@ -215,55 +225,58 @@ function GroupForm({
   )
 }
 
-export function GroupsPage() {
+export function SermonsPage() {
   const { churchId } = useParams<{ churchId: string }>()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
-  const canWrite = can(permissions, 'groups.write')
+  const canWrite = can(permissions, 'sermons.write')
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [cursors, setCursors] = useState<Array<string | null>>([null])
-  const [editor, setEditor] = useState<Group | 'new' | null>(null)
+  const [editor, setEditor] = useState<Sermon | 'new' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(publicBase)
-  const params = new URLSearchParams({ limit: '24' })
+  const params = new URLSearchParams({ limit: '100' })
   if (appliedSearch) params.set('query', appliedSearch)
   if (status) params.set('status', status)
-  if (cursors.at(-1)) params.set('cursor', cursors.at(-1)!)
-  const groupQuery = useApiQuery<{ groups: Group[]; page?: CursorPage }>(
+  const sermonQuery = useApiQuery<{ sermons: Sermon[]; page?: CursorPage }>(
     churchId
       ? canWrite
-        ? `/api/groups/${encodeURIComponent(churchId)}?${params}`
-        : `${publicBase}/groups`
+        ? `/api/sermons/${encodeURIComponent(churchId)}?${params}`
+        : `${publicBase}/sermons`
       : null,
   )
-  async function remove(group: Group) {
-    if (!churchId || !window.confirm(`Delete ${group.title}?`)) return
+  const mediaQuery = useApiQuery<{ media: MediaRecord[] }>(
+    churchId && canWrite
+      ? `/api/media/${encodeURIComponent(churchId)}?limit=100`
+      : null,
+  )
+  async function remove(sermon: Sermon) {
+    if (!churchId || !window.confirm(`Delete ${sermon.title}?`)) return
     try {
       await apiRequest(
-        `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`,
-        { method: 'DELETE', body: JSON.stringify({ version: group.version }) },
+        `/api/sermons/${encodeURIComponent(churchId)}/${encodeURIComponent(sermon.id)}`,
+        { method: 'DELETE', body: JSON.stringify({ version: sermon.version }) },
       )
-      await groupQuery.refetch()
+      await sermonQuery.refetch()
     } catch (caught) {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : 'The group could not be deleted.',
+          : 'The sermon could not be deleted.',
       )
     }
   }
-  const groups = groupQuery.data?.groups ?? []
-  const displayedGroups = canWrite
-    ? groups
-    : groups.filter((group) =>
-        [group.title, group.summary, group.groupType]
+  const sermons = sermonQuery.data?.sermons ?? []
+  const displayed = canWrite
+    ? sermons
+    : sermons.filter((sermon) =>
+        [sermon.title, sermon.speaker, sermon.series, sermon.summary]
           .join(' ')
           .toLowerCase()
           .includes(search.trim().toLowerCase()),
@@ -271,12 +284,12 @@ export function GroupsPage() {
   return (
     <PageShell>
       <Section>
-        <Eyebrow>Groups</Eyebrow>
-        <h1>Groups &amp; teams</h1>
+        <Eyebrow>Sermons</Eyebrow>
+        <h1>Messages &amp; media</h1>
         <p className="mt-2">
           {churchQuery.data?.church
-            ? `Ministry groups for ${churchQuery.data.church.name}`
-            : 'Groups and teams'}
+            ? `Published teaching from ${churchQuery.data.church.name}`
+            : 'Sermons and messages'}
         </p>
       </Section>
       <Section>
@@ -286,13 +299,12 @@ export function GroupsPage() {
             className="mb-6 flex flex-wrap gap-3"
             onSubmit={(event) => {
               event.preventDefault()
-              setCursors([null])
               setAppliedSearch(search.trim())
             }}
           >
             <Input
               className="max-w-sm"
-              placeholder="Search groups"
+              placeholder="Search sermons"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -300,38 +312,36 @@ export function GroupsPage() {
               aria-label="Publishing status"
               className={fieldClass}
               value={status}
-              onChange={(event) => {
-                setStatus(event.target.value)
-                setCursors([null])
-              }}
+              onChange={(event) => setStatus(event.target.value)}
             >
               <option value="">All statuses</option>
               <option value="draft">Draft</option>
               <option value="published">Published</option>
               <option value="archived">Archived</option>
             </select>
-            <Button type="submit" size="sm">
+            <Button size="sm" type="submit">
               Search
             </Button>
-            <Button type="button" size="sm" onClick={() => setEditor('new')}>
-              Add group
+            <Button size="sm" type="button" onClick={() => setEditor('new')}>
+              Add sermon
             </Button>
           </form>
         ) : (
           <Input
             className="mb-6 max-w-sm"
-            placeholder="Search published groups"
+            placeholder="Search sermons"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
         {editor ? (
-          <GroupForm
-            group={editor === 'new' ? null : editor}
+          <SermonForm
+            sermon={editor === 'new' ? null : editor}
+            media={mediaQuery.data?.media ?? []}
             onCancel={() => setEditor(null)}
             onSaved={async () => {
               setEditor(null)
-              await groupQuery.refetch()
+              await sermonQuery.refetch()
             }}
           />
         ) : null}
@@ -340,41 +350,55 @@ export function GroupsPage() {
             {error}
           </p>
         ) : null}
-        {groupQuery.isLoading ? (
-          <p>Loading groups…</p>
-        ) : displayedGroups.length ? (
-          <CardGrid minWidth="280px">
-            {displayedGroups.map((group) => (
-              <Card key={group.id}>
+        {sermonQuery.isLoading ? (
+          <p>Loading sermons…</p>
+        ) : displayed.length ? (
+          <CardGrid minWidth="300px">
+            {displayed.map((sermon) => (
+              <Card key={sermon.id}>
                 <CardHeader>
-                  <CardTitle>{group.title}</CardTitle>
-                  <CardDescription>{group.summary}</CardDescription>
+                  <CardTitle>{sermon.title}</CardTitle>
+                  <CardDescription>
+                    {sermon.speaker} · {formatTimestamp(sermon.preachedAt)}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="pill">{group.groupType}</Badge>
-                    <Badge variant="outline">{group.status}</Badge>
-                    {group.openEnrollment ? (
-                      <Badge variant="outline">Open</Badge>
+                    <Badge variant="outline">{sermon.status}</Badge>
+                    {sermon.series ? (
+                      <Badge variant="pill">{sermon.series}</Badge>
                     ) : null}
                   </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {group.location ? `${group.location} · ` : ''}
-                    {group.schedule}
-                  </p>
+                  <p className="mt-3 text-sm">{sermon.summary}</p>
+                  {sermon.audioMediaId ? (
+                    <audio
+                      className="mt-4 w-full"
+                      controls
+                      preload="none"
+                      src={`/media/${encodeURIComponent(sermon.audioMediaId)}`}
+                    />
+                  ) : null}
+                  {sermon.videoUrl ? (
+                    <a
+                      className="mt-3 block text-sm font-semibold text-accent-strong underline"
+                      href={sermon.videoUrl}
+                    >
+                      Watch video
+                    </a>
+                  ) : null}
                   {canWrite ? (
                     <div className="mt-4 flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditor(group)}
+                        onClick={() => setEditor(sermon)}
                       >
                         Edit
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => void remove(group)}
+                        onClick={() => void remove(sermon)}
                       >
                         Delete
                       </Button>
@@ -387,36 +411,10 @@ export function GroupsPage() {
         ) : (
           <Card className="border-dashed">
             <CardContent className="p-8 text-center text-muted-foreground">
-              No groups match this view.
+              No sermons match this view.
             </CardContent>
           </Card>
         )}
-        {canWrite &&
-        (cursors.length > 1 || groupQuery.data?.page?.nextCursor) ? (
-          <div className="mt-5 flex justify-between">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={cursors.length === 1}
-              onClick={() => setCursors((value) => value.slice(0, -1))}
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!groupQuery.data?.page?.nextCursor}
-              onClick={() =>
-                setCursors((value) => [
-                  ...value,
-                  groupQuery.data!.page!.nextCursor,
-                ])
-              }
-            >
-              Next
-            </Button>
-          </div>
-        ) : null}
       </Section>
     </PageShell>
   )
