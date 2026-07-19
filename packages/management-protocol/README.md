@@ -15,6 +15,7 @@ Current contracts establish:
 - infrastructure owner separately from operator;
 - independently grantable management capabilities;
 - command expiry, nonce, and result fields needed by a secure transport.
+- the checksummed Fellowship42 release-manifest schema and immutable fixtures.
 
 The package is pre-1.0 scaffolding. No management endpoint is enabled in the
 instance yet. See `../../docs/management-protocol.md` and ADR 0003 before adding
@@ -25,3 +26,8 @@ compiled ESM and generated declarations in `dist`; consumers do not need the
 Fellowship42 monorepo or a TypeScript source loader. Each application release
 includes an installable package tarball and checksums as described in
 `../../docs/releases.md`.
+
+Release-manifest consumers should import `releaseManifestSchema` from the main
+package export. Published examples are available through the
+`@fellowship42/management-protocol/fixtures/*` subpath; fixtures supplement but
+never replace verification of the intended release asset and checksum.

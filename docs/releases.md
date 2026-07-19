@@ -65,6 +65,18 @@ will be enabled only after the public npm scope and trusted-publishing policy
 are established. Until then, consumers pin the GitHub release asset and its
 SHA-256 digest.
 
+## Contract fixtures
+
+The management-protocol package publishes immutable release-manifest fixtures
+under `@fellowship42/management-protocol/fixtures/*`. A fixture captured from a
+published release is never rewritten to resemble a newer release. Consumers
+use it to test schema compatibility, while deployment systems still download
+and verify the actual release manifest and artifacts they intend to deploy.
+
+The release builder validates every generated manifest with the same exported
+`releaseManifestSchema` used by external consumers. This keeps the generated
+artifact, public package, and private or third-party verifier on one contract.
+
 ## What remains portable
 
 A release never enrolls an instance in Fellowship42 Cloud, creates billing or

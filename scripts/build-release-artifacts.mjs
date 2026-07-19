@@ -114,7 +114,7 @@ const artifacts = await Promise.all(
   }),
 )
 
-const manifest = {
+const manifest = protocolModule.releaseManifestSchema.parse({
   formatVersion: 1,
   application: {
     name: rootPackage.name,
@@ -132,7 +132,7 @@ const manifest = {
     committedAt: commitTimestamp,
   },
   artifacts,
-}
+})
 
 const manifestPath = path.join(outputDirectory, 'release-manifest.json')
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)

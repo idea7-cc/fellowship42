@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "application": {
+    "name": "fellowship42",
+    "version": "0.1.0",
+    "schemaVersion": 2
+  },
+  "managementProtocol": {
+    "package": "@fellowship42/management-protocol",
+    "packageVersion": "0.1.0",
+    "wireVersion": "1"
+  },
+  "source": {
+    "repository": "https://github.com/idea7-cc/fellowship42",
+    "commit": "1d2ad29942a4a72c00ab982ce621f9573aba5560",
+    "committedAt": "2026-07-19T13:40:47-04:00"
+  },
+  "artifacts": [
+    {
+      "file": "fellowship42-0.1.0-source.tgz",
+      "kind": "portable-instance-source",
+      "bytes": 247604,
+      "sha256": "c82d08c049eeec85df99209e08d927539097f4e029ae60858f4929a9cb5a0b9e"
+    },
+    {
+      "file": "fellowship42-management-protocol-0.1.0.tgz",
+      "kind": "management-protocol-package",
+      "bytes": 7216,
+      "sha256": "0bbb64b72c0f52f1c5c68a8218b40bd6e964813040799d79d29e64706cb41fbc"
+    }
+  ]
+}

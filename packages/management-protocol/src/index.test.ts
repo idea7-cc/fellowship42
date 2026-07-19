@@ -1,9 +1,11 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import {
   INSTANCE_TOPOLOGY,
   MANAGEMENT_PROTOCOL_VERSION,
   instanceDescriptorSchema,
   managementCommandSchema,
+  releaseManifestSchema,
 } from './index'
 
 describe('management protocol contracts', () => {
@@ -44,5 +46,25 @@ describe('management protocol contracts', () => {
     })
 
     expect(command.input).toEqual({})
+  })
+
+  it('accepts the immutable v0.1.0 release-manifest fixture', async () => {
+    const fixture = JSON.parse(
+      await readFile(new URL('../fixtures/release-manifest.v1.json', import.meta.url), 'utf8'),
+    )
+
+    const manifest = releaseManifestSchema.parse(fixture)
+
+    expect(manifest.source.commit).toBe('1d2ad29942a4a72c00ab982ce621f9573aba5560')
+    expect(manifest.artifacts).toHaveLength(2)
+  })
+
+  it('rejects a release manifest with a malformed checksum', async () => {
+    const fixture = JSON.parse(
+      await readFile(new URL('../fixtures/release-manifest.v1.json', import.meta.url), 'utf8'),
+    )
+    fixture.artifacts[0].sha256 = 'not-a-checksum'
+
+    expect(releaseManifestSchema.safeParse(fixture).success).toBe(false)
   })
 })

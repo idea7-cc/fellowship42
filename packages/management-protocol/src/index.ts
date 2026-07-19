@@ -1,4 +1,7 @@
 import { z } from 'zod'
+import { semanticVersionSchema } from './releases.js'
+
+export * from './releases.js'
 
 export const MANAGEMENT_PROTOCOL_VERSION = '1' as const
 export const MANAGEMENT_API_PREFIX = '/api/management/v1' as const
@@ -22,7 +25,7 @@ export const instanceDescriptorSchema = z.object({
   protocolVersion: z.literal(MANAGEMENT_PROTOCOL_VERSION),
   instanceId: z.string().min(1).max(128),
   topology: z.literal(INSTANCE_TOPOLOGY),
-  applicationVersion: z.string().min(1).max(64),
+  applicationVersion: semanticVersionSchema,
   schemaVersion: z.number().int().nonnegative(),
   infrastructure: z.object({
     owner: infrastructureOwnerSchema,
