@@ -88,7 +88,12 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm deploy:dry-run
+pnpm deploy:site:dry-run
 ```
+
+Tagged releases and management-protocol packages follow `docs/releases.md`.
+The private repository must pin a published artifact and checksum; it must not
+consume a relative checkout or an unpublished public branch.
 
 Any change to ownership, deployment topology, management trust, repository
 boundaries, portability, authentication, or data custody requires an ADR in

@@ -42,6 +42,7 @@ const requiredPaths = [
   ...manifest.publicContracts,
   ...manifest.publicSharedPackages,
   ...manifest.plannedPortableTooling,
+  ...Object.values(manifest.releaseContract),
 ]
 
 for (const requiredPath of requiredPaths) {

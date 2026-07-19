@@ -12,6 +12,12 @@
   "plannedPortableTooling": [
     "tooling/f42ctl"
   ],
+  "releaseContract": {
+    "documentation": "docs/releases.md",
+    "workflow": ".github/workflows/release.yml",
+    "builder": "scripts/build-release-artifacts.mjs",
+    "verifier": "scripts/verify-release-artifacts.mjs"
+  },
   "privateRepository": "fellowship42-cloud",
   "forbiddenPrivatePaths": [
     "apps/control-plane",

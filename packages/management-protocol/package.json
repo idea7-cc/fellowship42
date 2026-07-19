@@ -3,19 +3,23 @@
   "version": "0.1.0",
   "description": "Public contracts between a portable Fellowship42 instance and optional management software",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist",
-    "src",
     "README.md"
   ],
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
@@ -28,6 +32,15 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idea7-cc/fellowship42.git",
+    "directory": "packages/management-protocol"
+  },
+  "homepage": "https://github.com/idea7-cc/fellowship42#readme",
+  "bugs": {
+    "url": "https://github.com/idea7-cc/fellowship42/issues"
   },
   "license": "Apache-2.0"
 }

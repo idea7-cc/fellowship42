@@ -26,6 +26,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm deploy:dry-run
+pnpm deploy:site:dry-run
 ```
 
 Keep changes focused and include tests for authorization, church boundaries,
@@ -43,6 +44,9 @@ exports, Access JWTs, or member/donor data.
 - Validate untrusted input, use prepared D1 statements, audit sensitive writes,
   and make external retries idempotent.
 - Preserve backward-compatible public contracts or include a migration and ADR.
+
+Stable release tags and artifacts follow `docs/releases.md`. Never move or
+reuse a tag, and never publish an artifact from a dirty worktree.
 
 Use an issue or ADR for significant product, custody, protocol, or data-model
 changes before beginning a large implementation.

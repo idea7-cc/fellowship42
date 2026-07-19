@@ -119,6 +119,8 @@ atomic transfer of Cloudflare resource IDs.
 ## 8. CI/CD
 
 CI validates repository boundaries, types, Workers integration tests, and
-production builds. Automated deployment should use credentials scoped to one
-church account or hosted fleet boundary. Preview and production D1/R2 resources
-must remain separate.
+production builds. Automated deployment should start from a tagged source
+archive and verify its `release-manifest.json` and `SHA256SUMS` as described in
+`releases.md`; a private checkout is not a release input. Deployment credentials
+must be scoped to one church account or hosted fleet boundary. Preview and
+production D1/R2 resources must remain separate.

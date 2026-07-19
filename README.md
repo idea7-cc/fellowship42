@@ -81,6 +81,7 @@ instance shape as a church-managed deployment.
 - [Architecture](docs/architecture.md)
 - [Repository strategy](docs/repository-strategy.md)
 - [Management protocol](docs/management-protocol.md)
+- [Releases and immutable artifacts](docs/releases.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Current handover](docs/handover.md)
 - [Product plan](docs/fellowship42-product-plan.md)

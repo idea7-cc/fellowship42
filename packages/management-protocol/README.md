@@ -19,3 +19,9 @@ Current contracts establish:
 The package is pre-1.0 scaffolding. No management endpoint is enabled in the
 instance yet. See `../../docs/management-protocol.md` and ADR 0003 before adding
 wire behavior.
+
+The package is built before it is consumed. Published exports point only at
+compiled ESM and generated declarations in `dist`; consumers do not need the
+Fellowship42 monorepo or a TypeScript source loader. Each application release
+includes an installable package tarball and checksums as described in
+`../../docs/releases.md`.

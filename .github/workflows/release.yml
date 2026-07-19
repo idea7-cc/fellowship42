@@ -1,18 +1,22 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
 
 jobs:
-  validate:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Check out tagged commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -28,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate release tag
+        run: pnpm release:check-tag "$GITHUB_REF_NAME"
+
       - name: Check repository boundaries
         run: pnpm check:architecture
 
@@ -40,14 +47,21 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Build
-        run: pnpm build
-
-      - name: Assemble and verify release artifacts
-        run: pnpm release:assemble
+      - name: Build and verify release artifacts
+        run: pnpm release:artifacts
 
       - name: Verify Worker deployment bundle
         run: pnpm deploy:dry-run
 
       - name: Verify project-site deployment bundle
         run: pnpm deploy:site:dry-run
+
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          artifacts/release/*
+          --verify-tag
+          --generate-notes
+          --title "Fellowship42 $GITHUB_REF_NAME"
