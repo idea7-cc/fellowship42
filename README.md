@@ -22,7 +22,9 @@ recovery complete the current instance beta workflow.
 
 Optional management now includes owner-controlled enrollment, encrypted local
 identity, outbound-only signed status sync, replay and grant enforcement, key
-rotation, local disconnect, and an executable public adapter-conformance suite.
+rotation, local disconnect, an executable public adapter-conformance suite, and
+a church-owner console for reviewing the operator, grants, sync state, and safe
+local rotation/disconnect actions.
 
 ## Repository map
 

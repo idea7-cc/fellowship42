@@ -35,10 +35,14 @@ before changing the system shape.
   recovery, retry delay, dead-letter retention, and coarse health state;
 - hibernatable `ChurchRoom` Durable Objects for protected invalidation;
 - typed React queries and Access session state;
+- a church-owner management console for one-use handoff, explicit grant
+  approval, operator/key inspection, sync state, identity rotation, and local
+  disconnect;
 - Workers-runtime migration and API tests;
-- `@fellowship42/management-protocol` with initial versioned descriptors,
-  capabilities, command envelopes, replay metadata, lifecycle manifests,
-  deterministic plans, and bounded doctor reports;
+- `@fellowship42/management-protocol` with versioned descriptors,
+  Ed25519 enrollment/sync contracts, capabilities, command envelopes, replay
+  metadata, executable adapter conformance, lifecycle manifests, deterministic
+  plans, and bounded doctor reports;
 - an installable `f42ctl` CLI that validates desired deployment state, verifies
   immutable release bytes and source commit, produces a non-destructive plan,
   and inspects local/runtime shape without credentials;
@@ -47,10 +51,11 @@ before changing the system shape.
 - the public project site in `apps/project-site`;
 - Apache-2.0 `LICENSE` and `NOTICE` files.
 
-No remote management endpoint, control plane, MCP server, export/import
-implementation, active Cloudflare reconciliation, or hosted provisioning
-system is implemented. Existing lifecycle contracts do not imply those future
-capabilities.
+The public instance has the opt-in management endpoint and complete portable
+export/import implementation. The private control plane remains in the separate
+repository. No public MCP server, active Cloudflare reconciliation, or hosted
+provisioning system is implemented; existing lifecycle contracts do not imply
+those future capabilities.
 
 ## Verified baseline
 
@@ -58,7 +63,7 @@ On 2026-07-19 the following completed successfully for the current beta:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 8 management-protocol, 7 lifecycle CLI, and 26
+- `pnpm test` — 22 management-protocol, 11 lifecycle CLI, and 33
   Workers/client integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
