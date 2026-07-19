@@ -23,6 +23,15 @@ pnpm f42ctl export \
   --quiesced-at 2026-07-19T21:00:00.000Z
 
 pnpm f42ctl verify-export --directory ./church-export
+
+pnpm f42ctl plan-import \
+  --directory ./church-export \
+  --destination ./destination-deployment.json
+
+pnpm f42ctl verify-cutover \
+  --plan ./import-plan.json \
+  --destination ./destination-deployment.json \
+  --approval ./cutover-approval.json
 ```
 
 Omit `--offline` to download and verify the exact published release manifest.
@@ -36,11 +45,13 @@ the next lifecycle increment.
 
 Portable export collection, bundle sensitivity, and the strict input/output
 formats are documented in [`docs/portable-exports.md`](../../docs/portable-exports.md).
+Import staging, the provider-adapter boundary, credential rotation, and cutover
+approval are documented in
+[`docs/portable-import-and-cutover.md`](../../docs/portable-import-and-cutover.md).
 
 The CLI is expected to add:
 
 - `f42ctl deploy` — reconcile one instance in a target Cloudflare account;
-- `f42ctl import` — create a destination instance without reusing secrets;
 - `f42ctl connect` — explicitly enroll with compatible management software;
 - `f42ctl disconnect` — revoke management locally;
 

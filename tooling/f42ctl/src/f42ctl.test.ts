@@ -13,6 +13,13 @@ import {
 import { inspectDeployment, verifyPublishedRelease } from './doctor'
 import { buildDeployPlan } from './plan'
 import { assemblePortableExport, verifyPortableExport } from './portable-export'
+import {
+  buildPortableImportPlan,
+  executePortableCutover,
+  executePortableImportRestore,
+  verifyCutoverApproval,
+  type PortableImportAdapter,
+} from './portable-import'
 
 const execFileAsync = promisify(execFile)
 
@@ -390,6 +397,314 @@ describe('f42ctl portable export', () => {
       })
       await writeFile(path.join(output, 'unexpected.txt'), 'not referenced')
       await expect(verifyPortableExport({ directory: output })).rejects.toThrow('unreferenced')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('f42ctl portable import and cutover planning', () => {
+  it('binds a complete plan and approval to a verified export and new destination shape', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-import-'))
+    try {
+      const sourceManifestPath = path.join(root, 'source-deployment.json')
+      const d1Path = path.join(root, 'database.sql')
+      const r2IndexPath = path.join(root, 'r2-source.json')
+      const bundle = path.join(root, 'export')
+      await writeFile(sourceManifestPath, JSON.stringify(manifest))
+      await writeFile(d1Path, `instance_metadata ${manifest.instance.id}`)
+      await writeFile(path.join(root, 'media.bin'), 'restored media')
+      await writeFile(
+        r2IndexPath,
+        JSON.stringify({
+          formatVersion: 1,
+          objects: [{ key: 'sermons/restored.bin', file: 'media.bin' }],
+        }),
+      )
+      await assemblePortableExport({
+        deploymentManifestPath: sourceManifestPath,
+        d1ExportPath: d1Path,
+        r2SourceIndexPath: r2IndexPath,
+        r2SourceRoot: root,
+        outputDirectory: bundle,
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+        exportedAt: '2026-07-19T21:01:00.000Z',
+      })
+      const destination = deploymentManifestSchema.parse({
+        ...manifest,
+        target: { ...manifest.target, accountAlias: 'destination-account' },
+        worker: { name: 'fellowship42-restored', domains: ['new.example.org'] },
+        resources: {
+          ...manifest.resources,
+          d1: { ...manifest.resources.d1, name: 'fellowship42-restored' },
+          r2: { ...manifest.resources.r2, name: 'fellowship42-media-restored' },
+          outboxQueue: {
+            ...manifest.resources.outboxQueue,
+            name: 'fellowship42-outbox-restored',
+            deadLetterName: 'fellowship42-outbox-restored-dlq',
+          },
+        },
+      })
+      const destinationPath = path.join(root, 'destination.json')
+      await writeFile(destinationPath, JSON.stringify(destination))
+      const operationId = '42424242-1234-4678-9abc-123456789abc'
+      const plan = await buildPortableImportPlan({
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        operationId,
+        generatedAt: '2026-07-19T22:00:00.000Z',
+      })
+
+      expect(plan.steps).toHaveLength(17)
+      expect(plan.steps.slice(3, 5)).toEqual([
+        expect.objectContaining({ kind: 'verify-new-empty-d1', risk: 'read-only' }),
+        expect.objectContaining({ kind: 'verify-new-empty-r2', risk: 'read-only' }),
+      ])
+      expect(plan.steps.filter((step) => step.approvalRequired).map((step) => step.kind)).toEqual([
+        'cutover-domains',
+        'retire-source-routing',
+      ])
+      const approval = {
+        formatVersion: 1,
+        operationId,
+        instanceId: manifest.instance.id,
+        exportManifestSha256: plan.exportManifestSha256,
+        destinationManifestSha256: plan.destinationManifestSha256,
+        approvedAt: '2026-07-19T22:30:00.000Z',
+        approvedBy: 'user:operator_42',
+        sourceVerifiedAt: '2026-07-19T22:20:00.000Z',
+        destinationVerifiedAt: '2026-07-19T22:25:00.000Z',
+        credentialDisposition: {
+          deployment: 'rotated',
+          applicationSecrets: 'rotated',
+          management: 'rotated',
+        },
+        domains: destination.worker.domains,
+        rollbackDeadline: '2026-07-20T22:30:00.000Z',
+      }
+      expect(verifyCutoverApproval(plan, destination, approval)).toEqual(approval)
+      const planPath = path.join(root, 'import-plan.json')
+      const approvalPath = path.join(root, 'cutover-approval.json')
+      await writeFile(planPath, JSON.stringify(plan))
+      await writeFile(approvalPath, JSON.stringify(approval))
+      const approvalCli = await execFileAsync(process.execPath, [
+        path.resolve('dist/cli.js'),
+        'verify-cutover',
+        '--plan',
+        planPath,
+        '--destination',
+        destinationPath,
+        '--approval',
+        approvalPath,
+      ])
+      expect(JSON.parse(approvalCli.stdout)).toEqual(approval)
+
+      const events: string[] = []
+      const adapter: PortableImportAdapter = {
+        async preflight() {
+          events.push('preflight')
+          return {
+            formatVersion: 1,
+            operationId,
+            instanceId: manifest.instance.id,
+            destinationManifestSha256: plan.destinationManifestSha256,
+            observedAt: '2026-07-19T22:01:00.000Z',
+            d1: {
+              state: 'empty',
+              createdAt: '2026-07-19T22:00:30.000Z',
+            },
+            r2: {
+              state: 'empty',
+              createdAt: '2026-07-19T22:00:30.000Z',
+            },
+            worker: 'absent',
+            outboxQueue: 'absent',
+            deadLetterQueue: 'absent',
+            durableObjectNamespace: 'absent',
+          }
+        },
+        async restoreD1() { events.push('restore-d1') },
+        async restoreR2Object(input) {
+          events.push(`restore-r2:${input.key}`)
+        },
+        async applyForwardMigrations() { events.push('migrate') },
+        async deployWithoutDomains() { events.push('deploy-domainless') },
+        async rotateDeploymentCredentials() { events.push('rotate-deployment') },
+        async rotateApplicationSecrets() { events.push('rotate-application') },
+        async rotateManagementCredentials() { events.push('rotate-management') },
+        async verifyRestoredIdentity() {
+          events.push('verify-identity')
+          return manifest.instance.id
+        },
+        async verifyRuntime() {
+          events.push('verify-runtime')
+          return true
+        },
+        async cutoverDomains() { events.push('cutover') },
+        async verifyIndependentOperation() {
+          events.push('verify-independent')
+          return true
+        },
+        async retireSourceRouting() { events.push('retire-source-routing') },
+      }
+      const restored = await executePortableImportRestore({
+        plan,
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        adapter,
+        now: () => '2026-07-19T22:10:00.000Z',
+      })
+      expect(restored.status).toBe('awaiting-cutover')
+      expect(restored.steps.slice(0, 14).every((step) => step.status === 'succeeded')).toBe(true)
+      expect(restored.steps.slice(14).every((step) => step.status === 'pending')).toBe(true)
+      expect(events).toEqual([
+        'preflight',
+        'restore-d1',
+        'restore-r2:sermons/restored.bin',
+        'migrate',
+        'deploy-domainless',
+        'rotate-deployment',
+        'rotate-application',
+        'rotate-management',
+        'verify-identity',
+        'verify-runtime',
+      ])
+      const completed = await executePortableCutover({
+        plan,
+        report: restored,
+        destinationManifest: destination,
+        approval,
+        adapter,
+        now: () => '2026-07-19T22:31:00.000Z',
+      })
+      expect(completed.status).toBe('succeeded')
+      expect(events.slice(-3)).toEqual([
+        'cutover',
+        'verify-independent',
+        'retire-source-routing',
+      ])
+
+      const unsafeEvents: string[] = []
+      const unsafeAdapter: PortableImportAdapter = {
+        ...adapter,
+        async preflight() {
+          unsafeEvents.push('preflight')
+          return {
+            formatVersion: 1,
+            operationId,
+            instanceId: manifest.instance.id,
+            destinationManifestSha256: plan.destinationManifestSha256,
+            observedAt: '2026-07-19T22:01:00.000Z',
+            d1: { state: 'empty', createdAt: '2026-07-19T21:59:00.000Z' },
+            r2: { state: 'empty', createdAt: '2026-07-19T22:00:30.000Z' },
+            worker: 'absent',
+            outboxQueue: 'absent',
+            deadLetterQueue: 'absent',
+            durableObjectNamespace: 'absent',
+          }
+        },
+        async restoreD1() {
+          unsafeEvents.push('unsafe-write')
+        },
+      }
+      const rejected = await executePortableImportRestore({
+        plan,
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        adapter: unsafeAdapter,
+        now: () => '2026-07-19T22:10:00.000Z',
+      })
+      expect(rejected).toMatchObject({
+        status: 'failed',
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'verify-new-empty-d1',
+            status: 'failed',
+            code: 'destination-preflight-time-invalid',
+          }),
+        ]),
+      })
+      expect(unsafeEvents).toEqual(['preflight'])
+
+      const cli = await execFileAsync(process.execPath, [
+        path.resolve('dist/cli.js'),
+        'plan-import',
+        '--directory',
+        bundle,
+        '--destination',
+        destinationPath,
+        '--operation-id',
+        operationId,
+        '--generated-at',
+        '2026-07-19T22:00:00.000Z',
+      ])
+      expect(JSON.parse(cli.stdout)).toEqual(plan)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects identity drift, release drift, and unbound cutover approval', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-import-invalid-'))
+    try {
+      const sourceManifestPath = path.join(root, 'source.json')
+      const d1Path = path.join(root, 'database.sql')
+      const indexPath = path.join(root, 'index.json')
+      const bundle = path.join(root, 'export')
+      await writeFile(sourceManifestPath, JSON.stringify(manifest))
+      await writeFile(d1Path, `instance_metadata ${manifest.instance.id}`)
+      await writeFile(indexPath, JSON.stringify({ formatVersion: 1, objects: [] }))
+      await assemblePortableExport({
+        deploymentManifestPath: sourceManifestPath,
+        d1ExportPath: d1Path,
+        r2SourceIndexPath: indexPath,
+        r2SourceRoot: root,
+        outputDirectory: bundle,
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+        exportedAt: '2026-07-19T21:01:00.000Z',
+      })
+      const destinationPath = path.join(root, 'destination.json')
+      await writeFile(
+        destinationPath,
+        JSON.stringify({
+          ...manifest,
+          instance: {
+            ...manifest.instance,
+            id: 'instance_deadbeef-1234-5678-9abc-123456789abc',
+          },
+        }),
+      )
+      await expect(
+        buildPortableImportPlan({
+          exportDirectory: bundle,
+          destinationManifestPath: destinationPath,
+          generatedAt: '2026-07-19T22:00:00.000Z',
+        }),
+      ).rejects.toThrow('preserve')
+
+      await writeFile(
+        path.join(root, 'release-drift.json'),
+        JSON.stringify({
+          ...manifest,
+          instance: {
+            ...manifest.instance,
+            release: {
+              ...manifest.instance.release,
+              applicationVersion: '0.6.1',
+              tag: 'v0.6.1',
+              manifestUrl:
+                'https://github.com/idea7-cc/fellowship42/releases/download/v0.6.1/release-manifest.json',
+            },
+          },
+        }),
+      )
+      await expect(
+        buildPortableImportPlan({
+          exportDirectory: bundle,
+          destinationManifestPath: path.join(root, 'release-drift.json'),
+          generatedAt: '2026-07-19T22:00:00.000Z',
+        }),
+      ).rejects.toThrow('exact source and destination release')
     } finally {
       await rm(root, { recursive: true, force: true })
     }
