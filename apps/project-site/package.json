@@ -1,0 +1,27 @@
+{
+  "name": "@fellowship42/project-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Public Fellowship42 project and community site",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "pnpm build && wrangler deploy --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "@fellowship42/brand": "workspace:*",
+    "astro": "^5.7.0",
+    "@astrojs/react": "^4.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.112.0"
+  }
+}

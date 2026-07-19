@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "repositoryType": "public-portable-instance",
+  "deployableInstance": "apps/instance",
+  "projectSite": "apps/project-site",
+  "publicContracts": [
+    "packages/management-protocol"
+  ],
+  "publicSharedPackages": [
+    "packages/brand"
+  ],
+  "plannedPortableTooling": [
+    "tooling/f42ctl"
+  ],
+  "releaseContract": {
+    "documentation": "docs/releases.md",
+    "workflow": ".github/workflows/release.yml",
+    "builder": "scripts/build-release-artifacts.mjs",
+    "verifier": "scripts/verify-release-artifacts.mjs"
+  },
+  "privateRepository": "fellowship42-cloud",
+  "forbiddenPrivatePaths": [
+    "apps/control-plane",
+    "apps/dashboard",
+    "apps/partner-console",
+    "packages/billing",
+    "packages/fleet-orchestration"
+  ],
+  "forbiddenPrivateImports": [
+    "@fellowship42/cloud",
+    "@fellowship42/control-plane",
+    "@fellowship42/dashboard",
+    "@fellowship42/partner-console"
+  ]
+}

@@ -3,11 +3,9 @@ node_modules
 
 # Build outputs
 dist
+artifacts
 .astro
 .vercel
-
-# Convex
-convex/.tmp
 
 # Environment
 .env
@@ -16,6 +14,7 @@ convex/.tmp
 
 # IDE
 .DS_Store
+.claude/
 *.swp
 *.swo
 *~
@@ -25,10 +24,12 @@ convex/.tmp
 
 # Wrangler
 .wrangler
+.dev.vars
 
 # Testing
 coverage
 *.tsbuildinfo
+*.cpuprofile
 
 # Misc
 .fellowship42-dev-state.json

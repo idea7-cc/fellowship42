@@ -1,236 +1,159 @@
-# Fellowship42 Product Plan
+# Fellowship42 product plan
 
-## Summary
-Fellowship42 is a multi-tenant church management platform for Christian churches
-that combines church operations, member-facing experiences, and public website
-delivery in one product.
+## Product thesis
 
-The active direction is now a `Convex-first` platform with three primary
-surfaces:
-- a `Vite + React` application for church staff and members
-- an `Astro` web surface for Fellowship42 marketing and public church pages
-- a `Hono` edge API for public data access, integrations, and webhooks
+Fellowship42 is a portable, open-source operating system for a church. A church
+can choose managed hosting without surrendering the ability to take over a
+working deployment and all of its data.
 
-The product thesis has not changed: smaller and midsize churches want one modern
-system for people, groups, courses, events, giving, content, and web presence
-without the operational weight of enterprise church software.
+The initial market remains small and midsize U.S. Protestant and Evangelical
+churches with lean staff teams. The product should remain adaptable to other
+traditions without making the first workflows generic or abstract.
 
-## Quick Market Survey
-This is a high-level synthesis of visitor-behavior research and current church
-software positioning, not a claim of exact market share.
+The customer promise is not “learn Cloudflare.” It is:
 
-Churches appear to care most about these website outcomes:
-- Service times, location, and first-visit information are immediately visible.
-- Families can quickly understand kids ministry and safety expectations.
-- Sermons, events, online giving, and beliefs are easy to find on mobile.
-- The site helps turn anonymous visitors into first-time attenders.
+> Fellowship42 is managed for you when you want it and genuinely yours when you
+> need it.
 
-Churches appear to care most about these software outcomes:
-- One system for people, households, giving, events, ministries, and communications.
-- Easy recurring giving, statements, and donor history.
-- Volunteer coordination, attendance, and group management.
-- Facility scheduling and conflict-free room and resource booking.
-- Low setup and training overhead for small and mid-size staff teams.
+## Platform decision
 
-Sources:
-- https://sermonview.com/ministry-insights/what-people-look-for-on-church-websites/
-- https://get.tithe.ly/product/church-management
-- https://www.planningcenter.com/people
-- https://www.planningcenter.com/calendar
-- https://equip.subsplash.com/groups-and-messaging
+Each church instance is an independent Cloudflare application:
 
-## Product Direction
-- Primary target: U.S. Protestant and Evangelical churches with lean admin teams.
-- Product shape: one platform, not a loose integration hub.
-- Delivery strategy: responsive web first, mobile later.
-- Core promise: one church-scoped system of record plus a strong public-facing website.
-- Operating principle: multi-tenant by default, with church-specific branding and publishing.
+- React and Hono deploy together as one Worker application;
+- D1 is the relational system of record;
+- R2 stores media and export objects;
+- Durable Objects coordinate church-scoped realtime clients;
+- Cloudflare Access is the initial application authentication adapter;
+- Wrangler is the local and direct deployment toolchain;
+- the future public `f42ctl` wraps deterministic deploy, export, import,
+  verification, connect, and disconnect behavior.
 
-## Architecture Decision
-### Decision
-Use `Convex + Hono + Vite React + Astro` as the default architecture for active
-planning and implementation.
+Payments and communications remain external integrations. “All Cloudflare”
+means Fellowship42 needs no second application backend, not that Cloudflare
+replaces payment processors or delivery vendors.
 
-### Why this stack fits the product
-Fellowship42 is no longer best modeled as a CMS-centered application. The
-product now clearly spans:
-- operational workflows for staff and ministry leaders
-- member-facing application screens
-- public church websites and marketing pages
-- background automation and integration entry points
+## Product surfaces
 
-The current stack fits that shape well:
-- `Convex` provides the primary data model, auth integration point, file storage,
-  real-time subscriptions, and server functions.
-- `Vite + React` gives the main app a fast, flexible SPA runtime for dashboards,
-  forms, and church-scoped admin workflows.
-- `Astro` keeps public pages fast, SEO-friendly, and easy to compose while still
-  allowing React islands where interactivity is needed.
-- `Hono` on `Cloudflare Workers` gives a narrow edge API for public endpoints,
-  webhooks, and server-side integration logic that should not live in the browser.
+### Open church instance
 
-### Why the old Payload direction is no longer the default
-The previous Payload and Postgres recommendation made sense when the product was
-framed more like a single application with CMS-style administration. That is no
-longer the primary shape of the codebase or the product.
+The complete React and Worker application for staff, ministry leaders, finance
+users, members, and public church content. It remains usable without any
+commercial connection.
 
-The decisive shifts are:
-- realtime app behavior is now a first-class primitive
-- the backend is intentionally decoupled from a `Next.js` runtime
-- the system is split into distinct product surfaces with one shared backend
-- custom domain logic and church-scoped access control are central, not secondary
+### Public project site
 
-## Product Surfaces
-### Church App
-Purpose:
-- primary application for staff, ministry leaders, finance users, and members
-- place where operational workflows live
+The Astro site for documentation, releases, community, self-management, and
+public explanation of Fellowship42 services. It is not the customer dashboard.
 
-Current implementation target:
-- `apps/app`
-- `React 19`
-- `Vite`
-- `React Router`
-- `Convex React hooks`
+### Fellowship42 Cloud
 
-Core responsibilities:
-- dashboard and church overview
-- people and households
-- ministries and groups
-- courses and enrollments
-- events and sermons
-- contributions and finance access
-- landing pages and church theme management
+A separate private control plane and dashboard for provisioning, releases,
+backups, monitoring, support, billing, and hosted customer operations.
 
-### Public Web Surface
-Purpose:
-- Fellowship42 marketing presence
-- public church pages and SEO-sensitive content
+### Partner Pro
 
-Current implementation target:
-- `apps/web`
-- `Astro 5`
-- shared `@fellowship42/brand` tokens and presets
+A private role and product surface in Fellowship42 Cloud for certified experts
+to manage their own client churches with delegated access, audit history,
+release workflows, support tooling, and clear customer offboarding.
 
-Core responsibilities:
-- product marketing
-- church profile pages
-- public ministry, event, sermon, and giving pages
-- plan-your-visit and conversion-oriented landing pages
+### Management API and MCP
 
-### Edge API and Integrations
-Purpose:
-- public API routes that should not be exposed directly from the browser
-- webhook ingestion and future integration orchestration
+The open management API is the stable optional connection between instances and
+compatible control planes. A private MCP adapter may expose approved control-
+plane operations to AI-enabled operator clients.
 
-Current implementation target:
-- `apps/worker`
-- `Hono`
-- `Cloudflare Workers`
-- server-side calls into the `Convex` HTTP API
+## Service editions
 
-Core responsibilities:
-- public church API responses
-- Clerk and Stripe webhook handling
-- future rate limiting, caching, and integration endpoints
+- **Community** — Apache-2.0 instance, public documentation, manual Wrangler or
+  `f42ctl` lifecycle, no required management connection.
+- **Hosted** — Fellowship42-operated instance, monitoring, backups, updates,
+  support, and a documented export/redeployment exit.
+- **Sovereign managed** — church-owned Cloudflare account operated by
+  Fellowship42; exit is primarily credential revocation rather than migration.
+- **Partner managed** — church-owned account operated by a certified partner.
+- **Partner Pro** — multi-client operational dashboard and commercial partner
+  program.
 
-## Core Domain Model
-The current Convex schema centers on church-scoped multi-tenant records.
+Partners should generally operate church-owned infrastructure instead of owning
+their clients' accounts. Ownership, billing, delegated access, emergency
+revocation, and offboarding must be explicit.
 
-Primary domains already represented in the active schema:
-- churches and theming
-- users and church access
-- people
-- ministries
-- groups and group memberships
-- group sessions and attendance records
-- courses and course enrollments
-- events
-- sermons
-- facilities
-- contributions
-- media
-- landing pages
+## Domain priorities
 
-Product implication:
-- Fellowship42 should be treated as an operations platform with integrated
-  publishing, not as a content system with a few church admin extensions.
+The D1 model covers church profile and publishing, users and memberships,
+people and households, ministries and groups, attendance, courses, events,
+sermons, facilities, contributions, media, audit, idempotency, webhook
+ingestion, and outbox delivery.
 
-## Recommended Tech Stack
-- Backend platform: `Convex Cloud`
-- Edge API: `Hono` on `Cloudflare Workers`
-- App UI: `Vite + React 19`
-- Public site: `Astro 5`
-- Language: `TypeScript`
-- Styling: `Tailwind CSS v4`
-- Component base: owned `shadcn/ui` source in the app workspace
-- Shared brand system: `@fellowship42/brand`
-- Auth provider target: `Clerk`
-- Payments: `Stripe`
-- Object storage: `Convex storage` first, with `Cloudflare R2` still viable for future external asset needs
-- Analytics and errors: `PostHog` and `Sentry`
-- Messaging: `Twilio` for SMS when needed
+The product should deepen complete workflows on that model rather than add more
+tables speculatively.
 
-## Deployment and Infrastructure
-### Recommended default
-- React app on `Cloudflare Pages`
-- Astro web surface on `Cloudflare Pages`
-- Hono worker on `Cloudflare Workers`
-- Backend and data model on `Convex Cloud`
+## Delivery sequence
 
-### Tenant model
-The default multi-tenant posture is:
-- one shared backend per environment
-- explicit `churchId` scoping in every tenant-sensitive query and mutation
-- role-based access enforced server-side
-- public queries return published-only content for unauthenticated callers
+### Foundation — implemented
 
-This should remain the default unless a later enterprise requirement forces
-isolated deployments for specific churches.
+- Cloudflare runtime and one-command app/API development;
+- normalized D1 authorization and domain model;
+- Access session linking and protected directory API;
+- public published content and R2 delivery foundations;
+- Durable Object invalidation foundation;
+- local migrations, seed data, Workers integration tests, and deploy dry-runs;
+- portable singleton instance identity;
+- explicit public/private repository boundary;
+- initial compiled management protocol package.
 
-## Initial High-Level Features
-- Church profile, branding, settings, and domain management
-- Public website presence with sermons, events, giving, and plan-your-visit pages
-- People records and church membership workflows
-- Ministries, groups, Sunday school classes, and volunteer coordination
-- Courses, curriculum, and training progress
-- Events, registrations, and scheduling
-- Contributions, donor history, and finance-scoped reporting
-- Landing pages for ministries, groups, and courses
-- Member portal for profile, participation, and self-service tasks
+### Instance beta
 
-## Delivery Priorities
-### Near-term
-- wire Clerk auth end to end
-- expand the current live SPA routes into authenticated write flows
-- expand worker routes beyond the current Convex-backed public responses
-- expand app forms for create and edit flows across core domains
+- production instance bootstrap and owner onboarding;
+- replace demo-oriented church selection with an instance-first experience;
+- complete people and household workflows;
+- groups, courses, events, sermons, and R2 upload workflows;
+- pagination, search, error recovery, and accessible form states;
+- verified payment webhooks and finance-scoped contribution views;
+- Queue or Workflow outbox delivery.
 
-### Beta path
-- complete missing functions for facilities, attendance, sessions, and media
-- add church-scoped publishing and landing page editing flows
-- add webhook handling for user provisioning and contribution recording
-- seed a demo church and validate end-to-end church admin workflows
+### Portability milestone
 
-### Later
-- richer workflow automation
-- deeper reporting and exports
-- more advanced facility scheduling and conflict management
-- real-time collaboration and check-in flows
-- mobile clients sharing the same backend model
+- versioned release and export manifests;
+- `f42ctl doctor`, deploy, export, import, and verify-export;
+- D1 and R2 integrity verification;
+- credential rotation and domain cutover runbooks;
+- a tested hosted-to-church-owned migration exercise;
+- migration compatibility and expand/contract schema policy.
 
-## Working Assumptions
-- Initial market is U.S.-based churches.
-- Initial denominational fit is Protestant and Evangelical, though the data model
-  should remain extensible.
-- Mobile apps are not required for v1.
-- Real-time updates are valuable enough to influence the backend choice.
-- The current question is no longer whether Fellowship42 should use a CMS-driven
-  architecture. The active question is how far the current Convex-centered
-  platform should be pushed before adding new infrastructure.
+### Managed hosting milestone
 
-## Open Questions
-- How far the first release should go on live online giving versus contribution recording and reporting.
-- How much church website publishing should live directly in Convex before a richer editor is built.
-- Which staff workflows most need real-time behavior in the first beta.
-- Whether future public church sites should stay inside one multi-tenant Astro surface or grow into a more specialized delivery model.
+- opt-in enrollment, capability grants, disconnect, and key rotation;
+- instance status, backup export, update preparation, and audited update apply;
+- private control plane, dashboard, billing, monitoring, and release rings;
+- hosted Worker packaging and custom-domain automation;
+- incident, restore, privacy, data-processing, and support runbooks.
+
+### Partner milestone
+
+- partner organizations, staff, customers, assignments, and least privilege;
+- time-limited support access and immutable operational audit;
+- certification, compatibility tests, directory, and partner code of conduct;
+- partner billing and client handoff workflows;
+- optional Pro MCP operator tools with explicit approval for mutations.
+
+## Open-source and commercial boundary
+
+The public repository is Apache-2.0 and owns the complete church instance,
+public contracts, and portable lifecycle tools. Private value is operational:
+fleet management, billing, monitoring, releases, support, and the partner
+network.
+
+A separate trademark policy should protect the Fellowship42 name, official
+service, and certified-partner designation without restricting legitimate code
+forks.
+
+## Current product questions
+
+- Which two staff workflows must be excellent for the first paid pilot?
+- What portable authentication options should follow the initial Access adapter?
+- What exact data may leave an instance as operational telemetry?
+- Which management capability requires local confirmation on every use?
+- What export/restore duration and recovery objectives can Hosted promise?
+- When does the hosted fleet require Workers for Platforms rather than ordinary
+  per-instance Workers?

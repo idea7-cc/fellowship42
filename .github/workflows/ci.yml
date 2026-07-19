@@ -12,15 +12,15 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10.32.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -28,8 +28,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check repository boundaries
+        run: pnpm check:architecture
+
+      - name: Check generated Cloudflare bindings
+        run: pnpm cf-typegen:check
+
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test
+        run: pnpm test
+
       - name: Build
         run: pnpm build
+
+      - name: Assemble and verify release artifacts
+        run: pnpm release:assemble
+
+      - name: Verify Worker deployment bundle
+        run: pnpm deploy:dry-run
+
+      - name: Verify project-site deployment bundle
+        run: pnpm deploy:site:dry-run

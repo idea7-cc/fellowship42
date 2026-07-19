@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local-only overrides. Do not commit .dev.vars.
+ENVIRONMENT=development
+
+# Optional: protect the app with Cloudflare Access locally via a forwarded JWT.
+ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+ACCESS_AUD=your-access-application-aud

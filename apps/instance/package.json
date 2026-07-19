@@ -1,0 +1,49 @@
+{
+  "name": "@fellowship42/instance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run",
+    "cf-typegen": "wrangler types --config wrangler.jsonc",
+    "cf-typegen:check": "wrangler types --check --config wrangler.jsonc",
+    "db:migrate": "wrangler d1 migrations apply fellowship42 --local --config wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply fellowship42 --remote --config wrangler.jsonc",
+    "db:seed": "wrangler d1 execute fellowship42 --local --file seed.sql --config wrangler.jsonc",
+    "deploy:dry-run": "pnpm build && wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "pnpm build && wrangler deploy --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "@fellowship42/brand": "workspace:*",
+    "@fellowship42/management-protocol": "workspace:*",
+    "@radix-ui/react-slot": "^1.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "hono": "^4.12.30",
+    "jose": "^6.1.3",
+    "lucide-react": "^0.460.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.0",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.45.1",
+    "@cloudflare/vitest-pool-workers": "^0.18.6",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.112.0"
+  }
+}

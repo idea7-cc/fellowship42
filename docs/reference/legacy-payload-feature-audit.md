@@ -5,8 +5,8 @@ retired `fellowship42-app/` implementation before it was removed from the
 repository on 2026-03-24.
 
 The goal is not to preserve the old architecture. The goal is to preserve
-feature intent so those capabilities can be rebuilt in the active
-`Convex + Vite + Astro + Hono` stack.
+feature intent so those capabilities can be rebuilt in the active Cloudflare
+Workers, D1, R2, Durable Objects, Vite, and Astro stack.
 
 ## Fully represented in the active stack
 
@@ -52,7 +52,7 @@ The old implementation also enriched block data dynamically:
 
 What the new stack has today:
 
-- `landingPages` exists in Convex
+- `landing_pages` and typed block records exist in D1
 - no page-builder UI
 - no landing-page renderer in the active app or web surface
 - no public landing-page routes yet
@@ -88,7 +88,7 @@ The old app had an authenticated member portal with:
 
 What the new stack has today:
 
-- schema and enrollment/membership mutations exist in Convex
+- enrollment and membership tables exist in D1
 - no rebuilt member portal UI or auth wiring in the SPA
 
 ### 4. Leader dashboard
@@ -102,9 +102,9 @@ The old app had a leader-specific dashboard with:
 
 What the new stack has today:
 
-- the relevant tables exist in Convex
+- the relevant tables exist in D1
 - no rebuilt leader dashboard UI
-- no group-session or attendance Convex functions yet
+- no group-session or attendance API write routes yet
 
 ### 5. Admin-side publishing workflow
 
@@ -118,14 +118,14 @@ The old app used Payload admin as a workflow engine for content/publishing:
 What the new stack has today:
 
 - no replacement publishing workflow yet
-- planned direction is Clerk + Convex auth plus app-native admin tooling
+- Cloudflare Access and app-native admin tooling now replace the old auth/admin path
 
 ## Recommended carry-forward priorities
 
 If the goal is product continuity rather than historical completeness, the
 highest-value features to rebuild next are:
 
-1. Public church website pages powered by the worker + Convex
+1. Public church website pages powered by the Worker and D1
 2. Landing-page rendering and editing for ministries, groups, and courses
 3. Member portal flows for group joining and course progress
 4. Leader dashboard with sessions and attendance

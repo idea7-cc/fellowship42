@@ -1,24 +1,34 @@
 {
   "name": "fellowship42",
+  "version": "0.1.0",
   "packageManager": "pnpm@10.32.1",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @fellowship42/app dev",
-    "dev:worker": "pnpm --filter @fellowship42/worker dev",
-    "dev:web": "pnpm --filter @fellowship42/web dev",
-    "dev:convex": "pnpm exec convex dev",
-    "codegen:convex": "pnpm exec convex codegen",
+    "prepare": "pnpm build:contracts",
+    "dev": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
+    "dev:instance": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
+    "dev:site": "pnpm --filter @fellowship42/project-site dev",
+    "build:contracts": "pnpm --filter @fellowship42/management-protocol build",
     "build": "pnpm -r --if-present build",
-    "build:worker": "pnpm --filter @fellowship42/worker build",
-    "build:web": "pnpm --filter @fellowship42/web build",
-    "typecheck": "pnpm typecheck:workspaces && pnpm typecheck:convex",
-    "typecheck:workspaces": "pnpm -r --if-present typecheck",
-    "typecheck:convex": "pnpm exec tsc -p convex/tsconfig.json --noEmit",
-    "deploy:worker": "pnpm --filter @fellowship42/worker deploy"
+    "build:site": "pnpm --filter @fellowship42/project-site build",
+    "typecheck": "pnpm build:contracts && pnpm -r --if-present typecheck",
+    "test": "pnpm build:contracts && pnpm -r --if-present test",
+    "check:architecture": "node scripts/check-repository-boundaries.mjs",
+    "cf-typegen": "pnpm --filter @fellowship42/instance cf-typegen",
+    "cf-typegen:check": "pnpm --filter @fellowship42/instance cf-typegen:check",
+    "db:migrate": "pnpm --filter @fellowship42/instance db:migrate",
+    "db:migrate:remote": "pnpm --filter @fellowship42/instance db:migrate:remote",
+    "db:seed": "pnpm --filter @fellowship42/instance db:seed",
+    "deploy:dry-run": "pnpm --filter @fellowship42/instance deploy:dry-run",
+    "deploy": "pnpm --filter @fellowship42/instance deploy",
+    "deploy:site:dry-run": "pnpm --filter @fellowship42/project-site deploy:dry-run",
+    "deploy:site": "pnpm --filter @fellowship42/project-site deploy",
+    "release:assemble": "node scripts/build-release-artifacts.mjs && node scripts/verify-release-artifacts.mjs",
+    "release:artifacts": "pnpm build && pnpm release:assemble",
+    "release:check-tag": "node scripts/check-release-tag.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "convex": "^1.34.0",
     "typescript": "^5.7.0"
   }
 }
