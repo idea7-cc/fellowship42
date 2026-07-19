@@ -4,18 +4,9 @@ import {
   deploymentManifestSchema,
   type DeployPlan,
 } from '@fellowship42/management-protocol'
+import { canonicalJson } from './canonical.js'
 
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJson(item)).join(',')}]`
-  }
-  const record = value as Record<string, unknown>
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-    .join(',')}}`
-}
+export { canonicalJson } from './canonical.js'
 
 export function manifestDigest(input: unknown) {
   const manifest = deploymentManifestSchema.parse(input)

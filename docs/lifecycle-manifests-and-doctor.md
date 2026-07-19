@@ -48,6 +48,11 @@ evidence only: it does not authenticate to Cloudflare or mutate resources.
 Future reconciliation must preserve preview/apply separation and require an
 explicit target account at execution time.
 
+Canonical JSON is also published from the side-effect-free
+`@fellowship42/f42ctl/canonical` subpath. Worker and browser-compatible
+consumers can combine it with Web Crypto without loading the Node filesystem or
+CLI modules.
+
 ## Doctor evidence
 
 `doctor` validates the desired manifest and inspects:

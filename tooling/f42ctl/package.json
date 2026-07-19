@@ -1,6 +1,6 @@
 {
   "name": "@fellowship42/f42ctl",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Public lifecycle planning and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./canonical": {
+      "types": "./dist/canonical.d.ts",
+      "import": "./dist/canonical.js"
     }
   },
   "scripts": {
