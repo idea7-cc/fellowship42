@@ -257,3 +257,66 @@ export interface ApiErrorBody {
     requestId?: string
   }
 }
+
+export type ManagementCapability =
+  | 'instance.status.read'
+  | 'backup.export'
+  | 'update.prepare'
+  | 'update.apply'
+  | 'support.session.request'
+  | 'management.disconnect'
+
+export interface ManagementOperatorSummary {
+  id: string
+  displayName: string
+  keyId: string
+  keyFingerprint: string
+  syncUrl?: string
+}
+
+export interface ManagementGrantSummary {
+  capability: ManagementCapability
+  grantedAt: string
+  expiresAt: string
+  requiresLocalApproval: boolean
+}
+
+export interface ManagementStatusResponse {
+  instanceId: string
+  enabled: boolean
+  identity: { keyId: string; fingerprint: string } | null
+  pendingEnrollment: {
+    challengeId: string
+    operator: ManagementOperatorSummary & { syncUrl: string }
+    requestedCapabilities: ManagementCapability[]
+    submittedAt: string
+  } | null
+  connection: {
+    connectionId: string
+    operator: ManagementOperatorSummary
+    grantVersion: number
+    rotationPending: boolean
+    grants: ManagementGrantSummary[]
+    approvedAt: string
+    lastSyncAt: string | null
+    lastSyncStatus: string | null
+    lastSyncCode: string | null
+  } | null
+}
+
+export interface EnrollmentChallenge {
+  protocolVersion: '1'
+  challengeId: string
+  instanceId: string
+  instanceKey: {
+    kty: 'OKP'
+    crv: 'Ed25519'
+    x: string
+    kid: string
+    use: 'sig'
+    alg: 'EdDSA'
+  }
+  oneTimeCode: string
+  issuedAt: string
+  expiresAt: string
+}

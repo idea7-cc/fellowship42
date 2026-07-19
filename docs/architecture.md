@@ -232,7 +232,8 @@ Implemented now:
 - explicit public/private repository boundaries;
 - opt-in signed management enrollment, encrypted instance-key custody,
   outbound status synchronization, replay protection, rotation, local
-  disconnect, bounded management auditing, and executable adapter conformance.
+  disconnect, bounded management auditing, executable adapter conformance, and
+  a church-owner console for inspecting and revoking the relationship.
 
 Planned, not implied by the scaffolding:
 

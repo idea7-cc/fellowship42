@@ -115,14 +115,32 @@ it. Support sessions must be time-limited and separately approved.
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
 
-Release 0.13 executes only `instance.status.read`. Recognized backup, update,
+Release 0.14 executes only `instance.status.read`. Recognized backup, update,
 support, and disconnect commands receive explicit rejected results until their
 separate local workflows are implemented. Empty batches and empty results are
 valid heartbeat messages.
 
+## Church-owner console
+
+The church-scoped Management page is a local view over the instance adapter; it
+does not call or import a private control plane. Only a locally authenticated
+member with `management.admin` can open it or use its actions.
+
+The console shows the portable instance identity, encrypted local signing-key
+fingerprint, proposed or active operator identity/fingerprint, exact grants and
+expirations, local-approval requirements, rotation delivery state, and last
+outbound sync result. Enrollment handoffs expose the 256-bit one-use credential
+only in the creating browser and warn against logging or durable storage. No
+capability is preselected for approval.
+
+Identity rotation requires an explicit typed confirmation and is delivered as
+an old-key-authorized message. Local disconnect requires a reason plus a typed
+confirmation; it revokes grants and removes local management key material while
+leaving church data, normal workflows, and portable export available.
+
 ## Public adapter conformance
 
-Protocol package `1.2.0` exports
+Protocol package `1.2.1` exports
 `runManagementAdapterConformance`, a transport-neutral executable suite for an
 instance adapter. A harness supplies only the local owner enrollment, sync,
 rotation, and disconnect operations; the suite generates ephemeral operator
@@ -133,7 +151,7 @@ authorized instance rotation, and unconditional local disconnect.
 The suite returns a strict, privacy-bounded report containing release versions
 and six ordered passing scenario identifiers. It contains no key, challenge,
 instance identity, endpoint, command payload, church record, or provider
-identifier. Release `v0.13.0` publishes the executed report as
+identifier. Release `v0.14.0` publishes the executed report as
 `management-adapter-conformance.v1.json`; CI regenerates it against the real
 instance service and sync engine and requires exact equality. This is portable
 adapter evidence, not certification of a particular Cloudflare account,

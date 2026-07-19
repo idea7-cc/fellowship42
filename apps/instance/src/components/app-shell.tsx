@@ -20,6 +20,7 @@ interface NavItem {
   churchScoped?: boolean
   /** A note shown as a smaller label */
   note?: string
+  permission?: string
 }
 
 const globalNav: NavItem[] = [
@@ -37,6 +38,12 @@ const churchNav: NavItem[] = [
   { label: 'Media', path: '/media' },
   { label: 'Facilities', path: '/facilities' },
   { label: 'Contributions', path: '/contributions', note: 'finance' },
+  {
+    label: 'Management',
+    path: '/management',
+    note: 'owner',
+    permission: 'management.admin',
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -63,6 +70,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useChurchRealtime(activeChurchId)
 
   const churchBasePath = activeChurchId ? `/churches/${activeChurchId}` : null
+  const permissions =
+    user?.memberships.find((entry) => entry.churchId === activeChurchId)
+      ?.permissions ?? []
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -163,6 +173,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Separator className="my-2" />
                 <SidebarSection label={church?.name ?? 'Church'}>
                   {churchNav.map((item) => {
+                    if (
+                      item.permission &&
+                      !permissions.includes('*') &&
+                      !permissions.includes(item.permission)
+                    ) {
+                      return null
+                    }
                     const fullPath = `${churchBasePath}${item.path}`
                     return (
                       <NavLink
