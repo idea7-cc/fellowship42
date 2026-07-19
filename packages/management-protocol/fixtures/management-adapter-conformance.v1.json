@@ -1,0 +1,36 @@
+{
+  "formatVersion": 1,
+  "profile": "f42-instance-management-adapter-v1",
+  "instance": {
+    "applicationVersion": "0.13.0",
+    "schemaVersion": 6,
+    "managementProtocolPackageVersion": "1.2.0",
+    "managementProtocolWireVersion": "1"
+  },
+  "scenarios": [
+    {
+      "id": "owner-controlled-enrollment",
+      "status": "passed"
+    },
+    {
+      "id": "signed-status-command",
+      "status": "passed"
+    },
+    {
+      "id": "exact-command-replay",
+      "status": "passed"
+    },
+    {
+      "id": "local-grant-denial",
+      "status": "passed"
+    },
+    {
+      "id": "instance-key-rotation",
+      "status": "passed"
+    },
+    {
+      "id": "local-disconnect",
+      "status": "passed"
+    }
+  ]
+}

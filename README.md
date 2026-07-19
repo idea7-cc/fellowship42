@@ -20,6 +20,10 @@ invalidation while public routes expose only published content. Finance-scoped
 contributions, verified normalized payment events, and Queue-backed outbox
 recovery complete the current instance beta workflow.
 
+Optional management now includes owner-controlled enrollment, encrypted local
+identity, outbound-only signed status sync, replay and grant enforcement, key
+rotation, local disconnect, and an executable public adapter-conformance suite.
+
 ## Repository map
 
 ```text

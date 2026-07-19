@@ -19,6 +19,7 @@ Current contracts establish:
 - enrollment, instance-initiated sync, replay, rotation, and disconnect schemas;
 - standard Ed25519 flattened-JWS signing and verification through Web Crypto;
 - a mandatory public signature interoperability vector;
+- an executable instance-adapter conformance harness and strict report;
 - the checksummed Fellowship42 release-manifest schema and immutable fixtures;
 - strict portable-export manifests, configuration, R2 indexes, and
   privacy-bounded verification evidence;
@@ -28,9 +29,10 @@ Current contracts establish:
   compatibility fixture.
 
 Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
-1.1 adds empty heartbeat results and duplicate-capability rejection without
-changing the wire major. The instance adapter is implemented as local-owner
-enrollment plus outbound-only operator sync. See
+1.1 added empty heartbeat results and duplicate-capability rejection. Package
+1.2 adds the transport-neutral adapter conformance runner and report schema
+without changing the wire major. The instance adapter is implemented as local-
+owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, and ADR 0011 before changing the
 trust boundary.
 

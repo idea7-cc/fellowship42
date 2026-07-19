@@ -1,6 +1,7 @@
 import { env, exports } from 'cloudflare:workers'
 import {
   MANAGEMENT_PROTOCOL_VERSION,
+  runManagementAdapterConformance,
   managementPublicKeySchema,
   signManagementPayload,
   verifyManagementJws,
@@ -9,6 +10,7 @@ import {
   type ManagementPublicKey,
 } from '@fellowship42/management-protocol'
 import { beforeEach, describe, expect, it } from 'vitest'
+import conformanceFixture from '../../../packages/management-protocol/fixtures/management-adapter-conformance.v1.json'
 import {
   approveEnrollment,
   createEnrollmentChallenge,
@@ -159,6 +161,68 @@ beforeEach(async () => {
 })
 
 describe('optional management adapter', () => {
+  it('passes the published instance-management adapter conformance suite', async () => {
+    const now = Date.parse('2026-07-19T23:30:00.000Z')
+    const report = await runManagementAdapterConformance(
+      {
+        createEnrollmentChallenge: (time) =>
+          createEnrollmentChallenge(
+            env.DB,
+            managementEnv,
+            ownerId,
+            'conformance-challenge',
+            time,
+          ),
+        async submitEnrollmentProposal(input, time) {
+          await submitEnrollmentProposal(
+            env.DB,
+            input,
+            'conformance-proposal',
+            time,
+          )
+        },
+        approveEnrollment: (challengeId, grants, time) =>
+          approveEnrollment(
+            env.DB,
+            managementEnv,
+            challengeId,
+            grants,
+            ownerId,
+            'conformance-approval',
+            time,
+          ),
+        syncOnce: (time, transport) =>
+          syncManagementOnce(managementEnv, time, transport),
+        async rotateInstanceIdentity(time) {
+          await rotateManagementIdentity(
+            env.DB,
+            managementEnv,
+            ownerId,
+            'conformance-rotation',
+            time,
+          )
+        },
+        async disconnectLocally(time) {
+          await disconnectManagement(
+            env.DB,
+            ownerId,
+            'conformance-disconnect',
+            'Public conformance completed',
+            time,
+          )
+        },
+      },
+      {
+        applicationVersion: '0.13.0',
+        schemaVersion: 6,
+        managementProtocolPackageVersion: '1.2.0',
+        managementProtocolWireVersion: '1',
+      },
+      now,
+    )
+    expect(report).toEqual(conformanceFixture)
+  })
+
   it('keeps enrollment owner-controlled and private keys encrypted at rest', async () => {
     const now = Date.now()
     const challenge = await createEnrollmentChallenge(

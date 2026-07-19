@@ -15,6 +15,7 @@ import {
   cutoverApprovalSchema,
   importPlanSchema,
   migrationRehearsalEvidenceSchema,
+  managementAdapterConformanceReportSchema,
   releaseManifestSchema,
 } from './index'
 
@@ -143,6 +144,36 @@ describe('management protocol contracts', () => {
       migrationRehearsalEvidenceSchema.safeParse({
         ...evidence,
         cloudflareAccountId: 'forbidden-provider-id',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts only the ordered passing management-adapter conformance fixture', async () => {
+    const fixture = JSON.parse(
+      await readFile(
+        new URL(
+          '../fixtures/management-adapter-conformance.v1.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    )
+    const report = managementAdapterConformanceReportSchema.parse(fixture)
+
+    expect(report.instance.applicationVersion).toBe('0.13.0')
+    expect(report.scenarios).toHaveLength(6)
+    expect(
+      managementAdapterConformanceReportSchema.safeParse({
+        ...report,
+        scenarios: [...report.scenarios].reverse(),
+      }).success,
+    ).toBe(false)
+    expect(
+      managementAdapterConformanceReportSchema.safeParse({
+        ...report,
+        scenarios: report.scenarios.map((scenario, index) =>
+          index === 0 ? { ...scenario, status: 'failed' } : scenario,
+        ),
       }).success,
     ).toBe(false)
   })
