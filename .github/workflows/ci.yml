@@ -28,8 +28,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check repository boundaries
+        run: pnpm check:architecture
+
+      - name: Check generated Cloudflare bindings
+        run: pnpm cf-typegen:check
+
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
 
       - name: Build
         run: pnpm build

@@ -12,14 +12,14 @@ The UI is organized in three layers:
 
 ```
 +-------------------------------------------------------------+
-|  PAGES  (apps/app/src/routes/*.tsx)                         |
-|  Route components. Compose Layer 2 with data from Convex.   |
+|  PAGES  (apps/instance/src/routes/*.tsx)                    |
+|  Route components. Compose Layer 2 with typed edge API data.|
 +-------------------------------------------------------------+
-|  PRODUCT COMPONENTS  (apps/app/src/components/*.tsx)          |
+|  PRODUCT COMPONENTS  (apps/instance/src/components/*.tsx)     |
 |  F42-specific compositions: PageShell, Section, Hero,        |
 |  CardGrid, ChurchTheme, Eyebrow, StatPanel, etc.             |
 +-------------------------------------------------------------+
-|  UI PRIMITIVES  (apps/app/src/components/ui/*.tsx)            |
+|  UI PRIMITIVES  (apps/instance/src/components/ui/*.tsx)       |
 |  shadcn/ui owned source code: Button, Card, Badge,           |
 |  Input, Separator. Treated as owned -- modify freely.        |
 +-------------------------------------------------------------+
@@ -38,9 +38,9 @@ directly from external primitive libraries like Base UI or Radix.
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| Backend | Convex | Real-time database, server functions, file storage, auth |
-| Edge API | Hono on Cloudflare Workers | Public church APIs, webhooks, integrations |
-| App UI | React 19 SPA (Vite) | Member portal, admin interface with Convex React hooks |
+| Backend | Cloudflare D1 + R2 + Durable Objects | Relational data, media, realtime coordination |
+| Edge API | Hono on Cloudflare Workers | Public and protected APIs, webhooks, integrations |
+| App UI | React 19 SPA (Vite) | Member portal and admin interface with typed API hooks |
 | Marketing site | Astro 5 | Static HTML, React islands for interactivity |
 | Styling | Tailwind CSS v4 | CSS-first config, no tailwind.config.ts |
 | Component primitives | shadcn/ui | Owned source code in `src/components/ui/` |
@@ -49,7 +49,7 @@ directly from external primitive libraries like Base UI or Radix.
 | Icons | Lucide React | Tree-shakeable icon library |
 | Variants | `class-variance-authority` | Used in Button, Badge for variant patterns |
 | Routing | React Router v7 | Client-side SPA routing |
-| Auth | Clerk + Convex Auth | JWT-based identity with Convex user provisioning |
+| Auth | Cloudflare Access | Verified Access JWT with D1 user and membership linking |
 
 ---
 
@@ -156,8 +156,8 @@ complete visual personality. Individual tokens can still be overridden.
 
 4. **Add to `presetNames` array** (same file).
 
-5. **Update Convex schema** if using preset validation (currently uses `v.string()`
-   for flexibility, so this step is optional).
+5. **Update the D1 theme constraints or API validation** if the preset is
+   validated outside the brand package.
 
 6. **Run typecheck** -- TypeScript will catch missing cases.
 
@@ -172,14 +172,14 @@ To add a new customizable dimension (e.g. `shadowIntensity`):
 1. Add the field to `ChurchThemeInput` in `packages/brand/src/presets.ts`.
 2. Handle it in `resolveTheme()`.
 3. Map it to CSS custom properties in `themeToCSS()`.
-4. Add the field to the `churches` table schema in `convex/schema.ts`.
+4. Add the field to `church_profiles` in a new D1 migration and update the API mapper.
 5. If it needs a Tailwind utility, add it to the `@theme inline` block in `globals.css`.
 
 ---
 
 ## Component reference
 
-### UI primitives (`apps/app/src/components/ui/`)
+### UI primitives (`apps/instance/src/components/ui/`)
 
 These are **owned source code** from shadcn/ui. Modify them freely.
 
@@ -196,9 +196,9 @@ Add more via the shadcn CLI:
 npx shadcn@latest add dialog
 ```
 
-Or write them manually in `apps/app/src/components/ui/`.
+Or write them manually in `apps/instance/src/components/ui/`.
 
-### Product components (`apps/app/src/components/`)
+### Product components (`apps/instance/src/components/`)
 
 | Component | File | Purpose |
 |-----------|------|---------|
@@ -223,7 +223,7 @@ Or write them manually in `apps/app/src/components/ui/`.
    inline `style` props, not Tailwind, because they depend on runtime CSS
    variables that Tailwind cannot know at build time.
 
-4. **shadcn components are owned** -- edit `apps/app/src/components/ui/*.tsx` directly.
+4. **shadcn components are owned** -- edit `apps/instance/src/components/ui/*.tsx` directly.
    Never import from an external component library in page code.
 
 5. **Brand tokens are the single source of truth** -- colors, fonts, radius,
@@ -232,38 +232,22 @@ Or write them manually in `apps/app/src/components/ui/`.
 
 ---
 
-## Convex data model
+## API data model
 
-The backend uses Convex with 16 tables. All multi-tenant data is scoped by
-`churchId` with appropriate indexes for query performance.
+The browser consumes camel-cased contracts from `src/lib/api-types.ts`. The
+Worker maps D1 rows into those contracts in `worker/lib/records.ts`; route
+components do not depend on SQL column names or Cloudflare binding types.
 
-| Table | Key indexes | Purpose |
-|-------|------------|---------|
-| `churches` | `by_slug`, `by_status` | Church organizations |
-| `users` | `by_email`, `by_clerk_id` | Authenticated users (linked to Clerk) |
-| `people` | `by_church`, `by_church_and_email` | Church members and contacts |
-| `media` | `by_church` | File uploads via Convex storage |
-| `ministries` | `by_church_and_slug`, `by_church_and_status` | Ministry departments |
-| `groups` | `by_church_and_slug`, `by_ministry` | Small groups, teams, classes |
-| `groupMemberships` | `by_group`, `by_person`, `by_group_and_person` | Group enrollment |
-| `groupSessions` | `by_group`, `by_group_and_date` | Meeting instances |
-| `attendanceRecords` | `by_session`, `by_person` | Per-session attendance |
-| `courses` | `by_church_and_slug`, `by_ministry` | Training and education |
-| `courseEnrollments` | `by_course`, `by_person`, `by_course_and_person` | Course progress tracking |
-| `events` | `by_church_and_slug`, `by_church_and_start_date` | Calendar events |
-| `sermons` | `by_church_and_slug`, `by_church_and_preached_at` | Sermon archive |
-| `facilities` | `by_church` | Rooms and spaces |
-| `contributions` | `by_church`, `by_person`, `by_church_and_date` | Financial giving |
-| `landingPages` | `by_church_and_slug`, `by_church_and_ministry/group/course` | Public-facing pages |
+The UI's primary records are churches, people, ministries, groups, courses,
+lessons, events, and sermons. Each tenant record includes `churchId`. D1 schema
+details and indexes live in `migrations/0001_initial.sql`.
 
 ### Access control pattern
 
-Every Convex function uses helpers from `convex/lib/auth.ts`:
-- `requireAuth(ctx)` -- Ensures JWT is present
-- `requireUser(ctx)` -- Resolves to user document
-- `requireRole(ctx, roles)` -- Checks user has at least one role
-- `requireChurchAccess(ctx, churchId)` -- Checks user can manage this church
-- `isSuperAdmin(user)` -- Boolean check
+Protected Worker routes use helpers from `worker/lib/auth.ts`:
+
+- `requireCurrentUser(c)` validates an Access-backed D1 user.
+- `requirePermission(c, churchId, permission)` enforces an active membership grant.
 
 Public queries (church listings, published content) skip auth. Private
 mutations and draft-content queries enforce church-scoped access.
@@ -281,41 +265,24 @@ fellowship42/
 |           +-- presets.ts       <- 7 presets + resolveTheme() + themeToCSS()
 |           +-- recipes.css      <- Framework-free CSS patterns
 |           +-- index.ts         <- barrel export
-+-- convex/
-|   +-- schema.ts                <- 16-table Convex schema
-|   +-- lib/access.ts            <- Access control helpers
-|   +-- auth.config.ts           <- Clerk integration config
-|   +-- churches.ts              <- Church queries/mutations
-|   +-- users.ts                 <- User CRUD + Clerk sync
-|   +-- people.ts                <- People directory
-|   +-- ministries.ts            <- Ministry management
-|   +-- groups.ts                <- Group management
-|   +-- courses.ts               <- Course management
-|   +-- events.ts                <- Event management
-|   +-- sermons.ts               <- Sermon archive
-|   +-- groupMemberships.ts      <- Group enrollment
-|   +-- courseEnrollments.ts     <- Course progress tracking
-|   +-- contributions.ts         <- Financial giving
-|   +-- landingPages.ts          <- Public landing pages
 +-- apps/
-|   +-- app/                     <- Vite React SPA (member portal / admin)
+|   +-- app/                     <- full-stack Cloudflare Vite app
+|   |   +-- migrations/          <- D1 schema changes
+|   |   +-- worker/              <- Hono API, auth, Durable Object
+|   |   +-- test/                <- Workers integration tests
 |   |   +-- src/
 |   |       +-- globals.css      <- Tailwind + tokens + theme mapping + base layer
-|   |       +-- main.tsx         <- ConvexProvider + BrowserRouter entry
+|   |       +-- main.tsx         <- Access session provider + BrowserRouter
 |   |       +-- App.tsx          <- Route definitions
 |   |       +-- lib/
 |   |       |   +-- cn.ts        <- cn() utility (clsx + tailwind-merge)
+|   |       |   +-- api.ts       <- typed same-origin query hooks
 |   |       |   +-- theme.ts     <- Re-exports brand + themeToCSS wrapper
 |   |       +-- components/
 |   |       |   +-- ui/          <- shadcn/ui owned primitives
 |   |       |   +-- page-shell.tsx, section.tsx, hero.tsx, etc.
 |   |       +-- routes/
 |   |           +-- dashboard.tsx, churches.tsx, church-detail.tsx, etc.
-|   +-- worker/                  <- Hono on Cloudflare Workers (edge API)
-|   |   +-- src/
-|   |       +-- index.ts         <- Hono app with CORS, logging, error handling
-|   |       +-- routes/          <- churches, webhooks, health
-|   |       +-- lib/convex.ts    <- HTTP client for server-side Convex queries
 |   +-- web/                     <- Astro marketing site
 |       +-- src/
 |           +-- styles/global.css
@@ -332,9 +299,9 @@ fellowship42/
 
 | Decision | Rationale |
 |----------|-----------|
-| Convex as backend | Real-time subscriptions, document database, server functions, file storage, auth -- replaces Payload + Postgres |
-| Hono on Cloudflare Workers | Lightweight edge API for public church sites, webhooks, integrations. V8-based runtime. |
-| Vite React SPA | Fast HMR, modern build tool, clean separation from backend. Convex React hooks for real-time data. |
+| D1 + R2 + Durable Objects | Relational integrity, object storage, and scoped realtime on one application platform |
+| Hono on Cloudflare Workers | Lightweight same-origin API for product routes, webhooks, and integrations |
+| Cloudflare Vite app | React and Worker share one local server and deployment artifact |
 | Astro for marketing | Zero JS by default, maximum performance. React islands for interactive components. |
 | shadcn/ui as owned source | Full control over components, no version lock-in, tree-shakeable |
 | Tailwind v4 (CSS-first) | No JS config file, automatic content detection, modern |
@@ -343,5 +310,5 @@ fellowship42/
 | Inline styles for church gradients | `color-mix()` with CSS variables can't be expressed as static Tailwind classes |
 | Separate brand package | Enables sharing between all apps in the monorepo |
 | 7 presets as starting point | Covers the spectrum of U.S. Protestant/Evangelical church aesthetics |
-| Clerk for auth | Production-ready auth with JWT-based Convex integration |
+| Cloudflare Access for beta auth | Keeps initial identity and policy operation inside the Cloudflare stack |
 | `workspace:*` dependencies | Clean monorepo linking via pnpm workspaces |

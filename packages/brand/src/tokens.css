@@ -2,8 +2,8 @@
  * @fellowship42/brand — Portable design tokens
  *
  * This is the canonical token source shared between:
- *   - The Vite React app (apps/app) via Tailwind / shadcn-ui
- *   - The Astro marketing site (apps/web)
+ *   - The deployable church instance (apps/instance) via Tailwind / shadcn-ui
+ *   - The public project site (apps/project-site)
  *   - Any future consumer (email templates, native apps, etc.)
  *
  * Naming follows the shadcn/ui variable contract so that shadcn components
