@@ -5,10 +5,11 @@ import { deploymentManifestSchema } from '@fellowship42/management-protocol'
 import { doctorFromFiles } from './doctor.js'
 import { buildDeployPlan } from './plan.js'
 import { assemblePortableExport, verifyPortableExport } from './portable-export.js'
+import { buildPortableImportPlan, verifyCutoverApproval } from './portable-import.js'
 
 function usage(): never {
   throw new Error(
-    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>]',
+    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>]',
   )
 }
 
@@ -67,6 +68,21 @@ async function main() {
               '--evidence-id',
               '--output',
             ])
+          : command === 'plan-import'
+            ? new Set([
+                '--directory',
+                '--destination',
+                '--operation-id',
+                '--generated-at',
+                '--output',
+              ])
+            : command === 'verify-cutover'
+              ? new Set([
+                  '--plan',
+                  '--destination',
+                  '--approval',
+                  '--output',
+                ])
           : usage()
   const options = argumentsFor(rest, allowed)
   const output = options.get('--output')
@@ -83,6 +99,47 @@ async function main() {
     ) usage()
     await emit(
       await verifyPortableExport({ directory, verifiedAt, evidenceId }),
+      output,
+    )
+    return
+  }
+  if (command === 'plan-import') {
+    const directory = options.get('--directory')
+    const destinationManifestPath = options.get('--destination')
+    const operationId = options.get('--operation-id')
+    const generatedAt = options.get('--generated-at')
+    if (
+      typeof directory !== 'string' ||
+      typeof destinationManifestPath !== 'string' ||
+      (operationId !== undefined && typeof operationId !== 'string') ||
+      (generatedAt !== undefined && typeof generatedAt !== 'string')
+    ) usage()
+    await emit(
+      await buildPortableImportPlan({
+        exportDirectory: directory,
+        destinationManifestPath,
+        operationId,
+        generatedAt,
+      }),
+      output,
+    )
+    return
+  }
+  if (command === 'verify-cutover') {
+    const planPath = options.get('--plan')
+    const destinationPath = options.get('--destination')
+    const approvalPath = options.get('--approval')
+    if (
+      typeof planPath !== 'string' ||
+      typeof destinationPath !== 'string' ||
+      typeof approvalPath !== 'string'
+    ) usage()
+    await emit(
+      verifyCutoverApproval(
+        JSON.parse(await readFile(planPath, 'utf8')),
+        JSON.parse(await readFile(destinationPath, 'utf8')),
+        JSON.parse(await readFile(approvalPath, 'utf8')),
+      ),
       output,
     )
     return

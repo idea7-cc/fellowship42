@@ -103,6 +103,8 @@ These commands do not create or mutate Cloudflare resources. See
 [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md).
 Portable export assembly and offline verification are documented in
 [Portable exports](docs/portable-exports.md).
+Staged restoration and approval-gated routing changes are documented in
+[Portable import and cutover](docs/portable-import-and-cutover.md).
 
 ## Documentation
 
@@ -112,6 +114,7 @@ Portable export assembly and offline verification are documented in
 - [Releases and immutable artifacts](docs/releases.md)
 - [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
 - [Portable exports](docs/portable-exports.md)
+- [Portable import and cutover](docs/portable-import-and-cutover.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)

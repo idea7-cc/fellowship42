@@ -12,6 +12,8 @@ import {
   portableConfigurationSchema,
   portableExportManifestSchema,
   r2ExportIndexSchema,
+  cutoverApprovalSchema,
+  importPlanSchema,
   releaseManifestSchema,
 } from './index'
 
@@ -259,5 +261,86 @@ describe('management protocol contracts', () => {
         objects: [{ ...object, file: '../payload' }],
       }).success,
     ).toBe(false)
+  })
+
+  it('requires complete import sequencing, exact release compatibility, and bound cutover approval', () => {
+    const stepKinds = [
+      'verify-export',
+      'verify-release-compatibility',
+      'verify-destination-manifest',
+      'verify-new-empty-d1',
+      'verify-new-empty-r2',
+      'restore-d1',
+      'restore-r2',
+      'apply-forward-migrations',
+      'deploy-without-domains',
+      'rotate-deployment-credentials',
+      'rotate-application-secrets',
+      'rotate-management-credentials',
+      'verify-restored-identity',
+      'verify-runtime',
+      'cutover-domains',
+      'verify-independent-operation',
+      'retire-source-routing',
+    ] as const
+    const risks = [
+      ...Array(5).fill('read-only'),
+      ...Array(4).fill('writes-destination'),
+      ...Array(3).fill('credential-change'),
+      'read-only',
+      'read-only',
+      'cutover',
+      'read-only',
+      'source-change',
+    ]
+    const plan = importPlanSchema.parse({
+      formatVersion: 1,
+      operationId: '42424242-1234-4678-9abc-123456789abc',
+      generatedAt: '2026-07-19T22:00:00.000Z',
+      instanceId: deploymentManifest.instance.id,
+      exportManifestSha256: 'a'.repeat(64),
+      destinationManifestSha256: 'b'.repeat(64),
+      sourceRelease: deploymentManifest.instance.release,
+      destinationRelease: deploymentManifest.instance.release,
+      destinationEnvironment: 'production',
+      steps: stepKinds.map((kind, index) => ({
+        id: `import-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        risk: risks[index],
+        resourceName: null,
+        dependsOn: index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
+        approvalRequired: kind === 'cutover-domains' || kind === 'retire-source-routing',
+      })),
+    })
+    expect(plan.steps).toHaveLength(17)
+    expect(
+      importPlanSchema.safeParse({
+        ...plan,
+        steps: plan.steps.map((step) =>
+          step.kind === 'restore-d1' ? { ...step, risk: 'read-only' } : step,
+        ),
+      }).success,
+    ).toBe(false)
+
+    expect(
+      cutoverApprovalSchema.parse({
+        formatVersion: 1,
+        operationId: plan.operationId,
+        instanceId: plan.instanceId,
+        exportManifestSha256: plan.exportManifestSha256,
+        destinationManifestSha256: plan.destinationManifestSha256,
+        approvedAt: '2026-07-19T22:30:00.000Z',
+        approvedBy: 'user:operator_42',
+        sourceVerifiedAt: '2026-07-19T22:20:00.000Z',
+        destinationVerifiedAt: '2026-07-19T22:25:00.000Z',
+        credentialDisposition: {
+          deployment: 'rotated',
+          applicationSecrets: 'rotated',
+          management: 'disconnected',
+        },
+        domains: ['new.example.org'],
+        rollbackDeadline: '2026-07-20T22:30:00.000Z',
+      }).domains,
+    ).toEqual(['new.example.org'])
   })
 })

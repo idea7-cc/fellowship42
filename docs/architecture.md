@@ -164,9 +164,11 @@ credential. Cloudflare resource IDs are never portable identifiers.
 The public `f42ctl` lifecycle tool owns the strict non-secret deployment
 manifest, immutable release verification, deterministic non-destructive plan,
 bounded doctor report, and the collector-neutral, operator-quiesced portable
-export and offline verifier. Import and active reconciliation remain future
-increments. The private control plane must use these same public contracts and
-future migration logic.
+export and offline verifier. It also owns staged import planning, provider-
+adapter execution order, new-empty destination proof, bounded failure reports,
+credential disposition, and explicit cutover approval. Provider-specific
+resource reconciliation remains a future increment. The private control plane
+must use these same public contracts and migration logic.
 
 ## Repository and dependency boundaries
 
@@ -206,12 +208,14 @@ Implemented now:
   evidence-only `f42ctl doctor` CLI;
 - portable D1/R2/configuration export assembly, content addressing, checksums,
   and offline evidence verification;
+- staged import/cutover contracts, deterministic planning, provider-adapter
+  execution, and approval-gated routing changes;
 - explicit public/private repository boundaries.
 
 Planned, not implied by the scaffolding:
 
 - cryptographic management enrollment and command delivery;
-- active Cloudflare reconciliation and automated collection/import;
+- active Cloudflare reconciliation and automated collection/provider adapters;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;
 - the private Fellowship42 Cloud control plane, dashboard, and MCP adapter.

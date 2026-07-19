@@ -129,6 +129,13 @@ export const deploymentManifestSchema = z
   })
   .strict()
   .superRefine((manifest, context) => {
+    if (new Set(manifest.worker.domains).size !== manifest.worker.domains.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Worker domains must be unique',
+        path: ['worker', 'domains'],
+      })
+    }
     if (
       manifest.target.environment === 'production' &&
       (!manifest.configuration.accessTeamDomain ||

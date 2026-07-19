@@ -18,6 +18,8 @@ Current contracts establish:
 - the checksummed Fellowship42 release-manifest schema and immutable fixtures.
 - strict portable-export manifests, configuration, R2 indexes, and
   privacy-bounded verification evidence.
+- staged import plans, new-empty destination preflight, bounded execution
+  reports, and exact cutover approval.
 
 The package is pre-1.0 scaffolding. No management endpoint is enabled in the
 instance yet. See `../../docs/management-protocol.md` and ADR 0003 before adding
