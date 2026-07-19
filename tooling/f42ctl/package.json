@@ -1,6 +1,6 @@
 {
   "name": "@fellowship42/f42ctl",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Public lifecycle, portable export, and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
@@ -8,6 +8,7 @@
   "sideEffects": false,
   "files": [
     "dist",
+    "src",
     "README.md"
   ],
   "bin": {
