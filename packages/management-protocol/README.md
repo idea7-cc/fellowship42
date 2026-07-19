@@ -19,17 +19,20 @@ Current contracts establish:
 - enrollment, instance-initiated sync, replay, rotation, and disconnect schemas;
 - standard Ed25519 flattened-JWS signing and verification through Web Crypto;
 - a mandatory public signature interoperability vector;
-- the checksummed Fellowship42 release-manifest schema and immutable fixtures.
+- the checksummed Fellowship42 release-manifest schema and immutable fixtures;
 - strict portable-export manifests, configuration, R2 indexes, and
-  privacy-bounded verification evidence.
+  privacy-bounded verification evidence;
 - staged import plans, new-empty destination preflight, bounded execution
-  reports, and exact cutover approval.
+  reports, and exact cutover approval; and
 - privacy-bounded hosted-to-church-owned rehearsal evidence and a packaged
   compatibility fixture.
 
-Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. No
-management endpoint is enabled in the instance yet. See
-`../../docs/management-protocol.md` and ADR 0010 before adding adapter behavior.
+Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
+1.1 adds empty heartbeat results and duplicate-capability rejection without
+changing the wire major. The instance adapter is implemented as local-owner
+enrollment plus outbound-only operator sync. See
+`../../docs/management-protocol.md`, ADR 0010, and ADR 0011 before changing the
+trust boundary.
 
 The package is built before it is consumed. Published exports point only at
 compiled ESM and generated declarations in `dist`; consumers do not need the

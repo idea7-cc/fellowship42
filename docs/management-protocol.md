@@ -9,7 +9,8 @@ another.
 
 The TypeScript, Zod, and Web Crypto contract lives in
 `packages/management-protocol`. The instance integration point is
-`apps/instance/worker/management`. No management endpoint is enabled yet.
+`apps/instance/worker/management`. Enrollment is optional and disabled until a
+local owner configures the wrapping secret and explicitly approves an operator.
 
 ## Protocol layers
 
@@ -52,6 +53,31 @@ The intended lifecycle is:
 accepted threat model and stable v1 security profile. It uses HTTPS and standard
 flattened JWS with Ed25519 through Web Crypto; it does not add a custom
 encryption layer.
+[ADR 0011](adr/0011-instance-initiated-management-adapter.md) defines the
+implemented instance boundary, encrypted key custody, outbound transport,
+retry behavior, and unconditional local disconnect.
+
+## Instance HTTP and sync surfaces
+
+Local application routes use the existing church authorization model:
+
+- `GET /api/management` reads local connection, grant, and sync status;
+- `POST /api/management/challenges` creates a 15-minute enrollment challenge;
+- `POST /api/management/approve` approves the displayed proposal and grants;
+- `POST /api/management/rotate` rotates the instance identity; and
+- `POST /api/management/disconnect` disconnects locally and idempotently.
+
+Those routes require `management.admin` (satisfied by the system owner role).
+`POST /api/management/proposals` is sessionless because the signed operator
+proposal and 256-bit one-use challenge are its authentication. It records a
+proposal for review and cannot approve a grant or run a command.
+
+The operator URL is outbound-only. It accepts `{ "jws": <flattened JWS> }` over
+HTTPS. Enrollment approvals and key-rotation notices expect any successful
+2xx response. A signed `sync.request` expects `{ "jws": <command batch> }`;
+the instance then posts a signed command-results envelope. Operators must
+deduplicate signed control messages and command results because network
+acknowledgment is not transactional with either endpoint's database.
 
 ## Wire profile
 
@@ -88,6 +114,11 @@ it. Support sessions must be time-limited and separately approved.
 `update.apply`, `support.session.request`, and `management.disconnect` always
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
+
+Release 0.12 executes only `instance.status.read`. Recognized backup, update,
+support, and disconnect commands receive explicit rejected results until their
+separate local workflows are implemented. Empty batches and empty results are
+valid heartbeat messages.
 
 ## Privacy baseline
 

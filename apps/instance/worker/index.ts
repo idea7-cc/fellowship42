@@ -25,6 +25,8 @@ import {
   contributionRoutes,
   paymentWebhookRoutes,
 } from './routes/contributions'
+import { managementRoutes } from './routes/management'
+import { runScheduledManagementSync } from './management/sync'
 
 export { ChurchRoom } from './realtime'
 
@@ -168,6 +170,7 @@ app.route('/api/events', eventRoutes)
 app.route('/api/sermons', sermonRoutes)
 app.route('/api/media', mediaManagementRoutes)
 app.route('/api/contributions', contributionRoutes)
+app.route('/api/management', managementRoutes)
 app.route('/media', mediaRoutes)
 app.route('/webhooks/payments', paymentWebhookRoutes)
 
@@ -191,6 +194,7 @@ const worker = {
         )
       }),
     )
+    ctx.waitUntil(runScheduledManagementSync(env))
   },
 } satisfies ExportedHandler<Env, OutboxQueueMessage>
 

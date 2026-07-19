@@ -62,7 +62,9 @@
     "ENVIRONMENT": "production",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
-    "PAYMENT_WEBHOOK_PROVIDER": ""
+    "PAYMENT_WEBHOOK_PROVIDER": "",
+    "F42_INFRASTRUCTURE_OWNER": "church",
+    "F42_INSTANCE_OPERATOR": "church"
   },
   "observability": {
     "enabled": true,

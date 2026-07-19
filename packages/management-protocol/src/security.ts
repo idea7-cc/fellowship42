@@ -152,6 +152,37 @@ export const enrollmentProposalSchema = z
         path: ['senderKeyId'],
       })
     }
+    if (
+      new Set(proposal.requestedCapabilities).size !==
+      proposal.requestedCapabilities.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Requested capabilities must be unique',
+        path: ['requestedCapabilities'],
+      })
+    }
+    const syncUrl = new URL(proposal.operator.syncUrl)
+    const hostname = syncUrl.hostname.toLowerCase()
+    const ipLiteral = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
+      hostname.includes(':')
+    if (
+      syncUrl.username ||
+      syncUrl.password ||
+      syncUrl.hash ||
+      syncUrl.search ||
+      ipLiteral ||
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Operator sync URL must use a public HTTPS DNS endpoint without credentials, query parameters, or fragments',
+        path: ['operator', 'syncUrl'],
+      })
+    }
   })
 
 export const enrollmentApprovalSchema = z
@@ -226,7 +257,9 @@ export const commandResultsSchema = z
   .object({
     ...signedClaimsFields,
     type: z.literal('command.results'),
-    results: z.array(managementCommandResultSchema).min(1).max(20),
+    // Empty command batches are valid heartbeats, so their corresponding
+    // result message is also valid with no command results.
+    results: z.array(managementCommandResultSchema).max(20),
   })
   .strict()
 

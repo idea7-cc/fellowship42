@@ -13,3 +13,8 @@ BOOTSTRAP_OWNER_EMAIL=owner@example.test
 # non-secret Wrangler variable; keep the signing key only in .dev.vars/secrets.
 PAYMENT_WEBHOOK_PROVIDER=testpay
 PAYMENT_WEBHOOK_SECRET=replace-with-a-unique-random-local-secret
+
+# Optional management enrollment. Use an independently generated 32-byte
+# base64url secret. Leave unset when this instance is not managed.
+MANAGEMENT_KEY_ENCRYPTION_KEY=replace-with-32-random-base64url-bytes
+# MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS=old-key-during-rotation-only

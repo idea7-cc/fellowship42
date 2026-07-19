@@ -3,11 +3,23 @@
 This directory is the only intended HTTP boundary between an open Fellowship42
 instance and optional management software.
 
-The adapter is currently scaffolding: no remote enrollment or command endpoint
-is enabled yet. ADR 0010 and the public protocol package now fix authentication,
-signing, replay, revocation, compatibility, and an executable interoperability
-fixture. The next increment must implement those contracts without weakening
-them.
+The adapter implements the ADR 0010 wire/security profile and ADR 0011 runtime
+boundary. Local owners control enrollment, grants, rotation, status, and
+disconnect through `/api/management`. The only sessionless route consumes a
+short-lived one-time challenge plus a signed operator proposal; it grants
+nothing. Operator communication is initiated by the instance scheduler.
+
+Runtime files:
+
+- `service.ts` owns encrypted instance identity, enrollment, grants, local
+  status, rotation, disconnect, and audit state.
+- `sync.ts` owns bounded HTTPS delivery, signed polling/results, replay
+  reservation, command authorization, and scheduled failure handling.
+- `../routes/management.ts` is the local HTTP surface. It is not the operator
+  command transport.
+
+Release 0.12 executes only `instance.status.read`. Other protocol commands are
+typed but fail closed until their own implementation and tests land.
 
 Rules for this boundary:
 
@@ -20,3 +32,9 @@ Rules for this boundary:
 - Do not transmit member, donor, financial, or pastoral data as telemetry.
 - Make disconnect and key rotation locally available to the church owner.
 - MCP belongs in a separate adapter over this API, not in this core transport.
+
+`MANAGEMENT_KEY_ENCRYPTION_KEY` is an optional 32-byte base64url Worker secret.
+Do not put it in Wrangler vars or source control. For wrapping-key rotation,
+temporarily configure the old secret as
+`MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS`, rotate the local instance identity,
+then remove the previous secret. See ADR 0011.
