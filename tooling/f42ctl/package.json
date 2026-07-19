@@ -1,7 +1,7 @@
 {
   "name": "@fellowship42/f42ctl",
-  "version": "0.1.2",
-  "description": "Public lifecycle planning and diagnostic CLI for Fellowship42 instances",
+  "version": "0.2.0",
+  "description": "Public lifecycle, portable export, and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

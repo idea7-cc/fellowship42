@@ -30,7 +30,7 @@ packages/
   brand/                    shared public visual system
   management-protocol/      public instance/control-plane contracts
 tooling/
-  f42ctl/                   public lifecycle plan and diagnostic CLI
+  f42ctl/                   public lifecycle, export, and diagnostic CLI
 docs/
   adr/                      durable architecture decisions
   architecture.md           runtime and ownership boundaries
@@ -101,6 +101,8 @@ pnpm f42ctl doctor \
 
 These commands do not create or mutate Cloudflare resources. See
 [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md).
+Portable export assembly and offline verification are documented in
+[Portable exports](docs/portable-exports.md).
 
 ## Documentation
 
@@ -109,6 +111,7 @@ These commands do not create or mutate Cloudflare resources. See
 - [Management protocol](docs/management-protocol.md)
 - [Releases and immutable artifacts](docs/releases.md)
 - [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
+- [Portable exports](docs/portable-exports.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)

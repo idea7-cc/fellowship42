@@ -9,6 +9,7 @@ directory names alone.
 - [0004 — Access-gated first-owner bootstrap](0004-access-gated-first-owner-bootstrap.md)
 - [0005 — Instance-owned finance ingress and outbox Queue](0005-instance-owned-finance-ingress-and-outbox-queue.md)
 - [0006 — Public lifecycle manifest and evidence-only planning](0006-public-lifecycle-manifest-and-evidence-only-planning.md)
+- [0007 — Collector-neutral, quiesced portable export](0007-collector-neutral-quiesced-portable-export.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

@@ -148,24 +148,25 @@ See [Management protocol](management-protocol.md).
 
 ## Portability contract
 
-A supported export must eventually include:
+A supported export includes:
 
 1. D1 schema and data;
 2. R2 objects plus checksums and metadata;
 3. the portable instance identity;
 4. application, schema, protocol, and export-format versions;
 5. non-secret configuration needed to reconstruct the deployment; and
-6. a signed or checksummed manifest for offline verification.
+6. a checksummed manifest for offline verification.
 
 Import creates new Cloudflare resources, restores data and objects, verifies
 integrity, switches the domain, and rotates every deployment and management
 credential. Cloudflare resource IDs are never portable identifiers.
 
-The public `f42ctl` lifecycle tool now owns the strict non-secret deployment
+The public `f42ctl` lifecycle tool owns the strict non-secret deployment
 manifest, immutable release verification, deterministic non-destructive plan,
-and bounded doctor report. Export/import and active reconciliation remain
-future increments. The private control plane must use these same public
-contracts and future migration logic.
+bounded doctor report, and the collector-neutral, operator-quiesced portable
+export and offline verifier. Import and active reconciliation remain future
+increments. The private control plane must use these same public contracts and
+future migration logic.
 
 ## Repository and dependency boundaries
 
@@ -203,12 +204,14 @@ Implemented now:
 - a compiled public management-contract package;
 - a strict portable deployment manifest, deterministic deploy plan, and
   evidence-only `f42ctl doctor` CLI;
+- portable D1/R2/configuration export assembly, content addressing, checksums,
+  and offline evidence verification;
 - explicit public/private repository boundaries.
 
 Planned, not implied by the scaffolding:
 
 - cryptographic management enrollment and command delivery;
-- active Cloudflare reconciliation and backup/export/import automation;
+- active Cloudflare reconciliation and automated collection/import;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;
 - the private Fellowship42 Cloud control plane, dashboard, and MCP adapter.

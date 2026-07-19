@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
@@ -11,6 +12,7 @@ import {
 } from '@fellowship42/management-protocol'
 import { inspectDeployment, verifyPublishedRelease } from './doctor'
 import { buildDeployPlan } from './plan'
+import { assemblePortableExport, verifyPortableExport } from './portable-export'
 
 const execFileAsync = promisify(execFile)
 
@@ -279,5 +281,117 @@ describe('f42ctl doctor', () => {
         async () => new Response(bytes, { status: 200 }),
       ),
     ).toEqual({ status: 'fail', code: 'release-version-mismatch' })
+  })
+})
+
+describe('f42ctl portable export', () => {
+  it('assembles and verifies an identity-bound export without logging payloads', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-export-'))
+    try {
+      const source = path.join(root, 'source')
+      await mkdir(path.join(source, 'r2'), { recursive: true })
+      const manifestPath = path.join(source, 'deployment.json')
+      const d1Path = path.join(source, 'database.sql')
+      const indexPath = path.join(source, 'r2-source.json')
+      await writeFile(manifestPath, JSON.stringify(manifest))
+      await writeFile(
+        d1Path,
+        `CREATE TABLE instance_metadata (instance_id TEXT);\nINSERT INTO instance_metadata VALUES ('${manifest.instance.id}');\n-- private member payload`,
+      )
+      await writeFile(path.join(source, 'r2/first.bin'), 'private media payload')
+      await writeFile(
+        indexPath,
+        JSON.stringify({
+          formatVersion: 1,
+          objects: [
+            { key: 'sermons/first.bin', file: 'r2/first.bin' },
+            { key: 'sermons/copy.bin', file: 'r2/first.bin' },
+          ],
+        }),
+      )
+      const output = path.join(root, 'bundle')
+      const assembled = await assemblePortableExport({
+        deploymentManifestPath: manifestPath,
+        d1ExportPath: d1Path,
+        r2SourceIndexPath: indexPath,
+        r2SourceRoot: source,
+        outputDirectory: output,
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+        exportedAt: '2026-07-19T21:01:00.000Z',
+      })
+      const evidence = await verifyPortableExport({
+        directory: output,
+        verifiedAt: '2026-07-19T21:02:00.000Z',
+        evidenceId: '42424242-1234-4678-9abc-123456789abc',
+      })
+
+      expect(assembled.instanceId).toBe(manifest.instance.id)
+      expect(evidence.verificationStatus).toBe('verified')
+      expect(JSON.stringify(evidence)).not.toContain('private')
+      const cli = await execFileAsync(process.execPath, [
+        path.resolve('dist/cli.js'),
+        'verify-export',
+        '--directory',
+        output,
+        '--verified-at',
+        '2026-07-19T21:03:00.000Z',
+        '--evidence-id',
+        '42424242-1234-4678-9abc-123456789abd',
+      ])
+      expect(cli.stderr).toBe('')
+      expect(JSON.parse(cli.stdout)).toMatchObject({
+        instanceId: manifest.instance.id,
+        verificationStatus: 'verified',
+      })
+      expect(cli.stdout).not.toContain('private')
+      expect(
+        (await readFile(path.join(output, 'r2/index.json'), 'utf8')).match(/r2\/objects\//g),
+      ).toHaveLength(2)
+      const objectFiles = await import('node:fs/promises').then(({ readdir }) =>
+        readdir(path.join(output, 'r2/objects')),
+      )
+      expect(objectFiles).toHaveLength(1)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects tampering, extra files, and mismatched D1 identity', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-export-invalid-'))
+    try {
+      const manifestPath = path.join(root, 'deployment.json')
+      const d1Path = path.join(root, 'database.sql')
+      const indexPath = path.join(root, 'r2-source.json')
+      await writeFile(manifestPath, JSON.stringify(manifest))
+      await writeFile(d1Path, 'CREATE TABLE instance_metadata (instance_id TEXT);')
+      await writeFile(indexPath, JSON.stringify({ formatVersion: 1, objects: [] }))
+      await expect(
+        assemblePortableExport({
+          deploymentManifestPath: manifestPath,
+          d1ExportPath: d1Path,
+          r2SourceIndexPath: indexPath,
+          r2SourceRoot: root,
+          outputDirectory: path.join(root, 'rejected'),
+          quiescedAt: '2026-07-19T21:00:00.000Z',
+          exportedAt: '2026-07-19T21:01:00.000Z',
+        }),
+      ).rejects.toThrow('portable instance identity')
+
+      await writeFile(d1Path, `instance_metadata ${manifest.instance.id}`)
+      const output = path.join(root, 'bundle')
+      await assemblePortableExport({
+        deploymentManifestPath: manifestPath,
+        d1ExportPath: d1Path,
+        r2SourceIndexPath: indexPath,
+        r2SourceRoot: root,
+        outputDirectory: output,
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+        exportedAt: '2026-07-19T21:01:00.000Z',
+      })
+      await writeFile(path.join(output, 'unexpected.txt'), 'not referenced')
+      await expect(verifyPortableExport({ directory: output })).rejects.toThrow('unreferenced')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
