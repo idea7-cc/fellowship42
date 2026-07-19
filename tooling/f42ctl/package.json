@@ -1,6 +1,6 @@
 {
   "name": "@fellowship42/f42ctl",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Public lifecycle planning and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
@@ -28,10 +28,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fellowship42/management-protocol": "workspace:*",
     "jsonc-parser": "^3.3.1"
   },
+  "peerDependencies": {
+    "@fellowship42/management-protocol": "workspace:*"
+  },
   "devDependencies": {
+    "@fellowship42/management-protocol": "workspace:*",
     "@types/node": "^24.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.0"

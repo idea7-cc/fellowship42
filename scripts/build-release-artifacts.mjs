@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { readFile, readdir, rm, mkdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { gzipSync, gunzipSync } from 'fflate'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputDirectory = path.join(root, 'artifacts', 'release')
@@ -22,6 +23,12 @@ async function readJson(relativePath) {
 async function sha256(filePath) {
   const contents = await readFile(filePath)
   return createHash('sha256').update(contents).digest('hex')
+}
+
+async function normalizeGzip(filePath) {
+  const archive = await readFile(filePath)
+  const normalized = gzipSync(gunzipSync(archive), { level: 9, mtime: 0 })
+  await writeFile(filePath, normalized)
 }
 
 const dirtyFiles = run('git', [
@@ -88,6 +95,7 @@ if (packedProtocolFiles.length !== 1) {
     `Expected one packed management protocol artifact, found ${packedProtocolFiles.length}.`,
   )
 }
+await normalizeGzip(path.join(outputDirectory, packedProtocolFiles[0]))
 
 execFileSync(
   'pnpm',
@@ -109,19 +117,29 @@ if (packedLifecycleCliFiles.length !== 1) {
     `Expected one packed lifecycle CLI artifact, found ${packedLifecycleCliFiles.length}.`,
   )
 }
+await normalizeGzip(path.join(outputDirectory, packedLifecycleCliFiles[0]))
 
 const sourceArchiveName = `fellowship42-${rootPackage.version}-source.tgz`
+const sourceTarPath = path.join(
+  outputDirectory,
+  `fellowship42-${rootPackage.version}-source.tar`,
+)
 execFileSync(
   'git',
   [
     'archive',
-    '--format=tar.gz',
+    '--format=tar',
     `--prefix=fellowship42-${rootPackage.version}/`,
-    `--output=${path.join(outputDirectory, sourceArchiveName)}`,
+    `--output=${sourceTarPath}`,
     'HEAD',
   ],
   { cwd: root, stdio: 'inherit' },
 )
+await writeFile(
+  path.join(outputDirectory, sourceArchiveName),
+  gzipSync(await readFile(sourceTarPath), { level: 9, mtime: 0 }),
+)
+await rm(sourceTarPath)
 
 const protocolModule = await import(
   `${pathToFileURL(path.join(root, 'packages', 'management-protocol', 'dist', 'index.js')).href}?commit=${commit}`
