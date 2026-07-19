@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   MANAGEMENT_PROTOCOL_VERSION,
   assertFreshManagementPayload,
+  commandResultsSchema,
   enrollmentChallengeSchema,
+  enrollmentProposalSchema,
   managementCommandResultSchema,
   managementCommandSchema,
   managementGrantSetSchema,
@@ -59,7 +61,7 @@ function syncRequest(senderKeyId = 'instance-key-2026-07') {
       protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
       instanceId: 'instance_demo',
       topology: 'single-church',
-      applicationVersion: '0.11.0',
+      applicationVersion: '0.12.0',
       schemaVersion: 5,
       infrastructure: { owner: 'church', operator: 'church' },
       capabilities: ['instance.status.read', 'update.apply'],
@@ -142,6 +144,54 @@ describe('management security profile', () => {
         output: { memberRecords: ['not allowed'] },
       }).success,
     ).toBe(false)
+  })
+
+  it('represents an empty command-batch heartbeat with empty results', () => {
+    expect(
+      commandResultsSchema.parse({
+        protocolVersion: '1',
+        type: 'command.results',
+        messageId: '10b33a13-ce4b-4c92-818b-b27396154abc',
+        connectionId: 'd1947586-77b8-42a8-ad57-67a88cdf522f',
+        instanceId: 'instance_demo',
+        senderKeyId: 'instance-key',
+        audienceKeyId: 'operator-key',
+        issuedAt: now,
+        expiresAt: later,
+        nonce: '8f9rHt3fcqNlY4uYicpCsw',
+        results: [],
+      }).results,
+    ).toEqual([])
+  })
+
+  it('rejects credentialed or non-public operator sync endpoints', () => {
+    const proposal = {
+      protocolVersion: '1',
+      type: 'enrollment.proposal',
+      messageId: '10b33a13-ce4b-4c92-818b-b27396154abc',
+      challengeId: 'e9fbef46-9a83-4161-9f66-223f95c53de5',
+      instanceId: 'instance_demo',
+      senderKeyId: 'operator-key',
+      audienceKeyId: 'instance-key',
+      nonce: '8f9rHt3fcqNlY4uYicpCsw',
+      operator: {
+        id: 'operator',
+        displayName: 'Operator',
+        key: {
+          kty: 'OKP',
+          crv: 'Ed25519',
+          x: '11qYAYdk9J9c8j7M5X4A_L9smugxYrW8hF8gYazD5w0',
+          kid: 'operator-key',
+          use: 'sig',
+          alg: 'EdDSA',
+        },
+        syncUrl: 'https://user:secret@localhost/sync#token',
+      },
+      requestedCapabilities: ['instance.status.read'],
+      issuedAt: now,
+      expiresAt: later,
+    }
+    expect(enrollmentProposalSchema.safeParse(proposal).success).toBe(false)
   })
 
   it('signs and verifies the standard flattened JWS profile', async () => {

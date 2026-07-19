@@ -52,7 +52,7 @@ Browser
         +-- D1 relational system of record
         +-- R2 media objects
         +-- ChurchRoom Durable Object for realtime invalidation
-        `-- optional management adapter (not enabled yet)
+        `-- optional management adapter (local opt-in; outbound sync)
 ```
 
 `apps/instance` is one full-stack Cloudflare Vite project. Vite runs the React
@@ -136,7 +136,15 @@ rotation, revocation, and auditing. It is not a Cloudflare Service Binding
 because independently owned Workers may live in different accounts. It is not
 proprietary encryption and it is not an MCP transport.
 
-The intended default is instance-initiated communication. A disconnected
+The implemented adapter keeps the instance Ed25519 private key encrypted in D1
+under a separately configured Worker wrapping secret, consumes one-use signed
+enrollment proposals, requires local-owner grant approval, and polls the pinned
+operator HTTPS endpoint from the scheduled Worker. Release 0.12 executes only
+the privacy-bounded `instance.status.read` capability; every other command
+fails closed. Replay and command outcomes are authoritative in D1, while signed
+results make retries idempotent across unrelated Cloudflare accounts.
+
+The default is instance-initiated communication. A disconnected
 instance has no management capabilities enabled and continues operating
 normally. Infrastructure deployment authority is a separate credential from
 the management relationship.
@@ -216,11 +224,15 @@ Implemented now:
   and offline evidence verification;
 - staged import/cutover contracts, deterministic planning, provider-adapter
   execution, and approval-gated routing changes;
-- explicit public/private repository boundaries.
+- explicit public/private repository boundaries;
+- opt-in signed management enrollment, encrypted instance-key custody,
+  outbound status synchronization, replay protection, rotation, local
+  disconnect, and bounded management auditing.
 
 Planned, not implied by the scaffolding:
 
-- cryptographic management enrollment and command delivery;
+- backup, update, support, grant-replacement, and remote-disconnect command
+  execution beyond the implemented status capability;
 - active Cloudflare reconciliation and automated collection/provider adapters;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;

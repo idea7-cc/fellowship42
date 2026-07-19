@@ -31,6 +31,10 @@ export default defineConfig({
             TEST_SEED_STATEMENTS: seedStatements,
             PAYMENT_WEBHOOK_PROVIDER: 'testpay',
             PAYMENT_WEBHOOK_SECRET: 'test-webhook-secret-at-least-32-bytes',
+            MANAGEMENT_KEY_ENCRYPTION_KEY:
+              'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            F42_INFRASTRUCTURE_OWNER: 'church',
+            F42_INSTANCE_OPERATOR: 'church',
           },
         },
       }

@@ -52,6 +52,16 @@ than one Fellowship42 installation.
 Never reuse a Cloudflare account ID, Worker name, D1 UUID, R2 bucket name, or
 control-plane customer ID as the portable `instance_id`.
 
+Set the non-secret custody descriptor variables for this installation:
+
+- `F42_INFRASTRUCTURE_OWNER`: `church` or `fellowship42`; and
+- `F42_INSTANCE_OPERATOR`: `church`, `partner`, or `fellowship42`.
+
+The application version is compiled from the tagged package and is not an
+operator-configurable variable. Custody descriptors are signed status claims,
+not authorization. Do not put account IDs,
+customer IDs, provider resource IDs, or credentials in them.
+
 ## 3. Configure application authentication
 
 The current adapter uses a Cloudflare Access self-hosted application. Configure
@@ -77,7 +87,27 @@ value exactly matches the intended first owner's Access email. Do not put it in
 `wrangler.jsonc`, a generated configuration file, CI output, or source control.
 
 Management identity is separate from application login and separate from any
-Cloudflare API token. No management endpoint is currently enabled.
+Cloudflare API token. Management is disabled by default and ordinary instance
+operation requires no management secret. To opt in, generate a unique 32-byte
+base64url value and configure it only as a Worker secret:
+
+```bash
+pnpm --filter @fellowship42/instance exec wrangler secret put MANAGEMENT_KEY_ENCRYPTION_KEY
+```
+
+Never copy a wrapping secret between church instances. Preserve it in the
+church-authorized secret store for backup/migration; losing it disables the
+optional management identity but does not disable the church application or
+local disconnect. During wrapping-key rotation, temporarily configure the old
+value as `MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS`, make the new value current,
+complete a local management identity rotation, and remove the previous secret.
+
+The local owner routes under `/api/management` remain protected by Access. The
+exact `POST /api/management/proposals` path must reach the Worker without an
+Access redirect because it authenticates the operator using the 256-bit one-use
+challenge and Ed25519 signature. Expose no other management path anonymously,
+and apply a narrow edge rate limit to the proposal path. See
+[Optional management protocol](management-protocol.md).
 
 If this instance accepts normalized payment events, set
 `PAYMENT_WEBHOOK_PROVIDER` to the provider adapter name and create a unique
