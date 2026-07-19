@@ -43,6 +43,12 @@ const requiredPaths = [
   ...manifest.publicSharedPackages,
   ...manifest.publicPortableTooling,
   ...Object.values(manifest.releaseContract),
+  'docs/migration-rehearsal.md',
+  'docs/adr/0009-deterministic-migration-rehearsal-evidence.md',
+  'scripts/rehearse-hosted-to-church-owned.mjs',
+  'packages/management-protocol/src/rehearsals.ts',
+  'packages/management-protocol/fixtures/migration-rehearsal.v1.json',
+  'tooling/f42ctl/src/rehearsal.ts',
 ]
 
 for (const requiredPath of requiredPaths) {

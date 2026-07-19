@@ -87,8 +87,13 @@ The public schemas, deterministic planner, executor, failure behavior, and
 adapter conformance tests are implemented. Provider-specific provisioning and
 credential custody remain adapter responsibilities; the private service may
 add convenience, but a church or third-party operator can implement the same
-published interface. A real cross-account rehearsal is the next portability
-milestone and must use released artifacts rather than local source coupling.
+published interface.
+
+`pnpm test:migration-rehearsal` now executes the complete path against separate
+hosted and church-owned local account models and verifies the packaged evidence
+fixture. See [migration rehearsal](migration-rehearsal.md) for its exact proof
+and limitations. A live Cloudflare staging-account certification remains a
+separate milestone and must use released artifacts rather than source coupling.
 
 ## Cloudflare references
 

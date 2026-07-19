@@ -86,6 +86,7 @@ Run the following before handoff:
 pnpm check:architecture
 pnpm typecheck
 pnpm test
+pnpm test:migration-rehearsal
 pnpm build
 pnpm deploy:dry-run
 pnpm deploy:site:dry-run
