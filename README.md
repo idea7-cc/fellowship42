@@ -2,8 +2,9 @@
 
 Fellowship42 is an Apache-2.0 church management system built as a portable,
 single-church Cloudflare application. Every church can run an independent
-Worker, D1 database, R2 bucket, and Durable Object namespace in an account it
-owns or in an account operated by Fellowship42 or a certified partner.
+Worker, D1 database, R2 bucket, Durable Object namespace, and outbox Queue in an
+account it owns or in an account operated by Fellowship42 or a certified
+partner.
 
 The open-source instance is complete and useful without a hosted service. An
 instance may optionally enroll with separately maintained Fellowship42 Cloud
@@ -15,7 +16,9 @@ The current beta includes Access-gated production setup, church-scoped roles,
 the private people/household directory, and complete group, course/lesson,
 event, sermon, and R2 media publishing workflows. Protected mutations use
 strict validation, optimistic concurrency, audit/outbox evidence, and realtime
-invalidation while public routes expose only published content.
+invalidation while public routes expose only published content. Finance-scoped
+contributions, verified normalized payment events, and Queue-backed outbox
+recovery complete the current instance beta workflow.
 
 ## Repository map
 
@@ -93,6 +96,7 @@ instance shape as a church-managed deployment.
 - [Management protocol](docs/management-protocol.md)
 - [Releases and immutable artifacts](docs/releases.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
+- [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Current handover](docs/handover.md)
 - [Product plan](docs/fellowship42-product-plan.md)

@@ -144,6 +144,25 @@ export interface MediaRecord {
   url?: string
 }
 
+export interface Contribution {
+  id: string
+  churchId: string
+  personId?: string
+  donorName: string
+  amountMinor: number
+  currency: string
+  fund: string
+  paymentMethod: string
+  status: 'pending' | 'succeeded' | 'refunded' | 'failed'
+  recurring: boolean
+  provider?: string
+  providerPaymentId?: string
+  donatedAt: number
+  createdAt: number
+  updatedAt: number
+  version: number
+}
+
 export interface Person {
   id: string
   churchId: string

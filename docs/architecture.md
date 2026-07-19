@@ -88,6 +88,13 @@ permission-scoped reads/writes, server-side search, stable cursor pagination,
 soft deletion, and optimistic version checks. Audit/outbox records intentionally
 exclude names, contact details, addresses, and note contents.
 
+The implemented [contribution and delivery boundary](contributions-and-delivery.md)
+uses finance-only permissions, idempotent manual entry, timestamped HMAC
+verification for normalized payment events, replay digests, and invariant
+provider payment identities. D1 outbox records publish opaque IDs through a
+per-instance Cloudflare Queue; scheduled recovery and a dead-letter Queue make
+failure visible without moving financial payloads into messages or logs.
+
 D1 is authoritative. Durable Objects coordinate realtime clients but do not
 hold the business record. R2 stores objects while D1 stores their ownership,
 visibility, checksum, and authorization metadata.

@@ -29,6 +29,10 @@ before changing the system shape.
   church-scoped permissions;
 - complete people/household and ministry/publishing operator workflows with
   optimistic concurrency, audit/outbox records, and realtime invalidation;
+- finance-scoped contributions, timestamped HMAC payment-event verification,
+  replay/invariant enforcement, and privacy-bounded audit evidence;
+- per-instance Queue-backed outbox delivery with scheduled stale-claim
+  recovery, retry delay, dead-letter retention, and coarse health state;
 - hibernatable `ChurchRoom` Durable Objects for protected invalidation;
 - typed React queries and Access session state;
 - Workers-runtime migration and API tests;
@@ -49,7 +53,7 @@ On 2026-07-19 the following completed successfully for the current beta:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 5 management-protocol tests and 19 Workers/client integration tests;
+- `pnpm test` — 5 management-protocol tests and 26 Workers/client integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -82,7 +86,8 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
    management route.
 6. Start `fellowship42-cloud` separately only when the public lifecycle contract
    can provision and migrate an instance without private code.
-7. Complete contribution and delivery-hardening workflows.
+7. Exercise contribution and Queue delivery against a real beta provider and
+   instance before accepting live funds.
 
 ## Important files
 
@@ -101,6 +106,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/test/bootstrap.spec.ts` | bootstrap ownership and atomicity coverage |
 | `apps/instance/test/directory.spec.ts` | people/household permissions, concurrency, audit, and lifecycle coverage |
 | `apps/instance/test/content.spec.ts` | ministry publishing, permissions, R2 integrity, and public visibility coverage |
+| `apps/instance/test/finance-delivery.spec.ts` | finance permissions, signed webhook replay, privacy, and Queue recovery coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
 | `tooling/f42ctl/README.md` | public lifecycle CLI scope and roadmap |

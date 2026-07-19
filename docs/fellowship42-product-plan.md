@@ -110,8 +110,9 @@ tables speculatively.
 ### Instance beta
 
 - pagination, search, error recovery, and accessible form states;
-- verified payment webhooks and finance-scoped contribution views;
-- Queue or Workflow outbox delivery.
+- finance-scoped contribution views and verified normalized payment webhooks;
+- Queue-backed outbox delivery, retry, stale-claim recovery, and dead-letter
+  retention.
 
 ### Portability milestone
 
