@@ -5,7 +5,6 @@ import { Section } from '@/components/section'
 import { Eyebrow } from '@/components/eyebrow'
 import { CardGrid } from '@/components/card-grid'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { useApiQuery } from '@/lib/api'
 import type { Church } from '@/lib/api-types'
 
@@ -16,18 +15,12 @@ export function ChurchesPage() {
   return (
     <PageShell>
       <Section>
-        <Eyebrow>Churches</Eyebrow>
-        <h1>Published churches</h1>
-        <p className="mt-2">Browse the church records available in this deployment.</p>
+        <Eyebrow>Church instance</Eyebrow>
+        <h1>Your church</h1>
+        <p className="mt-2">This deployment is one portable church and one ownership boundary.</p>
       </Section>
 
       <Section>
-        <div className="mb-6 flex items-center justify-end">
-          <Button size="sm" disabled>
-            Church creation requires auth
-          </Button>
-        </div>
-
         {isLoading ? (
           <Card className="flex flex-col items-center justify-center border-dashed p-8">
             <CardContent>
@@ -51,7 +44,7 @@ export function ChurchesPage() {
           <Card className="flex flex-col items-center justify-center p-8 border-dashed">
             <CardContent>
               <p className="text-center text-muted-foreground">
-                No published churches are available yet.
+                Your church is still in draft or unavailable to this account.
               </p>
             </CardContent>
           </Card>

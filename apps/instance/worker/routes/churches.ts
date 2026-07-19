@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { AppError } from '../lib/errors'
-import { requirePermission } from '../lib/auth'
+import { requireChurchMembership, requirePermission, syncCurrentUser } from '../lib/auth'
 import {
   churchSelect,
   mapChurch,
@@ -30,12 +30,13 @@ type AppEnv = {
 
 export const churchRoutes = new Hono<AppEnv>()
 
-async function findPublishedChurch(db: D1Database, identifier: string) {
-  const church = await db
-    .prepare(`${churchSelect} WHERE (c.id = ? OR c.slug = ?) AND c.status = 'published' AND c.deleted_at IS NULL`)
+async function findVisibleChurch(c: Parameters<typeof requirePermission>[0], identifier: string) {
+  const church = await c.env.DB
+    .prepare(`${churchSelect} WHERE (c.id = ? OR c.slug = ?) AND c.deleted_at IS NULL`)
     .bind(identifier, identifier)
     .first<ChurchRow>()
   if (!church) throw new AppError(404, 'church_not_found', 'Church not found')
+  if (church.status !== 'published') await requireChurchMembership(c, church.id)
   return church
 }
 
@@ -53,8 +54,19 @@ async function serviceTimes(db: D1Database, churchId: string) {
 }
 
 churchRoutes.get('/', async (c) => {
+  const identity = c.get('identity')
+  const userId = identity ? (await syncCurrentUser(c.env.DB, identity)).id : ''
   const result = await c.env.DB
-    .prepare(`${churchSelect} WHERE c.status = 'published' AND c.deleted_at IS NULL ORDER BY c.name LIMIT 200`)
+    .prepare(`${churchSelect}
+      WHERE c.deleted_at IS NULL AND (
+        c.status = 'published' OR EXISTS (
+          SELECT 1 FROM church_memberships cm
+          WHERE cm.church_id = c.id AND cm.user_id = ? AND cm.status = 'active'
+        )
+      )
+      ORDER BY c.name
+      LIMIT 200`)
+    .bind(userId)
     .all<ChurchRow>()
 
   const allServiceTimes = await c.env.DB
@@ -62,9 +74,15 @@ churchRoutes.get('/', async (c) => {
       SELECT st.id, st.church_id, st.label, st.day_of_week, st.local_time
       FROM service_times st
       JOIN churches c ON c.id = st.church_id
-      WHERE c.status = 'published' AND c.deleted_at IS NULL
+      WHERE c.deleted_at IS NULL AND (
+        c.status = 'published' OR EXISTS (
+          SELECT 1 FROM church_memberships cm
+          WHERE cm.church_id = c.id AND cm.user_id = ? AND cm.status = 'active'
+        )
+      )
       ORDER BY st.church_id, st.sort_order, st.day_of_week, st.local_time
     `)
+    .bind(userId)
     .all<ServiceTimeRow & { church_id: string }>()
   const timesByChurch = new Map<string, ServiceTimeRow[]>()
   for (const service of allServiceTimes.results) {
@@ -79,12 +97,12 @@ churchRoutes.get('/', async (c) => {
 })
 
 churchRoutes.get('/:identifier', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   return c.json({ church: mapChurch(church, await serviceTimes(c.env.DB, church.id)) })
 })
 
 churchRoutes.get('/:identifier/ministries', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const result = await c.env.DB
     .prepare(`
       SELECT id, church_id, slug, title, status, audience, schedule, featured, summary
@@ -99,7 +117,7 @@ churchRoutes.get('/:identifier/ministries', async (c) => {
 })
 
 churchRoutes.get('/:identifier/groups', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const result = await c.env.DB
     .prepare(`
       SELECT id, church_id, ministry_id, slug, title, status, group_type, audience,
@@ -115,7 +133,7 @@ churchRoutes.get('/:identifier/groups', async (c) => {
 })
 
 churchRoutes.get('/:identifier/courses', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const result = await c.env.DB
     .prepare(`
       SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
@@ -134,7 +152,7 @@ churchRoutes.get('/:identifier/courses', async (c) => {
 })
 
 churchRoutes.get('/:identifier/courses/:slug', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const row = await c.env.DB
     .prepare(`
       SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
@@ -163,7 +181,7 @@ churchRoutes.get('/:identifier/courses/:slug', async (c) => {
 })
 
 churchRoutes.get('/:identifier/events', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const result = await c.env.DB
     .prepare(`
       SELECT id, church_id, slug, title, status, summary, starts_at, ends_at,
@@ -179,7 +197,7 @@ churchRoutes.get('/:identifier/events', async (c) => {
 })
 
 churchRoutes.get('/:identifier/sermons', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   const result = await c.env.DB
     .prepare(`
       SELECT id, church_id, slug, title, status, speaker, series, summary,
@@ -195,7 +213,7 @@ churchRoutes.get('/:identifier/sermons', async (c) => {
 })
 
 churchRoutes.get('/:identifier/live', async (c) => {
-  const church = await findPublishedChurch(c.env.DB, c.req.param('identifier'))
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
   await requirePermission(c, church.id, 'people.read')
   return c.env.CHURCH_ROOMS.getByName(church.id).fetch(c.req.raw)
 })

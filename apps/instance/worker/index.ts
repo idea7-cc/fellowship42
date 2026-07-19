@@ -9,6 +9,7 @@ import { churchRoutes } from './routes/churches'
 import { mediaRoutes } from './routes/media'
 import { peopleRoutes } from './routes/people'
 import { sessionRoutes } from './routes/session'
+import { bootstrapRoutes } from './routes/bootstrap'
 
 export { ChurchRoom } from './realtime'
 
@@ -89,6 +90,7 @@ app.get('/api/health', async (c) => {
 })
 
 app.route('/api/session', sessionRoutes)
+app.route('/api/bootstrap', bootstrapRoutes)
 app.route('/api/churches', churchRoutes)
 app.route('/api/people', peopleRoutes)
 app.route('/media', mediaRoutes)

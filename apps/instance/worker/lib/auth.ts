@@ -142,63 +142,96 @@ export async function syncCurrentUser(
     }
   }
 
-  const user = await db
+  const userWithEmail = await db
     .prepare(`
-      INSERT INTO users (
-        id, email, first_name, last_name, status, created_at, updated_at, last_seen_at
-      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
-      ON CONFLICT(email) DO UPDATE SET
-        first_name = excluded.first_name,
-        last_name = excluded.last_name,
-        status = CASE WHEN users.status = 'invited' THEN 'active' ELSE users.status END,
-        last_seen_at = excluded.last_seen_at,
-        updated_at = excluded.updated_at
-      RETURNING id, email, first_name, last_name, avatar_url, status
+      SELECT id, status
+      FROM users
+      WHERE email = ? COLLATE NOCASE
     `)
-    .bind(
-      crypto.randomUUID(),
-      identity.email,
-      identity.firstName,
-      identity.lastName,
-      now,
-      now,
-      now,
-    )
+    .bind(identity.email)
     .first<{
       id: string
-      email: string
-      first_name: string
-      last_name: string
-      avatar_url: string | null
-      status: 'active' | 'suspended'
+      status: 'invited' | 'active' | 'suspended'
     }>()
-  if (!user) throw new AppError(500, 'identity_sync_failed', 'Unable to create the user session')
-  if (user.status === 'suspended') {
+  if (userWithEmail?.status === 'suspended') {
     throw new AppError(403, 'account_suspended', 'This account is suspended')
   }
+  if (userWithEmail?.status === 'active') {
+    const concurrentlyLinked = await db
+      .prepare('SELECT 1 AS linked FROM auth_identities WHERE provider = ? AND subject = ?')
+      .bind(identity.provider, identity.subject)
+      .first<{ linked: number }>()
+    if (concurrentlyLinked) return syncCurrentUser(db, identity)
 
-  await db
-    .prepare(`
-      INSERT INTO auth_identities (
-        id, user_id, provider, subject, email_at_provider, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(provider, subject) DO UPDATE SET
-        email_at_provider = excluded.email_at_provider,
-        updated_at = excluded.updated_at
-    `)
-    .bind(
-      crypto.randomUUID(),
-      user.id,
-      identity.provider,
-      identity.subject,
-      identity.email,
-      now,
-      now,
+    throw new AppError(
+      403,
+      'identity_link_required',
+      'This email belongs to an account linked to a different sign-in identity',
     )
-    .run()
+  }
+
+  const userId = userWithEmail?.id ?? crypto.randomUUID()
+  await db.batch([
+    db
+      .prepare(`
+        INSERT INTO users (
+          id, email, first_name, last_name, status, created_at, updated_at, last_seen_at
+        ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+        ON CONFLICT(email) DO UPDATE SET
+          first_name = excluded.first_name,
+          last_name = excluded.last_name,
+          status = 'active',
+          last_seen_at = excluded.last_seen_at,
+          updated_at = excluded.updated_at
+        WHERE users.status = 'invited'
+      `)
+      .bind(
+        userId,
+        identity.email,
+        identity.firstName,
+        identity.lastName,
+        now,
+        now,
+        now,
+      ),
+    db
+      .prepare(`
+        INSERT INTO auth_identities (
+          id, user_id, provider, subject, email_at_provider, created_at, updated_at
+        )
+        SELECT ?, u.id, ?, ?, ?, ?, ?
+        FROM users u
+        WHERE u.id = ? AND u.email = ? COLLATE NOCASE
+        ON CONFLICT(provider, subject) DO UPDATE SET
+          email_at_provider = excluded.email_at_provider,
+          updated_at = excluded.updated_at
+      `)
+      .bind(
+        crypto.randomUUID(),
+        identity.provider,
+        identity.subject,
+        identity.email,
+        now,
+        now,
+        userId,
+        identity.email,
+      ),
+  ])
 
   // Re-read through the identity key so concurrent first-session requests and
-  // pre-existing identity links always converge on the canonical user.
+  // pre-existing identity links always converge on the canonical user. A
+  // different subject can never claim an already-active account by email.
+  const linkedIdentity = await db
+    .prepare('SELECT 1 AS linked FROM auth_identities WHERE provider = ? AND subject = ?')
+    .bind(identity.provider, identity.subject)
+    .first<{ linked: number }>()
+  if (!linkedIdentity) {
+    throw new AppError(
+      403,
+      'identity_link_required',
+      'This email belongs to an account linked to a different sign-in identity',
+    )
+  }
   return syncCurrentUser(db, identity)
 }
 
@@ -215,7 +248,7 @@ export async function requirePermission(
   churchId: string,
   permission: string,
 ): Promise<CurrentUser> {
-  const user = await requireCurrentUser(c)
+  const user = await requireChurchMembership(c, churchId)
   const grant = await c.env.DB
     .prepare(`
       SELECT 1 AS granted
@@ -234,6 +267,27 @@ export async function requirePermission(
 
   if (!grant) {
     throw new AppError(403, 'permission_denied', 'You do not have permission for this action')
+  }
+  return user
+}
+
+export async function requireChurchMembership(
+  c: AppContext,
+  churchId: string,
+): Promise<CurrentUser> {
+  const user = await requireCurrentUser(c)
+  const membership = await c.env.DB
+    .prepare(`
+      SELECT 1 AS active
+      FROM church_memberships
+      WHERE church_id = ? AND user_id = ? AND status = 'active'
+      LIMIT 1
+    `)
+    .bind(churchId, user.id)
+    .first<{ active: number }>()
+
+  if (!membership) {
+    throw new AppError(403, 'membership_required', 'An active church membership is required')
   }
   return user
 }

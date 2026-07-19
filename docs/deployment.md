@@ -48,6 +48,11 @@ The application route must be protected by the same Access application whose
 audience is configured in the Worker. Public routes can move to a separate
 hostname when public church-site delivery is implemented.
 
+Make the Access allow policy as narrow as possible for initial setup. Bootstrap
+also requires a deployment-scoped `BOOTSTRAP_OWNER_EMAIL` Worker secret whose
+value exactly matches the intended first owner's Access email. Do not put it in
+`wrangler.jsonc`, a generated configuration file, CI output, or source control.
+
 Management identity is separate from application login and separate from any
 Cloudflare API token. No management endpoint is currently enabled.
 
@@ -71,12 +76,26 @@ authenticated bootstrap flow.
 
 ```bash
 pnpm deploy
+pnpm --filter @fellowship42/instance exec wrangler secret put BOOTSTRAP_OWNER_EMAIL
+```
+
+Open the deployed application as that Access identity and complete **Instance
+setup**. The Worker creates the church in `draft`, portable instance identity,
+initial owner membership, system roles, and audit event transactionally. It
+does not enroll the instance in any management service.
+
+After setup succeeds, remove the one-time selector:
+
+```bash
+pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER_EMAIL
 ```
 
 Attach the instance custom domain and verify:
 
 - `/api/health` reports `fellowship42-instance` and `single-church`;
 - `instance_metadata` has one portable identity and primary church;
+- the first owner has one active membership with the system `owner` role;
+- `instance.bootstrapped` exists in the local audit log;
 - published church routes return only intended public data;
 - unauthenticated private routes return `401`;
 - a user without permission receives `403`;

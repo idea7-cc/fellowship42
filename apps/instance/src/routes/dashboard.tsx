@@ -19,7 +19,7 @@ export function DashboardPage() {
         <p className="mt-2">Your church management platform</p>
       </Section>
 
-      <Section title="Churches" description="Browse the published churches available at the Cloudflare edge.">
+      <Section title="Church" description="Open the church served by this independent instance.">
         <CardGrid>
           {isLoading ? (
             <Card className="flex flex-col items-center justify-center border-dashed p-8">
@@ -42,7 +42,7 @@ export function DashboardPage() {
             <Card className="flex flex-col items-center justify-center border-dashed p-8">
               <CardContent>
                 <p className="text-center text-muted-foreground">
-                  No published churches are available yet.
+                  Your church is still in draft or unavailable to this account.
                 </p>
               </CardContent>
             </Card>
@@ -55,8 +55,8 @@ export function DashboardPage() {
           <Link to="/churches">
             <Card className="hover:-translate-y-px hover:shadow-md transition-all duration-200">
               <CardHeader>
-                <CardTitle>Churches</CardTitle>
-                <CardDescription>Browse and manage your churches</CardDescription>
+                <CardTitle>Church</CardTitle>
+                <CardDescription>Open this instance's church workspace</CardDescription>
               </CardHeader>
             </Card>
           </Link>

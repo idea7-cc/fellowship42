@@ -24,7 +24,7 @@ interface NavItem {
 
 const globalNav: NavItem[] = [
   { label: 'Dashboard', path: '/' },
-  { label: 'Churches', path: '/churches' },
+  { label: 'Church', path: '/churches' },
 ]
 
 const churchNav: NavItem[] = [

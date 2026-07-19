@@ -39,6 +39,20 @@ describe('Fellowship42 edge API', () => {
     })
   })
 
+  it('reports configured bootstrap state without exposing owner configuration', async () => {
+    const response = await get('/api/bootstrap')
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      state: 'configured',
+      instance: {
+        churchId: 'church_demo',
+        churchName: 'Fellowship Demo Church',
+        churchSlug: 'fellowship-demo',
+      },
+    })
+  })
+
   it('returns seeded public church and course data', async () => {
     const churchResponse = await get('/api/churches/fellowship-demo')
     const churchBody = await churchResponse.json<{
@@ -100,10 +114,51 @@ describe('Fellowship42 edge API', () => {
       .first<{ total: number }>()
     expect(identityCount?.total).toBe(1)
 
+    await expect(
+      syncCurrentUser(env.DB, { ...identity, subject: 'different-access-subject' }),
+    ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
+
     await env.DB.prepare("UPDATE users SET status = 'suspended' WHERE id = ?").bind(first.id).run()
     await expect(syncCurrentUser(env.DB, identity)).rejects.toMatchObject({
       status: 403,
       code: 'account_suspended',
     })
+  })
+
+  it('allows an invited email to activate once without relinking an active account', async () => {
+    const now = Date.now()
+    await env.DB
+      .prepare(`
+        INSERT INTO users (
+          id, email, first_name, last_name, status, created_at, updated_at
+        ) VALUES ('user_invited', 'invited@example.test', '', '', 'invited', ?, ?)
+      `)
+      .bind(now, now)
+      .run()
+
+    const activated = await syncCurrentUser(env.DB, {
+      provider: 'cloudflare-access',
+      subject: 'invited-access-subject',
+      email: 'invited@example.test',
+      firstName: 'Invited',
+      lastName: 'Owner',
+    })
+    expect(activated.id).toBe('user_invited')
+
+    const user = await env.DB
+      .prepare('SELECT status, first_name, last_name FROM users WHERE id = ?')
+      .bind('user_invited')
+      .first<{ status: string; first_name: string; last_name: string }>()
+    expect(user).toEqual({ status: 'active', first_name: 'Invited', last_name: 'Owner' })
+
+    await expect(
+      syncCurrentUser(env.DB, {
+        provider: 'cloudflare-access',
+        subject: 'another-invited-subject',
+        email: 'invited@example.test',
+        firstName: 'Invited',
+        lastName: 'Owner',
+      }),
+    ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
   })
 })

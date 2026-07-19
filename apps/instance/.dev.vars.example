@@ -4,3 +4,7 @@ ENVIRONMENT=development
 # Optional: protect the app with Cloudflare Access locally via a forwarded JWT.
 ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 ACCESS_AUD=your-access-application-aud
+
+# One-time production-bootstrap selector. Use the exact email in the validated
+# Access JWT, and remove the deployed secret after bootstrap succeeds.
+BOOTSTRAP_OWNER_EMAIL=owner@example.test
