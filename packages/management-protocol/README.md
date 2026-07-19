@@ -14,7 +14,11 @@ Current contracts establish:
 - portable instance identity and application/schema versions;
 - infrastructure owner separately from operator;
 - independently grantable management capabilities;
-- command expiry, nonce, and result fields needed by a secure transport.
+- typed command inputs, bounded expiry, nonces, and result contracts;
+- explicit expiring grants and mandatory local approval for high-risk actions;
+- enrollment, instance-initiated sync, replay, rotation, and disconnect schemas;
+- standard Ed25519 flattened-JWS signing and verification through Web Crypto;
+- a mandatory public signature interoperability vector;
 - the checksummed Fellowship42 release-manifest schema and immutable fixtures.
 - strict portable-export manifests, configuration, R2 indexes, and
   privacy-bounded verification evidence.
@@ -23,9 +27,9 @@ Current contracts establish:
 - privacy-bounded hosted-to-church-owned rehearsal evidence and a packaged
   compatibility fixture.
 
-The package is pre-1.0 scaffolding. No management endpoint is enabled in the
-instance yet. See `../../docs/management-protocol.md` and ADR 0003 before adding
-wire behavior.
+Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. No
+management endpoint is enabled in the instance yet. See
+`../../docs/management-protocol.md` and ADR 0010 before adding adapter behavior.
 
 The package is built before it is consumed. Published exports point only at
 compiled ESM and generated declarations in `dist`; consumers do not need the

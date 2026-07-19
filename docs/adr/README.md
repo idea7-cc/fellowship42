@@ -12,6 +12,7 @@ directory names alone.
 - [0007 — Collector-neutral, quiesced portable export](0007-collector-neutral-quiesced-portable-export.md)
 - [0008 — Staged import and explicit cutover](0008-staged-import-and-explicit-cutover.md)
 - [0009 — Deterministic migration rehearsal evidence](0009-deterministic-migration-rehearsal-evidence.md)
+- [0010 — Management protocol v1 security profile](0010-management-protocol-v1-security-profile.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

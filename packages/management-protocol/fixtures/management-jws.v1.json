@@ -1,0 +1,45 @@
+{
+  "formatVersion": 1,
+  "profile": "f42-jws-eddsa-v1",
+  "publicKey": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "WXvE8jVdpFX0PJCUEE5fpdWpWRLEkoA7zDS7iTYPOHw",
+    "kid": "instance-fixture-key-1",
+    "use": "sig",
+    "alg": "EdDSA"
+  },
+  "payload": {
+    "protocolVersion": "1",
+    "type": "sync.request",
+    "messageId": "fe07666a-2949-4d52-a528-2f07399858f8",
+    "connectionId": "50a0a906-fdac-4737-b8b3-76d7f4144be0",
+    "instanceId": "instance_fixture",
+    "senderKeyId": "instance-fixture-key-1",
+    "audienceKeyId": "operator-fixture-key-1",
+    "issuedAt": "2026-07-19T17:00:00.000Z",
+    "expiresAt": "2026-07-19T17:05:00.000Z",
+    "nonce": "IGL7Q6VKMg31ewB4wOJdXQ",
+    "descriptor": {
+      "protocolVersion": "1",
+      "instanceId": "instance_fixture",
+      "topology": "single-church",
+      "applicationVersion": "0.11.0",
+      "schemaVersion": 5,
+      "infrastructure": {
+        "owner": "church",
+        "operator": "church"
+      },
+      "capabilities": [
+        "instance.status.read"
+      ]
+    },
+    "grantVersion": 1,
+    "commandCursor": null
+  },
+  "jws": {
+    "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6Imluc3RhbmNlLWZpeHR1cmUta2V5LTEiLCJ0eXAiOiJmNDItbWFuYWdlbWVudCtqd3MiLCJmNDJ2IjoiMSJ9",
+    "payload": "eyJwcm90b2NvbFZlcnNpb24iOiIxIiwibWVzc2FnZUlkIjoiZmUwNzY2NmEtMjk0OS00ZDUyLWE1MjgtMmYwNzM5OTg1OGY4IiwiY29ubmVjdGlvbklkIjoiNTBhMGE5MDYtZmRhYy00NzM3LWI4YjMtNzZkN2Y0MTQ0YmUwIiwiaW5zdGFuY2VJZCI6Imluc3RhbmNlX2ZpeHR1cmUiLCJzZW5kZXJLZXlJZCI6Imluc3RhbmNlLWZpeHR1cmUta2V5LTEiLCJhdWRpZW5jZUtleUlkIjoib3BlcmF0b3ItZml4dHVyZS1rZXktMSIsImlzc3VlZEF0IjoiMjAyNi0wNy0xOVQxNzowMDowMC4wMDBaIiwiZXhwaXJlc0F0IjoiMjAyNi0wNy0xOVQxNzowNTowMC4wMDBaIiwibm9uY2UiOiJJR0w3UTZWS01nMzFld0I0d09KZFhRIiwidHlwZSI6InN5bmMucmVxdWVzdCIsImRlc2NyaXB0b3IiOnsicHJvdG9jb2xWZXJzaW9uIjoiMSIsImluc3RhbmNlSWQiOiJpbnN0YW5jZV9maXh0dXJlIiwidG9wb2xvZ3kiOiJzaW5nbGUtY2h1cmNoIiwiYXBwbGljYXRpb25WZXJzaW9uIjoiMC4xMS4wIiwic2NoZW1hVmVyc2lvbiI6NSwiaW5mcmFzdHJ1Y3R1cmUiOnsib3duZXIiOiJjaHVyY2giLCJvcGVyYXRvciI6ImNodXJjaCJ9LCJjYXBhYmlsaXRpZXMiOlsiaW5zdGFuY2Uuc3RhdHVzLnJlYWQiXX0sImdyYW50VmVyc2lvbiI6MSwiY29tbWFuZEN1cnNvciI6bnVsbH0",
+    "signature": "tkadvQRMhmQBHFvqxIGsCvlmkuyaDYGVKURlz1aLUpQzyFGWBkS3ncN-nLjuyLwuM55F7xEIysSTdswFbvvdDA"
+  }
+}

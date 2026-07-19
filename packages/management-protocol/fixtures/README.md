@@ -13,3 +13,7 @@ deterministic hosted-to-church-owned compatibility rehearsal. CI reruns the
 public export/import/cutover code and requires byte-equivalent canonical
 evidence. The fixture contains digests and assertions, never synthetic D1/R2
 payloads, resource names, domains, or credentials.
+
+`management-jws.v1.json` is the protocol-v1 Ed25519 flattened-JWS
+interoperability vector. It contains only a public test key, a privacy-bounded
+sync payload, and its signature; no private key or credential is included.

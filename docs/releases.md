@@ -17,10 +17,11 @@ Three versions serve different purposes:
   independently. Its exported `MANAGEMENT_PROTOCOL_VERSION` is the wire-major
   version and changes only for an intentionally incompatible wire contract.
 
-Before 1.0, an application or package minor release may contain a breaking
-change. Patch releases must remain compatible with the corresponding minor
-line. A protocol compatibility policy will become stricter before the first
-management endpoint is declared stable.
+Application releases remain pre-1.0 and may contain breaking changes in a minor
+release. Management protocol package `1.x` follows semantic versioning: additive
+contracts use minor releases, fixes use patches, and changes to required wire
+fields, signature bytes, capability meaning, or security rules require a new
+wire major and parallel API prefix.
 
 ## Release contents
 
@@ -89,6 +90,11 @@ against released `v0.9.0` lifecycle inputs. CI regenerates it through the real
 public export/import/cutover code. Consumers validate it with
 `migrationRehearsalEvidenceSchema` without receiving synthetic D1/R2 payloads
 or provider-specific state.
+
+`management-jws.v1.json` is the mandatory wire-v1 interoperability vector. It
+contains a public Ed25519 JWK, a privacy-bounded sync request, and its flattened
+JWS signature. Consumers must validate both its strict schema and signature. It
+contains no private key or enrollment credential.
 
 The release builder validates every generated manifest with the same exported
 `releaseManifestSchema` used by external consumers. This keeps the generated

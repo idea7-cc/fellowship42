@@ -4,9 +4,10 @@ This directory is the only intended HTTP boundary between an open Fellowship42
 instance and optional management software.
 
 The adapter is currently scaffolding: no remote enrollment or command endpoint
-is enabled yet. Implement it only after the authentication, signing, replay,
-revocation, and audit behavior in `docs/management-protocol.md` is covered by an
-ADR and integration tests.
+is enabled yet. ADR 0010 and the public protocol package now fix authentication,
+signing, replay, revocation, compatibility, and an executable interoperability
+fixture. The next increment must implement those contracts without weakening
+them.
 
 Rules for this boundary:
 
