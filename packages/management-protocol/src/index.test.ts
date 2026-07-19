@@ -93,8 +93,10 @@ describe('management protocol contracts', () => {
       instanceId: 'instance_demo',
       issuedAt: '2026-07-18T16:00:00.000Z',
       expiresAt: '2026-07-18T16:05:00.000Z',
-      nonce: '0123456789abcdef',
+      nonce: '0123456789abcdefghijkl',
+      type: 'instance.status.read',
       capability: 'instance.status.read',
+      input: {},
     })
 
     expect(command.input).toEqual({})

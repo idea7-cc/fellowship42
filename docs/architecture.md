@@ -129,11 +129,12 @@ The public contract lives in `packages/management-protocol`. It describes
 instance identity, versions, custody, capabilities, commands, and results. The
 instance-side adapter is reserved at `apps/instance/worker/management`.
 
-Management uses authenticated HTTPS with application-level identity, replay
-protection, capability authorization, revocation, and auditing. It is not a
-Cloudflare Service Binding because independently owned Workers may live in
-different accounts. It is not proprietary encryption and it is not an MCP
-transport.
+Management uses HTTPS plus the public `f42-jws-eddsa-v1` application security
+profile: Ed25519 identities, five-minute signed messages, atomic replay
+protection, explicit expiring grants, local approval for high-risk actions,
+rotation, revocation, and auditing. It is not a Cloudflare Service Binding
+because independently owned Workers may live in different accounts. It is not
+proprietary encryption and it is not an MCP transport.
 
 The intended default is instance-initiated communication. A disconnected
 instance has no management capabilities enabled and continues operating
