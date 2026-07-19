@@ -4,9 +4,23 @@ This runbook bootstraps one independent church installation. Repeat it with
 dedicated resources for each church. Do not bind multiple hosted customers to a
 shared D1 database or R2 namespace.
 
-The committed configuration is a direct Wrangler template. The future public
-`f42ctl` and private Fellowship42 Cloud orchestrator must converge on this same
-instance shape.
+The committed configuration is a direct Wrangler template. The public `f42ctl`
+manifest, planner, and doctor describe and inspect this same shape; active
+resource reconciliation is not implemented yet. The private Fellowship42
+Cloud orchestrator must consume the public contract rather than inventing a
+second deployment shape.
+
+Before touching a Cloudflare account, copy and edit the non-secret example,
+then review the deterministic plan:
+
+```bash
+cp tooling/f42ctl/examples/deployment-manifest.local.json deployment-manifest.json
+pnpm f42ctl plan --manifest deployment-manifest.json
+```
+
+The manifest pins a tagged release manifest by URL, SHA-256, and source commit.
+It uses a human account alias rather than a Cloudflare account ID and contains
+no credentials. See [Lifecycle manifests and doctor](lifecycle-manifests-and-doctor.md).
 
 ## 1. Choose custody
 
@@ -127,6 +141,20 @@ Attach the instance custom domain and verify:
   scheduled trigger;
 - R2 responses preserve metadata and stream object bodies;
 - logs include request IDs without tokens or sensitive bodies.
+
+You can capture bounded machine-readable configuration and health evidence:
+
+```bash
+pnpm f42ctl doctor \
+  --manifest deployment-manifest.json \
+  --runtime https://instance.example.org \
+  --output doctor-report.json
+```
+
+Doctor is read-only. Until a future locally authorized identity endpoint can
+prove the portable installation ID, that check remains `unknown` and the
+overall result is `attention`; it must not infer identity from Worker or
+Cloudflare resource identifiers.
 
 Deploy the optional public project site separately with:
 

@@ -41,7 +41,7 @@ const requiredPaths = [
   manifest.projectSite,
   ...manifest.publicContracts,
   ...manifest.publicSharedPackages,
-  ...manifest.plannedPortableTooling,
+  ...manifest.publicPortableTooling,
   ...Object.values(manifest.releaseContract),
 ]
 

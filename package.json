@@ -1,10 +1,10 @@
 {
   "name": "fellowship42",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "packageManager": "pnpm@10.32.1",
   "private": true,
   "scripts": {
-    "prepare": "pnpm build:contracts",
+    "prepare": "pnpm build:contracts && pnpm --filter @fellowship42/f42ctl build",
     "dev": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
     "dev:instance": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
     "dev:site": "pnpm --filter @fellowship42/project-site dev",
@@ -25,7 +25,8 @@
     "deploy:site": "pnpm --filter @fellowship42/project-site deploy",
     "release:assemble": "node scripts/build-release-artifacts.mjs && node scripts/verify-release-artifacts.mjs",
     "release:artifacts": "pnpm build && pnpm release:assemble",
-    "release:check-tag": "node scripts/check-release-tag.mjs"
+    "release:check-tag": "node scripts/check-release-tag.mjs",
+    "f42ctl": "node tooling/f42ctl/dist/cli.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

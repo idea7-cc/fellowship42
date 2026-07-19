@@ -37,15 +37,20 @@ before changing the system shape.
 - typed React queries and Access session state;
 - Workers-runtime migration and API tests;
 - `@fellowship42/management-protocol` with initial versioned descriptors,
-  capabilities, command envelopes, replay metadata, and results;
+  capabilities, command envelopes, replay metadata, lifecycle manifests,
+  deterministic plans, and bounded doctor reports;
+- an installable `f42ctl` CLI that validates desired deployment state, verifies
+  immutable release bytes and source commit, produces a non-destructive plan,
+  and inspects local/runtime shape without credentials;
 - a machine-readable repository manifest plus CI boundary enforcement;
 - architecture ADRs and explicit private-repository guidance;
 - the public project site in `apps/project-site`;
 - Apache-2.0 `LICENSE` and `NOTICE` files.
 
-No remote management endpoint, control plane, MCP server, export/import CLI, or
-hosted provisioning system is implemented. Their directories and contracts are
-intentional scaffolding, not implied functionality.
+No remote management endpoint, control plane, MCP server, export/import
+implementation, active Cloudflare reconciliation, or hosted provisioning
+system is implemented. Existing lifecycle contracts do not imply those future
+capabilities.
 
 ## Verified baseline
 
@@ -53,7 +58,8 @@ On 2026-07-19 the following completed successfully for the current beta:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 5 management-protocol tests and 26 Workers/client integration tests;
+- `pnpm test` — 8 management-protocol, 7 lifecycle CLI, and 26
+  Workers/client integration tests;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -76,17 +82,16 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 
 ## Recommended next architecture work
 
-1. Build the public `f42ctl doctor` and deterministic deploy manifest.
-2. Specify and implement a versioned export bundle for D1, R2, configuration,
+1. Specify and implement a versioned export bundle for D1, R2, configuration,
    checksums, and release metadata.
-3. Exercise a complete deploy/export/import/domain-cutover migration.
-4. Complete owner-facing church profile and publication controls after the
+2. Exercise a complete deploy/export/import/domain-cutover migration.
+3. Complete owner-facing church profile and publication controls after the
    instance-first bootstrap while retaining `church_id` defense in depth.
-5. Write the management enrollment/signing threat-model ADR before enabling any
+4. Write the management enrollment/signing threat-model ADR before enabling any
    management route.
-6. Start `fellowship42-cloud` separately only when the public lifecycle contract
-   can provision and migrate an instance without private code.
-7. Exercise contribution and Queue delivery against a real beta provider and
+5. Keep `fellowship42-cloud` on published lifecycle contracts and immutable
+   release artifacts; never a relative checkout or private deployment fork.
+6. Exercise contribution and Queue delivery against a real beta provider and
    instance before accepting live funds.
 
 ## Important files
@@ -108,8 +113,10 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/test/content.spec.ts` | ministry publishing, permissions, R2 integrity, and public visibility coverage |
 | `apps/instance/test/finance-delivery.spec.ts` | finance permissions, signed webhook replay, privacy, and Queue recovery coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
+| `packages/management-protocol/src/lifecycle.ts` | portable deployment, plan, and doctor contracts |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
-| `tooling/f42ctl/README.md` | public lifecycle CLI scope and roadmap |
+| `tooling/f42ctl/src/cli.ts` | public lifecycle CLI entrypoint |
+| `docs/lifecycle-manifests-and-doctor.md` | lifecycle contract and evidence semantics |
 
 ## Guardrails
 

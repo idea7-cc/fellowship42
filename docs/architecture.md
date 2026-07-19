@@ -161,8 +161,11 @@ Import creates new Cloudflare resources, restores data and objects, verifies
 integrity, switches the domain, and rotates every deployment and management
 credential. Cloudflare resource IDs are never portable identifiers.
 
-The public `f42ctl` lifecycle tool will implement this contract. The private
-control plane must use that same public reconciliation and migration logic.
+The public `f42ctl` lifecycle tool now owns the strict non-secret deployment
+manifest, immutable release verification, deterministic non-destructive plan,
+and bounded doctor report. Export/import and active reconciliation remain
+future increments. The private control plane must use these same public
+contracts and future migration logic.
 
 ## Repository and dependency boundaries
 
@@ -171,7 +174,7 @@ apps/instance/                 deployable open church product
 apps/project-site/             public project/community site
 packages/brand/                public visual system
 packages/management-protocol/  public integration contract
-tooling/f42ctl/                public lifecycle tooling roadmap
+tooling/f42ctl/                public lifecycle contracts and CLI
 docs/adr/                      architecture decision records
 ```
 
@@ -198,12 +201,14 @@ Implemented now:
 - people/household operations plus group, course/lesson, event, sermon, and
   authorized R2 media publishing workflows;
 - a compiled public management-contract package;
+- a strict portable deployment manifest, deterministic deploy plan, and
+  evidence-only `f42ctl doctor` CLI;
 - explicit public/private repository boundaries.
 
 Planned, not implied by the scaffolding:
 
 - cryptographic management enrollment and command delivery;
-- backup/export/import automation;
+- active Cloudflare reconciliation and backup/export/import automation;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;
 - the private Fellowship42 Cloud control plane, dashboard, and MCP adapter.

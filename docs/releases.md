@@ -31,6 +31,8 @@ management endpoint is declared stable.
   suitable for a reproducible installation or deployment build;
 - `fellowship42-management-protocol-<version>.tgz`: the installable public
   contract package with compiled JavaScript and declarations;
+- `fellowship42-f42ctl-<version>.tgz`: the installable public lifecycle CLI and
+  callable planning/diagnostic library;
 - `release-manifest.json`: the exact commit, application/schema versions,
   protocol package/wire versions, sizes, and SHA-256 digests; and
 - `SHA256SUMS`: independent checksums for the archives and manifest.
@@ -56,7 +58,7 @@ Moving or reusing a release tag is prohibited. A correction receives a new
 version. Production deployment credentials are never used by the public
 release workflow.
 
-## Protocol package publication
+## Public package publication
 
 The protocol tarball attached to every application release is directly
 installable and gives private or third-party consumers an immutable input
@@ -64,6 +66,11 @@ without a relative filesystem dependency. Publishing the same package to npm
 will be enabled only after the public npm scope and trusted-publishing policy
 are established. Until then, consumers pin the GitHub release asset and its
 SHA-256 digest.
+
+The lifecycle CLI tarball pins that protocol package version. Until both
+packages are available from the public npm scope, install the matching protocol
+and CLI tarballs together from the same release and verify both manifest
+digests.
 
 ## Contract fixtures
 

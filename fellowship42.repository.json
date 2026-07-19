@@ -9,7 +9,7 @@
   "publicSharedPackages": [
     "packages/brand"
   ],
-  "plannedPortableTooling": [
+  "publicPortableTooling": [
     "tooling/f42ctl"
   ],
   "releaseContract": {
