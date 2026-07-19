@@ -16,21 +16,23 @@ describe('Fellowship42 edge API', () => {
       service: 'fellowship42-instance',
       topology: 'single-church',
       storage: 'd1',
+      outbox: 'clear',
+      paymentWebhooks: 'ready',
     })
   })
 
   it('seeds one portable instance identity for the primary church', async () => {
-    const instance = await env.DB
-      .prepare(`
+    const instance = await env.DB.prepare(
+      `
         SELECT instance_id, topology, primary_church_id
         FROM instance_metadata
         WHERE singleton = 1
-      `)
-      .first<{
-        instance_id: string
-        topology: string
-        primary_church_id: string
-      }>()
+      `,
+    ).first<{
+      instance_id: string
+      topology: string
+      primary_church_id: string
+    }>()
 
     expect(instance).toEqual({
       instance_id: 'instance_demo',
@@ -78,7 +80,9 @@ describe('Fellowship42 edge API', () => {
 
   it('keeps the people directory private without an Access JWT', async () => {
     const response = await get('/api/people/church_demo')
-    const body = await response.json<{ error: { code: string; requestId: string } }>()
+    const body = await response.json<{
+      error: { code: string; requestId: string }
+    }>()
 
     expect(response.status).toBe(401)
     expect(body.error.code).toBe('authentication_required')
@@ -108,17 +112,23 @@ describe('Fellowship42 edge API', () => {
     ])
     expect(first.id).toBe(second.id)
 
-    const identityCount = await env.DB
-      .prepare('SELECT COUNT(*) AS total FROM auth_identities WHERE provider = ? AND subject = ?')
+    const identityCount = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM auth_identities WHERE provider = ? AND subject = ?',
+    )
       .bind(identity.provider, identity.subject)
       .first<{ total: number }>()
     expect(identityCount?.total).toBe(1)
 
     await expect(
-      syncCurrentUser(env.DB, { ...identity, subject: 'different-access-subject' }),
+      syncCurrentUser(env.DB, {
+        ...identity,
+        subject: 'different-access-subject',
+      }),
     ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
 
-    await env.DB.prepare("UPDATE users SET status = 'suspended' WHERE id = ?").bind(first.id).run()
+    await env.DB.prepare("UPDATE users SET status = 'suspended' WHERE id = ?")
+      .bind(first.id)
+      .run()
     await expect(syncCurrentUser(env.DB, identity)).rejects.toMatchObject({
       status: 403,
       code: 'account_suspended',
@@ -127,12 +137,13 @@ describe('Fellowship42 edge API', () => {
 
   it('allows an invited email to activate once without relinking an active account', async () => {
     const now = Date.now()
-    await env.DB
-      .prepare(`
+    await env.DB.prepare(
+      `
         INSERT INTO users (
           id, email, first_name, last_name, status, created_at, updated_at
         ) VALUES ('user_invited', 'invited@example.test', '', '', 'invited', ?, ?)
-      `)
+      `,
+    )
       .bind(now, now)
       .run()
 
@@ -145,11 +156,16 @@ describe('Fellowship42 edge API', () => {
     })
     expect(activated.id).toBe('user_invited')
 
-    const user = await env.DB
-      .prepare('SELECT status, first_name, last_name FROM users WHERE id = ?')
+    const user = await env.DB.prepare(
+      'SELECT status, first_name, last_name FROM users WHERE id = ?',
+    )
       .bind('user_invited')
       .first<{ status: string; first_name: string; last_name: string }>()
-    expect(user).toEqual({ status: 'active', first_name: 'Invited', last_name: 'Owner' })
+    expect(user).toEqual({
+      status: 'active',
+      first_name: 'Invited',
+      last_name: 'Owner',
+    })
 
     await expect(
       syncCurrentUser(env.DB, {

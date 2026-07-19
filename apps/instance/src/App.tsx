@@ -11,6 +11,7 @@ import { CourseDetailPage } from './routes/course-detail'
 import { EventsPage } from './routes/events'
 import { MediaPage } from './routes/media'
 import { SermonsPage } from './routes/sermons'
+import { ContributionsPage } from './routes/contributions'
 import { NotFoundPage } from './routes/not-found'
 
 export function App() {
@@ -30,6 +31,10 @@ export function App() {
         <Route path="/churches/:churchId/events" element={<EventsPage />} />
         <Route path="/churches/:churchId/sermons" element={<SermonsPage />} />
         <Route path="/churches/:churchId/media" element={<MediaPage />} />
+        <Route
+          path="/churches/:churchId/contributions"
+          element={<ContributionsPage />}
+        />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>

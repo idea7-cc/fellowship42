@@ -1,8 +1,8 @@
 # Fellowship42 instance
 
 This directory is one complete, deployable church installation. The React SPA,
-Hono API, D1 migrations, R2 binding, Durable Object, and generated Cloudflare
-binding types version and deploy together.
+Hono API, D1 migrations, R2 binding, Durable Object, per-instance outbox Queue,
+and generated Cloudflare binding types version and deploy together.
 
 ```text
 src/                       browser application
@@ -21,6 +21,8 @@ wrangler.jsonc             development deployment template
 - `instance_metadata` contains the portable installation identity and primary
   church. Cloudflare resource IDs are deployment details and are not identity.
 - Domain tables retain `church_id` constraints as defense in depth.
+- D1 is authoritative; Queue messages carry opaque outbox IDs and never church
+  business payloads.
 - The application works when management is disconnected.
 - Management code may depend only on public contracts in
   `@fellowship42/management-protocol`; it must not import private cloud code.

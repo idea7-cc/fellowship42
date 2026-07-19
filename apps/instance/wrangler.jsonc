@@ -8,7 +8,7 @@
     "binding": "ASSETS",
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/media/*"]
+    "run_worker_first": ["/api/*", "/media/*", "/webhooks/*"]
   },
   "d1_databases": [
     {
@@ -24,6 +24,26 @@
       "bucket_name": "fellowship42-media"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "OUTBOX_QUEUE",
+        "queue": "fellowship42-outbox"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "fellowship42-outbox",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "fellowship42-outbox-dlq"
+      }
+    ]
+  },
+  "triggers": {
+    "crons": ["*/1 * * * *"]
+  },
   "durable_objects": {
     "bindings": [
       {
@@ -41,7 +61,8 @@
   "vars": {
     "ENVIRONMENT": "production",
     "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "",
+    "PAYMENT_WEBHOOK_PROVIDER": ""
   },
   "observability": {
     "enabled": true,

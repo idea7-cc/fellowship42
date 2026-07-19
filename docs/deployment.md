@@ -26,11 +26,14 @@ must provide the export/redeployment exit described below.
 pnpm --filter @fellowship42/instance exec wrangler login
 pnpm --filter @fellowship42/instance exec wrangler d1 create fellowship42
 pnpm --filter @fellowship42/instance exec wrangler r2 bucket create fellowship42-media
+pnpm --filter @fellowship42/instance exec wrangler queues create fellowship42-outbox
+pnpm --filter @fellowship42/instance exec wrangler queues create fellowship42-outbox-dlq
 ```
 
 Copy the D1 UUID into `apps/instance/wrangler.jsonc`. The committed all-zero ID
-is intentionally non-deployable scaffolding. Use instance-specific resource
-names in any account that contains more than one Fellowship42 installation.
+is intentionally non-deployable scaffolding. Use instance-specific D1, R2,
+Queue, dead-letter Queue, and Worker names in any account that contains more
+than one Fellowship42 installation.
 
 Never reuse a Cloudflare account ID, Worker name, D1 UUID, R2 bucket name, or
 control-plane customer ID as the portable `instance_id`.
@@ -48,6 +51,12 @@ The application route must be protected by the same Access application whose
 audience is configured in the Worker. Public routes can move to a separate
 hostname when public church-site delivery is implemented.
 
+Published church/media routes and the exact payment-webhook path must reach the
+Worker without an Access login redirect. Prefer separate public and webhook
+hostnames or narrowly scoped path applications; do not bypass Access for the
+protected `/api` surface. The webhook path authenticates its adapter with the
+timestamped HMAC described below.
+
 Make the Access allow policy as narrow as possible for initial setup. Bootstrap
 also requires a deployment-scoped `BOOTSTRAP_OWNER_EMAIL` Worker secret whose
 value exactly matches the intended first owner's Access email. Do not put it in
@@ -55,6 +64,19 @@ value exactly matches the intended first owner's Access email. Do not put it in
 
 Management identity is separate from application login and separate from any
 Cloudflare API token. No management endpoint is currently enabled.
+
+If this instance accepts normalized payment events, set
+`PAYMENT_WEBHOOK_PROVIDER` to the provider adapter name and create a unique
+per-instance secret:
+
+```bash
+pnpm --filter @fellowship42/instance exec wrangler secret put PAYMENT_WEBHOOK_SECRET
+```
+
+Leave the provider variable empty when payment webhooks are unused. Never put
+the secret or a provider payload in Wrangler configuration, logs, or source
+control. The signed envelope is documented in
+[Contributions and durable delivery](contributions-and-delivery.md).
 
 ## 4. Verify and migrate
 
@@ -92,7 +114,8 @@ pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER
 
 Attach the instance custom domain and verify:
 
-- `/api/health` reports `fellowship42-instance` and `single-church`;
+- `/api/health` reports `fellowship42-instance`, `single-church`, and coarse
+  outbox/payment-webhook readiness;
 - `instance_metadata` has one portable identity and primary church;
 - the first owner has one active membership with the system `owner` role;
 - `instance.bootstrapped` exists in the local audit log;
@@ -100,6 +123,8 @@ Attach the instance custom domain and verify:
 - unauthenticated private routes return `401`;
 - a user without permission receives `403`;
 - authorized mutations write audit and outbox events;
+- the instance Queue consumes an outbox probe and stale claims recover on the
+  scheduled trigger;
 - R2 responses preserve metadata and stream object bodies;
 - logs include request IDs without tokens or sensitive bodies.
 

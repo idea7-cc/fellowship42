@@ -8,3 +8,8 @@ ACCESS_AUD=your-access-application-aud
 # One-time production-bootstrap selector. Use the exact email in the validated
 # Access JWT, and remove the deployed secret after bootstrap succeeds.
 BOOTSTRAP_OWNER_EMAIL=owner@example.test
+
+# Optional normalized payment webhook adapter. The provider name is normally a
+# non-secret Wrangler variable; keep the signing key only in .dev.vars/secrets.
+PAYMENT_WEBHOOK_PROVIDER=testpay
+PAYMENT_WEBHOOK_SECRET=replace-with-a-unique-random-local-secret
