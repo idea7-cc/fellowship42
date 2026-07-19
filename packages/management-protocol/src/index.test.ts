@@ -8,6 +8,10 @@ import {
   deploymentManifestSchema,
   doctorCheckIdSchema,
   doctorReportSchema,
+  exportEvidenceSchema,
+  portableConfigurationSchema,
+  portableExportManifestSchema,
+  r2ExportIndexSchema,
   releaseManifestSchema,
 } from './index'
 
@@ -179,6 +183,80 @@ describe('management protocol contracts', () => {
             ? { ...check, status: 'fail', code: 'digest-mismatch' }
             : check,
         ),
+      }).success,
+    ).toBe(false)
+  })
+
+  it('binds a portable export to identity, release, quiescence, and fixed artifacts', () => {
+    const exported = portableExportManifestSchema.parse({
+      formatVersion: 1,
+      instanceId: deploymentManifest.instance.id,
+      sourceRelease: deploymentManifest.instance.release,
+      exportedAt: '2026-07-19T21:01:00.000Z',
+      consistency: {
+        mode: 'operator-quiesced',
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+      },
+      artifacts: [
+        { kind: 'd1-sql', file: 'd1/database.sql', bytes: 42, sha256: 'a'.repeat(64) },
+        {
+          kind: 'portable-configuration',
+          file: 'config/portable.json',
+          bytes: 42,
+          sha256: 'b'.repeat(64),
+        },
+        { kind: 'r2-index', file: 'r2/index.json', bytes: 42, sha256: 'c'.repeat(64) },
+      ],
+    })
+
+    expect(exported.instanceId).toBe(deploymentManifest.instance.id)
+    expect(
+      portableExportManifestSchema.safeParse({
+        ...exported,
+        consistency: { ...exported.consistency, quiescedAt: '2026-07-19T22:00:00.000Z' },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps portable configuration and private export evidence payload-free', () => {
+    const configuration = portableConfigurationSchema.parse({
+      formatVersion: 1,
+      instanceId: deploymentManifest.instance.id,
+      settings: { paymentWebhookProvider: 'stripe' },
+    })
+    const evidence = exportEvidenceSchema.parse({
+      formatVersion: 1,
+      evidenceId: '42424242-1234-4678-9abc-123456789abc',
+      instanceId: deploymentManifest.instance.id,
+      sourceApplicationVersion: '0.7.2',
+      sourceSchemaVersion: 5,
+      sourceManagementProtocolPackageVersion: '0.4.0',
+      exportManifestSha256: 'd'.repeat(64),
+      exportedAt: '2026-07-19T21:01:00.000Z',
+      verifiedAt: '2026-07-19T21:02:00.000Z',
+      consistencyMode: 'operator-quiesced',
+      verificationStatus: 'verified',
+    })
+
+    expect(Object.keys(configuration.settings)).toEqual(['paymentWebhookProvider'])
+    expect(JSON.stringify(evidence)).not.toContain('objectKey')
+  })
+
+  it('requires unique R2 keys and content-addressed object paths', () => {
+    const object = {
+      key: 'sermons/week-1.mp3',
+      file: `r2/objects/${'e'.repeat(64)}`,
+      bytes: 10,
+      sha256: 'e'.repeat(64),
+    }
+    expect(r2ExportIndexSchema.parse({ formatVersion: 1, objects: [object] }).objects).toHaveLength(1)
+    expect(
+      r2ExportIndexSchema.safeParse({ formatVersion: 1, objects: [object, object] }).success,
+    ).toBe(false)
+    expect(
+      r2ExportIndexSchema.safeParse({
+        formatVersion: 1,
+        objects: [{ ...object, file: '../payload' }],
       }).success,
     ).toBe(false)
   })

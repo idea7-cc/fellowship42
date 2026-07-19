@@ -70,9 +70,9 @@ The repositories integrate through released artifacts, never source copying:
 - `@fellowship42/management-protocol` — independently versioned schemas/types;
 - an instance release manifest — application version, schema version, protocol
   range, export-format range, artifact checksum, and migration metadata;
-- the public `f42ctl` library/CLI — currently deterministic planning and doctor
-  evidence, growing into deploy, export, import, verification, connect, and
-  disconnect operations;
+- the public `f42ctl` library/CLI — currently deterministic planning, doctor,
+  portable export assembly, and offline verification, growing into deploy,
+  import, connect, and disconnect operations;
 - stable HTTP management endpoints implemented by the public instance.
 
 The private repository pins exact compatible versions. It should not import

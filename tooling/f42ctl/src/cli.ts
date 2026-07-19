@@ -4,10 +4,11 @@ import path from 'node:path'
 import { deploymentManifestSchema } from '@fellowship42/management-protocol'
 import { doctorFromFiles } from './doctor.js'
 import { buildDeployPlan } from './plan.js'
+import { assemblePortableExport, verifyPortableExport } from './portable-export.js'
 
 function usage(): never {
   throw new Error(
-    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>]',
+    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>]',
   )
 }
 
@@ -37,11 +38,10 @@ async function emit(value: unknown, output?: string) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2)
   if (!command) usage()
-  const allowed =
-    command === 'plan'
-      ? new Set(['--manifest', '--output'])
-      : command === 'doctor'
-        ? new Set([
+  const allowed = command === 'plan'
+    ? new Set(['--manifest', '--output'])
+    : command === 'doctor'
+      ? new Set([
             '--manifest',
             '--wrangler',
             '--migrations',
@@ -49,12 +49,47 @@ async function main() {
             '--offline',
             '--output',
           ])
-        : usage()
+      : command === 'export'
+        ? new Set([
+            '--manifest',
+            '--d1',
+            '--r2-index',
+            '--r2-root',
+            '--directory',
+            '--quiesced-at',
+            '--exported-at',
+            '--output',
+          ])
+        : command === 'verify-export'
+          ? new Set([
+              '--directory',
+              '--verified-at',
+              '--evidence-id',
+              '--output',
+            ])
+          : usage()
   const options = argumentsFor(rest, allowed)
-  const manifestPath = options.get('--manifest')
-  if (typeof manifestPath !== 'string') usage()
   const output = options.get('--output')
   if (output !== undefined && typeof output !== 'string') usage()
+
+  if (command === 'verify-export') {
+    const directory = options.get('--directory')
+    const verifiedAt = options.get('--verified-at')
+    const evidenceId = options.get('--evidence-id')
+    if (
+      typeof directory !== 'string' ||
+      (verifiedAt !== undefined && typeof verifiedAt !== 'string') ||
+      (evidenceId !== undefined && typeof evidenceId !== 'string')
+    ) usage()
+    await emit(
+      await verifyPortableExport({ directory, verifiedAt, evidenceId }),
+      output,
+    )
+    return
+  }
+
+  const manifestPath = options.get('--manifest')
+  if (typeof manifestPath !== 'string') usage()
 
   if (command === 'plan') {
     const manifest = deploymentManifestSchema.parse(
@@ -83,6 +118,35 @@ async function main() {
     })
     await emit(report, output)
     if (report.status === 'failed') process.exitCode = 2
+    return
+  }
+  if (command === 'export') {
+    const d1ExportPath = options.get('--d1')
+    const r2SourceIndexPath = options.get('--r2-index')
+    const r2SourceRoot = options.get('--r2-root')
+    const outputDirectory = options.get('--directory')
+    const quiescedAt = options.get('--quiesced-at')
+    const exportedAt = options.get('--exported-at')
+    if (
+      typeof d1ExportPath !== 'string' ||
+      typeof r2SourceIndexPath !== 'string' ||
+      typeof r2SourceRoot !== 'string' ||
+      typeof outputDirectory !== 'string' ||
+      typeof quiescedAt !== 'string' ||
+      (exportedAt !== undefined && typeof exportedAt !== 'string')
+    ) usage()
+    await emit(
+      await assemblePortableExport({
+        deploymentManifestPath: manifestPath,
+        d1ExportPath,
+        r2SourceIndexPath,
+        r2SourceRoot,
+        outputDirectory,
+        quiescedAt,
+        exportedAt,
+      }),
+      output,
+    )
     return
   }
   usage()
