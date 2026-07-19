@@ -25,7 +25,7 @@
     "build": "tsc -p tsconfig.build.json",
     "prepack": "pnpm build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run && node --input-type=module --eval \"await import('./dist/index.js')\""
   },
   "dependencies": {
     "zod": "^4.4.3"

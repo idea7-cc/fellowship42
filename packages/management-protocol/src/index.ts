@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { semanticVersionSchema } from './releases'
+import { semanticVersionSchema } from './releases.js'
 
-export * from './releases'
+export * from './releases.js'
 
 export const MANAGEMENT_PROTOCOL_VERSION = '1' as const
 export const MANAGEMENT_API_PREFIX = '/api/management/v1' as const
