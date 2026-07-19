@@ -39,8 +39,11 @@ management endpoint is declared stable.
 
 The source archive is created with `git archive`, so untracked files, ignored
 secrets, generated credentials, and a developer's local state cannot enter a
-release. The builder refuses to run from a dirty worktree. The verifier checks
-every recorded size and digest before CI can publish anything.
+release. Package and source tar streams are recompressed with a pinned pure
+JavaScript implementation so platform zlib versions cannot change asset bytes.
+The builder refuses to run from a dirty worktree. The verifier checks every
+recorded size and digest, and the release gate assembles everything twice and
+requires identical checksums before CI can publish anything.
 
 ## Publishing flow
 
