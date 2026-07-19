@@ -170,6 +170,11 @@ credential disposition, and explicit cutover approval. Provider-specific
 resource reconciliation remains a future increment. The private control plane
 must use these same public contracts and migration logic.
 
+The deterministic [hosted-to-church-owned rehearsal](migration-rehearsal.md)
+executes that full public path across isolated synthetic account boundaries and
+must reproduce a published, payload-free evidence fixture in CI. It is a
+conformance proof, not a substitute for real Cloudflare staging certification.
+
 ## Repository and dependency boundaries
 
 ```text

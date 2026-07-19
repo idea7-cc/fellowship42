@@ -83,6 +83,13 @@ published release is never rewritten to resemble a newer release. Consumers
 use it to test schema compatibility, while deployment systems still download
 and verify the actual release manifest and artifacts they intend to deploy.
 
+`migration-rehearsal.v1.json` is an immutable compatibility fixture containing
+privacy-bounded evidence from the public hosted-to-church-owned rehearsal
+against released `v0.9.0` lifecycle inputs. CI regenerates it through the real
+public export/import/cutover code. Consumers validate it with
+`migrationRehearsalEvidenceSchema` without receiving synthetic D1/R2 payloads
+or provider-specific state.
+
 The release builder validates every generated manifest with the same exported
 `releaseManifestSchema` used by external consumers. This keeps the generated
 artifact, public package, and private or third-party verifier on one contract.

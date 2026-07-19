@@ -14,6 +14,7 @@ import {
   r2ExportIndexSchema,
   cutoverApprovalSchema,
   importPlanSchema,
+  migrationRehearsalEvidenceSchema,
   releaseManifestSchema,
 } from './index'
 
@@ -113,6 +114,35 @@ describe('management protocol contracts', () => {
       '1d2ad29942a4a72c00ab982ce621f9573aba5560',
     )
     expect(manifest.artifacts).toHaveLength(2)
+  })
+
+  it('accepts the immutable hosted-to-church-owned rehearsal fixture', async () => {
+    const fixture = JSON.parse(
+      await readFile(
+        new URL(
+          '../fixtures/migration-rehearsal.v1.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    )
+    const evidence = migrationRehearsalEvidenceSchema.parse(fixture)
+
+    expect(evidence.status).toBe('verified')
+    expect(evidence.assertions).toHaveLength(10)
+    expect(JSON.stringify(evidence)).not.toContain('rehearsal.example.org')
+    expect(
+      migrationRehearsalEvidenceSchema.safeParse({
+        ...evidence,
+        assertions: [...evidence.assertions].reverse(),
+      }).success,
+    ).toBe(false)
+    expect(
+      migrationRehearsalEvidenceSchema.safeParse({
+        ...evidence,
+        cloudflareAccountId: 'forbidden-provider-id',
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects a release manifest with a malformed checksum', async () => {

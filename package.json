@@ -1,6 +1,6 @@
 {
   "name": "fellowship42",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "packageManager": "pnpm@10.32.1",
   "private": true,
   "scripts": {
@@ -13,6 +13,7 @@
     "build:site": "pnpm --filter @fellowship42/project-site build",
     "typecheck": "pnpm build:contracts && pnpm -r --if-present typecheck",
     "test": "pnpm build:contracts && pnpm -r --if-present test",
+    "test:migration-rehearsal": "pnpm build:contracts && pnpm --filter @fellowship42/f42ctl build && node scripts/rehearse-hosted-to-church-owned.mjs",
     "check:architecture": "node scripts/check-repository-boundaries.mjs",
     "cf-typegen": "pnpm --filter @fellowship42/instance cf-typegen",
     "cf-typegen:check": "pnpm --filter @fellowship42/instance cf-typegen:check",

@@ -1,0 +1,52 @@
+{
+  "formatVersion": 1,
+  "evidenceId": "62626262-1234-4678-9abc-123456789abf",
+  "scenario": "hosted-to-church-owned",
+  "operationId": "62626262-1234-4678-9abc-123456789abd",
+  "instanceId": "instance_62626262-1234-5678-9abc-123456789abc",
+  "sourceCustody": "fellowship42-hosted",
+  "destinationCustody": "church-owned",
+  "sourceRelease": {
+    "tag": "v0.9.0",
+    "applicationVersion": "0.9.0",
+    "schemaVersion": 5,
+    "managementProtocolPackageVersion": "0.5.0",
+    "managementProtocolWireVersion": "1",
+    "sourceCommit": "dc07e6aaa3b8a5f3a4ab25b7b52a6ffd6673840c",
+    "manifestUrl": "https://github.com/idea7-cc/fellowship42/releases/download/v0.9.0/release-manifest.json",
+    "manifestSha256": "ab99fc33f365584f18ed200fd3fbf13e91132e93509a3f5d2d64af30d2b73d1c"
+  },
+  "destinationRelease": {
+    "tag": "v0.9.0",
+    "applicationVersion": "0.9.0",
+    "schemaVersion": 5,
+    "managementProtocolPackageVersion": "0.5.0",
+    "managementProtocolWireVersion": "1",
+    "sourceCommit": "dc07e6aaa3b8a5f3a4ab25b7b52a6ffd6673840c",
+    "manifestUrl": "https://github.com/idea7-cc/fellowship42/releases/download/v0.9.0/release-manifest.json",
+    "manifestSha256": "ab99fc33f365584f18ed200fd3fbf13e91132e93509a3f5d2d64af30d2b73d1c"
+  },
+  "exportManifestSha256": "91d1df32d660fa853e1388a7ab7f8092f74dfa03e2670f33bded2db1fe8fa53e",
+  "destinationManifestSha256": "fbadb115a3515d0f61335ef8e0884896d8b106a495d43b9072ddc7b57a737bfa",
+  "planSha256": "79b8a30eac0d0ca395bd6c923648823aba663d8e3ef01630b752de493e6821d3",
+  "restoreReportSha256": "8d32d833b2a9576c988528d57497bd3344120bd724ae3bf2ccd1dd424234aaed",
+  "cutoverApprovalSha256": "3236847f7fcefed95250cfe338a9d8ac282cb95bca553bbead49b4deadfdcdaf",
+  "completionReportSha256": "92f31f5f93dc43d3213d00ae52740570c1c1dfc23d9b43e05c36e82470c34936",
+  "startedAt": "2026-07-19T22:00:00.000Z",
+  "restoreVerifiedAt": "2026-07-19T22:10:00.000Z",
+  "cutoverApprovedAt": "2026-07-19T22:30:00.000Z",
+  "completedAt": "2026-07-19T22:31:00.000Z",
+  "status": "verified",
+  "assertions": [
+    { "id": "export-verified", "status": "pass", "code": "export-verified-passed" },
+    { "id": "new-empty-destination", "status": "pass", "code": "new-empty-destination-passed" },
+    { "id": "d1-restored", "status": "pass", "code": "d1-restored-passed" },
+    { "id": "r2-restored", "status": "pass", "code": "r2-restored-passed" },
+    { "id": "credentials-rotated", "status": "pass", "code": "credentials-rotated-passed" },
+    { "id": "portable-identity-preserved", "status": "pass", "code": "portable-identity-preserved-passed" },
+    { "id": "runtime-healthy", "status": "pass", "code": "runtime-healthy-passed" },
+    { "id": "cutover-approved", "status": "pass", "code": "cutover-approved-passed" },
+    { "id": "independent-operation-verified", "status": "pass", "code": "independent-operation-verified-passed" },
+    { "id": "source-routing-retired", "status": "pass", "code": "source-routing-retired-passed" }
+  ]
+}

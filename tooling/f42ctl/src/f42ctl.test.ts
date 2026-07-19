@@ -9,6 +9,7 @@ import {
   deployPlanSchema,
   deploymentManifestSchema,
   doctorReportSchema,
+  migrationRehearsalEvidenceSchema,
 } from '@fellowship42/management-protocol'
 import { inspectDeployment, verifyPublishedRelease } from './doctor'
 import { buildDeployPlan } from './plan'
@@ -20,6 +21,7 @@ import {
   verifyCutoverApproval,
   type PortableImportAdapter,
 } from './portable-import'
+import { buildMigrationRehearsalEvidence } from './rehearsal'
 
 const execFileAsync = promisify(execFile)
 
@@ -432,7 +434,11 @@ describe('f42ctl portable import and cutover planning', () => {
       })
       const destination = deploymentManifestSchema.parse({
         ...manifest,
-        target: { ...manifest.target, accountAlias: 'destination-account' },
+        target: {
+          ...manifest.target,
+          environment: 'production',
+          accountAlias: 'destination-account',
+        },
         worker: { name: 'fellowship42-restored', domains: ['new.example.org'] },
         resources: {
           ...manifest.resources,
@@ -443,6 +449,11 @@ describe('f42ctl portable import and cutover planning', () => {
             name: 'fellowship42-outbox-restored',
             deadLetterName: 'fellowship42-outbox-restored-dlq',
           },
+        },
+        configuration: {
+          ...manifest.configuration,
+          accessTeamDomain: 'https://fellowship42.cloudflareaccess.com',
+          accessAudienceConfigured: true,
         },
       })
       const destinationPath = path.join(root, 'destination.json')
@@ -477,7 +488,7 @@ describe('f42ctl portable import and cutover planning', () => {
         credentialDisposition: {
           deployment: 'rotated',
           applicationSecrets: 'rotated',
-          management: 'rotated',
+          management: 'disconnected',
         },
         domains: destination.worker.domains,
         rollbackDeadline: '2026-07-20T22:30:00.000Z',
@@ -583,6 +594,55 @@ describe('f42ctl portable import and cutover planning', () => {
         'verify-independent',
         'retire-source-routing',
       ])
+      const rehearsalEvidence = buildMigrationRehearsalEvidence({
+        plan,
+        destinationManifest: destination,
+        restoreReport: restored,
+        approval,
+        completionReport: completed,
+        evidenceId: '42424242-1234-4678-9abc-123456789abd',
+        sourceCustody: 'fellowship42-hosted',
+        observations: {
+          exportVerified: true,
+          destinationWasNewAndEmpty: true,
+          d1RestoredExactly: true,
+          r2RestoredExactly: true,
+          credentialsRotated: true,
+          portableIdentityPreserved: true,
+          runtimeHealthy: true,
+          cutoverApplied: true,
+          independentOperationVerified: true,
+          sourceRoutingRetired: true,
+        },
+      })
+      expect(migrationRehearsalEvidenceSchema.parse(rehearsalEvidence)).toEqual(
+        rehearsalEvidence,
+      )
+      expect(rehearsalEvidence.assertions).toHaveLength(10)
+      expect(JSON.stringify(rehearsalEvidence)).not.toContain('new.example.org')
+      expect(() =>
+        buildMigrationRehearsalEvidence({
+          plan,
+          destinationManifest: destination,
+          restoreReport: restored,
+          approval,
+          completionReport: completed,
+          evidenceId: '42424242-1234-4678-9abc-123456789abe',
+          sourceCustody: 'fellowship42-hosted',
+          observations: {
+            exportVerified: true,
+            destinationWasNewAndEmpty: true,
+            d1RestoredExactly: false,
+            r2RestoredExactly: true,
+            credentialsRotated: true,
+            portableIdentityPreserved: true,
+            runtimeHealthy: true,
+            cutoverApplied: true,
+            independentOperationVerified: true,
+            sourceRoutingRetired: true,
+          },
+        }),
+      ).toThrow('Every hosted-to-church-owned rehearsal observation must pass')
 
       const unsafeEvents: string[] = []
       const unsafeAdapter: PortableImportAdapter = {

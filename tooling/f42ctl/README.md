@@ -48,6 +48,10 @@ formats are documented in [`docs/portable-exports.md`](../../docs/portable-expor
 Import staging, the provider-adapter boundary, credential rotation, and cutover
 approval are documented in
 [`docs/portable-import-and-cutover.md`](../../docs/portable-import-and-cutover.md).
+`buildMigrationRehearsalEvidence` verifies the complete plan, restore report,
+church-owner approval, completion report, credential disposition, and adapter
+observations. Run `pnpm test:migration-rehearsal` at repository root to execute
+the public hosted-to-church-owned compatibility fixture.
 
 The CLI is expected to add:
 

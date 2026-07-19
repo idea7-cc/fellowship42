@@ -40,6 +40,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Rehearse hosted-to-church-owned migration
+        run: pnpm test:migration-rehearsal
+
       - name: Build
         run: pnpm build
 

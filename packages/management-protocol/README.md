@@ -20,6 +20,8 @@ Current contracts establish:
   privacy-bounded verification evidence.
 - staged import plans, new-empty destination preflight, bounded execution
   reports, and exact cutover approval.
+- privacy-bounded hosted-to-church-owned rehearsal evidence and a packaged
+  compatibility fixture.
 
 The package is pre-1.0 scaffolding. No management endpoint is enabled in the
 instance yet. See `../../docs/management-protocol.md` and ADR 0003 before adding

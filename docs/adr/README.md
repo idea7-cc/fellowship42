@@ -11,6 +11,7 @@ directory names alone.
 - [0006 — Public lifecycle manifest and evidence-only planning](0006-public-lifecycle-manifest-and-evidence-only-planning.md)
 - [0007 — Collector-neutral, quiesced portable export](0007-collector-neutral-quiesced-portable-export.md)
 - [0008 — Staged import and explicit cutover](0008-staged-import-and-explicit-cutover.md)
+- [0009 — Deterministic migration rehearsal evidence](0009-deterministic-migration-rehearsal-evidence.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.
