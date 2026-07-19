@@ -9,7 +9,7 @@ another.
 
 The TypeScript, Zod, and Web Crypto contract lives in
 `packages/management-protocol`. The instance integration point is
-`apps/instance/worker/management`. Enrollment is optional and disabled until a
+`apps/instance/worker/management`. Enrollment is optional and unavailable until a
 local owner configures the wrapping secret and explicitly approves an operator.
 
 ## Protocol layers
@@ -115,10 +115,29 @@ it. Support sessions must be time-limited and separately approved.
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
 
-Release 0.12 executes only `instance.status.read`. Recognized backup, update,
+Release 0.13 executes only `instance.status.read`. Recognized backup, update,
 support, and disconnect commands receive explicit rejected results until their
 separate local workflows are implemented. Empty batches and empty results are
 valid heartbeat messages.
+
+## Public adapter conformance
+
+Protocol package `1.2.0` exports
+`runManagementAdapterConformance`, a transport-neutral executable suite for an
+instance adapter. A harness supplies only the local owner enrollment, sync,
+rotation, and disconnect operations; the suite generates ephemeral operator
+keys and proves owner-controlled enrollment, a signed granted status command,
+byte-identical command replay, local denial of an ungranted command, old-key-
+authorized instance rotation, and unconditional local disconnect.
+
+The suite returns a strict, privacy-bounded report containing release versions
+and six ordered passing scenario identifiers. It contains no key, challenge,
+instance identity, endpoint, command payload, church record, or provider
+identifier. Release `v0.13.0` publishes the executed report as
+`management-adapter-conformance.v1.json`; CI regenerates it against the real
+instance service and sync engine and requires exact equality. This is portable
+adapter evidence, not certification of a particular Cloudflare account,
+network path, or private management implementation.
 
 ## Privacy baseline
 
@@ -153,7 +172,8 @@ safely; they are never treated as generic code execution.
 Wire v1 is stable. Additive public contracts receive package minor versions;
 changes to signature bytes, required fields, capability meaning, or security
 rules require a new wire major and parallel API prefix. Package consumers must
-pin a published release artifact and verify its checksum.
+pin a published release artifact, verify its checksum, validate the packaged
+conformance report, and still test their operator independently.
 
 Protocol changes that affect trust, identity, capability semantics, export, or
 backward compatibility require an ADR and contract tests in both repositories.
