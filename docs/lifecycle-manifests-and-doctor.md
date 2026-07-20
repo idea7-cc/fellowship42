@@ -43,10 +43,11 @@ of JSON key order. The eleven current steps cover release verification,
 dedicated storage and Queue resources, Worker configuration, migrations,
 deployment, domains, Access, and runtime verification.
 
-Every current step is explicitly `destructive: false`. The plan is reviewable
-evidence only: it does not authenticate to Cloudflare or mutate resources.
-Future reconciliation must preserve preview/apply separation and require an
-explicit target account at execution time.
+Every current step is explicitly `destructive: false`. `plan` itself remains
+reviewable evidence only: it does not authenticate to Cloudflare or mutate
+resources. The callable reconciliation library described below preserves that
+preview/apply separation and requires an explicit operator-local account alias,
+provider observation, and exact approval before execution.
 
 Canonical JSON is also published from the side-effect-free
 `@fellowship42/f42ctl/canonical` subpath. Worker and browser-compatible
@@ -91,6 +92,40 @@ Cloudflare account. The current public health endpoint does not reveal it, so
 doctor reports `identity-runtime-check-required`. A future locally authorized
 endpoint or offline D1 inspection may prove it without weakening privacy.
 
+## Callable reconciliation
+
+`@fellowship42/f42ctl/reconciliation` is a Worker-safe public subpath for
+provider-neutral observation, preview, and apply. It contains no Node built-in,
+filesystem access, provider credential, or Cloudflare API implementation.
+
+A provider adapter first returns exactly eleven ordered observations. Each has
+the lifecycle step ID/kind, `absent`, `matching`, `drifted`, or `unknown` state,
+an ownership class, an optional SHA-256 fingerprint, and a bounded machine code.
+It cannot return a provider account/resource ID or arbitrary payload. Existing
+provider resources require verified portable-instance ownership; unverified,
+foreign, unknown, or contradictory observations produce a blocked preview.
+
+`buildReconciliationPreview` recomputes the canonical manifest digest and a
+separate desired-state fingerprint for every step. It emits only `none`,
+`create`, `update`, `execute`, `verify`, or `blocked` changes, preserves the
+dependency graph, and never emits a destructive change. The synthetic staging
+fixture at `tooling/f42ctl/fixtures/reconciliation.staging.json` exercises a
+clean, absent-resource preview without provider identifiers or credentials.
+
+`executeDeploymentReconciliation` accepts only a ready preview and an approval
+bound to its digest, the manifest digest, portable identity, and account alias.
+Approvals expire within one hour. Before the first effect the executor
+recomputes the plan, dependencies, allowed actions, and desired fingerprints.
+It supplies an injected adapter the validated manifest, exact plan step,
+expected actual fingerprint, stable operation ID, and derived per-step
+idempotency key. Malformed outcomes and thrown provider errors become bounded
+failure codes and stop later steps; raw responses are never copied into the
+report. Reports store only the idempotency-key digest.
+
+The adapter privately owns credentials and provider identifiers. Exact retry
+behavior depends on its durable idempotency store. See
+[ADR 0012](adr/0012-provider-neutral-reconciliation-and-scoped-adapters.md).
+
 ## Private consumer boundary
 
 Fellowship42 Cloud may ingest a validated plan or doctor report as external
@@ -100,6 +135,7 @@ and keep provider identifiers and operational credentials in private adapter
 state. It must not read the instance D1 database directly or reinterpret an
 `attention` report as healthy.
 
-Active resource reconciliation, export, import, cutover, enrollment, and
-management commands are later lifecycle increments and must not be inferred
-from these evidence-only commands.
+The public reconciliation library now owns deploy preview/apply semantics, but
+it does not itself provide Cloudflare transport or certify a live account.
+Export collection, live cutover, enrollment, and management commands retain
+their separate approval and trust paths.

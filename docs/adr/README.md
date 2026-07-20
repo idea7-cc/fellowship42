@@ -13,6 +13,8 @@ directory names alone.
 - [0008 — Staged import and explicit cutover](0008-staged-import-and-explicit-cutover.md)
 - [0009 — Deterministic migration rehearsal evidence](0009-deterministic-migration-rehearsal-evidence.md)
 - [0010 — Management protocol v1 security profile](0010-management-protocol-v1-security-profile.md)
+- [0011 — Instance-initiated management adapter](0011-instance-initiated-management-adapter.md)
+- [0012 — Provider-neutral reconciliation with scoped adapters](0012-provider-neutral-reconciliation-and-scoped-adapters.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

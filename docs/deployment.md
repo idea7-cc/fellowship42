@@ -5,10 +5,11 @@ dedicated resources for each church. Do not bind multiple hosted customers to a
 shared D1 database or R2 namespace.
 
 The committed configuration is a direct Wrangler template. The public `f42ctl`
-manifest, planner, and doctor describe and inspect this same shape; active
-resource reconciliation is not implemented yet. The private Fellowship42
-Cloud orchestrator must consume the public contract rather than inventing a
-second deployment shape.
+manifest, planner, doctor, and callable reconciliation library describe,
+inspect, diff, and apply this same shape through an injected provider adapter.
+This manual runbook remains the supported CLI path until an operator-facing
+adapter command is shipped. The private Fellowship42 Cloud orchestrator must
+consume the public contract rather than inventing a second deployment shape.
 
 Before touching a Cloudflare account, copy and edit the non-secret example,
 then review the deterministic plan:
@@ -21,6 +22,13 @@ pnpm f42ctl plan --manifest deployment-manifest.json
 The manifest pins a tagged release manifest by URL, SHA-256, and source commit.
 It uses a human account alias rather than a Cloudflare account ID and contains
 no credentials. See [Lifecycle manifests and doctor](lifecycle-manifests-and-doctor.md).
+
+Automation must first obtain a strict provider observation, review the
+non-destructive reconciliation preview, and approve its exact digest. An
+adapter may hold a narrowly scoped credential, but that credential and all
+provider IDs stay outside the portable manifest, preview, and report. Existing
+resources require independently verified portable-instance ownership; a name
+match alone must block rather than adopt.
 
 ## 1. Choose custody
 

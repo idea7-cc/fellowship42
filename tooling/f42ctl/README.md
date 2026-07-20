@@ -2,9 +2,10 @@
 
 `f42ctl` is the public, Apache-2.0 lifecycle tool for portable Fellowship42
 instances. It validates desired-state manifests, produces deterministic
-non-destructive deployment plans, verifies immutable releases, inspects local
-Wrangler/migration shape plus optional runtime health, and assembles and
-verifies portable exports.
+non-destructive deployment plans and reconciliation previews, executes approved
+plans through an injected provider adapter, verifies immutable releases,
+inspects local Wrangler/migration shape plus optional runtime health, and
+assembles and verifies portable exports.
 
 ```bash
 pnpm f42ctl plan \
@@ -39,9 +40,14 @@ Add `--runtime https://instance.example.org` to include `/api/health`. Both
 commands write versioned JSON to stdout. `--output <new-file>` uses exclusive
 creation and will not overwrite an existing file.
 
-The deployment plan is evidence, not execution. It contains no credential,
-provider account ID, or destructive step. Resource creation/reconciliation is
-the next lifecycle increment.
+The `plan` CLI is evidence, not execution. It contains no credential, provider
+account ID, or destructive step. The callable, Worker-safe
+`@fellowship42/f42ctl/reconciliation` subpath adds strict provider observations,
+desired-state diff, one-hour digest-bound approval, and idempotent sequential
+execution through an injected adapter. The adapter privately owns scoped
+credentials and provider IDs; neither enters public evidence. See
+[`docs/lifecycle-manifests-and-doctor.md`](../../docs/lifecycle-manifests-and-doctor.md)
+and the payload-safe staging fixture in `fixtures/reconciliation.staging.json`.
 
 Portable export collection, bundle sensitivity, and the strict input/output
 formats are documented in [`docs/portable-exports.md`](../../docs/portable-exports.md).
@@ -55,7 +61,8 @@ the public hosted-to-church-owned compatibility fixture.
 
 The CLI is expected to add:
 
-- `f42ctl deploy` — reconcile one instance in a target Cloudflare account;
+- `f42ctl deploy` — wrap the callable reconciliation library with an
+  operator-selected provider adapter;
 - `f42ctl connect` — explicitly enroll with compatible management software;
 - `f42ctl disconnect` — revoke management locally;
 

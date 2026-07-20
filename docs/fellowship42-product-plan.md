@@ -120,7 +120,8 @@ tables speculatively.
 ### Portability milestone
 
 - versioned export manifests;
-- active `f42ctl` deploy reconciliation plus export, import, and verify-export;
+- provider-neutral `f42ctl` reconciliation plus export, import, and
+  verify-export, with provider adapters kept separately scoped;
 - D1 and R2 integrity verification;
 - credential rotation and domain cutover runbooks;
 - a tested hosted-to-church-owned migration exercise;

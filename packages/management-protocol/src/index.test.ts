@@ -160,7 +160,7 @@ describe('management protocol contracts', () => {
     )
     const report = managementAdapterConformanceReportSchema.parse(fixture)
 
-    expect(report.instance.applicationVersion).toBe('0.14.0')
+    expect(report.instance.applicationVersion).toBe('0.15.0')
     expect(report.scenarios).toHaveLength(6)
     expect(
       managementAdapterConformanceReportSchema.safeParse({

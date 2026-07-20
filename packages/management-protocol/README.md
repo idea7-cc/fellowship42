@@ -26,15 +26,18 @@ Current contracts establish:
 - staged import plans, new-empty destination preflight, bounded execution
   reports, and exact cutover approval; and
 - privacy-bounded hosted-to-church-owned rehearsal evidence and a packaged
-  compatibility fixture.
+  compatibility fixture; and
+- provider-neutral reconciliation observations, non-destructive previews,
+  digest-bound approvals, adapter outcomes, and bounded reports.
 
 Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
 1.1 added empty heartbeat results and duplicate-capability rejection. Package
 1.2 adds the transport-neutral adapter conformance runner and report schema
-without changing the wire major. The instance adapter is implemented as local-
-owner enrollment plus outbound-only operator sync. See
-`../../docs/management-protocol.md`, ADR 0010, and ADR 0011 before changing the
-trust boundary.
+without changing the wire major. Package 1.3 adds deployment reconciliation
+evidence without changing management wire v1. The instance adapter is
+implemented as local-owner enrollment plus outbound-only operator sync. See
+`../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before
+changing the trust or provider boundary.
 
 The package is built before it is consumed. Published exports point only at
 compiled ESM and generated declarations in `dist`; consumers do not need the
