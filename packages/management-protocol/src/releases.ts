@@ -61,6 +61,7 @@ export const releaseArtifactKindSchema = z.enum([
   'portable-instance-source',
   'management-protocol-package',
   'lifecycle-cli-package',
+  'operator-reference-catalog',
 ])
 
 const requiredReleaseArtifactKinds = [

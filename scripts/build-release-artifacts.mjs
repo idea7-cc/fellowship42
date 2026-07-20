@@ -151,10 +151,69 @@ const protocolModule = await import(
   `${pathToFileURL(path.join(root, 'packages', 'management-protocol', 'dist', 'index.js')).href}?commit=${commit}`
 )
 
+const operatorReferenceDefinitions =
+  protocolModule.operatorReferenceDefinitionsSchema.parse(
+    await readJson('docs/operator-reference-definitions.json'),
+  )
+for (const reference of operatorReferenceDefinitions.references) {
+  await stat(path.join(root, reference.sourcePath))
+}
+const releaseTag = `v${rootPackage.version}`
+const repository = 'https://github.com/idea7-cc/fellowship42'
+const operatorReferenceCatalog =
+  protocolModule.operatorReferenceCatalogSchema.parse({
+    formatVersion: 1,
+    applicationVersion: rootPackage.version,
+    releaseTag,
+    source: { repository, commit },
+    references: [
+      {
+        id: 'release-manifest',
+        kind: 'release',
+        title: 'Verify the immutable Fellowship42 release manifest',
+        summary:
+          'Download the manifest that binds this release to its exact source, protocol, lifecycle tooling, artifacts, and checksums.',
+        audiences: [
+          'church-owner',
+          'self-hosting-operator',
+          'partner-operator',
+          'service-operator',
+        ],
+        immutableUrl: `${repository}/releases/download/${releaseTag}/release-manifest.json`,
+        sourcePath: null,
+      },
+      {
+        id: 'release-page',
+        kind: 'release',
+        title: 'Review the Fellowship42 release',
+        summary:
+          'Review the immutable tag, release notes, and checksummed downloadable assets for this release.',
+        audiences: [
+          'church-owner',
+          'self-hosting-operator',
+          'partner-operator',
+          'service-operator',
+        ],
+        immutableUrl: `${repository}/releases/tag/${releaseTag}`,
+        sourcePath: null,
+      },
+      ...operatorReferenceDefinitions.references.map((reference) => ({
+        ...reference,
+        immutableUrl: `${repository}/blob/${commit}/${reference.sourcePath}`,
+      })),
+    ],
+  })
+const operatorReferenceCatalogName = 'operator-references.json'
+await writeFile(
+  path.join(outputDirectory, operatorReferenceCatalogName),
+  `${JSON.stringify(operatorReferenceCatalog, null, 2)}\n`,
+)
+
 const artifactDefinitions = [
   { file: sourceArchiveName, kind: 'portable-instance-source' },
   { file: packedProtocolFiles[0], kind: 'management-protocol-package' },
   { file: packedLifecycleCliFiles[0], kind: 'lifecycle-cli-package' },
+  { file: operatorReferenceCatalogName, kind: 'operator-reference-catalog' },
 ]
 
 const artifacts = await Promise.all(
@@ -183,7 +242,7 @@ const manifest = protocolModule.releaseManifestSchema.parse({
     wireVersion: protocolModule.MANAGEMENT_PROTOCOL_VERSION,
   },
   source: {
-    repository: 'https://github.com/idea7-cc/fellowship42',
+    repository,
     commit,
     committedAt: commitTimestamp,
   },

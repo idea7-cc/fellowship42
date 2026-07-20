@@ -21,6 +21,7 @@ directory names alone.
 - [0016 — Published exact-source upgrade metadata](0016-published-exact-source-upgrade-metadata.md)
 - [0017 — Instance-owned update preparation and authorization](0017-instance-owned-update-authorization.md)
 - [0018 — Instance-owned support-session approval](0018-instance-owned-support-session-approval.md)
+- [0019 — Checksummed operator-reference catalog](0019-checksummed-operator-reference-catalog.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.
