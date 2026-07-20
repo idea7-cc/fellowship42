@@ -19,6 +19,8 @@ import type {
   ManagementCapability,
   ManagementExitDispositionResponse,
   ManagementStatusResponse,
+  UpdatePreparation,
+  UpdatePreparationsResponse,
 } from '@/lib/api-types'
 import { useAuthState } from '@/lib/auth-provider'
 
@@ -86,6 +88,9 @@ export function ManagementPage() {
   const status = useApiQuery<ManagementStatusResponse>(
     canAdmin ? '/api/management' : null,
   )
+  const updates = useApiQuery<UpdatePreparationsResponse>(
+    canAdmin ? '/api/management/updates' : null,
+  )
   const pending = status.data?.pendingEnrollment
   const [challenge, setChallenge] = useState<EnrollmentChallenge | null>(null)
   const [selected, setSelected] = useState<ManagementCapability[]>([])
@@ -95,6 +100,10 @@ export function ManagementPage() {
   const [rotationConfirmation, setRotationConfirmation] = useState('')
   const [disconnectConfirmation, setDisconnectConfirmation] = useState('')
   const [disconnectReason, setDisconnectReason] = useState('')
+  const [updateConfirmation, setUpdateConfirmation] = useState('')
+
+  const currentUpdate: UpdatePreparation | undefined =
+    updates.data?.preparations[0]
 
   useEffect(() => {
     setSelected([])
@@ -223,6 +232,34 @@ export function ManagementPage() {
       link.click()
       URL.revokeObjectURL(url)
       setNotice('Local management revocation evidence was downloaded.')
+    })
+  }
+
+  async function approvePreparedUpdate() {
+    if (
+      !currentUpdate ||
+      currentUpdate.state !== 'awaiting-local-approval' ||
+      updateConfirmation !== `APPROVE ${currentUpdate.target.releaseTag}`
+    ) {
+      return
+    }
+    await action('approve-update', async () => {
+      await apiRequest(
+        `/api/management/updates/${currentUpdate.preparationId}/approve`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            releaseTag: currentUpdate.target.releaseTag,
+            releaseManifestSha256:
+              currentUpdate.target.releaseManifestSha256,
+          }),
+        },
+      )
+      setUpdateConfirmation('')
+      setNotice(
+        'The exact release is approved for 30 minutes. The operator may now request deployment authorization.',
+      )
+      await updates.refetch()
     })
   }
 
@@ -470,6 +507,86 @@ export function ManagementPage() {
 
             {status.data.connection ? (
               <>
+                {currentUpdate ? (
+                  <Card>
+                    <CardHeader>
+                      <Badge
+                        variant={
+                          currentUpdate.state === 'awaiting-local-approval'
+                            ? 'outline'
+                            : 'pill'
+                        }
+                      >
+                        {currentUpdate.state.replaceAll('-', ' ')}
+                      </Badge>
+                      <CardTitle>Prepared instance update</CardTitle>
+                      <CardDescription>
+                        The instance verified this immutable release and its
+                        exact-source expand-contract policy. Approval authorizes
+                        only this tag and digest; deployment credentials remain
+                        with the infrastructure operator.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="mt-4">
+                      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt className="text-muted-foreground">Upgrade</dt>
+                          <dd className="font-mono">
+                            {currentUpdate.source.releaseTag} →{' '}
+                            {currentUpdate.target.releaseTag}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Approval window</dt>
+                          <dd>{displayTime(currentUpdate.expiresAt)}</dd>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <dt className="text-muted-foreground">Target manifest SHA-256</dt>
+                          <dd className="break-all font-mono text-xs">
+                            {currentUpdate.target.releaseManifestSha256}
+                          </dd>
+                        </div>
+                      </dl>
+                      {currentUpdate.state === 'awaiting-local-approval' ? (
+                        <>
+                          <label className="grid gap-1 text-sm font-semibold">
+                            Type APPROVE {currentUpdate.target.releaseTag} to confirm
+                            <Input
+                              value={updateConfirmation}
+                              onChange={(event) =>
+                                setUpdateConfirmation(event.target.value)
+                              }
+                              autoComplete="off"
+                            />
+                          </label>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void approvePreparedUpdate()}
+                            disabled={
+                              busy !== null ||
+                              updateConfirmation !==
+                                `APPROVE ${currentUpdate.target.releaseTag}`
+                            }
+                          >
+                            {busy === 'approve-update'
+                              ? 'Approving…'
+                              : 'Approve exact release'}
+                          </Button>
+                        </>
+                      ) : currentUpdate.localApproval ? (
+                        <p className="text-sm text-muted-foreground">
+                          Local approval expires{' '}
+                          {displayTime(currentUpdate.localApproval.expiresAt)}.
+                          {currentUpdate.localApproval.consumedAt
+                            ? ' It has been consumed by a signed deployment authorization.'
+                            : ''}
+                        </p>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 <Card>
                   <CardHeader>
                     <Badge variant="pill">Active operator</Badge>

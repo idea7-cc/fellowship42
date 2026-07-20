@@ -116,13 +116,18 @@ it. Support sessions must be time-limited and separately approved.
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
 
-Release 0.19 executes `instance.status.read` and `instance.health.read`.
+Release 0.21 executes `instance.status.read`, `instance.health.read`,
+`update.prepare`, and `update.apply`.
 The newer health capability returns the strict public observation described in
 [Privacy-bounded instance health](fleet-health.md); it is separate so older
-strict status clients remain compatible. Recognized backup, update, support,
-and disconnect commands receive explicit rejected results until their separate
-local workflows are implemented. Empty batches and empty results are valid
-heartbeat messages.
+strict status clients remain compatible. Update preparation verifies an exact
+immutable public manifest and records local readiness. Update apply consumes a
+fresh, exact church-owner approval and returns signed deployment authorization;
+the instance never receives infrastructure credentials or performs the deploy.
+Recognized backup, support, and disconnect commands receive explicit rejected
+results until their separate local workflows are implemented. Empty batches
+and empty results are valid heartbeat messages. See
+[Durable instance upgrades](durable-upgrades.md).
 
 ## Church-owner console
 
@@ -230,6 +235,13 @@ schema version, and management wire version. Operators may narrow that public
 allowlist through channels and rings but cannot widen it. See
 [Releases and immutable artifacts](releases.md) and
 [ADR 0016](adr/0016-published-exact-source-upgrade-metadata.md).
+
+Protocol package `1.9.0` adds strict preparation and apply-authorization
+evidence without changing wire major 1. The instance binds a one-use local
+approval to an exact target and returns signed permission for an external,
+separately credentialed reconciler. See
+[Durable instance upgrades](durable-upgrades.md) and
+[ADR 0017](adr/0017-instance-owned-update-authorization.md).
 
 ## Privacy baseline
 

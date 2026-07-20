@@ -244,6 +244,7 @@ export type DeployPlan = z.output<typeof deployPlanSchema>
 export const doctorCheckIdSchema = z.enum([
   'release-manifest',
   'portable-identity',
+  'release-coordinate',
   'worker-name',
   'd1-binding',
   'schema-version',

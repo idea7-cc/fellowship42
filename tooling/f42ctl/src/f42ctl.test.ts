@@ -60,6 +60,8 @@ const wrangler = {
     ACCESS_AUD: '',
     F42_PORTABLE_INSTANCE_ID:
       'instance_42424242-1234-5678-9abc-123456789abc',
+    F42_RELEASE_TAG: manifest.instance.release.tag,
+    F42_RELEASE_MANIFEST_SHA256: manifest.instance.release.manifestSha256,
   },
 }
 

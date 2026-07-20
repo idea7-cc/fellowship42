@@ -21,6 +21,8 @@ export type ManagementBindings = Env & {
   MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS?: string
   F42_INFRASTRUCTURE_OWNER?: 'fellowship42' | 'church'
   F42_INSTANCE_OPERATOR?: 'fellowship42' | 'church' | 'partner'
+  F42_RELEASE_TAG?: string
+  F42_RELEASE_MANIFEST_SHA256?: string
 }
 
 type Installation = {

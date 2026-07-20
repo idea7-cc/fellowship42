@@ -1,6 +1,6 @@
 {
   "name": "@fellowship42/f42ctl",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Public lifecycle, portable export, and diagnostic CLI for Fellowship42 instances",
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +27,10 @@
     "./reconciliation": {
       "types": "./dist/reconciliation.d.ts",
       "import": "./dist/reconciliation.js"
+    },
+    "./updates": {
+      "types": "./dist/updates.d.ts",
+      "import": "./dist/updates.js"
     },
     "./fixtures/*": {
       "default": "./fixtures/*"
