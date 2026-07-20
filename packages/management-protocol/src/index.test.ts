@@ -28,6 +28,7 @@ import {
   updateApplyAuthorizationSchema,
   updatePreparationSchema,
   partnerCompatibilityProfileSchema,
+  partnerCompatibilityProfile,
 } from './index'
 
 const deploymentManifest = {
@@ -81,6 +82,7 @@ describe('management protocol contracts', () => {
       ),
     )
     expect(partnerCompatibilityProfileSchema.parse(profile)).toEqual(profile)
+    expect(profile).toEqual(partnerCompatibilityProfile)
     expect(partnerCompatibilityProfileSchema.safeParse({
       ...profile,
       inputs: [...profile.inputs].reverse(),
