@@ -17,6 +17,7 @@ import {
   approveUpdatePreparation,
   listUpdatePreparations,
 } from '../management/updates'
+import { decideSupportSession } from '../management/support'
 
 type AppEnv = {
   Bindings: ManagementBindings
@@ -43,6 +44,22 @@ const updateApprovalSchema = z
     releaseManifestSha256: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict()
+
+const supportDecisionSchema = z
+  .object({
+    action: z.enum(['approve', 'reject', 'revoke']),
+    reason: z.string().trim().min(1).max(240).optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.action !== 'approve' && !value.reason) {
+      context.addIssue({
+        code: 'custom',
+        message: 'A reason is required when rejecting or revoking support access',
+        path: ['reason'],
+      })
+    }
+  })
 
 async function jsonBody(c: Context<AppEnv>): Promise<unknown> {
   try {
@@ -96,6 +113,23 @@ managementRoutes.post('/updates/:preparationId/approve', async (c) => {
       c.get('requestId'),
     ),
   )
+})
+
+managementRoutes.post('/support-sessions/:requestId/decision', async (c) => {
+  const owner = await requireManagementOwner(c)
+  const installed = await installation(c.env.DB)
+  const input = parse(supportDecisionSchema, await jsonBody(c))
+  return c.json({
+    session: await decideSupportSession(
+      c.env.DB,
+      c.req.param('requestId'),
+      input.action,
+      owner.id,
+      installed.churchId,
+      c.get('requestId'),
+      input.reason ?? null,
+    ),
+  })
 })
 
 managementRoutes.post('/challenges', async (c) => {

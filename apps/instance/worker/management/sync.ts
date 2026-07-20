@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { AppError } from '../lib/errors'
 import { APPLICATION_VERSION, SCHEMA_VERSION } from '../lib/release'
 import { inspectInstanceRuntimeHealth } from '../lib/runtime-health'
+import { requestSupportSession } from './support'
 import {
   activeConnection,
   installation,
@@ -475,6 +476,7 @@ async function evaluateCommand(
   requestId: string,
   now: number,
   releaseTransport: ReleaseFetchTransport,
+  operator: { id: string; displayName: string },
 ): Promise<ManagementCommandResult> {
   const completedAt = new Date(now).toISOString()
   if (command.instanceId !== instanceId) {
@@ -514,7 +516,11 @@ async function evaluateCommand(
       error: { code: 'capability_not_granted', message: 'The requested capability is not granted' },
     })
   }
-  if (grant.requiresLocalApproval && command.type !== 'update.apply') {
+  if (
+    grant.requiresLocalApproval &&
+    command.type !== 'update.apply' &&
+    command.type !== 'support.session.request'
+  ) {
     return managementCommandResultSchema.parse({
       protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
       commandId: command.commandId,
@@ -600,6 +606,36 @@ async function evaluateCommand(
         },
       })
     }
+    if (command.type === 'support.session.request') {
+      if (!grant.requiresLocalApproval) {
+        throw new AppError(
+          409,
+          'support_session_grant_invalid',
+          'support.session.request must require a fresh local approval',
+        )
+      }
+      return managementCommandResultSchema.parse({
+        protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+        commandId: command.commandId,
+        instanceId,
+        commandType: command.capability,
+        status: 'succeeded',
+        completedAt,
+        output: await requestSupportSession(
+          env.DB,
+          {
+            connectionId,
+            instanceId,
+            operatorId: operator.id,
+            operatorDisplayName: operator.displayName,
+          },
+          command,
+          churchId,
+          requestId,
+          now,
+        ),
+      })
+    }
   } catch (error) {
     if (error instanceof AppError) {
       return managementCommandResultSchema.parse({
@@ -662,6 +698,10 @@ async function executeCommand(
     requestId,
     now,
     releaseTransport,
+    {
+      id: connection.operatorId,
+      displayName: connection.operatorDisplayName,
+    },
   )
   try {
     await env.DB.batch([
