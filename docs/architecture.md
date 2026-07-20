@@ -258,7 +258,9 @@ Implemented now:
   a church-owner console for inspecting and revoking the relationship.
 - exact immutable update preparation, expiring local-owner approval, and
   signed deployment authorization with no infrastructure credential in the
-  instance.
+  instance;
+- a strict payload-free compatible-operator test profile whose public evidence
+  remains distinct from private live-provider and partner certification.
 
 Planned, not implied by the scaffolding:
 

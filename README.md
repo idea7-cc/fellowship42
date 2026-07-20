@@ -131,6 +131,7 @@ Completed hosted transfers produce a public
 - [Releases and immutable artifacts](docs/releases.md)
 - [Durable instance upgrades](docs/durable-upgrades.md)
 - [Instance recovery guide](docs/operator-recovery.md)
+- [Compatible operator test inputs](docs/partner-compatibility.md)
 - [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
 - [Portable exports](docs/portable-exports.md)
 - [Portable import and cutover](docs/portable-import-and-cutover.md)

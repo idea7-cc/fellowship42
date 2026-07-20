@@ -30,3 +30,10 @@ integrity and tamper rejection, new/empty destination enforcement, D1/R2
 restore, credential rotation, portable identity and runtime verification,
 cutover isolation, and fail-closed partial restore for the exact release tuple.
 It is not evidence that a particular provider account has passed a live drill.
+
+`partner-compatibility-profile.v1.json` is the ordered, public input profile
+for compatible operators and future partner certification. It points to the
+release, doctor, adapter, restore, and migration evidence that any operator can
+produce without church payloads or provider credentials. Passing these public
+inputs demonstrates software compatibility; it does not certify a live account
+or confer the Fellowship42 certified-partner designation.

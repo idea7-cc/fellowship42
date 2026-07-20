@@ -38,6 +38,8 @@ Current contracts establish:
 - an executable, payload-free isolated-restore conformance profile covering
   tamper rejection, new/empty destinations, D1/R2 restore, credential rotation,
   identity/runtime checks, cutover isolation, and partial failure; and
+- an ordered, payload-free compatible-operator input profile that keeps public
+  software compatibility distinct from private partner certification; and
 - strict local management-disposition, hosted-exit handoff, exit-packet, and
   packet-verification evidence contracts.
 
@@ -52,7 +54,8 @@ v1. Package 1.6 adds independently verifiable hosted-exit evidence, and package
 changing management wire v1. Package 1.8 adds exact-source release upgrade
 metadata and eligibility assessment without changing management wire v1.
 Package 1.9 adds update preparation and deployment-authorization evidence
-without changing management wire v1. The
+without changing management wire v1. Package 1.10 adds compatible-operator
+test inputs without changing management wire v1. The
 instance adapter is
 implemented as local-owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before

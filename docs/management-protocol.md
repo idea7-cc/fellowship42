@@ -243,6 +243,16 @@ separately credentialed reconciler. See
 [Durable instance upgrades](durable-upgrades.md) and
 [ADR 0017](adr/0017-instance-owned-update-authorization.md).
 
+## Compatible operator inputs
+
+Protocol package `1.10.0` adds the strict
+`partnerCompatibilityProfileSchema` and its ordered public fixture without
+changing wire major 1. The profile names the release, doctor, adapter, restore,
+and migration evidence used to assess compatible software while requiring
+credential-free, payload-free inputs. It deliberately does not certify a live
+provider account or confer a partner designation. See
+[Compatible operator test inputs](partner-compatibility.md).
+
 ## Privacy baseline
 
 Routine control-plane status may include:
