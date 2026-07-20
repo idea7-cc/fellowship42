@@ -22,7 +22,7 @@ INSERT OR IGNORE INTO church_profiles (
 INSERT OR IGNORE INTO instance_metadata (
   singleton, instance_id, topology, primary_church_id, created_at, updated_at
 ) VALUES (
-  1, 'instance_demo', 'single-church', 'church_demo',
+  1, 'instance_42424242-1234-5678-9abc-123456789abc', 'single-church', 'church_demo',
   unixepoch() * 1000, unixepoch() * 1000
 );
 

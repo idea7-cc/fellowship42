@@ -18,6 +18,11 @@ describe('Fellowship42 edge API', () => {
       storage: 'd1',
       outbox: 'clear',
       paymentWebhooks: 'ready',
+      bootstrap: {
+        state: 'configured',
+        portableIdentitySha256:
+          'b1d2ba57c210a83b249479d7a83a0c61c74e310f4e2c7f2f52d6930cc8cf726b',
+      },
     })
   })
 
@@ -35,7 +40,7 @@ describe('Fellowship42 edge API', () => {
     }>()
 
     expect(instance).toEqual({
-      instance_id: 'instance_demo',
+      instance_id: 'instance_42424242-1234-5678-9abc-123456789abc',
       topology: 'single-church',
       primary_church_id: 'church_demo',
     })

@@ -85,7 +85,8 @@ Remote deployment still needs:
 2. a dedicated R2 bucket;
 3. an instance domain;
 4. a Cloudflare Access application, policies, team domain, and audience; and
-5. the intended first owner's deployment-scoped bootstrap email secret.
+5. the manifest's exact `F42_PORTABLE_INSTANCE_ID`; and
+6. the intended first owner's deployment-scoped bootstrap email secret.
 
 See `docs/deployment.md` for the direct Wrangler rollout shape.
 

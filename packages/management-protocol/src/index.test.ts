@@ -17,6 +17,7 @@ import {
   migrationRehearsalEvidenceSchema,
   managementAdapterConformanceReportSchema,
   releaseManifestSchema,
+  instanceRuntimeHealthSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -59,6 +60,34 @@ const deploymentManifest = {
 } as const
 
 describe('management protocol contracts', () => {
+  it('accepts privacy-bounded pre-owner runtime evidence', () => {
+    const health = instanceRuntimeHealthSchema.parse({
+      status: 'ok',
+      service: 'fellowship42-instance',
+      topology: 'single-church',
+      storage: 'd1',
+      outbox: 'clear',
+      paymentWebhooks: 'unconfigured',
+      bootstrap: {
+        state: 'awaiting-owner',
+        portableIdentitySha256: 'a'.repeat(64),
+      },
+    })
+
+    expect(health.bootstrap.state).toBe('awaiting-owner')
+    expect(JSON.stringify(health)).not.toContain('email')
+    expect(
+      instanceRuntimeHealthSchema.safeParse({
+        ...health,
+        status: 'ok',
+        bootstrap: {
+          state: 'identity-mismatch',
+          portableIdentitySha256: 'a'.repeat(64),
+        },
+      }).success,
+    ).toBe(false)
+  })
+
   it('describes a church-owned instance operated by a partner', () => {
     const result = instanceDescriptorSchema.parse({
       protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
@@ -160,7 +189,7 @@ describe('management protocol contracts', () => {
     )
     const report = managementAdapterConformanceReportSchema.parse(fixture)
 
-    expect(report.instance.applicationVersion).toBe('0.15.0')
+    expect(report.instance.applicationVersion).toBe('0.16.0')
     expect(report.scenarios).toHaveLength(6)
     expect(
       managementAdapterConformanceReportSchema.safeParse({

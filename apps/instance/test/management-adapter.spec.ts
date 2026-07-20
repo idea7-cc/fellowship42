@@ -213,9 +213,9 @@ describe('optional management adapter', () => {
         },
       },
       {
-        applicationVersion: '0.15.0',
+        applicationVersion: '0.16.0',
         schemaVersion: 6,
-        managementProtocolPackageVersion: '1.3.0',
+        managementProtocolPackageVersion: '1.4.0',
         managementProtocolWireVersion: '1',
       },
       now,

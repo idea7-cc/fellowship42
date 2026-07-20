@@ -33,6 +33,8 @@ export default defineConfig({
             PAYMENT_WEBHOOK_SECRET: 'test-webhook-secret-at-least-32-bytes',
             MANAGEMENT_KEY_ENCRYPTION_KEY:
               'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            F42_PORTABLE_INSTANCE_ID:
+              'instance_42424242-1234-5678-9abc-123456789abc',
             F42_INFRASTRUCTURE_OWNER: 'church',
             F42_INSTANCE_OPERATOR: 'church',
           },

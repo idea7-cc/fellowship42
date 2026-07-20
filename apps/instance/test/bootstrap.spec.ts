@@ -1,7 +1,11 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { Hono } from 'hono'
-import { bootstrapInstance, isBootstrapOwner } from '../worker/routes/bootstrap'
+import {
+  bootstrapInstance,
+  inspectBootstrapReadiness,
+  isBootstrapOwner,
+} from '../worker/routes/bootstrap'
 import type { AccessIdentity } from '../worker/lib/auth'
 import { churchRoutes } from '../worker/routes/churches'
 
@@ -12,6 +16,8 @@ const ownerIdentity: AccessIdentity = {
   firstName: 'First',
   lastName: 'Owner',
 }
+const portableInstanceId =
+  'instance_42424242-1234-5678-9abc-123456789abc'
 
 beforeEach(async () => {
   await env.DB.batch([
@@ -30,11 +36,35 @@ describe('production instance bootstrap', () => {
     expect(isBootstrapOwner(ownerIdentity, undefined)).toBe(false)
   })
 
+  it('reports privacy-bounded pre-owner readiness without production seed data', async () => {
+    await expect(
+      inspectBootstrapReadiness(env.DB, portableInstanceId, undefined),
+    ).resolves.toEqual({
+      state: 'awaiting-owner-configuration',
+      portableIdentitySha256:
+        'b1d2ba57c210a83b249479d7a83a0c61c74e310f4e2c7f2f52d6930cc8cf726b',
+    })
+    await expect(
+      inspectBootstrapReadiness(
+        env.DB,
+        portableInstanceId,
+        'owner@example.test',
+      ),
+    ).resolves.toMatchObject({ state: 'awaiting-owner' })
+    await expect(
+      inspectBootstrapReadiness(env.DB, undefined, 'owner@example.test'),
+    ).resolves.toEqual({
+      state: 'configuration-invalid',
+      portableIdentitySha256: null,
+    })
+  })
+
   it('atomically creates the portable instance, church, first owner, roles, and audit event', async () => {
     const result = await bootstrapInstance(
       env.DB,
       ownerIdentity,
       'owner@example.test',
+      portableInstanceId,
       {
         name: 'Grace Community Church',
         slug: 'grace-community',
@@ -46,8 +76,11 @@ describe('production instance bootstrap', () => {
     )
 
     expect(result.state).toBe('configured')
-    expect(result.instance.id).toMatch(/^instance_[0-9a-f-]{36}$/)
+    expect(result.instance.id).toBe(portableInstanceId)
     expect(result.instance.churchId).toMatch(/^church_[0-9a-f-]{36}$/)
+    await expect(
+      inspectBootstrapReadiness(env.DB, portableInstanceId, undefined),
+    ).resolves.toMatchObject({ state: 'configured' })
 
     const installation = await env.DB
       .prepare(`
@@ -161,6 +194,7 @@ describe('production instance bootstrap', () => {
         env.DB,
         { ...ownerIdentity, subject: 'second-owner', email: 'second@example.test' },
         'second@example.test',
+        portableInstanceId,
         {
           name: 'Other Church',
           slug: 'other-church',
@@ -183,13 +217,21 @@ describe('production instance bootstrap', () => {
     }
 
     await expect(
-      bootstrapInstance(env.DB, ownerIdentity, undefined, input, 'request_missing_owner'),
+      bootstrapInstance(
+        env.DB,
+        ownerIdentity,
+        undefined,
+        portableInstanceId,
+        input,
+        'request_missing_owner',
+      ),
     ).rejects.toMatchObject({ status: 503, code: 'bootstrap_owner_not_configured' })
     await expect(
       bootstrapInstance(
         env.DB,
         ownerIdentity,
         'someone@example.test',
+        portableInstanceId,
         input,
         'request_wrong_owner',
       ),
@@ -199,10 +241,25 @@ describe('production instance bootstrap', () => {
         env.DB,
         ownerIdentity,
         'owner@example.test',
+        portableInstanceId,
         input,
         'request_bad_timezone',
       ),
     ).rejects.toMatchObject({ status: 400, code: 'invalid_timezone' })
+
+    await expect(
+      bootstrapInstance(
+        env.DB,
+        ownerIdentity,
+        'owner@example.test',
+        'instance_not-portable',
+        { ...input, timezone: 'UTC' },
+        'request_bad_instance_id',
+      ),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: 'bootstrap_instance_id_not_configured',
+    })
 
     const instanceCount = await env.DB
       .prepare('SELECT COUNT(*) AS total FROM instance_metadata')

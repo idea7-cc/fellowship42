@@ -73,6 +73,7 @@ function desiredStepState(
     case 'configure-worker':
       return {
         workerName: manifest.worker.name,
+        portableInstanceId: manifest.instance.id,
         bindings: {
           d1: manifest.resources.d1.binding,
           r2: manifest.resources.r2.binding,

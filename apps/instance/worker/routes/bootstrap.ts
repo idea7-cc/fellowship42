@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import {
+  portableInstanceIdSchema,
+  type InstanceRuntimeHealth,
+} from '@fellowship42/management-protocol'
+import {
   syncCurrentUser,
   type AccessIdentity,
   type CurrentUser,
@@ -13,6 +17,7 @@ import type {
 
 type BootstrapBindings = Env & {
   BOOTSTRAP_OWNER_EMAIL?: string
+  F42_PORTABLE_INSTANCE_ID?: string
 }
 
 type AppEnv = {
@@ -117,6 +122,49 @@ function configuredResponse(instance: InstanceRow): BootstrapStatusResponse {
   }
 }
 
+export async function inspectBootstrapReadiness(
+  db: D1Database,
+  configuredInstanceId: string | undefined,
+  configuredOwnerEmail: string | undefined,
+): Promise<InstanceRuntimeHealth['bootstrap']> {
+  const configuredIdentity = portableInstanceIdSchema.safeParse(
+    configuredInstanceId?.trim(),
+  )
+  if (!configuredIdentity.success) {
+    return {
+      state: 'configuration-invalid',
+      portableIdentitySha256: null,
+    }
+  }
+  const storedIdentity = await db
+    .prepare('SELECT instance_id FROM instance_metadata WHERE singleton = 1')
+    .first<{ instance_id: string }>()
+  const effectiveIdentity =
+    storedIdentity?.instance_id ?? configuredIdentity.data
+  const portableIdentitySha256 = [
+    ...new Uint8Array(
+      await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(effectiveIdentity),
+      ),
+    ),
+  ]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+  return {
+    state:
+      storedIdentity?.instance_id !== undefined &&
+      storedIdentity.instance_id !== configuredIdentity.data
+        ? 'identity-mismatch'
+        : storedIdentity
+          ? 'configured'
+          : configuredOwnerEmail?.trim()
+            ? 'awaiting-owner'
+            : 'awaiting-owner-configuration',
+    portableIdentitySha256,
+  }
+}
+
 export function isBootstrapOwner(
   identity: AccessIdentity,
   configuredEmail: string | undefined,
@@ -139,6 +187,7 @@ export async function bootstrapInstance(
   db: D1Database,
   identity: AccessIdentity,
   configuredOwnerEmail: string | undefined,
+  configuredInstanceId: string | undefined,
   inputValue: unknown,
   requestId: string,
 ): Promise<BootstrapResponse> {
@@ -154,6 +203,17 @@ export async function bootstrapInstance(
       403,
       'bootstrap_owner_mismatch',
       'This identity cannot initialize the instance',
+    )
+  }
+
+  const instanceIdResult = portableInstanceIdSchema.safeParse(
+    configuredInstanceId?.trim(),
+  )
+  if (!instanceIdResult.success) {
+    throw new AppError(
+      503,
+      'bootstrap_instance_id_not_configured',
+      'The deployment has not configured its portable instance identity',
     )
   }
 
@@ -178,7 +238,7 @@ export async function bootstrapInstance(
   const owner: CurrentUser = await syncCurrentUser(db, identity)
   const now = Date.now()
   const churchId = `church_${crypto.randomUUID()}`
-  const instanceId = `instance_${crypto.randomUUID()}`
+  const instanceId = instanceIdResult.data
   const membershipId = `membership_${crypto.randomUUID()}`
   const roleIds = new Map(
     systemRoles.map((role) => [role.key, `role_${crypto.randomUUID()}`]),
@@ -357,6 +417,7 @@ bootstrapRoutes.post('/', async (c) => {
       c.env.DB,
       identity,
       c.env.BOOTSTRAP_OWNER_EMAIL,
+      c.env.F42_PORTABLE_INSTANCE_ID,
       input,
       c.get('requestId'),
     ),
