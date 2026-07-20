@@ -27,6 +27,7 @@ import {
   managementExitDispositionSchema,
   updateApplyAuthorizationSchema,
   updatePreparationSchema,
+  partnerCompatibilityProfileSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -69,6 +70,28 @@ const deploymentManifest = {
 } as const
 
 describe('management protocol contracts', () => {
+  it('accepts only the ordered payload-free partner compatibility inputs', async () => {
+    const profile = JSON.parse(
+      await readFile(
+        new URL(
+          '../fixtures/partner-compatibility-profile.v1.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    )
+    expect(partnerCompatibilityProfileSchema.parse(profile)).toEqual(profile)
+    expect(partnerCompatibilityProfileSchema.safeParse({
+      ...profile,
+      inputs: [...profile.inputs].reverse(),
+    }).success).toBe(false)
+    expect(partnerCompatibilityProfileSchema.safeParse({
+      ...profile,
+      inputs: profile.inputs.map((input: Record<string, unknown>, index: number) =>
+        index === 0 ? { ...input, requiresProviderCredential: true } : input),
+    }).success).toBe(false)
+  })
+
   it('requires complete local revocation and ordered hosted-exit handoff evidence', () => {
     const disposition = {
       formatVersion: 1,

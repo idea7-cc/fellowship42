@@ -119,6 +119,13 @@ credential rotation, portable identity and runtime verification, cutover
 isolation, and partial failure. The report is payload-free and does not certify
 a live provider account or backup-retention policy.
 
+`partner-compatibility-profile.v1.json` is the ordered input profile for
+compatible operators and prospective certified partners. It references the
+public release verifier, offline doctor, adapter conformance, restore
+conformance, and migration rehearsal and requires payload-free,
+credential-free inputs. The profile proves software compatibility only; live
+provider and partner certification remains separate evidence.
+
 The release builder validates every generated manifest with the same exported
 `releaseManifestSchema` used by external consumers. This keeps the generated
 artifact, public package, and private or third-party verifier on one contract.

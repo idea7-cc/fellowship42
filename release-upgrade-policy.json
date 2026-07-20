@@ -3,15 +3,15 @@
   "strategy": "in-place-expand-contract",
   "rollbackPolicy": "roll-forward-after-migration",
   "target": {
-    "applicationVersion": "0.22.0",
+    "applicationVersion": "0.23.0",
     "schemaVersion": 7,
     "managementProtocolWireVersion": "1"
   },
   "eligibleSources": [
     {
-      "releaseTag": "v0.21.0",
-      "releaseManifestSha256": "43202e6a51f836ce283b550175bbaac376972347c07c530510c171d19344b3a9",
-      "applicationVersion": "0.21.0",
+      "releaseTag": "v0.22.0",
+      "releaseManifestSha256": "9394d073b1e3aba8f7eff33e223aae599a2b55b0db775e6f7d82bbe7238a61b8",
+      "applicationVersion": "0.22.0",
       "schemaVersion": 7,
       "managementProtocolWireVersion": "1"
     }
