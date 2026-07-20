@@ -54,6 +54,12 @@ formats are documented in [`docs/portable-exports.md`](../../docs/portable-expor
 Import staging, the provider-adapter boundary, credential rotation, and cutover
 approval are documented in
 [`docs/portable-import-and-cutover.md`](../../docs/portable-import-and-cutover.md).
+The callable `runPortableRestoreConformance` suite drives the real assembly,
+verification, planning, and staged-restore functions through injected success,
+nonempty-destination, and partial-failure adapters. It stops before cutover and
+emits only the strict public payload-free report in
+`portable-restore-conformance.v1.json`; it never emits bundle contents or
+provider identifiers.
 `buildMigrationRehearsalEvidence` verifies the complete plan, restore report,
 church-owner approval, completion report, credential disposition, and adapter
 observations. Run `pnpm test:migration-rehearsal` at repository root to execute

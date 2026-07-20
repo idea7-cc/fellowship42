@@ -202,10 +202,16 @@ export const destinationImportPreflightSchema = z
     destinationManifestSha256: sha256DigestSchema,
     observedAt: z.iso.datetime({ offset: true }),
     d1: z
-      .object({ state: z.literal('empty'), createdAt: z.iso.datetime({ offset: true }) })
+      .object({
+        state: z.enum(['empty', 'occupied']),
+        createdAt: z.iso.datetime({ offset: true }),
+      })
       .strict(),
     r2: z
-      .object({ state: z.literal('empty'), createdAt: z.iso.datetime({ offset: true }) })
+      .object({
+        state: z.enum(['empty', 'occupied']),
+        createdAt: z.iso.datetime({ offset: true }),
+      })
       .strict(),
     worker: z.literal('absent'),
     outboxQueue: z.literal('absent'),

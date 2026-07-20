@@ -236,6 +236,9 @@ Implemented now:
   and offline evidence verification;
 - staged import/cutover contracts, deterministic planning, provider-adapter
   execution, and approval-gated routing changes;
+- executable isolated-restore conformance covering tamper rejection,
+  new/empty destination proof, D1/R2 restore, credential rotation, identity and
+  runtime verification, cutover isolation, and partial failure;
 - explicit public/private repository boundaries;
 - opt-in signed management enrollment, encrypted instance-key custody,
   outbound status synchronization, replay protection, rotation, local

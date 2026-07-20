@@ -35,8 +35,9 @@ approval-bearing steps.
 The callable `executePortableImportRestore` lifecycle core accepts a
 `PortableImportAdapter`. An adapter must independently return a strict
 destination preflight proving that the bound D1 and R2 were created after the
-plan and remain empty, while the Worker, Queues, and Durable Object namespace
-are absent. The core then restores D1, streams each content-addressed R2 object,
+plan, while explicitly reporting each as `empty` or `occupied`; either occupied
+resource is rejected before any write. The Worker, Queues, and Durable Object
+namespace must be absent. The core then restores D1, streams each content-addressed R2 object,
 applies forward migrations, deploys without domains, rotates deployment,
 application-secret, and management credentials, verifies the restored portable
 identity, and verifies the destination runtime. Failure stops later steps and

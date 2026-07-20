@@ -18,6 +18,7 @@ import {
   managementAdapterConformanceReportSchema,
   releaseManifestSchema,
   instanceRuntimeHealthSchema,
+  portableRestoreConformanceReportSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -60,6 +61,56 @@ const deploymentManifest = {
 } as const
 
 describe('management protocol contracts', () => {
+  it('requires every portable restore conformance scenario in order', () => {
+    const report = {
+      formatVersion: 1,
+      profile: 'f42-portable-restore-v1',
+      release: {
+        applicationVersion: '0.17.0',
+        schemaVersion: 6,
+        managementProtocolPackageVersion: '1.5.0',
+        lifecycleCliVersion: '0.8.0',
+        exportFormatVersion: 1,
+        importFormatVersion: 1,
+      },
+      scenarios: [
+        'export-integrity-verified',
+        'tampered-export-rejected',
+        'new-empty-destination-required',
+        'd1-and-r2-restored',
+        'credentials-rotated',
+        'portable-identity-preserved',
+        'runtime-healthy-before-cutover',
+        'cutover-and-source-untouched',
+        'partial-restore-fails-closed',
+      ].map((id) => ({ id, status: 'passed' })),
+    }
+    expect(portableRestoreConformanceReportSchema.parse(report)).toEqual(
+      report,
+    )
+    expect(
+      portableRestoreConformanceReportSchema.safeParse({
+        ...report,
+        scenarios: [...report.scenarios].reverse(),
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts the immutable portable restore conformance fixture', async () => {
+    const fixture = JSON.parse(
+      await readFile(
+        new URL(
+          '../fixtures/portable-restore-conformance.v1.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    )
+    expect(portableRestoreConformanceReportSchema.parse(fixture)).toEqual(
+      fixture,
+    )
+  })
+
   it('accepts privacy-bounded pre-owner runtime evidence', () => {
     const health = instanceRuntimeHealthSchema.parse({
       status: 'ok',
@@ -189,7 +240,7 @@ describe('management protocol contracts', () => {
     )
     const report = managementAdapterConformanceReportSchema.parse(fixture)
 
-    expect(report.instance.applicationVersion).toBe('0.16.0')
+    expect(report.instance.applicationVersion).toBe('0.17.0')
     expect(report.scenarios).toHaveLength(6)
     expect(
       managementAdapterConformanceReportSchema.safeParse({

@@ -1,0 +1,23 @@
+{
+  "formatVersion": 1,
+  "profile": "f42-portable-restore-v1",
+  "release": {
+    "applicationVersion": "0.17.0",
+    "schemaVersion": 6,
+    "managementProtocolPackageVersion": "1.5.0",
+    "lifecycleCliVersion": "0.8.0",
+    "exportFormatVersion": 1,
+    "importFormatVersion": 1
+  },
+  "scenarios": [
+    { "id": "export-integrity-verified", "status": "passed" },
+    { "id": "tampered-export-rejected", "status": "passed" },
+    { "id": "new-empty-destination-required", "status": "passed" },
+    { "id": "d1-and-r2-restored", "status": "passed" },
+    { "id": "credentials-rotated", "status": "passed" },
+    { "id": "portable-identity-preserved", "status": "passed" },
+    { "id": "runtime-healthy-before-cutover", "status": "passed" },
+    { "id": "cutover-and-source-untouched", "status": "passed" },
+    { "id": "partial-restore-fails-closed", "status": "passed" }
+  ]
+}

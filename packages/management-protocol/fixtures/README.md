@@ -19,7 +19,14 @@ interoperability vector. It contains only a public test key, a privacy-bounded
 sync payload, and its signature; no private key or credential is included.
 
 `management-adapter-conformance.v1.json` is the exact report emitted by the
-public executable conformance suite against the `v0.16.0` release candidate.
+public executable conformance suite against the `v0.17.0` release candidate.
 It contains only release versions and ordered passing scenario IDs. CI reruns
 the real adapter and requires exact equality; the fixture contains no portable
 instance ID, key, challenge, endpoint, command/result body, or church data.
+
+`portable-restore-conformance.v1.json` is the exact payload-free report emitted
+by the public `f42ctl` isolated-restore conformance suite. It proves export
+integrity and tamper rejection, new/empty destination enforcement, D1/R2
+restore, credential rotation, portable identity and runtime verification,
+cutover isolation, and fail-closed partial restore for the exact release tuple.
+It is not evidence that a particular provider account has passed a live drill.

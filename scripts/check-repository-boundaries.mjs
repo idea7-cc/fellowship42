@@ -57,6 +57,12 @@ const requiredPaths = [
   'tooling/f42ctl/src/reconciliation.test.ts',
   'tooling/f42ctl/fixtures/reconciliation.staging.json',
   'docs/adr/0012-provider-neutral-reconciliation-and-scoped-adapters.md',
+  'docs/adr/0013-payload-free-isolated-restore-conformance.md',
+  'docs/portable-restore-conformance.md',
+  'packages/management-protocol/src/portability-conformance.ts',
+  'packages/management-protocol/fixtures/portable-restore-conformance.v1.json',
+  'tooling/f42ctl/src/restore-conformance.ts',
+  'tooling/f42ctl/src/restore-conformance.test.ts',
 ]
 
 for (const requiredPath of requiredPaths) {

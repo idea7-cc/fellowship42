@@ -282,11 +282,17 @@ export async function executePortableImportRestore(options: {
     ) {
       return fail(3, 'destination-preflight-time-invalid')
     }
-    succeed(3)
-    succeed(4)
   } catch {
     return fail(3, 'destination-not-new-and-empty')
   }
+  if (preflight.d1.state !== 'empty') {
+    return fail(3, 'destination-d1-not-empty')
+  }
+  succeed(3)
+  if (preflight.r2.state !== 'empty') {
+    return fail(4, 'destination-r2-not-empty')
+  }
+  succeed(4)
   try {
     await options.adapter.restoreD1({
       ...context,
