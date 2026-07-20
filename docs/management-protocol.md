@@ -64,6 +64,8 @@ Local application routes use the existing church authorization model:
 - `GET /api/management` reads local connection, grant, and sync status;
 - `POST /api/management/challenges` creates a 15-minute enrollment challenge;
 - `POST /api/management/approve` approves the displayed proposal and grants;
+- `POST /api/management/support-sessions/:requestId/decision` approves,
+  rejects, or revokes a support request locally;
 - `POST /api/management/rotate` rotates the instance identity; and
 - `POST /api/management/disconnect` disconnects locally and idempotently.
 
@@ -116,16 +118,20 @@ it. Support sessions must be time-limited and separately approved.
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
 
-Release 0.21 executes `instance.status.read`, `instance.health.read`,
-`update.prepare`, and `update.apply`.
+Release 0.24 executes `instance.status.read`, `instance.health.read`,
+`update.prepare`, `update.apply`, and `support.session.request`.
 The newer health capability returns the strict public observation described in
 [Privacy-bounded instance health](fleet-health.md); it is separate so older
 strict status clients remain compatible. Update preparation verifies an exact
 immutable public manifest and records local readiness. Update apply consumes a
 fresh, exact church-owner approval and returns signed deployment authorization;
 the instance never receives infrastructure credentials or performs the deploy.
-Recognized backup, support, and disconnect commands receive explicit rejected
-results until their separate local workflows are implemented. Empty batches
+Support requests bind an explicit human operator, purpose, diagnostics-only
+scope, and 5–120 minute duration to a church-owned local decision. The signed
+result exposes only bounded state; a repeated exact request observes approval,
+rejection, revocation, or expiry. Recognized backup and remote disconnect
+commands receive explicit rejected results until their separate local
+workflows are implemented. Empty batches
 and empty results are valid heartbeat messages. See
 [Durable instance upgrades](durable-upgrades.md).
 
@@ -242,6 +248,12 @@ approval to an exact target and returns signed permission for an external,
 separately credentialed reconciler. See
 [Durable instance upgrades](durable-upgrades.md) and
 [ADR 0017](adr/0017-instance-owned-update-authorization.md).
+
+Protocol package `1.11.0` adds explicit support request identity, human
+operator, bounded scope, and lifecycle result fields without changing wire
+major 1. The instance-owned approval and revocation flow is documented in
+[Church-approved support sessions](church-approved-support.md) and
+[ADR 0018](adr/0018-instance-owned-support-session-approval.md).
 
 ## Compatible operator inputs
 

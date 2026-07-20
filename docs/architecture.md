@@ -141,11 +141,13 @@ proprietary encryption and it is not an MCP transport.
 The implemented adapter keeps the instance Ed25519 private key encrypted in D1
 under a separately configured Worker wrapping secret, consumes one-use signed
 enrollment proposals, requires local-owner grant approval, and polls the pinned
-operator HTTPS endpoint from the scheduled Worker. Release 0.21 executes the
+operator HTTPS endpoint from the scheduled Worker. Release 0.24 executes the
 legacy `instance.status.read` capability and the independently grantable,
 strict `instance.health.read` observation. It also implements exact
-`update.prepare` verification and owner-approved `update.apply` authorization;
-backup, support, and disconnect commands continue to fail closed.
+`update.prepare` verification and owner-approved `update.apply` authorization.
+It also records signed support requests and keeps approval, expiry, active
+visibility, and revocation inside the church instance; backup and remote
+disconnect commands continue to fail closed.
 Replay and command outcomes are authoritative in D1, while signed results make
 retries idempotent across unrelated Cloudflare accounts.
 

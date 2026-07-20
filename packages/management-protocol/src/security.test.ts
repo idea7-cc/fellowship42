@@ -146,6 +146,62 @@ describe('management security profile', () => {
     ).toBe(false)
   })
 
+  it('binds support-session requests and results to bounded public fields', () => {
+    const command = managementCommandSchema.parse({
+      protocolVersion: '1',
+      type: 'support.session.request',
+      capability: 'support.session.request',
+      commandId: '4d24acfd-eb67-4991-a961-a121135cbdd2',
+      instanceId: 'instance_demo',
+      issuedAt: now,
+      expiresAt: later,
+      nonce: '8f9rHt3fcqNlY4uYicpCsw',
+      input: {
+        requestId: '38a00d6a-7fbb-47c7-a2b7-866e03dde266',
+        reason: 'Investigate a degraded runtime observation',
+        requestedMinutes: 30,
+        scope: 'operational-diagnostics',
+        supportOperator: {
+          id: 'support_user_42',
+          displayName: 'Avery Support',
+        },
+      },
+    })
+    if (command.type !== 'support.session.request') {
+      throw new Error('Expected a support session request')
+    }
+    expect(command.input).toMatchObject({
+      requestedMinutes: 30,
+      scope: 'operational-diagnostics',
+    })
+    expect(
+      managementCommandSchema.safeParse({
+        ...command,
+        input: { ...command.input, requestedMinutes: 121 },
+      }).success,
+    ).toBe(false)
+    expect(
+      managementCommandResultSchema.parse({
+        protocolVersion: '1',
+        commandId: command.commandId,
+        instanceId: command.instanceId,
+        commandType: command.capability,
+        status: 'succeeded',
+        completedAt: later,
+        output: {
+          kind: 'support.request',
+          requestId: command.input.requestId,
+          state: 'approved',
+          scope: command.input.scope,
+          supportOperator: command.input.supportOperator,
+          requestedAt: now,
+          approvedAt: later,
+          expiresAt: '2026-07-19T17:35:00.000Z',
+        },
+      }).output,
+    ).toMatchObject({ state: 'approved', scope: 'operational-diagnostics' })
+  })
+
   it('represents an empty command-batch heartbeat with empty results', () => {
     expect(
       commandResultsSchema.parse({

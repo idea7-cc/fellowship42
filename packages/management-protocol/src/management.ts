@@ -22,6 +22,23 @@ export const managementCapabilitySchema = z.enum([
 
 export type ManagementCapability = z.infer<typeof managementCapabilitySchema>
 
+export const supportSessionScopeSchema = z.enum([
+  'operational-diagnostics',
+])
+
+export type SupportSessionScope = z.infer<typeof supportSessionScopeSchema>
+
+export const supportSessionOperatorSchema = z
+  .object({
+    id: z.string().min(1).max(128),
+    displayName: z.string().min(1).max(160),
+  })
+  .strict()
+
+export type SupportSessionOperator = z.infer<
+  typeof supportSessionOperatorSchema
+>
+
 export const infrastructureOwnerSchema = z.enum(['fellowship42', 'church'])
 export const instanceOperatorSchema = z.enum([
   'fellowship42',
@@ -127,6 +144,9 @@ const commands = [
         .object({
           reason: z.string().min(1).max(500),
           requestedMinutes: z.number().int().min(5).max(120),
+          requestId: z.uuid().optional(),
+          scope: supportSessionScopeSchema.optional(),
+          supportOperator: supportSessionOperatorSchema.optional(),
         })
         .strict(),
     })
@@ -205,7 +225,18 @@ const managementCommandResultOutputSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('support.request'),
       requestId: z.uuid(),
-      state: z.enum(['awaiting-local-approval', 'approved']),
+      state: z.enum([
+        'awaiting-local-approval',
+        'approved',
+        'rejected',
+        'revoked',
+        'expired',
+      ]),
+      scope: supportSessionScopeSchema.optional(),
+      supportOperator: supportSessionOperatorSchema.optional(),
+      requestedAt: z.iso.datetime({ offset: true }).optional(),
+      approvedAt: z.iso.datetime({ offset: true }).optional(),
+      expiresAt: z.iso.datetime({ offset: true }).optional(),
     })
     .strict(),
   z

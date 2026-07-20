@@ -38,6 +38,9 @@ before changing the system shape.
 - a church-owner management console for one-use handoff, explicit grant
   approval, operator/key inspection, sync state, identity rotation, and local
   disconnect;
+- church-owned support-session requests with explicit human operator, purpose,
+  diagnostics-only scope, local approval/rejection, automatic expiry, visible
+  active state, immediate local revocation, and signed remote observation;
 - instance-owned immutable update preparation, exact expiring owner approval,
   signed deployment authorization, and applied-release reconciliation;
 - Workers-runtime migration and API tests;
@@ -117,6 +120,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/migrations/0001_initial.sql` | canonical church domain model |
 | `apps/instance/migrations/0002_instance_identity.sql` | portable singleton instance identity |
 | `apps/instance/migrations/0007_durable_updates.sql` | exact update preparation and owner-authorization state |
+| `apps/instance/migrations/0008_support_sessions.sql` | local support approval, expiry, and revocation state |
 | `apps/instance/worker/index.ts` | middleware, health, logging, and route composition |
 | `apps/instance/worker/routes/bootstrap.ts` | one-time Access-gated production initialization |
 | `apps/instance/src/components/bootstrap-gate.tsx` | first-owner setup experience |

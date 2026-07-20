@@ -101,6 +101,7 @@ export function ManagementPage() {
   const [disconnectConfirmation, setDisconnectConfirmation] = useState('')
   const [disconnectReason, setDisconnectReason] = useState('')
   const [updateConfirmation, setUpdateConfirmation] = useState('')
+  const [supportDecisionReason, setSupportDecisionReason] = useState('')
 
   const currentUpdate: UpdatePreparation | undefined =
     updates.data?.preparations[0]
@@ -260,6 +261,33 @@ export function ManagementPage() {
         'The exact release is approved for 30 minutes. The operator may now request deployment authorization.',
       )
       await updates.refetch()
+    })
+  }
+
+  async function decideSupport(
+    requestId: string,
+    decision: 'approve' | 'reject' | 'revoke',
+  ) {
+    if (decision !== 'approve' && !supportDecisionReason.trim()) return
+    await action(`support-${requestId}-${decision}`, async () => {
+      await apiRequest(`/api/management/support-sessions/${requestId}/decision`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: decision,
+          ...(decision === 'approve'
+            ? {}
+            : { reason: supportDecisionReason.trim() }),
+        }),
+      })
+      setSupportDecisionReason('')
+      setNotice(
+        decision === 'approve'
+          ? 'The diagnostic support session is active for its requested window.'
+          : decision === 'reject'
+            ? 'The support request was rejected locally.'
+            : 'The support session was revoked locally.',
+      )
+      await status.refetch()
     })
   }
 
@@ -507,6 +535,114 @@ export function ManagementPage() {
 
             {status.data.connection ? (
               <>
+                {status.data.supportSessions.some((session) =>
+                  ['awaiting-local-approval', 'approved'].includes(session.state),
+                ) ? (
+                  <Section
+                    title="Support sessions"
+                    description="Every request names the operator, purpose, scope, and exact time window. Approval is local, automatically expires, and can be revoked here at any time."
+                  >
+                    <div className="grid gap-4">
+                      {status.data.supportSessions
+                        .filter((session) =>
+                          ['awaiting-local-approval', 'approved'].includes(
+                            session.state,
+                          ),
+                        )
+                        .map((session) => (
+                          <Card key={session.requestId}>
+                            <CardHeader>
+                              <Badge
+                                variant={
+                                  session.state === 'approved' ? 'pill' : 'outline'
+                                }
+                              >
+                                {session.state === 'approved'
+                                  ? 'Active support'
+                                  : 'Approval requested'}
+                              </Badge>
+                              <CardTitle>
+                                {session.supportOperator.displayName}
+                              </CardTitle>
+                              <CardDescription>{session.reason}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="mt-4">
+                              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                                <div>
+                                  <dt className="text-muted-foreground">Scope</dt>
+                                  <dd>Operational diagnostics only</dd>
+                                </div>
+                                <div>
+                                  <dt className="text-muted-foreground">
+                                    {session.state === 'approved'
+                                      ? 'Automatic expiry'
+                                      : 'Requested duration'}
+                                  </dt>
+                                  <dd>
+                                    {session.state === 'approved'
+                                      ? displayTime(session.expiresAt)
+                                      : `${session.requestedMinutes} minutes`}
+                                  </dd>
+                                </div>
+                              </dl>
+                              {session.state === 'awaiting-local-approval' ? (
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={busy !== null}
+                                    onClick={() =>
+                                      void decideSupport(session.requestId, 'approve')
+                                    }
+                                  >
+                                    Approve session
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      busy !== null ||
+                                      !supportDecisionReason.trim()
+                                    }
+                                    onClick={() =>
+                                      void decideSupport(session.requestId, 'reject')
+                                    }
+                                  >
+                                    Reject request
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={
+                                    busy !== null || !supportDecisionReason.trim()
+                                  }
+                                  onClick={() =>
+                                    void decideSupport(session.requestId, 'revoke')
+                                  }
+                                >
+                                  Revoke now
+                                </Button>
+                              )}
+                              <label className="grid gap-1 text-sm font-semibold">
+                                Reason for rejection or revocation
+                                <Input
+                                  value={supportDecisionReason}
+                                  onChange={(event) =>
+                                    setSupportDecisionReason(event.target.value)
+                                  }
+                                  maxLength={240}
+                                />
+                              </label>
+                            </CardContent>
+                          </Card>
+                        ))}
+                    </div>
+                  </Section>
+                ) : null}
                 {currentUpdate ? (
                   <Card>
                     <CardHeader>

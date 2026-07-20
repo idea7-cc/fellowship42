@@ -28,6 +28,10 @@ import {
   approveUpdatePreparation,
   listUpdatePreparations,
 } from '../worker/management/updates'
+import {
+  decideSupportSession,
+  listSupportSessions,
+} from '../worker/management/support'
 
 const managementEnv = env as ManagementBindings
 const ownerId = 'user_demo_owner'
@@ -109,6 +113,7 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
         'backup.export',
         'update.prepare',
         'update.apply',
+        'support.session.request',
         'management.disconnect',
       ],
       issuedAt: new Date(now).toISOString(),
@@ -165,6 +170,12 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
           requiresLocalApproval: true,
         },
         {
+          capability: 'support.session.request',
+          grantedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
+          requiresLocalApproval: true,
+        },
+        {
           capability: 'management.disconnect',
           grantedAt: new Date(now).toISOString(),
           expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
@@ -188,6 +199,7 @@ async function bodyJws(requestInit?: RequestInit): Promise<ManagementJws> {
 
 beforeEach(async () => {
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM management_support_sessions'),
     env.DB.prepare('DELETE FROM management_command_records'),
     env.DB.prepare('DELETE FROM management_replay_records'),
     env.DB.prepare('DELETE FROM management_grants'),
@@ -298,7 +310,135 @@ describe('optional management adapter', () => {
     expect(status.enabled).toBe(true)
     expect(status.connection?.connectionId).toBe(enrolled.connectionId)
     expect(status.connection?.operator.displayName).toBe('Test Operator')
-    expect(status.connection?.grants).toHaveLength(6)
+    expect(status.connection?.grants).toHaveLength(7)
+  })
+
+  it('binds signed support requests to a locally approved, expiring, and revocable session', async () => {
+    const startedAt = Date.parse('2026-07-20T18:00:00.000Z')
+    const enrolled = await enroll(startedAt)
+    const supportRequestId = crypto.randomUUID()
+    const results: ManagementCommandResult[] = []
+    let phase: 'request' | 'approved' | 'revoked' = 'request'
+    let phaseNow = startedAt
+
+    const transport = async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const jws = await bodyJws(init)
+      const payload = await verifyManagementJws(jws, enrolled.challenge.instanceKey)
+      if (payload.type === 'enrollment.approval') {
+        return new Response(null, { status: 204 })
+      }
+      if (payload.type === 'sync.request') {
+        const commandId = crypto.randomUUID()
+        return Response.json({
+          jws: await signManagementPayload(
+            {
+              protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+              type: 'command.batch',
+              messageId: crypto.randomUUID(),
+              connectionId: enrolled.connectionId,
+              instanceId: enrolled.challenge.instanceId,
+              senderKeyId: enrolled.operator.publicKey.kid,
+              audienceKeyId: enrolled.challenge.instanceKey.kid,
+              issuedAt: new Date(phaseNow).toISOString(),
+              expiresAt: new Date(phaseNow + 5 * 60_000).toISOString(),
+              nonce: `support-message-${phase}`.padEnd(22, 'A'),
+              commands: [
+                {
+                  protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+                  commandId,
+                  instanceId: enrolled.challenge.instanceId,
+                  type: 'support.session.request',
+                  capability: 'support.session.request',
+                  issuedAt: new Date(phaseNow).toISOString(),
+                  expiresAt: new Date(phaseNow + 5 * 60_000).toISOString(),
+                  nonce: `support-command-${phase}`.padEnd(22, 'A'),
+                  input: {
+                    requestId: supportRequestId,
+                    reason: 'Investigate a failing health observation',
+                    requestedMinutes: 30,
+                    scope: 'operational-diagnostics',
+                    supportOperator: {
+                      id: 'support_user_42',
+                      displayName: 'Avery Support',
+                    },
+                  },
+                },
+              ],
+              nextCommandCursor: `support-cursor-${phase}`,
+            },
+            enrolled.operator.privateKey,
+          ),
+        })
+      }
+      if (payload.type === 'command.results') {
+        results.push(payload.results[0]!)
+        return new Response(null, { status: 204 })
+      }
+      throw new Error(`Unexpected support message: ${payload.type}`)
+    }
+
+    await syncManagementOnce(managementEnv, phaseNow, transport)
+    expect(results.at(-1)).toMatchObject({
+      status: 'succeeded',
+      output: {
+        kind: 'support.request',
+        requestId: supportRequestId,
+        state: 'awaiting-local-approval',
+        scope: 'operational-diagnostics',
+        supportOperator: { id: 'support_user_42' },
+      },
+    })
+
+    phaseNow += 1_000
+    await decideSupportSession(
+      env.DB,
+      supportRequestId,
+      'approve',
+      ownerId,
+      'church_demo',
+      'support-approve',
+      null,
+      phaseNow,
+    )
+    phase = 'approved'
+    phaseNow += 1_000
+    await syncManagementOnce(managementEnv, phaseNow, transport)
+    expect(results.at(-1)).toMatchObject({
+      output: {
+        requestId: supportRequestId,
+        state: 'approved',
+        expiresAt: new Date(phaseNow - 1_000 + 30 * 60_000).toISOString(),
+      },
+    })
+
+    phaseNow += 1_000
+    await decideSupportSession(
+      env.DB,
+      supportRequestId,
+      'revoke',
+      ownerId,
+      'church_demo',
+      'support-revoke',
+      'Diagnostic work is complete',
+      phaseNow,
+    )
+    phase = 'revoked'
+    phaseNow += 1_000
+    await syncManagementOnce(managementEnv, phaseNow, transport)
+    expect(results.at(-1)).toMatchObject({
+      output: { requestId: supportRequestId, state: 'revoked' },
+    })
+    expect(await listSupportSessions(env.DB, enrolled.challenge.instanceId, phaseNow))
+      .toMatchObject([
+        {
+          requestId: supportRequestId,
+          state: 'revoked',
+          decisionReason: 'Diagnostic work is complete',
+        },
+      ])
   })
 
   it('polls outbound, executes only granted status, and returns byte-identical replay results', async () => {
@@ -387,8 +527,8 @@ describe('optional management adapter', () => {
               observedAt: new Date(now).toISOString(),
               source: 'management-sync',
               release: {
-                applicationVersion: '0.23.0',
-                schemaVersion: 7,
+                applicationVersion: '0.24.0',
+                schemaVersion: 8,
                 managementProtocolWireVersion: '1',
               },
               connection: { status: 'connected', grantVersion: 1 },
@@ -437,7 +577,7 @@ describe('optional management adapter', () => {
     const sourceManifestSha256 = 'a'.repeat(64)
     const updateEnv = new Proxy(managementEnv, {
       get(target, property, receiver) {
-        if (property === 'F42_RELEASE_TAG') return 'v0.23.0'
+        if (property === 'F42_RELEASE_TAG') return 'v0.24.0'
         if (property === 'F42_RELEASE_MANIFEST_SHA256') {
           return sourceManifestSha256
         }
@@ -449,12 +589,12 @@ describe('optional management adapter', () => {
       formatVersion: 1,
       application: {
         name: 'fellowship42',
-        version: '0.24.0',
-        schemaVersion: 7,
+        version: '0.25.0',
+        schemaVersion: 8,
       },
       managementProtocol: {
         package: '@fellowship42/management-protocol',
-        packageVersion: '1.10.0',
+        packageVersion: '1.11.0',
         wireVersion: '1',
       },
       source: {
@@ -467,16 +607,16 @@ describe('optional management adapter', () => {
         strategy: 'in-place-expand-contract',
         rollbackPolicy: 'roll-forward-after-migration',
         target: {
-          applicationVersion: '0.24.0',
-          schemaVersion: 7,
+          applicationVersion: '0.25.0',
+          schemaVersion: 8,
           managementProtocolWireVersion: '1',
         },
         eligibleSources: [
           {
-            releaseTag: 'v0.23.0',
+            releaseTag: 'v0.24.0',
             releaseManifestSha256: sourceManifestSha256,
-            applicationVersion: '0.23.0',
-            schemaVersion: 7,
+            applicationVersion: '0.24.0',
+            schemaVersion: 8,
             managementProtocolWireVersion: '1',
           },
         ],
@@ -489,13 +629,13 @@ describe('optional management adapter', () => {
       },
       artifacts: [
         {
-          file: 'fellowship42-0.24.0-source.tgz',
+          file: 'fellowship42-0.25.0-source.tgz',
           kind: 'portable-instance-source',
           bytes: 42,
           sha256: 'c'.repeat(64),
         },
         {
-          file: 'fellowship42-management-protocol-1.10.0.tgz',
+          file: 'fellowship42-management-protocol-1.11.0.tgz',
           kind: 'management-protocol-package',
           bytes: 42,
           sha256: 'd'.repeat(64),
@@ -537,7 +677,7 @@ describe('optional management adapter', () => {
                 issuedAt: new Date(issuedAt).toISOString(),
                 expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
                 nonce: 'PPPPPPPPPPPPPPPPPPPPPP',
-                input: { releaseTag: 'v0.24.0', releaseManifestSha256: targetManifestSha256 },
+                input: { releaseTag: 'v0.25.0', releaseManifestSha256: targetManifestSha256 },
               }
             : {
                 protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
@@ -592,9 +732,9 @@ describe('optional management adapter', () => {
       output: {
         kind: 'update.preparation',
         preparation: {
-          source: { releaseTag: 'v0.23.0' },
+          source: { releaseTag: 'v0.24.0' },
           target: {
-            releaseTag: 'v0.24.0',
+            releaseTag: 'v0.25.0',
             releaseManifestSha256: targetManifestSha256,
           },
           state: 'awaiting-local-approval',
@@ -606,7 +746,7 @@ describe('optional management adapter', () => {
     const approved = await approveUpdatePreparation(
       updateEnv,
       preparationId,
-      { releaseTag: 'v0.24.0', releaseManifestSha256: targetManifestSha256 },
+      { releaseTag: 'v0.25.0', releaseManifestSha256: targetManifestSha256 },
       ownerId,
       'church_demo',
       'request-update-approval',
@@ -631,7 +771,7 @@ describe('optional management adapter', () => {
           preparationId,
           localApprovalId,
           target: {
-            releaseTag: 'v0.24.0',
+            releaseTag: 'v0.25.0',
             releaseManifestSha256: targetManifestSha256,
           },
           strategy: 'in-place-expand-contract',

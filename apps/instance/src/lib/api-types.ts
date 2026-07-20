@@ -297,6 +297,26 @@ export interface ManagementStatusResponse {
     operatorId: string
     disconnectedAt: string
   } | null
+  supportSessions: Array<{
+    requestId: string
+    connectionId: string
+    reason: string
+    requestedMinutes: number
+    scope: 'operational-diagnostics'
+    supportOperator: { id: string; displayName: string }
+    state:
+      | 'awaiting-local-approval'
+      | 'approved'
+      | 'rejected'
+      | 'revoked'
+      | 'expired'
+    requestedAt: string
+    decisionDueAt: string
+    approvedAt: string | null
+    expiresAt: string | null
+    revokedAt: string | null
+    decisionReason: string | null
+  }>
   connection: {
     connectionId: string
     operator: ManagementOperatorSummary

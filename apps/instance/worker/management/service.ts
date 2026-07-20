@@ -15,6 +15,7 @@ import {
 } from '@fellowship42/management-protocol'
 import { z } from 'zod'
 import { AppError } from '../lib/errors'
+import { listSupportSessions } from './support'
 
 export type ManagementBindings = Env & {
   MANAGEMENT_KEY_ENCRYPTION_KEY?: string
@@ -825,6 +826,7 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           requires_local_approval: number
         }>()
     : { results: [] }
+  const supportSessions = await listSupportSessions(db, installed.instanceId, now)
   return {
     instanceId: installed.instanceId,
     enabled: Boolean(connection),
@@ -861,6 +863,7 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           disconnectedAt: new Date(lastDisposition.disconnected_at).toISOString(),
         }
       : null,
+    supportSessions,
     connection: connection
       ? {
           connectionId: connection.connectionId,
@@ -1139,6 +1142,22 @@ export async function disconnectManagement(
          WHERE connection_id = ? AND status = 'active'`,
       )
       .bind(actorUserId, now, reason, connection.connectionId),
+    db
+      .prepare(
+        `UPDATE management_support_sessions
+         SET state = 'rejected', decided_by_user_id = ?, decided_at = ?,
+             decision_reason = ?
+         WHERE connection_id = ? AND state = 'awaiting-local-approval'`,
+      )
+      .bind(actorUserId, now, 'Management disconnected locally', connection.connectionId),
+    db
+      .prepare(
+        `UPDATE management_support_sessions
+         SET state = 'revoked', revoked_by_user_id = ?, revoked_at = ?,
+             decision_reason = ?
+         WHERE connection_id = ? AND state = 'approved'`,
+      )
+      .bind(actorUserId, now, 'Management disconnected locally', connection.connectionId),
     db
       .prepare(`DELETE FROM management_grants WHERE connection_id = ?`)
       .bind(connection.connectionId),
