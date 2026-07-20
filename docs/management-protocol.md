@@ -221,6 +221,16 @@ notifications remain consumer-derived policy. See
 [Privacy-bounded instance health](fleet-health.md) and
 [ADR 0015](adr/0015-privacy-bounded-instance-health.md).
 
+## Release upgrade eligibility
+
+Protocol package `1.8.0` adds strict exact-source upgrade metadata and a
+fail-closed eligibility assessment without changing wire major 1. A target
+release names every supported source by tag, manifest digest, application and
+schema version, and management wire version. Operators may narrow that public
+allowlist through channels and rings but cannot widen it. See
+[Releases and immutable artifacts](releases.md) and
+[ADR 0016](adr/0016-published-exact-source-upgrade-metadata.md).
+
 ## Privacy baseline
 
 Routine control-plane status may include:

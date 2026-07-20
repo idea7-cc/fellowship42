@@ -42,13 +42,19 @@ if (dirtyFiles) {
   )
 }
 
-const [rootPackage, instancePackage, protocolPackage, lifecycleCliPackage] =
-  await Promise.all([
-    readJson('package.json'),
-    readJson('apps/instance/package.json'),
-    readJson('packages/management-protocol/package.json'),
-    readJson('tooling/f42ctl/package.json'),
-  ])
+const [
+  rootPackage,
+  instancePackage,
+  protocolPackage,
+  lifecycleCliPackage,
+  releaseUpgradePolicy,
+] = await Promise.all([
+  readJson('package.json'),
+  readJson('apps/instance/package.json'),
+  readJson('packages/management-protocol/package.json'),
+  readJson('tooling/f42ctl/package.json'),
+  readJson('release-upgrade-policy.json'),
+])
 
 if (rootPackage.version !== instancePackage.version) {
   throw new Error(
@@ -181,6 +187,9 @@ const manifest = protocolModule.releaseManifestSchema.parse({
     commit,
     committedAt: commitTimestamp,
   },
+  upgrade: protocolModule.releaseUpgradeMetadataSchema.parse(
+    releaseUpgradePolicy,
+  ),
   artifacts,
 })
 

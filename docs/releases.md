@@ -17,6 +17,12 @@ Three versions serve different purposes:
   independently. Its exported `MANAGEMENT_PROTOCOL_VERSION` is the wire-major
   version and changes only for an intentionally incompatible wire contract.
 
+Each current manifest also embeds exact-source upgrade metadata from
+`release-upgrade-policy.json`. Compatibility is an allowlist of the source tag,
+manifest digest, application/schema tuple, and management wire version. Missing
+metadata or any mismatch means the direct upgrade is not declared compatible.
+See [ADR 0016](adr/0016-published-exact-source-upgrade-metadata.md).
+
 Application releases remain pre-1.0 and may contain breaking changes in a minor
 release. Management protocol package `1.x` follows semantic versioning: additive
 contracts use minor releases, fixes use patches, and changes to required wire
@@ -35,7 +41,8 @@ wire major and parallel API prefix.
 - `fellowship42-f42ctl-<version>.tgz`: the installable public lifecycle CLI and
   callable planning/diagnostic library;
 - `release-manifest.json`: the exact commit, application/schema versions,
-  protocol package/wire versions, sizes, and SHA-256 digests; and
+  protocol package/wire versions, exact-source upgrade policy, sizes, and
+  SHA-256 digests; and
 - `SHA256SUMS`: independent checksums for the archives and manifest.
 
 The source archive is created with `git archive`, so untracked files, ignored
@@ -112,6 +119,8 @@ a live provider account or backup-retention policy.
 The release builder validates every generated manifest with the same exported
 `releaseManifestSchema` used by external consumers. This keeps the generated
 artifact, public package, and private or third-party verifier on one contract.
+The exported `assessReleaseUpgradeEligibility` function performs exact matching
+and never treats an older manifest without upgrade metadata as eligible.
 
 ## What remains portable
 

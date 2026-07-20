@@ -23,6 +23,7 @@ Current contracts establish:
 - a mandatory public signature interoperability vector;
 - an executable instance-adapter conformance harness and strict report;
 - the checksummed Fellowship42 release-manifest schema and immutable fixtures;
+- exact-source upgrade metadata and fail-closed eligibility assessment;
 - strict portable-export manifests, configuration, R2 indexes, and
   privacy-bounded verification evidence;
 - staged import plans, new-empty destination preflight, bounded execution
@@ -47,7 +48,9 @@ evidence, package 1.4 adds provisioning/bootstrap readiness evidence, and
 package 1.5 adds isolated-restore conformance without changing management wire
 v1. Package 1.6 adds independently verifiable hosted-exit evidence, and package
 1.7 adds an independently grantable instance-health observation without
-changing management wire v1. The instance adapter is
+changing management wire v1. Package 1.8 adds exact-source release upgrade
+metadata and eligibility assessment without changing management wire v1. The
+instance adapter is
 implemented as local-owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before
 changing the trust or provider boundary.

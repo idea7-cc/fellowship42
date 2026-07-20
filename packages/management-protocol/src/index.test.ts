@@ -17,7 +17,9 @@ import {
   importPlanSchema,
   migrationRehearsalEvidenceSchema,
   managementAdapterConformanceReportSchema,
+  assessReleaseUpgradeEligibility,
   releaseManifestSchema,
+  releaseUpgradeMetadataSchema,
   instanceRuntimeHealthSchema,
   portableRestoreConformanceReportSchema,
   exitHandoffSchema,
@@ -338,6 +340,97 @@ describe('management protocol contracts', () => {
       '1d2ad29942a4a72c00ab982ce621f9573aba5560',
     )
     expect(manifest.artifacts).toHaveLength(2)
+    expect(manifest.upgrade).toBeUndefined()
+  })
+
+  it('publishes exact-source upgrade eligibility without weakening old manifests', async () => {
+    const fixture = JSON.parse(
+      await readFile(
+        new URL('../fixtures/release-manifest.v1.json', import.meta.url),
+        'utf8',
+      ),
+    )
+    const upgrade = releaseUpgradeMetadataSchema.parse(
+      JSON.parse(
+        await readFile(
+          new URL('../../../release-upgrade-policy.json', import.meta.url),
+          'utf8',
+        ),
+      ),
+    )
+    const target = releaseManifestSchema.parse({
+      ...fixture,
+      application: {
+        ...fixture.application,
+        version: upgrade.target.applicationVersion,
+        schemaVersion: upgrade.target.schemaVersion,
+      },
+      managementProtocol: {
+        ...fixture.managementProtocol,
+        wireVersion: upgrade.target.managementProtocolWireVersion,
+      },
+      upgrade,
+    })
+    const source = upgrade.eligibleSources[0]
+
+    expect(assessReleaseUpgradeEligibility(target, source)).toEqual({
+      eligible: true,
+      code: 'eligible',
+      requiredEvidence: upgrade.requiredEvidence,
+    })
+    expect(
+      assessReleaseUpgradeEligibility(target, {
+        ...source,
+        releaseManifestSha256: '0'.repeat(64),
+      }),
+    ).toEqual({
+      eligible: false,
+      code: 'source-not-eligible',
+      requiredEvidence: [],
+    })
+    expect(
+      releaseManifestSchema.safeParse({
+        ...target,
+        upgrade: {
+          ...upgrade,
+          target: { ...upgrade.target, schemaVersion: 7 },
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      assessReleaseUpgradeEligibility(
+        releaseManifestSchema.parse(fixture),
+        source,
+      ),
+    ).toEqual({
+      eligible: false,
+      code: 'upgrade-metadata-missing',
+      requiredEvidence: [],
+    })
+  })
+
+  it('rejects ambiguous upgrade metadata', () => {
+    const source = {
+      releaseTag: 'v0.19.0',
+      releaseManifestSha256: '1'.repeat(64),
+      applicationVersion: '0.19.0',
+      schemaVersion: 6,
+      managementProtocolWireVersion: '1',
+    }
+    expect(
+      releaseUpgradeMetadataSchema.safeParse({
+        formatVersion: 1,
+        strategy: 'in-place-expand-contract',
+        rollbackPolicy: 'roll-forward-after-migration',
+        target: {
+          applicationVersion: '0.20.0',
+          schemaVersion: 6,
+          managementProtocolWireVersion: '1',
+        },
+        eligibleSources: [source, source],
+        requiredEvidence: ['doctor-pass', 'doctor-pass'],
+      }).success,
+    ).toBe(false)
   })
 
   it('accepts the immutable hosted-to-church-owned rehearsal fixture', async () => {

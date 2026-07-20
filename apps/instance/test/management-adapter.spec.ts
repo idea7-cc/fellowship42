@@ -358,7 +358,7 @@ describe('optional management adapter', () => {
               observedAt: new Date(now).toISOString(),
               source: 'management-sync',
               release: {
-                applicationVersion: '0.19.0',
+                applicationVersion: '0.20.0',
                 schemaVersion: 6,
                 managementProtocolWireVersion: '1',
               },
