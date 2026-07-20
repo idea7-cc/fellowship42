@@ -15,11 +15,16 @@ Runtime files:
   status, rotation, disconnect, and audit state.
 - `sync.ts` owns bounded HTTPS delivery, signed polling/results, replay
   reservation, command authorization, and scheduled failure handling.
+- `updates.ts` owns exact release verification, preparation state, local
+  approval consumption, and signed deployment-authorization evidence.
 - `../routes/management.ts` is the local HTTP surface. It is not the operator
   command transport.
 
-This release executes `instance.status.read` and `instance.health.read`. Other protocol commands are
-typed but fail closed until their own implementation and tests land.
+This release executes `instance.status.read`, `instance.health.read`,
+`update.prepare`, and `update.apply`. Update apply authorizes a separately
+credentialed reconciler; it never deploys from inside the instance. Other
+protocol commands are typed but fail closed until their own implementation and
+tests land.
 
 Rules for this boundary:
 

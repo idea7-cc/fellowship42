@@ -22,6 +22,9 @@ Each current manifest also embeds exact-source upgrade metadata from
 manifest digest, application/schema tuple, and management wire version. Missing
 metadata or any mismatch means the direct upgrade is not declared compatible.
 See [ADR 0016](adr/0016-published-exact-source-upgrade-metadata.md).
+The public instance consumes this metadata through the owner-controlled flow in
+[Durable instance upgrades](durable-upgrades.md) and
+[ADR 0017](adr/0017-instance-owned-update-authorization.md).
 
 Application releases remain pre-1.0 and may contain breaking changes in a minor
 release. Management protocol package `1.x` follows semantic versioning: additive

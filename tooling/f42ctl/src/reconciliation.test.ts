@@ -14,6 +14,11 @@ import {
   sha256Canonical,
   type DeploymentReconciliationAdapter,
 } from './reconciliation'
+import {
+  executeAuthorizedUpdateReconciliation,
+  releaseCoordinateVariables,
+  verifyUpdateDeploymentAuthorization,
+} from './updates'
 
 const fixture = JSON.parse(
   await readFile(
@@ -58,6 +63,80 @@ function outcomeFor(
 }
 
 describe('provider-neutral deployment reconciliation', () => {
+  it('binds instance authorization to the exact deployment release before provider effects', async () => {
+    const target = fixture.manifest.instance.release
+    const authorization = {
+      formatVersion: 1,
+      authorizationId: '11111111-1111-4111-8111-111111111111',
+      preparationId: '22222222-2222-4222-8222-222222222222',
+      localApprovalId: '33333333-3333-4333-8333-333333333333',
+      instanceId: fixture.manifest.instance.id,
+      source: {
+        releaseTag: 'v0.13.0',
+        releaseManifestSha256: 'b'.repeat(64),
+        applicationVersion: '0.13.0',
+        schemaVersion: 6,
+        managementProtocolWireVersion: '1',
+      },
+      target: {
+        releaseTag: target.tag,
+        releaseManifestSha256: target.manifestSha256,
+        applicationVersion: target.applicationVersion,
+        schemaVersion: target.schemaVersion,
+        managementProtocolWireVersion: target.managementProtocolWireVersion,
+      },
+      strategy: 'in-place-expand-contract',
+      rollbackPolicy: 'roll-forward-after-migration',
+      authorizedAt: '2026-07-20T03:30:00.000Z',
+      expiresAt: '2026-07-20T04:30:00.000Z',
+    }
+    expect(
+      verifyUpdateDeploymentAuthorization(
+        authorization,
+        fixture.manifest,
+        Date.parse('2026-07-20T03:32:00.000Z'),
+      ),
+    ).toEqual(authorization)
+    expect(releaseCoordinateVariables(fixture.manifest)).toEqual({
+      F42_RELEASE_TAG: target.tag,
+      F42_RELEASE_MANIFEST_SHA256: target.manifestSha256,
+    })
+    expect(() =>
+      verifyUpdateDeploymentAuthorization(
+        {
+          ...authorization,
+          target: { ...authorization.target, releaseManifestSha256: 'f'.repeat(64) },
+        },
+        fixture.manifest,
+        Date.parse('2026-07-20T03:32:00.000Z'),
+      ),
+    ).toThrowError(ReconciliationError)
+
+    const preview = await buildReconciliationPreview(
+      fixture.manifest,
+      fixture.observation,
+    )
+    let calls = 0
+    await expect(
+      executeAuthorizedUpdateReconciliation({
+        authorization: { ...authorization, expiresAt: '2026-07-20T03:31:00.000Z' },
+        manifest: fixture.manifest,
+        preview,
+        approval: await approval(preview),
+        adapter: {
+          apply: async () => {
+            calls += 1
+            throw new Error('must not run')
+          },
+        },
+        operationId,
+        idempotencyKey: 'expired-update',
+        now: Date.parse('2026-07-20T03:32:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'update_authorization_not_current' })
+    expect(calls).toBe(0)
+  })
+
   it('builds the exact non-destructive staging preview from bounded observations', async () => {
     const preview = await buildReconciliationPreview(
       fixture.manifest,

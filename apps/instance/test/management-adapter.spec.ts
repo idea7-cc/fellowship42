@@ -7,6 +7,7 @@ import {
   signManagementPayload,
   verifyManagementJws,
   type EnrollmentChallenge,
+  type ManagementCommandResult,
   type ManagementJws,
   type ManagementPublicKey,
 } from '@fellowship42/management-protocol'
@@ -23,6 +24,10 @@ import {
   type ManagementBindings,
 } from '../worker/management/service'
 import { syncManagementOnce } from '../worker/management/sync'
+import {
+  approveUpdatePreparation,
+  listUpdatePreparations,
+} from '../worker/management/updates'
 
 const managementEnv = env as ManagementBindings
 const ownerId = 'user_demo_owner'
@@ -42,6 +47,16 @@ type Enrollment = {
 
 function nonce(): string {
   return 'AAAAAAAAAAAAAAAAAAAAAA'
+}
+
+async function sha256Text(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  )
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 async function operatorIdentity(): Promise<OperatorIdentity> {
@@ -92,6 +107,8 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
         'instance.status.read',
         'instance.health.read',
         'backup.export',
+        'update.prepare',
+        'update.apply',
         'management.disconnect',
       ],
       issuedAt: new Date(now).toISOString(),
@@ -134,6 +151,18 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
           grantedAt: new Date(now).toISOString(),
           expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
           requiresLocalApproval: false,
+        },
+        {
+          capability: 'update.prepare',
+          grantedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
+          requiresLocalApproval: false,
+        },
+        {
+          capability: 'update.apply',
+          grantedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
+          requiresLocalApproval: true,
         },
         {
           capability: 'management.disconnect',
@@ -269,7 +298,7 @@ describe('optional management adapter', () => {
     expect(status.enabled).toBe(true)
     expect(status.connection?.connectionId).toBe(enrolled.connectionId)
     expect(status.connection?.operator.displayName).toBe('Test Operator')
-    expect(status.connection?.grants).toHaveLength(4)
+    expect(status.connection?.grants).toHaveLength(6)
   })
 
   it('polls outbound, executes only granted status, and returns byte-identical replay results', async () => {
@@ -358,8 +387,8 @@ describe('optional management adapter', () => {
               observedAt: new Date(now).toISOString(),
               source: 'management-sync',
               release: {
-                applicationVersion: '0.20.0',
-                schemaVersion: 6,
+                applicationVersion: '0.21.0',
+                schemaVersion: 7,
                 managementProtocolWireVersion: '1',
               },
               connection: { status: 'connected', grantVersion: 1 },
@@ -400,6 +429,219 @@ describe('optional management adapter', () => {
       approval_delivered_at: now,
       command_cursor: 'cursor-1',
       last_sync_status: 'succeeded',
+    })
+  })
+
+  it('prepares an exact release and consumes a fresh owner approval into deployment authorization', async () => {
+    const now = Date.parse('2026-07-20T04:00:00.000Z')
+    const sourceManifestSha256 = 'a'.repeat(64)
+    const updateEnv = new Proxy(managementEnv, {
+      get(target, property, receiver) {
+        if (property === 'F42_RELEASE_TAG') return 'v0.21.0'
+        if (property === 'F42_RELEASE_MANIFEST_SHA256') {
+          return sourceManifestSha256
+        }
+        return Reflect.get(target, property, receiver)
+      },
+    })
+    const enrolled = await enroll(now)
+    const targetManifest = {
+      formatVersion: 1,
+      application: {
+        name: 'fellowship42',
+        version: '0.22.0',
+        schemaVersion: 7,
+      },
+      managementProtocol: {
+        package: '@fellowship42/management-protocol',
+        packageVersion: '1.9.0',
+        wireVersion: '1',
+      },
+      source: {
+        repository: 'https://github.com/idea7-cc/fellowship42',
+        commit: 'b'.repeat(40),
+        committedAt: '2026-07-20T03:00:00.000Z',
+      },
+      upgrade: {
+        formatVersion: 1,
+        strategy: 'in-place-expand-contract',
+        rollbackPolicy: 'roll-forward-after-migration',
+        target: {
+          applicationVersion: '0.22.0',
+          schemaVersion: 7,
+          managementProtocolWireVersion: '1',
+        },
+        eligibleSources: [
+          {
+            releaseTag: 'v0.21.0',
+            releaseManifestSha256: sourceManifestSha256,
+            applicationVersion: '0.21.0',
+            schemaVersion: 7,
+            managementProtocolWireVersion: '1',
+          },
+        ],
+        requiredEvidence: [
+          'release-artifacts-verified',
+          'doctor-pass',
+          'portable-export-verified',
+          'explicit-approval',
+        ],
+      },
+      artifacts: [
+        {
+          file: 'fellowship42-0.22.0-source.tgz',
+          kind: 'portable-instance-source',
+          bytes: 42,
+          sha256: 'c'.repeat(64),
+        },
+        {
+          file: 'fellowship42-management-protocol-1.9.0.tgz',
+          kind: 'management-protocol-package',
+          bytes: 42,
+          sha256: 'd'.repeat(64),
+        },
+      ],
+    }
+    const targetText = JSON.stringify(targetManifest)
+    const targetManifestSha256 = await sha256Text(targetText)
+    const releaseTransport = async () =>
+      new Response(targetText, {
+        headers: { 'content-type': 'application/json' },
+      })
+    let phase: 'prepare' | 'apply' = 'prepare'
+    let lastResult: ManagementCommandResult | null = null
+    let localApprovalId = ''
+    let preparationId = ''
+    const operatorTransport = async (
+      _input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const jws = await bodyJws(init)
+      const payload = await verifyManagementJws(
+        jws,
+        enrolled.challenge.instanceKey,
+      )
+      if (payload.type === 'enrollment.approval') {
+        return new Response(null, { status: 204 })
+      }
+      if (payload.type === 'sync.request') {
+        const issuedAt = phase === 'prepare' ? now : now + 1_000
+        const command =
+          phase === 'prepare'
+            ? {
+                protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+                commandId: '11111111-1111-4111-8111-111111111111',
+                instanceId: enrolled.challenge.instanceId,
+                type: 'update.prepare' as const,
+                capability: 'update.prepare' as const,
+                issuedAt: new Date(issuedAt).toISOString(),
+                expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
+                nonce: 'PPPPPPPPPPPPPPPPPPPPPP',
+                input: { releaseTag: 'v0.22.0', releaseManifestSha256: targetManifestSha256 },
+              }
+            : {
+                protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+                commandId: '22222222-2222-4222-8222-222222222222',
+                instanceId: enrolled.challenge.instanceId,
+                type: 'update.apply' as const,
+                capability: 'update.apply' as const,
+                issuedAt: new Date(issuedAt).toISOString(),
+                expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
+                nonce: 'UUUUUUUUUUUUUUUUUUUUUU',
+                input: { preparationId, localApprovalId },
+              }
+        return Response.json({
+          jws: await signManagementPayload(
+            {
+              protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+              type: 'command.batch',
+              messageId:
+                phase === 'prepare'
+                  ? '33333333-3333-4333-8333-333333333333'
+                  : '44444444-4444-4444-8444-444444444444',
+              connectionId: enrolled.connectionId,
+              instanceId: enrolled.challenge.instanceId,
+              senderKeyId: enrolled.operator.publicKey.kid,
+              audienceKeyId: enrolled.challenge.instanceKey.kid,
+              issuedAt: new Date(issuedAt).toISOString(),
+              expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
+              nonce: phase === 'prepare' ? nonce() : 'VVVVVVVVVVVVVVVVVVVVVV',
+              commands: [command],
+              nextCommandCursor: `cursor-${phase}`,
+            },
+            enrolled.operator.privateKey,
+          ),
+        })
+      }
+      if (payload.type === 'command.results') {
+        lastResult = payload.results[0] ?? null
+        return new Response(null, { status: 204 })
+      }
+      throw new Error('Unexpected management message')
+    }
+
+    await syncManagementOnce(
+      updateEnv,
+      now,
+      operatorTransport,
+      releaseTransport,
+    )
+    expect(lastResult).toMatchObject({
+      commandType: 'update.prepare',
+      status: 'succeeded',
+      output: {
+        kind: 'update.preparation',
+        preparation: {
+          source: { releaseTag: 'v0.21.0' },
+          target: {
+            releaseTag: 'v0.22.0',
+            releaseManifestSha256: targetManifestSha256,
+          },
+          state: 'awaiting-local-approval',
+        },
+      },
+    })
+    const prepared = (await listUpdatePreparations(updateEnv, now))[0]!
+    preparationId = prepared.preparationId
+    const approved = await approveUpdatePreparation(
+      updateEnv,
+      preparationId,
+      { releaseTag: 'v0.22.0', releaseManifestSha256: targetManifestSha256 },
+      ownerId,
+      'church_demo',
+      'request-update-approval',
+      now + 500,
+    )
+    localApprovalId = approved.localApproval!.localApprovalId
+    phase = 'apply'
+    lastResult = null
+
+    await syncManagementOnce(
+      updateEnv,
+      now + 1_000,
+      operatorTransport,
+      releaseTransport,
+    )
+    expect(lastResult).toMatchObject({
+      commandType: 'update.apply',
+      status: 'succeeded',
+      output: {
+        kind: 'update.authorization',
+        authorization: {
+          preparationId,
+          localApprovalId,
+          target: {
+            releaseTag: 'v0.22.0',
+            releaseManifestSha256: targetManifestSha256,
+          },
+          strategy: 'in-place-expand-contract',
+          rollbackPolicy: 'roll-forward-after-migration',
+        },
+      },
+    })
+    expect((await listUpdatePreparations(updateEnv, now + 1_000))[0]).toMatchObject({
+      state: 'authorized',
+      localApproval: { localApprovalId, consumedAt: new Date(now + 1_000).toISOString() },
     })
   })
 

@@ -82,6 +82,10 @@ function desiredStepState(
         },
         schedules: manifest.resources.schedules,
         paymentWebhookProvider: manifest.configuration.paymentWebhookProvider,
+        release: {
+          tag: manifest.instance.release.tag,
+          manifestSha256: manifest.instance.release.manifestSha256,
+        },
       }
     case 'apply-migrations':
       return {

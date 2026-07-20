@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { instanceHealthObservationSchema } from './health.js'
 import { semanticVersionSchema } from './releases.js'
+import {
+  updateApplyAuthorizationSchema,
+  updatePreparationSchema,
+} from './updates.js'
 
 export const MANAGEMENT_PROTOCOL_VERSION = '1' as const
 export const MANAGEMENT_API_PREFIX = '/api/management/v1' as const
@@ -187,6 +191,18 @@ const managementCommandResultOutputSchema = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('update.preparation'),
+      preparation: updatePreparationSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('update.authorization'),
+      authorization: updateApplyAuthorizationSchema,
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('support.request'),
       requestId: z.uuid(),
       state: z.enum(['awaiting-local-approval', 'approved']),
@@ -268,6 +284,26 @@ export const managementCommandResultSchema = z
       context.addIssue({
         code: 'custom',
         message: 'Support output requires a support.session.request command',
+        path: ['output'],
+      })
+    }
+    if (
+      result.output?.kind === 'update.preparation' &&
+      result.commandType !== 'update.prepare'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Update preparation output requires an update.prepare command',
+        path: ['output'],
+      })
+    }
+    if (
+      result.output?.kind === 'update.authorization' &&
+      result.commandType !== 'update.apply'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Update authorization output requires an update.apply command',
         path: ['output'],
       })
     }

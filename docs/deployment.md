@@ -65,11 +65,19 @@ Set the non-secret custody descriptor variables for this installation:
 
 - `F42_PORTABLE_INSTANCE_ID`: the exact `instance.id` from the reviewed
   deployment manifest;
+- `F42_RELEASE_TAG`: the exact `instance.release.tag` from the reviewed
+  deployment manifest;
+- `F42_RELEASE_MANIFEST_SHA256`: the exact
+  `instance.release.manifestSha256` from that manifest;
 - `F42_INFRASTRUCTURE_OWNER`: `church` or `fellowship42`; and
 - `F42_INSTANCE_OPERATOR`: `church`, `partner`, or `fellowship42`.
 
-The application version is compiled from the tagged package and is not an
-operator-configurable variable. Custody descriptors are signed status claims,
+The application and schema versions are compiled from the tagged package and
+are not operator-configurable. Release tag and digest are deployment provenance
+that `f42ctl doctor` checks against the manifest; they are not channel pointers.
+The committed all-zero release digest is intentional scaffolding because an
+archive cannot embed the future digest of its own release manifest. Replace it
+from the exact deployment manifest for every deployment. Custody descriptors are signed status claims,
 not authorization. Do not put account IDs,
 customer IDs, provider resource IDs, or credentials in them.
 

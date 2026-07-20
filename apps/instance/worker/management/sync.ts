@@ -12,8 +12,8 @@ import {
   type ManagementJws,
 } from '@fellowship42/management-protocol'
 import { z } from 'zod'
-import instancePackage from '../../package.json'
 import { AppError } from '../lib/errors'
+import { APPLICATION_VERSION, SCHEMA_VERSION } from '../lib/release'
 import { inspectInstanceRuntimeHealth } from '../lib/runtime-health'
 import {
   activeConnection,
@@ -25,9 +25,12 @@ import {
   type ManagementBindings,
   type StoredIdentity,
 } from './service'
+import {
+  authorizePreparedUpdate,
+  prepareUpdate,
+  type ReleaseFetchTransport,
+} from './updates'
 
-const APPLICATION_VERSION = instancePackage.version
-const SCHEMA_VERSION = 6
 const MAX_RESPONSE_BYTES = 300_000
 
 const envelopeResponseSchema = z.object({ jws: managementJwsSchema }).strict()
@@ -463,11 +466,15 @@ async function instanceHealth(
 
 async function evaluateCommand(
   env: ManagementBindings,
+  connectionId: string,
   command: ManagementCommand,
   grants: Map<string, { requiresLocalApproval: boolean }>,
   instanceId: string,
   grantVersion: number,
+  churchId: string,
+  requestId: string,
   now: number,
+  releaseTransport: ReleaseFetchTransport,
 ): Promise<ManagementCommandResult> {
   const completedAt = new Date(now).toISOString()
   if (command.instanceId !== instanceId) {
@@ -507,7 +514,7 @@ async function evaluateCommand(
       error: { code: 'capability_not_granted', message: 'The requested capability is not granted' },
     })
   }
-  if (grant.requiresLocalApproval) {
+  if (grant.requiresLocalApproval && command.type !== 'update.apply') {
     return managementCommandResultSchema.parse({
       protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
       commandId: command.commandId,
@@ -540,6 +547,73 @@ async function evaluateCommand(
       output: await instanceHealth(env, instanceId, grantVersion, now),
     })
   }
+  try {
+    if (command.type === 'update.prepare') {
+      return managementCommandResultSchema.parse({
+        protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+        commandId: command.commandId,
+        instanceId,
+        commandType: command.capability,
+        status: 'succeeded',
+        completedAt,
+        output: {
+          kind: 'update.preparation',
+          preparation: await prepareUpdate(
+            env,
+            connectionId,
+            instanceId,
+            churchId,
+            command,
+            requestId,
+            now,
+            releaseTransport,
+          ),
+        },
+      })
+    }
+    if (command.type === 'update.apply') {
+      if (!grant.requiresLocalApproval) {
+        throw new AppError(
+          409,
+          'update_apply_grant_invalid',
+          'update.apply must require a fresh local approval',
+        )
+      }
+      return managementCommandResultSchema.parse({
+        protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+        commandId: command.commandId,
+        instanceId,
+        commandType: command.capability,
+        status: 'succeeded',
+        completedAt,
+        output: {
+          kind: 'update.authorization',
+          authorization: await authorizePreparedUpdate(
+            env,
+            connectionId,
+            instanceId,
+            churchId,
+            command,
+            requestId,
+            now,
+          ),
+        },
+      })
+    }
+  } catch (error) {
+    if (error instanceof AppError) {
+      return managementCommandResultSchema.parse({
+        protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+        commandId: command.commandId,
+        instanceId,
+        commandType: command.capability,
+        status: error.status >= 500 ? 'failed' : 'rejected',
+        completedAt,
+        error: { code: error.code, message: error.message },
+      })
+    }
+    throw error
+  }
   return managementCommandResultSchema.parse({
     protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
     commandId: command.commandId,
@@ -562,6 +636,7 @@ async function executeCommand(
   churchId: string,
   requestId: string,
   now: number,
+  releaseTransport: ReleaseFetchTransport,
 ): Promise<ManagementCommandResult> {
   const payloadHash = await sha256Hex(JSON.stringify(command))
   const prior = await readStoredCommand(
@@ -578,11 +653,15 @@ async function executeCommand(
 
   const result = await evaluateCommand(
     env,
+    connection.connectionId,
     command,
     grants,
     connection.instanceId,
     connection.grantVersion,
+    churchId,
+    requestId,
     now,
+    releaseTransport,
   )
   try {
     await env.DB.batch([
@@ -674,6 +753,7 @@ async function processCommandBatch(
   identity: StoredIdentity,
   envelope: ManagementJws,
   now: number,
+  releaseTransport: ReleaseFetchTransport,
 ): Promise<ReplayOutcome> {
   let payload
   try {
@@ -764,6 +844,7 @@ async function processCommandBatch(
         installed.churchId,
         payload.messageId,
         now,
+        releaseTransport,
       ),
     )
   }
@@ -833,7 +914,12 @@ async function buildSyncRequest(
           owner: env.F42_INFRASTRUCTURE_OWNER ?? 'church',
           operator: env.F42_INSTANCE_OPERATOR ?? 'church',
         },
-        capabilities: ['instance.status.read', 'instance.health.read'],
+        capabilities: [
+          'instance.status.read',
+          'instance.health.read',
+          'update.prepare',
+          'update.apply',
+        ],
       },
       grantVersion: connection.grantVersion,
       commandCursor: connection.commandCursor,
@@ -846,6 +932,7 @@ export async function syncManagementOnce(
   env: ManagementBindings,
   now = Date.now(),
   transport: FetchTransport = fetch,
+  releaseTransport: ReleaseFetchTransport = fetch,
 ): Promise<{ state: 'disconnected' | 'succeeded'; commandCount: number }> {
   const connection = await activeConnection(env.DB)
   if (!connection) return { state: 'disconnected', commandCount: 0 }
@@ -873,6 +960,7 @@ export async function syncManagementOnce(
     identity,
     commandEnvelope,
     now,
+    releaseTransport,
   )
   await postEnvelope(connection.syncUrl, outcome.response, transport, false)
   const decoded = await verifyManagementJws(outcome.response, identity.publicKey)

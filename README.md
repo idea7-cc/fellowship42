@@ -26,7 +26,9 @@ rotation, local disconnect, an executable public adapter-conformance suite, and
 a church-owner console for reviewing the operator, grants, sync state, and safe
 local rotation/disconnect actions. The console emits local revocation evidence,
 and public `f42ctl` builds and independently verifies a provider-neutral hosted
-exit packet for church-owned transfers.
+exit packet for church-owned transfers. Release `v0.21.0` also adds immutable
+update preparation, exact owner approval, and signed deployment authorization
+without placing infrastructure credentials in the instance.
 
 ## Repository map
 
@@ -127,6 +129,7 @@ Completed hosted transfers produce a public
 - [Repository strategy](docs/repository-strategy.md)
 - [Management protocol](docs/management-protocol.md)
 - [Releases and immutable artifacts](docs/releases.md)
+- [Durable instance upgrades](docs/durable-upgrades.md)
 - [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
 - [Portable exports](docs/portable-exports.md)
 - [Portable import and cutover](docs/portable-import-and-cutover.md)

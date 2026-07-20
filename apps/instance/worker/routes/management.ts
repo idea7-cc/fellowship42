@@ -13,6 +13,10 @@ import {
   submitEnrollmentProposal,
   type ManagementBindings,
 } from '../management/service'
+import {
+  approveUpdatePreparation,
+  listUpdatePreparations,
+} from '../management/updates'
 
 type AppEnv = {
   Bindings: ManagementBindings
@@ -31,6 +35,13 @@ const approvalSchema = z
 
 const disconnectSchema = z
   .object({ reason: z.string().trim().min(1).max(240) })
+  .strict()
+
+const updateApprovalSchema = z
+  .object({
+    releaseTag: z.string().regex(/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/),
+    releaseManifestSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  })
   .strict()
 
 async function jsonBody(c: Context<AppEnv>): Promise<unknown> {
@@ -64,6 +75,27 @@ managementRoutes.get('/', async (c) => {
 managementRoutes.get('/exit-disposition', async (c) => {
   await requireManagementOwner(c)
   return c.json(await managementExitDisposition(c.env.DB))
+})
+
+managementRoutes.get('/updates', async (c) => {
+  await requireManagementOwner(c)
+  return c.json({ preparations: await listUpdatePreparations(c.env) })
+})
+
+managementRoutes.post('/updates/:preparationId/approve', async (c) => {
+  const owner = await requireManagementOwner(c)
+  const installed = await installation(c.env.DB)
+  const input = parse(updateApprovalSchema, await jsonBody(c))
+  return c.json(
+    await approveUpdatePreparation(
+      c.env,
+      c.req.param('preparationId'),
+      input,
+      owner.id,
+      installed.churchId,
+      c.get('requestId'),
+    ),
+  )
 })
 
 managementRoutes.post('/challenges', async (c) => {

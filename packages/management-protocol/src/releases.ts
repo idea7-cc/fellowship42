@@ -11,6 +11,48 @@ export const semanticVersionSchema = z
     'Expected a semantic version',
   )
 
+export function compareSemanticVersions(left: string, right: string): number {
+  const parse = (value: string) => {
+    const match = semanticVersionSchema.parse(value).match(
+      /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/,
+    )!
+    return {
+      core: [BigInt(match[1]!), BigInt(match[2]!), BigInt(match[3]!)],
+      prerelease: match[4]?.split('.') ?? null,
+    }
+  }
+  const a = parse(left)
+  const b = parse(right)
+  for (let index = 0; index < 3; index += 1) {
+    if (a.core[index] !== b.core[index]) {
+      return a.core[index]! < b.core[index]! ? -1 : 1
+    }
+  }
+  if (a.prerelease === null || b.prerelease === null) {
+    return a.prerelease === b.prerelease ? 0 : a.prerelease === null ? 1 : -1
+  }
+  for (
+    let index = 0;
+    index < Math.max(a.prerelease.length, b.prerelease.length);
+    index += 1
+  ) {
+    const leftPart = a.prerelease[index]
+    const rightPart = b.prerelease[index]
+    if (leftPart === undefined || rightPart === undefined) {
+      return leftPart === rightPart ? 0 : leftPart === undefined ? -1 : 1
+    }
+    if (leftPart === rightPart) continue
+    const leftNumeric = /^\d+$/.test(leftPart)
+    const rightNumeric = /^\d+$/.test(rightPart)
+    if (leftNumeric && rightNumeric) {
+      return BigInt(leftPart) < BigInt(rightPart) ? -1 : 1
+    }
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1
+    return leftPart < rightPart ? -1 : 1
+  }
+  return 0
+}
+
 export const sha256DigestSchema = z
   .string()
   .regex(/^[0-9a-f]{64}$/, 'Expected a lowercase SHA-256 digest')
@@ -104,6 +146,26 @@ export const releaseUpgradeMetadataSchema = z
         })
       }
       sourceKeys.add(key)
+      if (
+        compareSemanticVersions(
+          metadata.target.applicationVersion,
+          source.applicationVersion,
+        ) <= 0
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Upgrade target application version must be newer than its source',
+          path: ['eligibleSources', index, 'applicationVersion'],
+        })
+      }
+      if (metadata.target.schemaVersion < source.schemaVersion) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Upgrade target schema cannot be older than its source',
+          path: ['eligibleSources', index, 'schemaVersion'],
+        })
+      }
     }
 
     const evidence = new Set(metadata.requiredEvidence)

@@ -329,6 +329,52 @@ export interface ManagementExitDispositionResponse {
   }
 }
 
+export interface UpdatePreparation {
+  formatVersion: 1
+  preparationId: string
+  instanceId: string
+  source: {
+    releaseTag: string
+    releaseManifestSha256: string
+    applicationVersion: string
+    schemaVersion: number
+    managementProtocolWireVersion: string
+  }
+  target: {
+    releaseTag: string
+    releaseManifestSha256: string
+    applicationVersion: string
+    schemaVersion: number
+    managementProtocolWireVersion: string
+  }
+  requiredEvidence: string[]
+  state:
+    | 'awaiting-local-approval'
+    | 'approved'
+    | 'authorized'
+    | 'applied'
+    | 'expired'
+    | 'superseded'
+  preparedAt: string
+  expiresAt: string
+  localApproval: {
+    localApprovalId: string
+    approvedAt: string
+    expiresAt: string
+    consumedAt: string | null
+  } | null
+  authorization: {
+    authorizationId: string
+    authorizedAt: string
+    expiresAt: string
+  } | null
+  appliedAt: string | null
+}
+
+export interface UpdatePreparationsResponse {
+  preparations: UpdatePreparation[]
+}
+
 export interface EnrollmentChallenge {
   protocolVersion: '1'
   challengeId: string

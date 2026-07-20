@@ -141,9 +141,11 @@ proprietary encryption and it is not an MCP transport.
 The implemented adapter keeps the instance Ed25519 private key encrypted in D1
 under a separately configured Worker wrapping secret, consumes one-use signed
 enrollment proposals, requires local-owner grant approval, and polls the pinned
-operator HTTPS endpoint from the scheduled Worker. Release 0.19 executes the
+operator HTTPS endpoint from the scheduled Worker. Release 0.21 executes the
 legacy `instance.status.read` capability and the independently grantable,
-strict `instance.health.read` observation; every other command fails closed.
+strict `instance.health.read` observation. It also implements exact
+`update.prepare` verification and owner-approved `update.apply` authorization;
+backup, support, and disconnect commands continue to fail closed.
 Replay and command outcomes are authoritative in D1, while signed results make
 retries idempotent across unrelated Cloudflare accounts.
 
@@ -254,11 +256,13 @@ Implemented now:
   outbound status synchronization, replay protection, rotation, local
   disconnect, bounded management auditing, executable adapter conformance, and
   a church-owner console for inspecting and revoking the relationship.
+- exact immutable update preparation, expiring local-owner approval, and
+  signed deployment authorization with no infrastructure credential in the
+  instance.
 
 Planned, not implied by the scaffolding:
 
-- backup, update, support, grant-replacement, and remote-disconnect command
-  execution beyond the implemented status capability;
+- backup, support, grant-replacement, and remote-disconnect command execution;
 - operator-facing Cloudflare reconciliation commands and automated collection;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;

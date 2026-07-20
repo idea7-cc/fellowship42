@@ -58,6 +58,12 @@ credentials and provider IDs; neither enters public evidence. See
 [`docs/lifecycle-manifests-and-doctor.md`](../../docs/lifecycle-manifests-and-doctor.md)
 and the payload-safe staging fixture in `fixtures/reconciliation.staging.json`.
 
+Upgrade operators use the Worker-safe `@fellowship42/f42ctl/updates` subpath.
+`executeAuthorizedUpdateReconciliation` binds instance-signed, owner-approved
+authorization to the exact target deployment manifest before any provider
+adapter call. `releaseCoordinateVariables` derives the non-secret Worker
+release tag and manifest digest from that same manifest.
+
 Portable export collection, bundle sensitivity, and the strict input/output
 formats are documented in [`docs/portable-exports.md`](../../docs/portable-exports.md).
 Import staging, the provider-adapter boundary, credential rotation, and cutover

@@ -95,6 +95,12 @@ SHA-256 digest plus `awaiting-owner-configuration`, `awaiting-owner`,
 manifest without exposing the identifier, owner selector, or church data.
 Without runtime evidence the check remains `identity-runtime-check-required`.
 
+Doctor also requires `F42_RELEASE_TAG` and
+`F42_RELEASE_MANIFEST_SHA256` to match the exact deployment release. These
+non-secret coordinates let the instance prove which immutable source is
+running before it prepares an upgrade. The Worker name, package version, or a
+mutable release channel is never accepted as a substitute.
+
 ## Callable reconciliation
 
 `@fellowship42/f42ctl/reconciliation` is a Worker-safe public subpath for

@@ -18,12 +18,15 @@ import {
   migrationRehearsalEvidenceSchema,
   managementAdapterConformanceReportSchema,
   assessReleaseUpgradeEligibility,
+  compareSemanticVersions,
   releaseManifestSchema,
   releaseUpgradeMetadataSchema,
   instanceRuntimeHealthSchema,
   portableRestoreConformanceReportSchema,
   exitHandoffSchema,
   managementExitDispositionSchema,
+  updateApplyAuthorizationSchema,
+  updatePreparationSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -393,7 +396,10 @@ describe('management protocol contracts', () => {
         ...target,
         upgrade: {
           ...upgrade,
-          target: { ...upgrade.target, schemaVersion: 7 },
+          target: {
+            ...upgrade.target,
+            schemaVersion: upgrade.target.schemaVersion + 1,
+          },
         },
       }).success,
     ).toBe(false)
@@ -429,6 +435,91 @@ describe('management protocol contracts', () => {
         },
         eligibleSources: [source, source],
         requiredEvidence: ['doctor-pass', 'doctor-pass'],
+      }).success,
+    ).toBe(false)
+    expect(
+      releaseUpgradeMetadataSchema.safeParse({
+        formatVersion: 1,
+        strategy: 'in-place-expand-contract',
+        rollbackPolicy: 'roll-forward-after-migration',
+        target: {
+          applicationVersion: source.applicationVersion,
+          schemaVersion: source.schemaVersion,
+          managementProtocolWireVersion: '1',
+        },
+        eligibleSources: [source],
+        requiredEvidence: ['explicit-approval'],
+      }).success,
+    ).toBe(false)
+    expect(compareSemanticVersions('1.0.0', '1.0.0-rc.1')).toBeGreaterThan(0)
+    expect(compareSemanticVersions('1.0.0-rc.2', '1.0.0-rc.10')).toBeLessThan(0)
+  })
+
+  it('binds update preparation, local approval, and deployment authorization evidence', () => {
+    const source = {
+      releaseTag: 'v0.21.0',
+      releaseManifestSha256: '1'.repeat(64),
+      applicationVersion: '0.21.0',
+      schemaVersion: 7,
+      managementProtocolWireVersion: '1',
+    }
+    const target = {
+      releaseTag: 'v0.22.0',
+      releaseManifestSha256: '2'.repeat(64),
+      applicationVersion: '0.22.0',
+      schemaVersion: 7,
+      managementProtocolWireVersion: '1',
+    }
+    const prepared = updatePreparationSchema.parse({
+      formatVersion: 1,
+      preparationId: '11111111-1111-4111-8111-111111111111',
+      instanceId: deploymentManifest.instance.id,
+      source,
+      target,
+      requiredEvidence: [
+        'release-artifacts-verified',
+        'doctor-pass',
+        'portable-export-verified',
+        'explicit-approval',
+      ],
+      state: 'approved',
+      preparedAt: '2026-07-20T04:00:00.000Z',
+      expiresAt: '2026-07-20T05:00:00.000Z',
+      localApproval: {
+        localApprovalId: '22222222-2222-4222-8222-222222222222',
+        approvedAt: '2026-07-20T04:10:00.000Z',
+        expiresAt: '2026-07-20T04:40:00.000Z',
+        consumedAt: null,
+      },
+      authorization: null,
+      appliedAt: null,
+    })
+    expect(prepared.target).toEqual(target)
+
+    const authorization = updateApplyAuthorizationSchema.parse({
+      formatVersion: 1,
+      authorizationId: '33333333-3333-4333-8333-333333333333',
+      preparationId: prepared.preparationId,
+      localApprovalId: prepared.localApproval?.localApprovalId,
+      instanceId: prepared.instanceId,
+      source,
+      target,
+      strategy: 'in-place-expand-contract',
+      rollbackPolicy: 'roll-forward-after-migration',
+      authorizedAt: '2026-07-20T04:20:00.000Z',
+      expiresAt: '2026-07-20T05:20:00.000Z',
+    })
+    expect(authorization.target.releaseManifestSha256).toBe('2'.repeat(64))
+    expect(
+      updateApplyAuthorizationSchema.safeParse({
+        ...authorization,
+        target: { ...target, releaseTag: 'v0.22.1' },
+      }).success,
+    ).toBe(false)
+    expect(
+      updatePreparationSchema.safeParse({
+        ...prepared,
+        state: 'authorized',
       }).success,
     ).toBe(false)
   })

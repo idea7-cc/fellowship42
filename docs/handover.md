@@ -38,6 +38,8 @@ before changing the system shape.
 - a church-owner management console for one-use handoff, explicit grant
   approval, operator/key inspection, sync state, identity rotation, and local
   disconnect;
+- instance-owned immutable update preparation, exact expiring owner approval,
+  signed deployment authorization, and applied-release reconciliation;
 - Workers-runtime migration and API tests;
 - `@fellowship42/management-protocol` with versioned descriptors,
   Ed25519 enrollment/sync contracts, capabilities, command envelopes, replay
@@ -47,7 +49,8 @@ before changing the system shape.
   immutable release bytes and source commit, produces a non-destructive plan,
   inspects local/runtime shape without credentials, and exposes a Worker-safe
   provider-neutral reconciliation library with digest-bound approval and
-  idempotent adapter calls;
+  idempotent adapter calls, plus an update wrapper that rejects authorization
+  drift before provider effects;
 - a machine-readable repository manifest plus CI boundary enforcement;
 - architecture ADRs and explicit private-repository guidance;
 - the public project site in `apps/project-site`;
@@ -85,17 +88,18 @@ Remote deployment still needs:
 2. a dedicated R2 bucket;
 3. an instance domain;
 4. a Cloudflare Access application, policies, team domain, and audience; and
-5. the manifest's exact `F42_PORTABLE_INSTANCE_ID`; and
+5. the manifest's exact `F42_PORTABLE_INSTANCE_ID` and release coordinates;
+   and
 6. the intended first owner's deployment-scoped bootstrap email secret.
 
 See `docs/deployment.md` for the direct Wrangler rollout shape.
 
 ## Recommended next architecture work
 
-1. Implement and certify a scoped Cloudflare adapter against the public
-   reconciliation contract in the private repository.
-2. Exercise reconciliation in a dedicated staging account, preserving redacted
-   evidence and exact idempotent replay.
+1. Consume the public update-authorization wrapper from the private durable
+   upgrade Workflow and retain its bounded evidence.
+2. Exercise the upgrade path in a dedicated staging account, preserving
+   redacted evidence, recovery export, and exact idempotent replay.
 3. Complete owner-facing church profile and publication controls after the
    instance-first bootstrap while retaining `church_id` defense in depth.
 4. Keep `fellowship42-cloud` on published lifecycle contracts and immutable
@@ -112,10 +116,12 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/wrangler.jsonc` | instance Worker, assets, D1, R2, DO, and Access bindings |
 | `apps/instance/migrations/0001_initial.sql` | canonical church domain model |
 | `apps/instance/migrations/0002_instance_identity.sql` | portable singleton instance identity |
+| `apps/instance/migrations/0007_durable_updates.sql` | exact update preparation and owner-authorization state |
 | `apps/instance/worker/index.ts` | middleware, health, logging, and route composition |
 | `apps/instance/worker/routes/bootstrap.ts` | one-time Access-gated production initialization |
 | `apps/instance/src/components/bootstrap-gate.tsx` | first-owner setup experience |
 | `apps/instance/worker/management/README.md` | reserved optional management boundary |
+| `apps/instance/worker/management/updates.ts` | immutable target verification and apply authorization |
 | `apps/instance/test/api.spec.ts` | Workers/D1 integration baseline |
 | `apps/instance/test/bootstrap.spec.ts` | bootstrap ownership and atomicity coverage |
 | `apps/instance/test/directory.spec.ts` | people/household permissions, concurrency, audit, and lifecycle coverage |

@@ -232,6 +232,10 @@ export async function inspectDeployment(input: {
     runtime.topology === 'single-church'
   const portableIdentityConfigured =
     variables.F42_PORTABLE_INSTANCE_ID === manifest.instance.id
+  const releaseCoordinateConfigured =
+    variables.F42_RELEASE_TAG === manifest.instance.release.tag &&
+    variables.F42_RELEASE_MANIFEST_SHA256 ===
+      manifest.instance.release.manifestSha256
   const expectedIdentitySha256 = createHash('sha256')
     .update(manifest.instance.id)
     .digest('hex')
@@ -283,6 +287,12 @@ export async function inspectDeployment(input: {
       code: input.releaseCheck?.code ?? 'release-not-checked',
     },
     portableIdentityCheck,
+    check(
+      'release-coordinate',
+      releaseCoordinateConfigured,
+      'release-coordinate-matches',
+      'release-coordinate-mismatch',
+    ),
     check(
       'worker-name',
       wrangler.name === manifest.worker.name,
