@@ -1,6 +1,7 @@
 import {
   MANAGEMENT_PROTOCOL_VERSION,
   enrollmentChallengeSchema,
+  managementExitDispositionSchema,
   managementGrantSetSchema,
   managementJwsSchema,
   managementPublicKeyFingerprint,
@@ -767,6 +768,20 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
   const installed = await installation(db)
   const identity = await readIdentity(db)
   const connection = await activeConnection(db)
+  const lastDisposition = await db
+    .prepare(
+      `SELECT connection_id, operator_id, disconnected_at
+       FROM management_connections
+       WHERE instance_id = ? AND status = 'disconnected'
+         AND disconnected_at IS NOT NULL
+       ORDER BY disconnected_at DESC, connection_id DESC LIMIT 1`,
+    )
+    .bind(installed.instanceId)
+    .first<{
+      connection_id: string
+      operator_id: string
+      disconnected_at: number
+    }>()
   const pending = connection
     ? null
     : await db
@@ -774,9 +789,13 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           `SELECT challenge_id, operator_id, operator_display_name,
                   operator_key_id, operator_public_jwk_json, sync_url,
                   requested_capabilities_json, consumed_at
-           FROM management_enrollment_challenges
+           FROM management_enrollment_challenges AS challenge
            WHERE instance_id = ? AND proposal_jws_json IS NOT NULL
              AND consumed_at >= ?
+             AND NOT EXISTS (
+               SELECT 1 FROM management_connections AS connection
+               WHERE connection.enrollment_challenge_id = challenge.challenge_id
+             )
            ORDER BY consumed_at DESC LIMIT 1`,
         )
         .bind(installed.instanceId, now - 30 * 60_000)
@@ -833,6 +852,13 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           submittedAt: new Date(pending.consumed_at).toISOString(),
         }
       : null,
+    lastDisposition: lastDisposition
+      ? {
+          connectionId: lastDisposition.connection_id,
+          operatorId: lastDisposition.operator_id,
+          disconnectedAt: new Date(lastDisposition.disconnected_at).toISOString(),
+        }
+      : null,
     connection: connection
       ? {
           connectionId: connection.connectionId,
@@ -861,6 +887,125 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
         }
       : null,
   }
+}
+
+export async function managementExitDisposition(
+  db: D1Database,
+  now = Date.now(),
+) {
+  const installed = await installation(db)
+  const disconnected = await db
+    .prepare(
+      `SELECT connection_id, operator_id, disconnected_at,
+              CASE WHEN pending_control_jws_json IS NULL
+                     AND pending_rotation_local_approval_id IS NULL
+                     AND pending_replacement_key_id IS NULL
+                     AND pending_replacement_public_jwk_json IS NULL
+                     AND pending_replacement_private_jwk_ciphertext IS NULL
+                     AND pending_replacement_private_jwk_iv IS NULL
+                   THEN 1 ELSE 0 END AS pending_key_material_removed
+       FROM management_connections
+       WHERE instance_id = ? AND status = 'disconnected'
+         AND disconnected_at IS NOT NULL
+       ORDER BY disconnected_at DESC, connection_id DESC LIMIT 1`,
+    )
+    .bind(installed.instanceId)
+    .first<{
+      connection_id: string
+      operator_id: string
+      disconnected_at: number
+      pending_key_material_removed: number
+    }>()
+  if (!disconnected) {
+    throw new AppError(
+      409,
+      'management_exit_not_available',
+      'No completed local management disconnect is available',
+    )
+  }
+  const checks = await db
+    .prepare(
+      `SELECT
+         NOT EXISTS (
+           SELECT 1 FROM management_connections
+           WHERE instance_id = ? AND status = 'active'
+         ) AS active_connection_absent,
+         NOT EXISTS (
+           SELECT 1 FROM management_grants WHERE connection_id = ?
+         ) AS active_grants_revoked,
+         NOT EXISTS (
+           SELECT 1 FROM management_identities
+         ) AS identity_removed,
+         NOT EXISTS (
+           SELECT 1 FROM management_replay_records WHERE connection_id = ?
+         ) AS replay_removed,
+         NOT EXISTS (
+           SELECT 1 FROM management_command_records WHERE connection_id = ?
+         ) AS commands_removed,
+         EXISTS (
+           SELECT 1 FROM audit_events
+           WHERE id = ? AND action = 'management.disconnected'
+             AND entity_type = 'management_connection' AND entity_id = ?
+             AND occurred_at = ?
+         ) AS audit_present,
+         EXISTS (
+           SELECT 1 FROM churches WHERE id = ?
+         ) AS church_available`,
+    )
+    .bind(
+      installed.instanceId,
+      disconnected.connection_id,
+      disconnected.connection_id,
+      disconnected.connection_id,
+      `management-disconnect:${disconnected.connection_id}`,
+      disconnected.connection_id,
+      disconnected.disconnected_at,
+      installed.churchId,
+    )
+    .first<{
+      active_connection_absent: number
+      active_grants_revoked: number
+      identity_removed: number
+      replay_removed: number
+      commands_removed: number
+      audit_present: number
+      church_available: number
+    }>()
+  if (
+    !checks ||
+    !checks.active_connection_absent ||
+    !checks.active_grants_revoked ||
+    !checks.identity_removed ||
+    !checks.replay_removed ||
+    !checks.commands_removed ||
+    !checks.audit_present ||
+    !checks.church_available ||
+    !disconnected.pending_key_material_removed
+  ) {
+    throw new AppError(
+      409,
+      'management_exit_evidence_incomplete',
+      'Local management revocation evidence is incomplete',
+    )
+  }
+  return managementExitDispositionSchema.parse({
+    formatVersion: 1,
+    instanceId: installed.instanceId,
+    state: 'disconnected',
+    connectionId: disconnected.connection_id,
+    operatorId: disconnected.operator_id,
+    disconnectedAt: new Date(disconnected.disconnected_at).toISOString(),
+    observedAt: new Date(now).toISOString(),
+    auditEventId: `management-disconnect:${disconnected.connection_id}`,
+    checks: {
+      activeConnectionAbsent: true,
+      activeGrantsRevoked: true,
+      localKeyMaterialRemoved: true,
+      replayStateRemoved: true,
+      commandStateRemoved: true,
+      churchOperationsAvailable: true,
+    },
+  })
 }
 
 export async function rotateManagementIdentity(
@@ -981,10 +1126,20 @@ export async function disconnectManagement(
       .prepare(
         `UPDATE management_connections
          SET status = 'disconnected', disconnected_by_user_id = ?,
-             disconnected_at = ?, disconnect_reason = ?
+             disconnected_at = ?, disconnect_reason = ?,
+             pending_control_jws_json = NULL,
+             pending_rotation_local_approval_id = NULL,
+             pending_replacement_key_id = NULL,
+             pending_replacement_public_jwk_json = NULL,
+             pending_replacement_private_jwk_ciphertext = NULL,
+             pending_replacement_private_jwk_iv = NULL,
+             command_cursor = NULL
          WHERE connection_id = ? AND status = 'active'`,
       )
       .bind(actorUserId, now, reason, connection.connectionId),
+    db
+      .prepare(`DELETE FROM management_grants WHERE connection_id = ?`)
+      .bind(connection.connectionId),
     db
       .prepare(
         `DELETE FROM management_replay_records WHERE connection_id = ?`,
@@ -995,7 +1150,16 @@ export async function disconnectManagement(
         `DELETE FROM management_command_records WHERE connection_id = ?`,
       )
       .bind(connection.connectionId),
-    db.prepare(`DELETE FROM management_identities WHERE singleton = 1`),
+    db
+      .prepare(
+        `DELETE FROM management_identities
+         WHERE singleton = 1 AND EXISTS (
+           SELECT 1 FROM management_connections
+           WHERE connection_id = ? AND status = 'disconnected'
+             AND disconnected_at = ?
+         )`,
+      )
+      .bind(connection.connectionId, now),
     db
       .prepare(
         `INSERT OR IGNORE INTO audit_events (

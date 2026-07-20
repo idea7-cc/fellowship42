@@ -189,6 +189,13 @@ bounded apply reports. Provider-specific transports remain injected adapters.
 The private control plane must use these same public contracts and migration
 logic.
 
+A completed hosted-to-church-owned transfer is represented by the public
+[exit packet](exit-packets.md). It binds the verified export, completed restore
+and cutover, explicit approval, local management revocation, and bounded
+handoff inventory by canonical digest. The private control plane may coordinate
+those steps but cannot redefine exit or change custody without the public
+evidence passing.
+
 The deterministic [hosted-to-church-owned rehearsal](migration-rehearsal.md)
 executes that full public path across isolated synthetic account boundaries and
 must reproduce a published, payload-free evidence fixture in CI. It is a
@@ -239,6 +246,8 @@ Implemented now:
 - executable isolated-restore conformance covering tamper rejection,
   new/empty destination proof, D1/R2 restore, credential rotation, identity and
   runtime verification, cutover isolation, and partial failure;
+- owner-downloadable local management-revocation evidence and independently
+  rebuildable hosted exit packets;
 - explicit public/private repository boundaries;
 - opt-in signed management enrollment, encrypted instance-key custody,
   outbound status synchronization, replay protection, rotation, local

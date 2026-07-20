@@ -1,6 +1,7 @@
 import { env, exports } from 'cloudflare:workers'
 import {
   MANAGEMENT_PROTOCOL_VERSION,
+  managementExitDispositionSchema,
   runManagementAdapterConformance,
   managementPublicKeySchema,
   signManagementPayload,
@@ -15,6 +16,7 @@ import {
   approveEnrollment,
   createEnrollmentChallenge,
   disconnectManagement,
+  managementExitDisposition,
   managementStatus,
   rotateManagementIdentity,
   submitEnrollmentProposal,
@@ -571,7 +573,59 @@ describe('optional management adapter', () => {
       enabled: false,
       identity: null,
       connection: null,
+      pendingEnrollment: null,
+      lastDisposition: {
+        connectionId: enrolled.connectionId,
+        operatorId: 'operator_test',
+        disconnectedAt: new Date(now + 2_000).toISOString(),
+      },
     })
+    const disposition = await managementExitDisposition(env.DB, now + 3_000)
+    expect(managementExitDispositionSchema.parse(disposition)).toEqual(
+      disposition,
+    )
+    expect(disposition).toMatchObject({
+      instanceId: enrolled.challenge.instanceId,
+      connectionId: enrolled.connectionId,
+      operatorId: 'operator_test',
+      checks: {
+        activeConnectionAbsent: true,
+        activeGrantsRevoked: true,
+        localKeyMaterialRemoved: true,
+        replayStateRemoved: true,
+        commandStateRemoved: true,
+        churchOperationsAvailable: true,
+      },
+    })
+    const disconnectedState = await env.DB
+      .prepare(
+        `SELECT pending_replacement_private_jwk_ciphertext,
+                pending_control_jws_json, command_cursor
+         FROM management_connections WHERE connection_id = ?`,
+      )
+      .bind(enrolled.connectionId)
+      .first<{
+        pending_replacement_private_jwk_ciphertext: string | null
+        pending_control_jws_json: string | null
+        command_cursor: string | null
+      }>()
+    expect(disconnectedState).toEqual({
+      pending_replacement_private_jwk_ciphertext: null,
+      pending_control_jws_json: null,
+      command_cursor: null,
+    })
+    const retainedGrants = await env.DB
+      .prepare('SELECT COUNT(*) AS count FROM management_grants WHERE connection_id = ?')
+      .bind(enrolled.connectionId)
+      .first<{ count: number }>()
+    expect(retainedGrants?.count).toBe(0)
+    await env.DB
+      .prepare('DELETE FROM audit_events WHERE id = ?')
+      .bind(`management-disconnect:${enrolled.connectionId}`)
+      .run()
+    await expect(
+      managementExitDisposition(env.DB, now + 4_000),
+    ).rejects.toMatchObject({ code: 'management_exit_evidence_incomplete' })
   })
 
   it('does not expose owner management actions without local authentication', async () => {
@@ -582,6 +636,13 @@ describe('optional management adapter', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: 'authentication_required' },
     })
+
+    const exitResponse = await exports.default.fetch(
+      new Request(
+        'https://fellowship42.test/api/management/exit-disposition',
+      ),
+    )
+    expect(exitResponse.status).toBe(401)
 
     const invalidProposal = await exports.default.fetch(
       new Request('https://fellowship42.test/api/management/proposals', {

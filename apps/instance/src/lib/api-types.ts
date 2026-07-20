@@ -291,6 +291,11 @@ export interface ManagementStatusResponse {
     requestedCapabilities: ManagementCapability[]
     submittedAt: string
   } | null
+  lastDisposition: {
+    connectionId: string
+    operatorId: string
+    disconnectedAt: string
+  } | null
   connection: {
     connectionId: string
     operator: ManagementOperatorSummary
@@ -302,6 +307,25 @@ export interface ManagementStatusResponse {
     lastSyncStatus: string | null
     lastSyncCode: string | null
   } | null
+}
+
+export interface ManagementExitDispositionResponse {
+  formatVersion: 1
+  instanceId: string
+  state: 'disconnected'
+  connectionId: string
+  operatorId: string
+  disconnectedAt: string
+  observedAt: string
+  auditEventId: string
+  checks: {
+    activeConnectionAbsent: true
+    activeGrantsRevoked: true
+    localKeyMaterialRemoved: true
+    replayStateRemoved: true
+    commandStateRemoved: true
+    churchOperationsAvailable: true
+  }
 }
 
 export interface EnrollmentChallenge {

@@ -17,6 +17,7 @@ import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import type {
   EnrollmentChallenge,
   ManagementCapability,
+  ManagementExitDispositionResponse,
   ManagementStatusResponse,
 } from '@/lib/api-types'
 import { useAuthState } from '@/lib/auth-provider'
@@ -201,6 +202,24 @@ export function ManagementPage() {
     })
   }
 
+  async function downloadExitDisposition() {
+    await action('exit-disposition', async () => {
+      const disposition = await apiRequest<ManagementExitDispositionResponse>(
+        '/api/management/exit-disposition',
+      )
+      const blob = new Blob([`${JSON.stringify(disposition, null, 2)}\n`], {
+        type: 'application/json',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `f42-management-exit-${disposition.connectionId}.json`
+      link.click()
+      URL.revokeObjectURL(url)
+      setNotice('Local management revocation evidence was downloaded.')
+    })
+  }
+
   return (
     <PageShell>
       <Section>
@@ -277,6 +296,48 @@ export function ManagementPage() {
                 </CardHeader>
               </Card>
             </div>
+
+            {!status.data.connection && status.data.lastDisposition ? (
+              <Card>
+                <CardHeader>
+                  <Badge variant="outline">Locally verified</Badge>
+                  <CardTitle>Exit and transfer evidence</CardTitle>
+                  <CardDescription>
+                    Management was disconnected{' '}
+                    {displayTime(status.data.lastDisposition.disconnectedAt)}.
+                    Download the instance-generated record of local revocation
+                    to include in an independently verifiable exit packet.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="mt-4">
+                  <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Connection</dt>
+                      <dd className="break-all font-mono">
+                        {status.data.lastDisposition.connectionId}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Former operator</dt>
+                      <dd className="break-all font-mono">
+                        {status.data.lastDisposition.operatorId}
+                      </dd>
+                    </div>
+                  </dl>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void downloadExitDisposition()}
+                    disabled={busy !== null}
+                  >
+                    {busy === 'exit-disposition'
+                      ? 'Verifying…'
+                      : 'Download revocation evidence'}
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
 
             {!status.data.connection ? (
               <Card>

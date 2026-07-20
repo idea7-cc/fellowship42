@@ -6,10 +6,14 @@ import { doctorFromFiles } from './doctor.js'
 import { buildDeployPlan } from './plan.js'
 import { assemblePortableExport, verifyPortableExport } from './portable-export.js'
 import { buildPortableImportPlan, verifyCutoverApproval } from './portable-import.js'
+import {
+  buildExitPacket,
+  createExitPacketVerificationEvidence,
+} from './exit-packet.js'
 
 function usage(): never {
   throw new Error(
-    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>]',
+    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>] | f42ctl build-exit-packet --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--packet-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-exit-packet --packet <file> --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--evidence-id <uuid>] [--verified-at <iso-date>] [--output <file>]',
   )
 }
 
@@ -83,6 +87,18 @@ async function main() {
                   '--approval',
                   '--output',
                 ])
+              : command === 'build-exit-packet'
+                ? new Set([
+                    '--plan', '--report', '--approval', '--export-evidence',
+                    '--management-disposition', '--handoff', '--packet-id',
+                    '--generated-at', '--output',
+                  ])
+                : command === 'verify-exit-packet'
+                  ? new Set([
+                      '--packet', '--plan', '--report', '--approval',
+                      '--export-evidence', '--management-disposition',
+                      '--handoff', '--evidence-id', '--verified-at', '--output',
+                    ])
           : usage()
   const options = argumentsFor(rest, allowed)
   const output = options.get('--output')
@@ -140,6 +156,55 @@ async function main() {
         JSON.parse(await readFile(destinationPath, 'utf8')),
         JSON.parse(await readFile(approvalPath, 'utf8')),
       ),
+      output,
+    )
+    return
+  }
+  if (command === 'build-exit-packet' || command === 'verify-exit-packet') {
+    const paths = {
+      plan: options.get('--plan'),
+      report: options.get('--report'),
+      approval: options.get('--approval'),
+      exportEvidence: options.get('--export-evidence'),
+      managementDisposition: options.get('--management-disposition'),
+      handoff: options.get('--handoff'),
+    }
+    if (Object.values(paths).some((value) => typeof value !== 'string')) usage()
+    const inputs = {
+      plan: JSON.parse(await readFile(paths.plan as string, 'utf8')),
+      report: JSON.parse(await readFile(paths.report as string, 'utf8')),
+      approval: JSON.parse(await readFile(paths.approval as string, 'utf8')),
+      exportEvidence: JSON.parse(await readFile(paths.exportEvidence as string, 'utf8')),
+      managementDisposition: JSON.parse(
+        await readFile(paths.managementDisposition as string, 'utf8'),
+      ),
+      handoff: JSON.parse(await readFile(paths.handoff as string, 'utf8')),
+    }
+    if (command === 'build-exit-packet') {
+      const packetId = options.get('--packet-id')
+      const generatedAt = options.get('--generated-at')
+      if (
+        (packetId !== undefined && typeof packetId !== 'string') ||
+        (generatedAt !== undefined && typeof generatedAt !== 'string')
+      ) usage()
+      await emit(buildExitPacket({ inputs, packetId, generatedAt }), output)
+      return
+    }
+    const packetPath = options.get('--packet')
+    const evidenceId = options.get('--evidence-id')
+    const verifiedAt = options.get('--verified-at')
+    if (
+      typeof packetPath !== 'string' ||
+      (evidenceId !== undefined && typeof evidenceId !== 'string') ||
+      (verifiedAt !== undefined && typeof verifiedAt !== 'string')
+    ) usage()
+    await emit(
+      createExitPacketVerificationEvidence({
+        packet: JSON.parse(await readFile(packetPath, 'utf8')),
+        inputs,
+        evidenceId,
+        verifiedAt,
+      }),
       output,
     )
     return

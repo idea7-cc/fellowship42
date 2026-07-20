@@ -24,7 +24,9 @@ Optional management now includes owner-controlled enrollment, encrypted local
 identity, outbound-only signed status sync, replay and grant enforcement, key
 rotation, local disconnect, an executable public adapter-conformance suite, and
 a church-owner console for reviewing the operator, grants, sync state, and safe
-local rotation/disconnect actions.
+local rotation/disconnect actions. The console emits local revocation evidence,
+and public `f42ctl` builds and independently verifies a provider-neutral hosted
+exit packet for church-owned transfers.
 
 ## Repository map
 
@@ -116,6 +118,8 @@ The complete public compatibility exercise is documented in
 Hosted backup implementations can run the payload-free
 [isolated-restore conformance suite](docs/portable-restore-conformance.md)
 without granting the public package storage credentials.
+Completed hosted transfers produce a public
+[independently verifiable exit packet](docs/exit-packets.md).
 
 ## Documentation
 
@@ -128,6 +132,7 @@ without granting the public package storage credentials.
 - [Portable import and cutover](docs/portable-import-and-cutover.md)
 - [Hosted-to-church-owned migration rehearsal](docs/migration-rehearsal.md)
 - [Portable restore conformance](docs/portable-restore-conformance.md)
+- [Hosted exit packets](docs/exit-packets.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)

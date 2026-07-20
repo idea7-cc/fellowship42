@@ -7,6 +7,7 @@ import {
   createEnrollmentChallenge,
   disconnectManagement,
   installation,
+  managementExitDisposition,
   managementStatus,
   rotateManagementIdentity,
   submitEnrollmentProposal,
@@ -58,6 +59,11 @@ export const managementRoutes = new Hono<AppEnv>()
 managementRoutes.get('/', async (c) => {
   await requireManagementOwner(c)
   return c.json(await managementStatus(c.env.DB))
+})
+
+managementRoutes.get('/exit-disposition', async (c) => {
+  await requireManagementOwner(c)
+  return c.json(await managementExitDisposition(c.env.DB))
 })
 
 managementRoutes.post('/challenges', async (c) => {

@@ -19,6 +19,8 @@ import {
   releaseManifestSchema,
   instanceRuntimeHealthSchema,
   portableRestoreConformanceReportSchema,
+  exitHandoffSchema,
+  managementExitDispositionSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -61,6 +63,90 @@ const deploymentManifest = {
 } as const
 
 describe('management protocol contracts', () => {
+  it('requires complete local revocation and ordered hosted-exit handoff evidence', () => {
+    const disposition = {
+      formatVersion: 1,
+      instanceId: deploymentManifest.instance.id,
+      state: 'disconnected',
+      connectionId: '42424242-1234-4678-9abc-123456789a91',
+      operatorId: 'operator_test',
+      disconnectedAt: '2026-07-19T22:29:00.000Z',
+      observedAt: '2026-07-19T22:31:00.000Z',
+      auditEventId:
+        'management-disconnect:42424242-1234-4678-9abc-123456789a91',
+      checks: {
+        activeConnectionAbsent: true,
+        activeGrantsRevoked: true,
+        localKeyMaterialRemoved: true,
+        replayStateRemoved: true,
+        commandStateRemoved: true,
+        churchOperationsAvailable: true,
+      },
+    }
+    expect(managementExitDispositionSchema.parse(disposition)).toEqual(
+      disposition,
+    )
+    expect(
+      managementExitDispositionSchema.safeParse({
+        ...disposition,
+        checks: { ...disposition.checks, localKeyMaterialRemoved: false },
+      }).success,
+    ).toBe(false)
+
+    const handoff = {
+      formatVersion: 1,
+      operationId: '42424242-1234-4678-9abc-123456789abc',
+      instanceId: deploymentManifest.instance.id,
+      destinationCustody: {
+        infrastructureOwner: 'church',
+        infrastructureOwnerSubject: 'organization:new-example-church',
+        operatorSubject: 'user:church-admin',
+      },
+      resources: [
+        'd1-database',
+        'r2-bucket',
+        'worker',
+        'outbox-queue',
+        'dead-letter-queue',
+        'durable-object-namespace',
+        'access-policy',
+        'domains',
+      ].map((kind) => ({
+        kind,
+        destinationState: 'verified',
+        sourceDisposition:
+          kind === 'domains' ? 'routing-retired' : 'access-revoked',
+      })),
+      domains: [{
+        hostname: 'new.example.org',
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      }],
+      operators: [{
+        subject: 'organization:new-example-church',
+        role: 'infrastructure-owner',
+        disposition: 'church-controlled',
+      }],
+      credentialAttestation: {
+        deployment: 'rotated',
+        applicationSecrets: 'rotated',
+        management: 'disconnected',
+        attestedAt: '2026-07-19T22:31:00.000Z',
+      },
+      independentOperationVerifiedAt: '2026-07-19T22:31:00.000Z',
+      sourceRoutingRetiredAt: '2026-07-19T22:31:00.000Z',
+      supportExpiresAt: '2026-08-19T22:31:00.000Z',
+      unresolvedRisks: [],
+    }
+    expect(exitHandoffSchema.parse(handoff)).toEqual(handoff)
+    expect(
+      exitHandoffSchema.safeParse({
+        ...handoff,
+        resources: [...handoff.resources].reverse(),
+      }).success,
+    ).toBe(false)
+  })
+
   it('requires every portable restore conformance scenario in order', () => {
     const report = {
       formatVersion: 1,
