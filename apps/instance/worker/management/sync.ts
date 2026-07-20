@@ -2,6 +2,7 @@ import {
   MANAGEMENT_MAX_CLOCK_SKEW_MS,
   MANAGEMENT_PROTOCOL_VERSION,
   assertFreshManagementPayload,
+  instanceHealthObservationSchema,
   managementCommandResultSchema,
   managementJwsSchema,
   signManagementPayload,
@@ -13,6 +14,7 @@ import {
 import { z } from 'zod'
 import instancePackage from '../../package.json'
 import { AppError } from '../lib/errors'
+import { inspectInstanceRuntimeHealth } from '../lib/runtime-health'
 import {
   activeConnection,
   installation,
@@ -376,11 +378,95 @@ async function instanceStatus(
   }
 }
 
+async function instanceHealth(
+  env: ManagementBindings,
+  instanceId: string,
+  grantVersion: number,
+  now: number,
+): Promise<ManagementCommandResult['output']> {
+  const runtime = await inspectInstanceRuntimeHealth(env)
+  let objectStorage: 'ready' | 'unavailable' = 'ready'
+  try {
+    await env.MEDIA.list({ limit: 1 })
+  } catch {
+    objectStorage = 'unavailable'
+  }
+
+  let migrations: 'current' | 'pending' | 'failed' | 'unknown' = 'unknown'
+  try {
+    const applied = await env.DB.prepare(
+      'SELECT COALESCE(MAX(id), 0) AS version FROM d1_migrations',
+    ).first<{ version: number }>()
+    migrations =
+      applied?.version === SCHEMA_VERSION
+        ? 'current'
+        : (applied?.version ?? 0) < SCHEMA_VERSION
+          ? 'pending'
+          : 'failed'
+  } catch {
+    migrations = 'unknown'
+  }
+
+  const authentication =
+    runtime.bootstrap.state === 'configured'
+      ? 'ready'
+      : ['configuration-invalid', 'identity-mismatch'].includes(
+            runtime.bootstrap.state,
+          )
+        ? 'unavailable'
+        : 'degraded'
+  const outbox =
+    runtime.outbox === 'clear'
+      ? 'clear'
+      : runtime.outbox === 'backlogged'
+        ? 'backlog-small'
+        : 'blocked'
+  const degraded =
+    runtime.status === 'degraded' ||
+    objectStorage === 'unavailable' ||
+    authentication !== 'ready' ||
+    migrations === 'pending' ||
+    migrations === 'failed'
+
+  return {
+    kind: 'instance.health',
+    observation: instanceHealthObservationSchema.parse({
+      formatVersion: 1,
+      portableInstanceId: instanceId,
+      observedAt: new Date(now).toISOString(),
+      source: 'management-sync',
+      overallStatus: degraded ? 'degraded' : 'healthy',
+      release: {
+        applicationVersion: APPLICATION_VERSION,
+        schemaVersion: SCHEMA_VERSION,
+        managementProtocolWireVersion: MANAGEMENT_PROTOCOL_VERSION,
+      },
+      connection: { status: 'connected', grantVersion },
+      checks: {
+        database: 'ready',
+        objectStorage,
+        authentication,
+        migrations,
+        realtime: 'unknown',
+        paymentWebhooks: runtime.paymentWebhooks,
+        outbox,
+      },
+      traffic: {
+        availability: 'unknown',
+        errorRate: 'unknown',
+        latency: 'unknown',
+        window: 'unknown',
+      },
+    }),
+  }
+}
+
 async function evaluateCommand(
   env: ManagementBindings,
   command: ManagementCommand,
   grants: Map<string, { requiresLocalApproval: boolean }>,
   instanceId: string,
+  grantVersion: number,
   now: number,
 ): Promise<ManagementCommandResult> {
   const completedAt = new Date(now).toISOString()
@@ -443,6 +529,17 @@ async function evaluateCommand(
       output: await instanceStatus(env),
     })
   }
+  if (command.type === 'instance.health.read') {
+    return managementCommandResultSchema.parse({
+      protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+      commandId: command.commandId,
+      instanceId,
+      commandType: command.capability,
+      status: 'succeeded',
+      completedAt,
+      output: await instanceHealth(env, instanceId, grantVersion, now),
+    })
+  }
   return managementCommandResultSchema.parse({
     protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
     commandId: command.commandId,
@@ -484,6 +581,7 @@ async function executeCommand(
     command,
     grants,
     connection.instanceId,
+    connection.grantVersion,
     now,
   )
   try {
@@ -735,7 +833,7 @@ async function buildSyncRequest(
           owner: env.F42_INFRASTRUCTURE_OWNER ?? 'church',
           operator: env.F42_INSTANCE_OPERATOR ?? 'church',
         },
-        capabilities: ['instance.status.read'],
+        capabilities: ['instance.status.read', 'instance.health.read'],
       },
       grantVersion: connection.grantVersion,
       commandCursor: connection.commandCursor,

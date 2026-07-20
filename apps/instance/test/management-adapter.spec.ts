@@ -90,6 +90,7 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
       },
       requestedCapabilities: [
         'instance.status.read',
+        'instance.health.read',
         'backup.export',
         'management.disconnect',
       ],
@@ -118,6 +119,12 @@ async function enroll(now = Date.now()): Promise<Enrollment> {
       grants: [
         {
           capability: 'instance.status.read',
+          grantedAt: new Date(now).toISOString(),
+          expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
+          requiresLocalApproval: false,
+        },
+        {
+          capability: 'instance.health.read',
           grantedAt: new Date(now).toISOString(),
           expiresAt: new Date(now + 30 * 24 * 60 * 60_000).toISOString(),
           requiresLocalApproval: false,
@@ -262,7 +269,7 @@ describe('optional management adapter', () => {
     expect(status.enabled).toBe(true)
     expect(status.connection?.connectionId).toBe(enrolled.connectionId)
     expect(status.connection?.operator.displayName).toBe('Test Operator')
-    expect(status.connection?.grants).toHaveLength(3)
+    expect(status.connection?.grants).toHaveLength(4)
   })
 
   it('polls outbound, executes only granted status, and returns byte-identical replay results', async () => {
@@ -308,6 +315,17 @@ describe('optional management adapter', () => {
                   nonce: 'BBBBBBBBBBBBBBBBBBBBBB',
                   input: {},
                 },
+                {
+                  protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
+                  commandId: crypto.randomUUID(),
+                  instanceId: enrolled.challenge.instanceId,
+                  type: 'instance.health.read',
+                  capability: 'instance.health.read',
+                  issuedAt: new Date(now).toISOString(),
+                  expiresAt: new Date(now + 5 * 60_000).toISOString(),
+                  nonce: 'HHHHHHHHHHHHHHHHHHHHHH',
+                  input: {},
+                },
               ],
               nextCommandCursor: 'cursor-1',
             },
@@ -329,6 +347,29 @@ describe('optional management adapter', () => {
             backupFreshness: 'unknown',
           },
         })
+        expect(payload.results[1]).toMatchObject({
+          commandType: 'instance.health.read',
+          status: 'succeeded',
+          output: {
+            kind: 'instance.health',
+            observation: {
+              formatVersion: 1,
+              portableInstanceId: enrolled.challenge.instanceId,
+              observedAt: new Date(now).toISOString(),
+              source: 'management-sync',
+              release: {
+                applicationVersion: '0.19.0',
+                schemaVersion: 6,
+                managementProtocolWireVersion: '1',
+              },
+              connection: { status: 'connected', grantVersion: 1 },
+              checks: {
+                database: 'ready',
+                objectStorage: 'ready',
+              },
+            },
+          },
+        })
         return new Response(null, { status: 204 })
       }
       throw new Error(`Unexpected message type: ${payload.type}`)
@@ -336,11 +377,11 @@ describe('optional management adapter', () => {
 
     await expect(syncManagementOnce(managementEnv, now, transport)).resolves.toEqual({
       state: 'succeeded',
-      commandCount: 1,
+      commandCount: 2,
     })
     await expect(
       syncManagementOnce(managementEnv, now + 1_000, transport),
-    ).resolves.toEqual({ state: 'succeeded', commandCount: 1 })
+    ).resolves.toEqual({ state: 'succeeded', commandCount: 2 })
     expect(syncRequestCount).toBe(2)
     expect(postedResults).toHaveLength(2)
     expect(JSON.stringify(postedResults[1])).toBe(JSON.stringify(postedResults[0]))

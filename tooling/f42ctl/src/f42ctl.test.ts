@@ -11,7 +11,11 @@ import {
   doctorReportSchema,
   migrationRehearsalEvidenceSchema,
 } from '@fellowship42/management-protocol'
-import { inspectDeployment, verifyPublishedRelease } from './doctor'
+import {
+  healthObservationFromDoctorReport,
+  inspectDeployment,
+  verifyPublishedRelease,
+} from './doctor'
 import { buildDeployPlan } from './plan'
 import { assemblePortableExport, verifyPortableExport } from './portable-export'
 import {
@@ -204,6 +208,50 @@ describe('f42ctl doctor', () => {
         },
       ]),
     )
+
+    expect(
+      healthObservationFromDoctorReport(report, {
+        runtimeHealth: {
+          status: 'ok',
+          service: 'fellowship42-instance',
+          topology: 'single-church',
+          storage: 'd1',
+          outbox: 'clear',
+          paymentWebhooks: 'unconfigured',
+          bootstrap: {
+            state: 'awaiting-owner-configuration',
+            portableIdentitySha256,
+          },
+        },
+      }),
+    ).toMatchObject({
+      formatVersion: 1,
+      portableInstanceId: manifest.instance.id,
+      observedAt: '2026-07-19T19:30:00.000Z',
+      source: 'instance-doctor',
+      release: {
+        applicationVersion: manifest.instance.release.applicationVersion,
+        schemaVersion: manifest.instance.release.schemaVersion,
+        managementProtocolWireVersion:
+          manifest.instance.release.managementProtocolWireVersion,
+      },
+      connection: { status: 'unknown', grantVersion: null },
+      checks: {
+        database: 'ready',
+        objectStorage: 'ready',
+        authentication: 'ready',
+        migrations: 'current',
+        realtime: 'ready',
+        paymentWebhooks: 'unconfigured',
+        outbox: 'clear',
+      },
+      traffic: {
+        availability: 'unknown',
+        errorRate: 'unknown',
+        latency: 'unknown',
+        window: 'unknown',
+      },
+    })
   })
 
   it('fails closed on binding, schema, and runtime mismatch', async () => {

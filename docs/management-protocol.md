@@ -101,6 +101,7 @@ the mandatory public interoperability vector and contains no private key.
 The contract reserves these independently grantable capabilities:
 
 - `instance.status.read`
+- `instance.health.read`
 - `backup.export`
 - `update.prepare`
 - `update.apply`
@@ -115,10 +116,13 @@ it. Support sessions must be time-limited and separately approved.
 require a fresh local approval reference. Grant replacement is versioned and
 atomic; unknown or duplicate capabilities fail closed.
 
-Release 0.14 executes only `instance.status.read`. Recognized backup, update,
-support, and disconnect commands receive explicit rejected results until their
-separate local workflows are implemented. Empty batches and empty results are
-valid heartbeat messages.
+Release 0.19 executes `instance.status.read` and `instance.health.read`.
+The newer health capability returns the strict public observation described in
+[Privacy-bounded instance health](fleet-health.md); it is separate so older
+strict status clients remain compatible. Recognized backup, update, support,
+and disconnect commands receive explicit rejected results until their separate
+local workflows are implemented. Empty batches and empty results are valid
+heartbeat messages.
 
 ## Church-owner console
 
@@ -205,6 +209,17 @@ church-approved cutover by canonical SHA-256. This makes transfer completion
 independently rebuildable without provider IDs or secrets. See
 [Hosted exit packets](exit-packets.md) and
 [ADR 0014](adr/0014-public-verifiable-exit-packet.md).
+
+## Instance health observation
+
+Protocol package `1.7.0` adds the strict format-v1 instance-health observation
+and `instance.health.read` command/output pair without changing wire major 1.
+The observation carries only portable/release coordinates and bounded
+operational states. It has no arbitrary telemetry payload. Unknown metrics are
+reported honestly as `unknown`; freshness, backup verification, incidents, and
+notifications remain consumer-derived policy. See
+[Privacy-bounded instance health](fleet-health.md) and
+[ADR 0015](adr/0015-privacy-bounded-instance-health.md).
 
 ## Privacy baseline
 

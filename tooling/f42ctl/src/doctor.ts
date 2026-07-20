@@ -4,10 +4,12 @@ import { parse as parseJsonc } from 'jsonc-parser'
 import {
   doctorReportSchema,
   deploymentManifestSchema,
+  instanceHealthObservationSchema,
   instanceRuntimeHealthSchema,
   releaseManifestSchema,
   type DeploymentManifest,
   type DoctorReport,
+  type InstanceHealthObservation,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './plan.js'
 
@@ -15,6 +17,90 @@ type Check = DoctorReport['checks'][number]
 type ReleaseCheck = Pick<Check, 'status' | 'code'>
 const MAX_RELEASE_MANIFEST_BYTES = 64 * 1024
 const NETWORK_TIMEOUT_MS = 10_000
+
+function componentFromDoctorCheck(
+  report: DoctorReport,
+  id: Check['id'],
+): InstanceHealthObservation['checks']['database'] {
+  const status = report.checks.find((item) => item.id === id)?.status
+  if (status === 'pass') return 'ready'
+  if (status === 'warning') return 'degraded'
+  if (status === 'fail') return 'unavailable'
+  return 'unknown'
+}
+
+export function healthObservationFromDoctorReport(
+  reportInput: unknown,
+  options: {
+    runtimeHealth?: unknown
+    connection?: InstanceHealthObservation['connection']
+  } = {},
+): InstanceHealthObservation {
+  const report = doctorReportSchema.parse(reportInput)
+  const runtimeResult =
+    options.runtimeHealth === undefined
+      ? null
+      : instanceRuntimeHealthSchema.safeParse(options.runtimeHealth)
+  const runtime = runtimeResult?.success ? runtimeResult.data : null
+  const schemaCheck = report.checks.find(
+    (item) => item.id === 'schema-version',
+  )?.status
+  const outboxCheck = report.checks.find(
+    (item) => item.id === 'outbox-queue',
+  )?.status
+  const outbox = runtime
+    ? runtime.outbox === 'clear'
+      ? 'clear'
+      : runtime.outbox === 'backlogged'
+        ? 'backlog-small'
+        : 'blocked'
+    : outboxCheck === 'fail'
+      ? 'blocked'
+      : 'unknown'
+
+  return instanceHealthObservationSchema.parse({
+    formatVersion: 1,
+    portableInstanceId: report.instanceId,
+    observedAt: report.checkedAt,
+    source: 'instance-doctor',
+    overallStatus:
+      report.status === 'healthy'
+        ? 'healthy'
+        : report.status === 'failed'
+          ? 'degraded'
+          : 'unknown',
+    release: {
+      applicationVersion: report.release.applicationVersion,
+      schemaVersion: report.release.schemaVersion,
+      managementProtocolWireVersion:
+        report.release.managementProtocolWireVersion,
+    },
+    connection: options.connection ?? {
+      status: 'unknown',
+      grantVersion: null,
+    },
+    checks: {
+      database: componentFromDoctorCheck(report, 'd1-binding'),
+      objectStorage: componentFromDoctorCheck(report, 'r2-binding'),
+      authentication: componentFromDoctorCheck(report, 'access'),
+      migrations:
+        schemaCheck === 'pass'
+          ? 'current'
+          : schemaCheck === 'fail'
+            ? 'failed'
+            : 'unknown',
+      realtime: componentFromDoctorCheck(report, 'durable-object'),
+      paymentWebhooks: runtime?.paymentWebhooks ?? 'unknown',
+      outbox,
+    },
+    traffic: {
+      availability: 'unknown',
+      errorRate: 'unknown',
+      latency: 'unknown',
+      window: 'unknown',
+    },
+  })
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)

@@ -260,6 +260,7 @@ export interface ApiErrorBody {
 
 export type ManagementCapability =
   | 'instance.status.read'
+  | 'instance.health.read'
   | 'backup.export'
   | 'update.prepare'
   | 'update.apply'

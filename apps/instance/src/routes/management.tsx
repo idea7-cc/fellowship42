@@ -27,8 +27,14 @@ const capabilityDetails: Record<
   { label: string; description: string; localApproval: boolean }
 > = {
   'instance.status.read': {
-    label: 'Instance health',
+    label: 'Instance status',
     description: 'Read only bounded application and storage readiness.',
+    localApproval: false,
+  },
+  'instance.health.read': {
+    label: 'Fleet health observation',
+    description:
+      'Read strict, privacy-bounded readiness and aggregate traffic bands.',
     localApproval: false,
   },
   'backup.export': {
