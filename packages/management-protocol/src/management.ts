@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { instanceHealthObservationSchema } from './health.js'
 import { semanticVersionSchema } from './releases.js'
 
 export const MANAGEMENT_PROTOCOL_VERSION = '1' as const
@@ -7,6 +8,7 @@ export const INSTANCE_TOPOLOGY = 'single-church' as const
 
 export const managementCapabilitySchema = z.enum([
   'instance.status.read',
+  'instance.health.read',
   'backup.export',
   'update.prepare',
   'update.apply',
@@ -62,6 +64,14 @@ const commands = [
       ...commandBase,
       type: z.literal('instance.status.read'),
       capability: z.literal('instance.status.read'),
+      input: z.object({}).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...commandBase,
+      type: z.literal('instance.health.read'),
+      capability: z.literal('instance.health.read'),
       input: z.object({}).strict(),
     })
     .strict(),
@@ -164,6 +174,12 @@ const managementCommandResultOutputSchema = z.discriminatedUnion('kind', [
     .strict(),
   z
     .object({
+      kind: z.literal('instance.health'),
+      observation: instanceHealthObservationSchema,
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal('operation'),
       operationId: z.uuid(),
       state: z.enum(['queued', 'running', 'succeeded']),
@@ -232,6 +248,16 @@ export const managementCommandResultSchema = z
       context.addIssue({
         code: 'custom',
         message: 'Status output requires an instance.status.read command',
+        path: ['output'],
+      })
+    }
+    if (
+      result.output?.kind === 'instance.health' &&
+      result.commandType !== 'instance.health.read'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Health output requires an instance.health.read command',
         path: ['output'],
       })
     }

@@ -4,6 +4,7 @@ import {
   INSTANCE_TOPOLOGY,
   MANAGEMENT_PROTOCOL_VERSION,
   instanceDescriptorSchema,
+  instanceHealthObservationSchema,
   managementCommandSchema,
   deploymentManifestSchema,
   doctorCheckIdSchema,
@@ -240,6 +241,60 @@ describe('management protocol contracts', () => {
       owner: 'church',
       operator: 'partner',
     })
+  })
+
+  it('publishes a strict privacy-bounded fleet health observation', () => {
+    const observation = {
+      formatVersion: 1,
+      portableInstanceId: deploymentManifest.instance.id,
+      observedAt: '2026-07-20T12:00:00-04:00',
+      source: 'management-sync',
+      overallStatus: 'healthy',
+      release: {
+        applicationVersion: '0.19.0',
+        schemaVersion: 6,
+        managementProtocolWireVersion: '1',
+      },
+      connection: { status: 'connected', grantVersion: 2 },
+      checks: {
+        database: 'ready',
+        objectStorage: 'ready',
+        authentication: 'ready',
+        migrations: 'current',
+        realtime: 'unknown',
+        paymentWebhooks: 'unconfigured',
+        outbox: 'clear',
+      },
+      traffic: {
+        availability: 'unknown',
+        errorRate: 'unknown',
+        latency: 'unknown',
+        window: 'unknown',
+      },
+    } as const
+
+    expect(instanceHealthObservationSchema.parse(observation)).toEqual({
+      ...observation,
+      observedAt: '2026-07-20T16:00:00.000Z',
+    })
+    expect(
+      instanceHealthObservationSchema.safeParse({
+        ...observation,
+        memberCount: 42,
+      }).success,
+    ).toBe(false)
+    expect(
+      instanceHealthObservationSchema.safeParse({
+        ...observation,
+        connection: { status: 'connected', grantVersion: null },
+      }).success,
+    ).toBe(false)
+    expect(
+      instanceHealthObservationSchema.safeParse({
+        ...observation,
+        checks: { ...observation.checks, database: 'unavailable' },
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects commands without replay-protection metadata', () => {

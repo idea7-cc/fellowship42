@@ -141,10 +141,11 @@ proprietary encryption and it is not an MCP transport.
 The implemented adapter keeps the instance Ed25519 private key encrypted in D1
 under a separately configured Worker wrapping secret, consumes one-use signed
 enrollment proposals, requires local-owner grant approval, and polls the pinned
-operator HTTPS endpoint from the scheduled Worker. Release 0.13 executes only
-the privacy-bounded `instance.status.read` capability; every other command
-fails closed. Replay and command outcomes are authoritative in D1, while signed
-results make retries idempotent across unrelated Cloudflare accounts.
+operator HTTPS endpoint from the scheduled Worker. Release 0.19 executes the
+legacy `instance.status.read` capability and the independently grantable,
+strict `instance.health.read` observation; every other command fails closed.
+Replay and command outcomes are authoritative in D1, while signed results make
+retries idempotent across unrelated Cloudflare accounts.
 
 The packaged executable conformance suite drives this real adapter through
 owner enrollment, signed status, exact replay, grant denial, key rotation, and

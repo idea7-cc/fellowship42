@@ -2,10 +2,6 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { secureHeaders } from 'hono/secure-headers'
 import { HTTPException } from 'hono/http-exception'
-import {
-  INSTANCE_TOPOLOGY,
-  instanceRuntimeHealthSchema,
-} from '@fellowship42/management-protocol'
 import { resolveAccessIdentity, type AccessIdentity } from './lib/auth'
 import { AppError } from './lib/errors'
 import {
@@ -25,7 +21,6 @@ import { sermonRoutes } from './routes/sermons'
 import { sessionRoutes } from './routes/session'
 import {
   bootstrapRoutes,
-  inspectBootstrapReadiness,
 } from './routes/bootstrap'
 import {
   contributionRoutes,
@@ -33,6 +28,7 @@ import {
 } from './routes/contributions'
 import { managementRoutes } from './routes/management'
 import { runScheduledManagementSync } from './management/sync'
+import { inspectInstanceRuntimeHealth } from './lib/runtime-health'
 
 export { ChurchRoom } from './realtime'
 
@@ -129,54 +125,7 @@ app.onError((error, c) => {
 })
 
 app.get('/api/health', async (c) => {
-  await c.env.DB.prepare('SELECT 1 AS ready').first<{ ready: number }>()
-  const outbox = await c.env.DB.prepare(
-    `
-      SELECT
-        COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed,
-        COALESCE(SUM(CASE WHEN status IN ('pending', 'processing') THEN 1 ELSE 0 END), 0) AS queued,
-        COALESCE(SUM(CASE
-          WHEN status = 'processing' AND processing_started_at < ? THEN 1 ELSE 0
-        END), 0) AS stalled
-      FROM outbox_events
-      WHERE status != 'delivered'
-    `,
-  )
-    .bind(Date.now() - 5 * 60 * 1000)
-    .first<{ failed: number; queued: number; stalled: number }>()
-  const outboxStatus =
-    (outbox?.failed ?? 0) > 0 || (outbox?.stalled ?? 0) > 0
-      ? 'stalled'
-      : (outbox?.queued ?? 0) > 0
-        ? 'backlogged'
-        : 'clear'
-  const paymentEnv = c.env as Env & { PAYMENT_WEBHOOK_SECRET?: string }
-  const bootstrapEnv = c.env as Env & { BOOTSTRAP_OWNER_EMAIL?: string }
-  const bootstrap = await inspectBootstrapReadiness(
-    c.env.DB,
-    c.env.F42_PORTABLE_INSTANCE_ID,
-    bootstrapEnv.BOOTSTRAP_OWNER_EMAIL,
-  )
-  const identityDegraded = [
-    'configuration-invalid',
-    'identity-mismatch',
-  ].includes(bootstrap.state)
-  return c.json(
-    instanceRuntimeHealthSchema.parse({
-      status:
-        outboxStatus === 'stalled' || identityDegraded ? 'degraded' : 'ok',
-      service: 'fellowship42-instance',
-      topology: INSTANCE_TOPOLOGY,
-      storage: 'd1',
-      outbox: outboxStatus,
-      paymentWebhooks:
-        c.env.PAYMENT_WEBHOOK_PROVIDER.trim() &&
-        (paymentEnv.PAYMENT_WEBHOOK_SECRET?.trim().length ?? 0) >= 32
-          ? 'ready'
-          : 'unconfigured',
-      bootstrap,
-    }),
-  )
+  return c.json(await inspectInstanceRuntimeHealth(c.env))
 })
 
 app.route('/api/session', sessionRoutes)

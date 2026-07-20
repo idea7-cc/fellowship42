@@ -18,7 +18,7 @@ Runtime files:
 - `../routes/management.ts` is the local HTTP surface. It is not the operator
   command transport.
 
-Release 0.12 executes only `instance.status.read`. Other protocol commands are
+This release executes `instance.status.read` and `instance.health.read`. Other protocol commands are
 typed but fail closed until their own implementation and tests land.
 
 Rules for this boundary:
