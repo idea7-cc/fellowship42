@@ -113,6 +113,9 @@ Staged restoration and approval-gated routing changes are documented in
 [Portable import and cutover](docs/portable-import-and-cutover.md).
 The complete public compatibility exercise is documented in
 [Hosted-to-church-owned migration rehearsal](docs/migration-rehearsal.md).
+Hosted backup implementations can run the payload-free
+[isolated-restore conformance suite](docs/portable-restore-conformance.md)
+without granting the public package storage credentials.
 
 ## Documentation
 
@@ -124,6 +127,7 @@ The complete public compatibility exercise is documented in
 - [Portable exports](docs/portable-exports.md)
 - [Portable import and cutover](docs/portable-import-and-cutover.md)
 - [Hosted-to-church-owned migration rehearsal](docs/migration-rehearsal.md)
+- [Portable restore conformance](docs/portable-restore-conformance.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Contributions and durable delivery](docs/contributions-and-delivery.md)
 - [Architecture decisions](docs/adr/README.md)

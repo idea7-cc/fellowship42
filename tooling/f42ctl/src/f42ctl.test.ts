@@ -737,6 +737,54 @@ describe('f42ctl portable import and cutover planning', () => {
       })
       expect(unsafeEvents).toEqual(['preflight'])
 
+      const occupiedEvents: string[] = []
+      const occupiedAdapter: PortableImportAdapter = {
+        ...adapter,
+        async preflight() {
+          occupiedEvents.push('preflight')
+          return {
+            formatVersion: 1,
+            operationId,
+            instanceId: manifest.instance.id,
+            destinationManifestSha256: plan.destinationManifestSha256,
+            observedAt: '2026-07-19T22:01:00.000Z',
+            d1: {
+              state: 'empty',
+              createdAt: '2026-07-19T22:00:30.000Z',
+            },
+            r2: {
+              state: 'occupied',
+              createdAt: '2026-07-19T22:00:30.000Z',
+            },
+            worker: 'absent',
+            outboxQueue: 'absent',
+            deadLetterQueue: 'absent',
+            durableObjectNamespace: 'absent',
+          }
+        },
+        async restoreD1() {
+          occupiedEvents.push('unsafe-write')
+        },
+      }
+      const occupied = await executePortableImportRestore({
+        plan,
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        adapter: occupiedAdapter,
+        now: () => '2026-07-19T22:10:00.000Z',
+      })
+      expect(occupied).toMatchObject({
+        status: 'failed',
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'verify-new-empty-r2',
+            status: 'failed',
+            code: 'destination-r2-not-empty',
+          }),
+        ]),
+      })
+      expect(occupiedEvents).toEqual(['preflight'])
+
       const cli = await execFileAsync(process.execPath, [
         path.resolve('dist/cli.js'),
         'plan-import',

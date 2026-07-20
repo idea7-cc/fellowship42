@@ -151,7 +151,7 @@ authorized instance rotation, and unconditional local disconnect.
 The suite returns a strict, privacy-bounded report containing release versions
 and six ordered passing scenario identifiers. It contains no key, challenge,
 instance identity, endpoint, command payload, church record, or provider
-identifier. Release `v0.16.0` publishes the executed report as
+identifier. Release `v0.17.0` publishes the executed report as
 `management-adapter-conformance.v1.json`; CI regenerates it against the real
 instance service and sync engine and requires exact equality. This is portable
 adapter evidence, not certification of a particular Cloudflare account,
@@ -179,6 +179,19 @@ health contract used during automated provisioning and first-owner handoff.
 It reports a coarse bootstrap state and SHA-256 portable-identity digest, never
 the owner selector, owner email, or church records. A missing deployment
 identity or mismatch between Worker configuration and D1 is degraded evidence.
+
+## Portable restore conformance
+
+Protocol package `1.5.0` adds the strict `f42-portable-restore-v1` report
+schema. The executable runner lives in public `f42ctl` because it needs the
+Node filesystem and injected provider restore adapters. It drives real export
+assembly, verification, planning, and pre-cutover restore, then emits only
+exact release/format versions and nine ordered passing scenario IDs.
+
+The report never carries a portable instance ID, export digest, D1/R2 payload,
+object key, domain, provider identifier, credential, or storage location. See
+[Portable isolated-restore conformance](portable-restore-conformance.md) and
+[ADR 0013](adr/0013-payload-free-isolated-restore-conformance.md).
 
 ## Privacy baseline
 
