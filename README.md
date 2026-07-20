@@ -87,8 +87,8 @@ Access-gated, one-time instance setup flow documented in
 ## Deploying an instance
 
 Each deployment needs dedicated D1 and R2 resources plus its own application
-configuration. Replace the placeholder D1 ID and Access values in
-`apps/instance/wrangler.jsonc`, then follow
+configuration. Replace the placeholder D1 ID, portable instance ID, and Access
+values in `apps/instance/wrangler.jsonc`, then follow
 [the deployment runbook](docs/deployment.md).
 
 The committed Wrangler configuration is development scaffolding, not a hosted

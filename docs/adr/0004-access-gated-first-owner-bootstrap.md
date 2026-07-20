@@ -25,27 +25,40 @@ The public instance owns an authenticated, one-time bootstrap flow.
 2. The Access email must additionally match the deployment-scoped
    `BOOTSTRAP_OWNER_EMAIL` Worker secret. The expected email is never returned
    to the browser or written to logs.
-3. D1 creates the church-owned records, portable `instance_id`, first owner
-   membership, system roles, wildcard owner grant, and audit event in one
+3. The lifecycle manifest allocates the portable instance ID before any
+   provider resources are created. The deployment configures that exact value
+   as the non-secret `F42_PORTABLE_INSTANCE_ID` Worker variable. Bootstrap
+   fails closed when the value is missing or malformed; it never generates a
+   second identity.
+4. D1 creates the church-owned records with that portable `instance_id`, first
+   owner membership, system roles, wildcard owner grant, and audit event in one
    transactional batch.
-4. The singleton `instance_metadata` constraint makes bootstrap irreversible
+5. The singleton `instance_metadata` constraint makes bootstrap irreversible
    through this endpoint. Later owner changes use normal audited membership
    administration, never bootstrap.
-5. The church begins in `draft`. Its authenticated owner can see it; public
+6. The church begins in `draft`. Its authenticated owner can see it; public
    visitors cannot see it until a later publish action.
-6. The bootstrap email secret should be deleted after successful setup. It is
+7. The bootstrap email secret should be deleted after successful setup. It is
    not a portable identifier, management credential, or enduring owner record.
-7. Email may activate a deliberately invited user, but it never silently links
+8. Email may activate a deliberately invited user, but it never silently links
    a new Access subject to an already-active account. Active-account identity
    changes require an explicit, audited linking or recovery workflow.
 
 Management enrollment is explicitly outside this flow. Self-hosted and hosted
 installations execute the same public bootstrap contract.
 
+The public health response carries only a coarse bootstrap state and the
+SHA-256 digest of the effective portable identity. This lets portable tooling
+bind pre-owner and post-owner runtime evidence to the manifest without exposing
+the first-owner selector or church records. A stored identity that differs from
+the deployment value degrades health and blocks automation.
+
 ## Consequences
 
 - A deployer must configure both Access and the bootstrap owner secret before
   the first owner can initialize production.
+- Resource ownership tags, runtime evidence, D1, exports, and imports use one
+  manifest-allocated portable identity.
 - Broad Access admission alone cannot claim an empty instance.
 - Bootstrap remains available without Fellowship42 Cloud and produces no
   private control-plane dependency.

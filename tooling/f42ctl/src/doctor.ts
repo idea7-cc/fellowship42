@@ -4,6 +4,7 @@ import { parse as parseJsonc } from 'jsonc-parser'
 import {
   doctorReportSchema,
   deploymentManifestSchema,
+  instanceRuntimeHealthSchema,
   releaseManifestSchema,
   type DeploymentManifest,
   type DoctorReport,
@@ -134,12 +135,53 @@ export async function inspectDeployment(input: {
     .map((pattern) => pattern.replace(/^\*\./, '').replace(/\/\*$/, ''))
     .filter(Boolean)
     .sort()
-  const runtime = asRecord(input.runtimeHealth)
   const runtimeChecked = input.runtimeHealth !== undefined
+  const runtimeResult = runtimeChecked
+    ? instanceRuntimeHealthSchema.safeParse(input.runtimeHealth)
+    : null
+  const runtime = runtimeResult?.success ? runtimeResult.data : null
   const runtimeReady =
-    runtime.status === 'ok' &&
+    runtime?.status === 'ok' &&
     runtime.service === 'fellowship42-instance' &&
     runtime.topology === 'single-church'
+  const portableIdentityConfigured =
+    variables.F42_PORTABLE_INSTANCE_ID === manifest.instance.id
+  const expectedIdentitySha256 = createHash('sha256')
+    .update(manifest.instance.id)
+    .digest('hex')
+  const portableIdentityCheck: Check = !portableIdentityConfigured
+    ? {
+        id: 'portable-identity',
+        status: 'fail',
+        code: 'identity-configuration-mismatch',
+      }
+    : !runtimeChecked
+      ? {
+          id: 'portable-identity',
+          status: 'unknown',
+          code: 'identity-runtime-check-required',
+        }
+      : !runtimeResult?.success
+        ? {
+            id: 'portable-identity',
+            status: 'fail',
+            code: 'identity-runtime-evidence-invalid',
+          }
+        : runtimeResult.data.bootstrap.portableIdentitySha256 !==
+              expectedIdentitySha256 ||
+            ['configuration-invalid', 'identity-mismatch'].includes(
+              runtimeResult.data.bootstrap.state,
+            )
+          ? {
+              id: 'portable-identity',
+              status: 'fail',
+              code: 'identity-runtime-mismatch',
+            }
+          : {
+              id: 'portable-identity',
+              status: 'pass',
+              code: 'identity-runtime-matches',
+            }
   const accessConfigured =
     (manifest.configuration.accessTeamDomain === null ||
       variables.ACCESS_TEAM_DOMAIN ===
@@ -154,11 +196,7 @@ export async function inspectDeployment(input: {
       status: input.releaseCheck?.status ?? 'unknown',
       code: input.releaseCheck?.code ?? 'release-not-checked',
     },
-    {
-      id: 'portable-identity',
-      status: 'unknown',
-      code: 'identity-runtime-check-required',
-    },
+    portableIdentityCheck,
     check(
       'worker-name',
       wrangler.name === manifest.worker.name,

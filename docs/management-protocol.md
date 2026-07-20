@@ -151,7 +151,7 @@ authorized instance rotation, and unconditional local disconnect.
 The suite returns a strict, privacy-bounded report containing release versions
 and six ordered passing scenario identifiers. It contains no key, challenge,
 instance identity, endpoint, command payload, church record, or provider
-identifier. Release `v0.15.0` publishes the executed report as
+identifier. Release `v0.16.0` publishes the executed report as
 `management-adapter-conformance.v1.json`; CI regenerates it against the real
 instance service and sync engine and requires exact equality. This is portable
 adapter evidence, not certification of a particular Cloudflare account,
@@ -171,6 +171,14 @@ independent ownership verification, blocked previews cannot execute, and every
 provider call receives the approved desired fingerprint plus a stable per-step
 idempotency key. Provider-specific transport and identifiers remain private to
 an injected adapter. See [ADR 0012](adr/0012-provider-neutral-reconciliation-and-scoped-adapters.md).
+
+## Provisioning and first-owner readiness
+
+Protocol package `1.4.0` adds the strict, privacy-bounded instance runtime
+health contract used during automated provisioning and first-owner handoff.
+It reports a coarse bootstrap state and SHA-256 portable-identity digest, never
+the owner selector, owner email, or church records. A missing deployment
+identity or mismatch between Worker configuration and D1 is degraded evidence.
 
 ## Privacy baseline
 

@@ -88,9 +88,12 @@ arbitrary payloads. A failed check makes the report `failed`; warning or
 unknown evidence makes it `attention`; all checks must pass for `healthy`.
 
 Portable identity is deliberately not inferred from a Worker name, D1 ID, or
-Cloudflare account. The current public health endpoint does not reveal it, so
-doctor reports `identity-runtime-check-required`. A future locally authorized
-endpoint or offline D1 inspection may prove it without weakening privacy.
+Cloudflare account. The manifest value is configured explicitly as
+`F42_PORTABLE_INSTANCE_ID`, and the public health endpoint returns only its
+SHA-256 digest plus `awaiting-owner-configuration`, `awaiting-owner`,
+`configured`, or bounded failure state. Doctor compares that evidence to the
+manifest without exposing the identifier, owner selector, or church data.
+Without runtime evidence the check remains `identity-runtime-check-required`.
 
 ## Callable reconciliation
 

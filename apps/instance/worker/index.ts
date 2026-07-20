@@ -2,7 +2,10 @@ import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { secureHeaders } from 'hono/secure-headers'
 import { HTTPException } from 'hono/http-exception'
-import { INSTANCE_TOPOLOGY } from '@fellowship42/management-protocol'
+import {
+  INSTANCE_TOPOLOGY,
+  instanceRuntimeHealthSchema,
+} from '@fellowship42/management-protocol'
 import { resolveAccessIdentity, type AccessIdentity } from './lib/auth'
 import { AppError } from './lib/errors'
 import {
@@ -20,7 +23,10 @@ import { courseRoutes } from './routes/courses'
 import { eventRoutes } from './routes/events'
 import { sermonRoutes } from './routes/sermons'
 import { sessionRoutes } from './routes/session'
-import { bootstrapRoutes } from './routes/bootstrap'
+import {
+  bootstrapRoutes,
+  inspectBootstrapReadiness,
+} from './routes/bootstrap'
 import {
   contributionRoutes,
   paymentWebhookRoutes,
@@ -145,18 +151,32 @@ app.get('/api/health', async (c) => {
         ? 'backlogged'
         : 'clear'
   const paymentEnv = c.env as Env & { PAYMENT_WEBHOOK_SECRET?: string }
-  return c.json({
-    status: outboxStatus === 'stalled' ? 'degraded' : 'ok',
-    service: 'fellowship42-instance',
-    topology: INSTANCE_TOPOLOGY,
-    storage: 'd1',
-    outbox: outboxStatus,
-    paymentWebhooks:
-      c.env.PAYMENT_WEBHOOK_PROVIDER.trim() &&
-      (paymentEnv.PAYMENT_WEBHOOK_SECRET?.trim().length ?? 0) >= 32
-        ? 'ready'
-        : 'unconfigured',
-  })
+  const bootstrapEnv = c.env as Env & { BOOTSTRAP_OWNER_EMAIL?: string }
+  const bootstrap = await inspectBootstrapReadiness(
+    c.env.DB,
+    c.env.F42_PORTABLE_INSTANCE_ID,
+    bootstrapEnv.BOOTSTRAP_OWNER_EMAIL,
+  )
+  const identityDegraded = [
+    'configuration-invalid',
+    'identity-mismatch',
+  ].includes(bootstrap.state)
+  return c.json(
+    instanceRuntimeHealthSchema.parse({
+      status:
+        outboxStatus === 'stalled' || identityDegraded ? 'degraded' : 'ok',
+      service: 'fellowship42-instance',
+      topology: INSTANCE_TOPOLOGY,
+      storage: 'd1',
+      outbox: outboxStatus,
+      paymentWebhooks:
+        c.env.PAYMENT_WEBHOOK_PROVIDER.trim() &&
+        (paymentEnv.PAYMENT_WEBHOOK_SECRET?.trim().length ?? 0) >= 32
+          ? 'ready'
+          : 'unconfigured',
+      bootstrap,
+    }),
+  )
 })
 
 app.route('/api/session', sessionRoutes)

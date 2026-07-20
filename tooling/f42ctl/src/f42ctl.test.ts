@@ -51,7 +51,12 @@ const wrangler = {
     bindings: [{ name: 'CHURCH_ROOMS', class_name: 'ChurchRoom' }],
   },
   triggers: { crons: ['*/1 * * * *'] },
-  vars: { ACCESS_TEAM_DOMAIN: '', ACCESS_AUD: '' },
+  vars: {
+    ACCESS_TEAM_DOMAIN: '',
+    ACCESS_AUD: '',
+    F42_PORTABLE_INSTANCE_ID:
+      'instance_42424242-1234-5678-9abc-123456789abc',
+  },
 }
 
 describe('f42ctl deployment planning', () => {
@@ -153,6 +158,52 @@ describe('f42ctl doctor', () => {
     expect(report.status).toBe('attention')
     expect(report.checks.filter((check) => check.status === 'fail')).toEqual([])
     expect(JSON.stringify(report)).not.toContain('provider-id')
+  })
+
+  it('binds pre-owner runtime readiness to the manifest portable identity', async () => {
+    const portableIdentitySha256 = createHash('sha256')
+      .update(manifest.instance.id)
+      .digest('hex')
+    const report = await inspectDeployment({
+      manifest,
+      wrangler,
+      migrationFiles: [
+        '0001_initial.sql',
+        '0002_instance_identity.sql',
+        '0003_directory_concurrency.sql',
+        '0004_ministry_content_concurrency.sql',
+        '0005_contribution_delivery_hardening.sql',
+      ],
+      runtimeHealth: {
+        status: 'ok',
+        service: 'fellowship42-instance',
+        topology: 'single-church',
+        storage: 'd1',
+        outbox: 'clear',
+        paymentWebhooks: 'unconfigured',
+        bootstrap: {
+          state: 'awaiting-owner-configuration',
+          portableIdentitySha256,
+        },
+      },
+      releaseCheck: { status: 'pass', code: 'release-verified' },
+      checkedAt: '2026-07-19T19:30:00.000Z',
+    })
+
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'portable-identity',
+          status: 'pass',
+          code: 'identity-runtime-matches',
+        },
+        {
+          id: 'runtime-health',
+          status: 'pass',
+          code: 'runtime-healthy',
+        },
+      ]),
+    )
   })
 
   it('fails closed on binding, schema, and runtime mismatch', async () => {

@@ -57,11 +57,14 @@ is intentionally non-deployable scaffolding. Use instance-specific D1, R2,
 Queue, dead-letter Queue, and Worker names in any account that contains more
 than one Fellowship42 installation.
 
-Never reuse a Cloudflare account ID, Worker name, D1 UUID, R2 bucket name, or
-control-plane customer ID as the portable `instance_id`.
+Never generate a different identity during bootstrap, or reuse a Cloudflare
+account ID, Worker name, D1 UUID, R2 bucket name, or control-plane customer ID
+as the portable `instance_id`.
 
 Set the non-secret custody descriptor variables for this installation:
 
+- `F42_PORTABLE_INSTANCE_ID`: the exact `instance.id` from the reviewed
+  deployment manifest;
 - `F42_INFRASTRUCTURE_OWNER`: `church` or `fellowship42`; and
 - `F42_INSTANCE_OPERATOR`: `church`, `partner`, or `fellowship42`.
 
@@ -69,6 +72,12 @@ The application version is compiled from the tagged package and is not an
 operator-configurable variable. Custody descriptors are signed status claims,
 not authorization. Do not put account IDs,
 customer IDs, provider resource IDs, or credentials in them.
+
+When upgrading an instance created before `v0.16.0`, read its existing
+`instance_metadata.instance_id` and use that exact value for
+`F42_PORTABLE_INSTANCE_ID` before deploying the new Worker. Never replace the
+stored identity. Health intentionally degrades if the deployment value and D1
+disagree.
 
 ## 3. Configure application authentication
 
@@ -166,8 +175,9 @@ pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER
 
 Attach the instance custom domain and verify:
 
-- `/api/health` reports `fellowship42-instance`, `single-church`, and coarse
-  outbox/payment-webhook readiness;
+- `/api/health` reports `fellowship42-instance`, `single-church`, coarse
+  outbox/payment-webhook readiness, `configured` bootstrap state, and the
+  manifest identity digest;
 - `instance_metadata` has one portable identity and primary church;
 - the first owner has one active membership with the system `owner` role;
 - `instance.bootstrapped` exists in the local audit log;
