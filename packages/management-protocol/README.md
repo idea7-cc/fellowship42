@@ -33,7 +33,9 @@ Current contracts establish:
   portable identity; and
 - an executable, payload-free isolated-restore conformance profile covering
   tamper rejection, new/empty destinations, D1/R2 restore, credential rotation,
-  identity/runtime checks, cutover isolation, and partial failure.
+  identity/runtime checks, cutover isolation, and partial failure; and
+- strict local management-disposition, hosted-exit handoff, exit-packet, and
+  packet-verification evidence contracts.
 
 Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
 1.1 added empty heartbeat results and duplicate-capability rejection. Package
@@ -41,7 +43,8 @@ Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
 without changing the wire major. Package 1.3 adds deployment reconciliation
 evidence, package 1.4 adds provisioning/bootstrap readiness evidence, and
 package 1.5 adds isolated-restore conformance without changing management wire
-v1. The instance adapter is
+v1. Package 1.6 adds independently verifiable hosted-exit evidence without
+changing management wire v1. The instance adapter is
 implemented as local-owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before
 changing the trust or provider boundary.

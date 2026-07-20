@@ -136,7 +136,10 @@ capability is preselected for approval.
 Identity rotation requires an explicit typed confirmation and is delivered as
 an old-key-authorized message. Local disconnect requires a reason plus a typed
 confirmation; it revokes grants and removes local management key material while
-leaving church data, normal workflows, and portable export available.
+leaving church data, normal workflows, and portable export available. After a
+disconnect, the owner can download a strict local disposition proving the
+active connection, grants, identity/key material, replay state, and command
+state are absent while the church record remains available.
 
 ## Public adapter conformance
 
@@ -192,6 +195,16 @@ The report never carries a portable instance ID, export digest, D1/R2 payload,
 object key, domain, provider identifier, credential, or storage location. See
 [Portable isolated-restore conformance](portable-restore-conformance.md) and
 [ADR 0013](adr/0013-payload-free-isolated-restore-conformance.md).
+
+## Hosted exit evidence
+
+Protocol package `1.6.0` adds strict local management-disposition,
+hosted-transfer handoff, exit-packet, and verification-evidence schemas. Public
+`f42ctl` binds them to the exact verified export, succeeded import report, and
+church-approved cutover by canonical SHA-256. This makes transfer completion
+independently rebuildable without provider IDs or secrets. See
+[Hosted exit packets](exit-packets.md) and
+[ADR 0014](adr/0014-public-verifiable-exit-packet.md).
 
 ## Privacy baseline
 

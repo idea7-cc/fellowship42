@@ -16,6 +16,7 @@ directory names alone.
 - [0011 — Instance-initiated management adapter](0011-instance-initiated-management-adapter.md)
 - [0012 — Provider-neutral reconciliation with scoped adapters](0012-provider-neutral-reconciliation-and-scoped-adapters.md)
 - [0013 — Payload-free isolated-restore conformance](0013-payload-free-isolated-restore-conformance.md)
+- [0014 — Public, independently verifiable hosted exit packet](0014-public-verifiable-exit-packet.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

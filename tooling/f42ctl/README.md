@@ -33,6 +33,15 @@ pnpm f42ctl verify-cutover \
   --plan ./import-plan.json \
   --destination ./destination-deployment.json \
   --approval ./cutover-approval.json
+
+pnpm f42ctl build-exit-packet \
+  --plan ./import-plan.json \
+  --report ./import-report.json \
+  --approval ./cutover-approval.json \
+  --export-evidence ./export-evidence.json \
+  --management-disposition ./management-exit.json \
+  --handoff ./exit-handoff.json \
+  --output ./exit-packet.json
 ```
 
 Omit `--offline` to download and verify the exact published release manifest.
@@ -54,6 +63,8 @@ formats are documented in [`docs/portable-exports.md`](../../docs/portable-expor
 Import staging, the provider-adapter boundary, credential rotation, and cutover
 approval are documented in
 [`docs/portable-import-and-cutover.md`](../../docs/portable-import-and-cutover.md).
+Hosted transfer completion and independent packet verification are documented
+in [`docs/exit-packets.md`](../../docs/exit-packets.md).
 The callable `runPortableRestoreConformance` suite drives the real assembly,
 verification, planning, and staged-restore functions through injected success,
 nonempty-destination, and partial-failure adapters. It stops before cutover and
