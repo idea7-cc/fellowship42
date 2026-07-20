@@ -41,6 +41,8 @@ before changing the system shape.
 - church-owned support-session requests with explicit human operator, purpose,
   diagnostics-only scope, local approval/rejection, automatic expiry, visible
   active state, immediate local revocation, and signed remote observation;
+- a checksummed operator-reference release artifact whose public runbook URLs
+  are pinned to the exact release source commit;
 - instance-owned immutable update preparation, exact expiring owner approval,
   signed deployment authorization, and applied-release reconciliation;
 - Workers-runtime migration and API tests;
@@ -132,6 +134,7 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `apps/instance/test/content.spec.ts` | ministry publishing, permissions, R2 integrity, and public visibility coverage |
 | `apps/instance/test/finance-delivery.spec.ts` | finance permissions, signed webhook replay, privacy, and Queue recovery coverage |
 | `packages/management-protocol/src/index.ts` | public management schemas and types |
+| `packages/management-protocol/src/operator-references.ts` | immutable public operator-reference catalog contract |
 | `packages/management-protocol/src/lifecycle.ts` | portable deployment, plan, and doctor contracts |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
 | `tooling/f42ctl/src/cli.ts` | public lifecycle CLI entrypoint |

@@ -255,6 +255,11 @@ major 1. The instance-owned approval and revocation flow is documented in
 [Church-approved support sessions](church-approved-support.md) and
 [ADR 0018](adr/0018-instance-owned-support-session-approval.md).
 
+Protocol package `1.12.0` adds strict schemas for the public operator-reference
+definitions and the generated, release-pinned catalog without changing wire
+major 1. The catalog is informational and never grants management authority.
+See [Stable operator references](operator-references.md).
+
 ## Compatible operator inputs
 
 Protocol package `1.10.0` adds the strict

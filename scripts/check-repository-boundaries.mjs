@@ -63,6 +63,10 @@ const requiredPaths = [
   'packages/management-protocol/fixtures/portable-restore-conformance.v1.json',
   'tooling/f42ctl/src/restore-conformance.ts',
   'tooling/f42ctl/src/restore-conformance.test.ts',
+  'packages/management-protocol/src/operator-references.ts',
+  'docs/operator-reference-definitions.json',
+  'docs/operator-references.md',
+  'docs/adr/0019-checksummed-operator-reference-catalog.md',
 ]
 
 for (const requiredPath of requiredPaths) {

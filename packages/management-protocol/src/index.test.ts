@@ -29,6 +29,8 @@ import {
   updatePreparationSchema,
   partnerCompatibilityProfileSchema,
   partnerCompatibilityProfile,
+  operatorReferenceDefinitionsSchema,
+  operatorReferenceCatalogSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -71,6 +73,62 @@ const deploymentManifest = {
 } as const
 
 describe('management protocol contracts', () => {
+  it('publishes bounded operator references pinned to one exact release', async () => {
+    const definitions = operatorReferenceDefinitionsSchema.parse(
+      JSON.parse(
+        await readFile(
+          new URL('../../../docs/operator-reference-definitions.json', import.meta.url),
+          'utf8',
+        ),
+      ),
+    )
+    const repository = 'https://github.com/idea7-cc/fellowship42' as const
+    const commit = 'a'.repeat(40)
+    const catalog = operatorReferenceCatalogSchema.parse({
+      formatVersion: 1,
+      applicationVersion: '0.25.0',
+      releaseTag: 'v0.25.0',
+      source: { repository, commit },
+      references: [
+        {
+          id: 'release-manifest',
+          kind: 'release',
+          title: 'Verify the release manifest',
+          summary: 'Verify the exact checksummed release manifest and its artifacts.',
+          audiences: ['service-operator'],
+          immutableUrl: `${repository}/releases/download/v0.25.0/release-manifest.json`,
+          sourcePath: null,
+        },
+        {
+          id: 'release-page',
+          kind: 'release',
+          title: 'Review the release page',
+          summary: 'Review the exact tagged release and its published release notes.',
+          audiences: ['service-operator'],
+          immutableUrl: `${repository}/releases/tag/v0.25.0`,
+          sourcePath: null,
+        },
+        ...definitions.references.map((reference) => ({
+          ...reference,
+          immutableUrl: `${repository}/blob/${commit}/${reference.sourcePath}`,
+        })),
+      ],
+    })
+
+    expect(catalog.references).toHaveLength(definitions.references.length + 2)
+    expect(catalog.references.every((reference) =>
+      reference.immutableUrl.includes(commit) ||
+      reference.immutableUrl.includes('/v0.25.0'),
+    )).toBe(true)
+    expect(operatorReferenceCatalogSchema.safeParse({
+      ...catalog,
+      references: catalog.references.map((reference) =>
+        reference.id === 'operator-recovery'
+          ? { ...reference, immutableUrl: `${repository}/blob/main/docs/operator-recovery.md` }
+          : reference),
+    }).success).toBe(false)
+  })
+
   it('accepts only the ordered payload-free partner compatibility inputs', async () => {
     const profile = JSON.parse(
       await readFile(

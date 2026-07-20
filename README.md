@@ -30,7 +30,9 @@ exit packet for church-owned transfers. Release `v0.21.0` also adds immutable
 update preparation, exact owner approval, and signed deployment authorization
 without placing infrastructure credentials in the instance. Release `v0.24.0`
 adds locally approved, automatically expiring diagnostic support sessions with
-an explicit human operator, purpose, and immediate local revocation.
+an explicit human operator, purpose, and immediate local revocation. Release
+`v0.25.0` adds a checksummed, commit-pinned catalog of public operator and
+release references for dashboards, CLIs, and other approved clients.
 
 ## Repository map
 
@@ -124,6 +126,8 @@ Hosted backup implementations can run the payload-free
 without granting the public package storage credentials.
 Completed hosted transfers produce a public
 [independently verifiable exit packet](docs/exit-packets.md).
+Operator clients can consume the checksummed
+[stable operator reference catalog](docs/operator-references.md).
 
 ## Documentation
 

@@ -1,0 +1,93 @@
+{
+  "formatVersion": 1,
+  "references": [
+    {
+      "id": "deploy-independent-instance",
+      "kind": "deployment",
+      "title": "Deploy an independent Fellowship42 instance",
+      "summary": "Bootstrap, configure, verify, and hand over one portable church deployment.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/deployment.md"
+    },
+    {
+      "id": "verify-release-and-doctor",
+      "kind": "deployment",
+      "title": "Verify release manifests and run doctor",
+      "summary": "Verify immutable release inputs and interpret the public lifecycle doctor evidence.",
+      "audiences": ["self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/lifecycle-manifests-and-doctor.md"
+    },
+    {
+      "id": "create-portable-export",
+      "kind": "portability",
+      "title": "Create and verify a portable export",
+      "summary": "Quiesce an instance, collect its portable data, and verify the resulting export offline.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/portable-exports.md"
+    },
+    {
+      "id": "import-and-cutover",
+      "kind": "portability",
+      "title": "Import, approve, and cut over",
+      "summary": "Restore into new resources, rotate credentials, verify runtime health, and explicitly approve cutover.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/portable-import-and-cutover.md"
+    },
+    {
+      "id": "migration-rehearsal",
+      "kind": "portability",
+      "title": "Rehearse hosted-to-church-owned migration",
+      "summary": "Exercise the public migration path and understand what its payload-free evidence does and does not prove.",
+      "audiences": ["church-owner", "partner-operator", "service-operator"],
+      "sourcePath": "docs/migration-rehearsal.md"
+    },
+    {
+      "id": "management-protocol",
+      "kind": "management",
+      "title": "Operate through the public management protocol",
+      "summary": "Understand enrollment, grants, signed commands, replay handling, and the boundary between MCP and instance transport.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/management-protocol.md"
+    },
+    {
+      "id": "durable-upgrades",
+      "kind": "management",
+      "title": "Prepare and apply an owner-authorized upgrade",
+      "summary": "Follow exact-source eligibility, preparation, approval, recovery, and roll-forward requirements.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/durable-upgrades.md"
+    },
+    {
+      "id": "fleet-health",
+      "kind": "management",
+      "title": "Interpret privacy-bounded fleet health",
+      "summary": "Use the public health contract without exposing church records or turning control-plane observations into church data.",
+      "audiences": ["partner-operator", "service-operator"],
+      "sourcePath": "docs/fleet-health.md"
+    },
+    {
+      "id": "operator-recovery",
+      "kind": "recovery",
+      "title": "Recover a Fellowship42 instance",
+      "summary": "Use provider-neutral recovery procedures while preserving instance identity, data custody, and audit evidence.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/operator-recovery.md"
+    },
+    {
+      "id": "church-approved-support",
+      "kind": "security",
+      "title": "Use church-approved support sessions",
+      "summary": "Request, approve, inspect, expire, and revoke time-limited support access under church control.",
+      "audiences": ["church-owner", "partner-operator", "service-operator"],
+      "sourcePath": "docs/church-approved-support.md"
+    },
+    {
+      "id": "ownership-exit-packet",
+      "kind": "portability",
+      "title": "Verify an ownership exit packet",
+      "summary": "Verify the bounded evidence required to complete hosted exit and record church custody.",
+      "audiences": ["church-owner", "partner-operator", "service-operator"],
+      "sourcePath": "docs/exit-packets.md"
+    }
+  ]
+}

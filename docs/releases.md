@@ -43,6 +43,8 @@ wire major and parallel API prefix.
   contract package with compiled JavaScript and declarations;
 - `fellowship42-f42ctl-<version>.tgz`: the installable public lifecycle CLI and
   callable planning/diagnostic library;
+- `operator-references.json`: the validated, commit-pinned public release and
+  runbook catalog for operator clients;
 - `release-manifest.json`: the exact commit, application/schema versions,
   protocol package/wire versions, exact-source upgrade policy, sizes, and
   SHA-256 digests; and
@@ -131,6 +133,12 @@ The release builder validates every generated manifest with the same exported
 artifact, public package, and private or third-party verifier on one contract.
 The exported `assessReleaseUpgradeEligibility` function performs exact matching
 and never treats an older manifest without upgrade metadata as eligible.
+
+The builder also validates `operator-references.json` with the exported
+`operatorReferenceCatalogSchema`. Every documentation URL is pinned to the
+release commit and the catalog itself is recorded in the release manifest, so
+operator clients can verify it before showing guidance. See
+[Stable operator references](operator-references.md).
 
 ## What remains portable
 
