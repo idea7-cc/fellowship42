@@ -1,6 +1,6 @@
 # Fellowship42 handover
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 ## Current direction
 
@@ -42,10 +42,12 @@ before changing the system shape.
 - `@fellowship42/management-protocol` with versioned descriptors,
   Ed25519 enrollment/sync contracts, capabilities, command envelopes, replay
   metadata, executable adapter conformance, lifecycle manifests, deterministic
-  plans, and bounded doctor reports;
+  plans, strict reconciliation evidence, and bounded doctor reports;
 - an installable `f42ctl` CLI that validates desired deployment state, verifies
   immutable release bytes and source commit, produces a non-destructive plan,
-  and inspects local/runtime shape without credentials;
+  inspects local/runtime shape without credentials, and exposes a Worker-safe
+  provider-neutral reconciliation library with digest-bound approval and
+  idempotent adapter calls;
 - a machine-readable repository manifest plus CI boundary enforcement;
 - architecture ADRs and explicit private-repository guidance;
 - the public project site in `apps/project-site`;
@@ -53,18 +55,20 @@ before changing the system shape.
 
 The public instance has the opt-in management endpoint and complete portable
 export/import implementation. The private control plane remains in the separate
-repository. No public MCP server, active Cloudflare reconciliation, or hosted
-provisioning system is implemented; existing lifecycle contracts do not imply
-those future capabilities.
+repository. No public MCP server, Cloudflare provider adapter, or hosted
+provisioning system lives here. The public reconciliation library defines the
+portable semantics; provider access remains injected and separately scoped.
 
 ## Verified baseline
 
-On 2026-07-19 the following completed successfully for the current beta:
+The complete repository checklist is rerun for every release candidate. The
+latest checked-in baseline includes:
 
 - `pnpm check:architecture`;
 - `pnpm typecheck`;
-- `pnpm test` — 22 management-protocol, 11 lifecycle CLI, and 33
-  Workers/client integration tests;
+- `pnpm test`, including management-protocol, lifecycle/reconciliation, and
+  Workers/client integration suites;
+- `pnpm test:migration-rehearsal`;
 - `pnpm build`;
 - generated Cloudflare binding types with Wrangler 4.112.0;
 - instance `wrangler deploy --dry-run`;
@@ -87,16 +91,15 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 
 ## Recommended next architecture work
 
-1. Specify and implement a versioned export bundle for D1, R2, configuration,
-   checksums, and release metadata.
-2. Exercise a complete deploy/export/import/domain-cutover migration.
+1. Implement and certify a scoped Cloudflare adapter against the public
+   reconciliation contract in the private repository.
+2. Exercise reconciliation in a dedicated staging account, preserving redacted
+   evidence and exact idempotent replay.
 3. Complete owner-facing church profile and publication controls after the
    instance-first bootstrap while retaining `church_id` defense in depth.
-4. Write the management enrollment/signing threat-model ADR before enabling any
-   management route.
-5. Keep `fellowship42-cloud` on published lifecycle contracts and immutable
+4. Keep `fellowship42-cloud` on published lifecycle contracts and immutable
    release artifacts; never a relative checkout or private deployment fork.
-6. Exercise contribution and Queue delivery against a real beta provider and
+5. Exercise contribution and Queue delivery against a real beta provider and
    instance before accepting live funds.
 
 ## Important files

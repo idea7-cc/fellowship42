@@ -140,7 +140,7 @@ leaving church data, normal workflows, and portable export available.
 
 ## Public adapter conformance
 
-Protocol package `1.2.1` exports
+Protocol package `1.3.0` exports
 `runManagementAdapterConformance`, a transport-neutral executable suite for an
 instance adapter. A harness supplies only the local owner enrollment, sync,
 rotation, and disconnect operations; the suite generates ephemeral operator
@@ -151,11 +151,26 @@ authorized instance rotation, and unconditional local disconnect.
 The suite returns a strict, privacy-bounded report containing release versions
 and six ordered passing scenario identifiers. It contains no key, challenge,
 instance identity, endpoint, command payload, church record, or provider
-identifier. Release `v0.14.0` publishes the executed report as
+identifier. Release `v0.15.0` publishes the executed report as
 `management-adapter-conformance.v1.json`; CI regenerates it against the real
 instance service and sync engine and requires exact equality. This is portable
 adapter evidence, not certification of a particular Cloudflare account,
 network path, or private management implementation.
+
+## Deployment reconciliation evidence
+
+Protocol package `1.3.0` adds strict schemas for ordered provider observations,
+non-destructive previews, digest-bound approvals, normalized adapter outcomes,
+and bounded execution reports. These shapes carry portable identity and an
+operator-local account alias, but never a provider account ID, resource ID,
+credential, or raw provider response.
+
+The provider-neutral execution semantics live in the Worker-safe
+`@fellowship42/f42ctl/reconciliation` subpath. Existing resources require
+independent ownership verification, blocked previews cannot execute, and every
+provider call receives the approved desired fingerprint plus a stable per-step
+idempotency key. Provider-specific transport and identifiers remain private to
+an injected adapter. See [ADR 0012](adr/0012-provider-neutral-reconciliation-and-scoped-adapters.md).
 
 ## Privacy baseline
 

@@ -1,0 +1,71 @@
+{
+  "manifest": {
+    "formatVersion": 1,
+    "instance": {
+      "id": "instance_42424242-1234-5678-9abc-123456789abc",
+      "topology": "single-church",
+      "release": {
+        "tag": "v0.14.0",
+        "applicationVersion": "0.14.0",
+        "schemaVersion": 6,
+        "managementProtocolPackageVersion": "1.2.1",
+        "managementProtocolWireVersion": "1",
+        "sourceCommit": "1748028cc8c08fa9839f76cd92d7eec7b91ac240",
+        "manifestUrl": "https://github.com/idea7-cc/fellowship42/releases/download/v0.14.0/release-manifest.json",
+        "manifestSha256": "7c235b531c01d5e784b9dcf6be2928a4e94799315b10ff4d546d444cd9431d8b"
+      }
+    },
+    "custody": {
+      "infrastructureOwner": "fellowship42",
+      "operator": "fellowship42"
+    },
+    "target": {
+      "environment": "staging",
+      "accountAlias": "fellowship42-staging"
+    },
+    "worker": {
+      "name": "fellowship42-staging-church",
+      "domains": ["staging-church.example.test"]
+    },
+    "resources": {
+      "d1": { "binding": "DB", "name": "fellowship42-staging-church" },
+      "r2": { "binding": "MEDIA", "name": "fellowship42-staging-church-media" },
+      "outboxQueue": {
+        "binding": "OUTBOX_QUEUE",
+        "name": "fellowship42-staging-church-outbox",
+        "deadLetterName": "fellowship42-staging-church-outbox-dlq"
+      },
+      "durableObject": {
+        "binding": "CHURCH_ROOMS",
+        "className": "ChurchRoom"
+      },
+      "schedules": ["*/1 * * * *"]
+    },
+    "configuration": {
+      "accessTeamDomain": "https://staging.cloudflareaccess.com",
+      "accessAudienceConfigured": true,
+      "paymentWebhookProvider": null
+    }
+  },
+  "observation": {
+    "formatVersion": 1,
+    "manifestSha256": "8231895696c43cd61cb6b0d79da48f9923e7c02135be410dedaceef0a9df5144",
+    "instanceId": "instance_42424242-1234-5678-9abc-123456789abc",
+    "environment": "staging",
+    "accountAlias": "fellowship42-staging",
+    "observedAt": "2026-07-20T03:30:00.000Z",
+    "steps": [
+      { "stepId": "step-01", "kind": "verify-release", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "verification-required" },
+      { "stepId": "step-02", "kind": "ensure-d1", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "resource-absent" },
+      { "stepId": "step-03", "kind": "ensure-r2", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "resource-absent" },
+      { "stepId": "step-04", "kind": "ensure-outbox-queue", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "resource-absent" },
+      { "stepId": "step-05", "kind": "ensure-dead-letter-queue", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "resource-absent" },
+      { "stepId": "step-06", "kind": "configure-worker", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "resource-absent" },
+      { "stepId": "step-07", "kind": "apply-migrations", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "execution-required" },
+      { "stepId": "step-08", "kind": "deploy-worker", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "execution-required" },
+      { "stepId": "step-09", "kind": "configure-domains", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "configuration-required" },
+      { "stepId": "step-10", "kind": "configure-access", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "configuration-required" },
+      { "stepId": "step-11", "kind": "verify-runtime", "state": "absent", "ownership": "not-applicable", "actualFingerprint": null, "code": "verification-required" }
+    ]
+  }
+}

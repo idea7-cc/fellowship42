@@ -180,9 +180,12 @@ manifest, immutable release verification, deterministic non-destructive plan,
 bounded doctor report, and the collector-neutral, operator-quiesced portable
 export and offline verifier. It also owns staged import planning, provider-
 adapter execution order, new-empty destination proof, bounded failure reports,
-credential disposition, and explicit cutover approval. Provider-specific
-resource reconciliation remains a future increment. The private control plane
-must use these same public contracts and migration logic.
+credential disposition, and explicit cutover approval. Its Worker-safe
+reconciliation subpath now owns strict provider observations, desired-state
+diff, ownership blocking, digest-bound approval, per-step idempotency, and
+bounded apply reports. Provider-specific transports remain injected adapters.
+The private control plane must use these same public contracts and migration
+logic.
 
 The deterministic [hosted-to-church-owned rehearsal](migration-rehearsal.md)
 executes that full public path across isolated synthetic account boundaries and
@@ -225,6 +228,8 @@ Implemented now:
 - a compiled public management-contract package;
 - a strict portable deployment manifest, deterministic deploy plan, and
   evidence-only `f42ctl doctor` CLI;
+- provider-neutral, non-destructive reconciliation preview/apply contracts,
+  a Worker-safe callable library, and a payload-safe staging fixture;
 - portable D1/R2/configuration export assembly, content addressing, checksums,
   and offline evidence verification;
 - staged import/cutover contracts, deterministic planning, provider-adapter
@@ -239,7 +244,7 @@ Planned, not implied by the scaffolding:
 
 - backup, update, support, grant-replacement, and remote-disconnect command
   execution beyond the implemented status capability;
-- active Cloudflare reconciliation and automated collection/provider adapters;
+- operator-facing Cloudflare reconciliation commands and automated collection;
 - self-service or partner reconciliation through `f42ctl`;
 - Workers for Platforms hosted-fleet packaging;
 - any private Fellowship42 Cloud control-plane, dashboard, or MCP code, which

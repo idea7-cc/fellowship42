@@ -50,7 +50,13 @@ const requiredPaths = [
   'packages/management-protocol/fixtures/migration-rehearsal.v1.json',
   'packages/management-protocol/src/conformance.ts',
   'packages/management-protocol/fixtures/management-adapter-conformance.v1.json',
+  'packages/management-protocol/src/reconciliation.ts',
   'tooling/f42ctl/src/rehearsal.ts',
+  'tooling/f42ctl/src/plan-shape.ts',
+  'tooling/f42ctl/src/reconciliation.ts',
+  'tooling/f42ctl/src/reconciliation.test.ts',
+  'tooling/f42ctl/fixtures/reconciliation.staging.json',
+  'docs/adr/0012-provider-neutral-reconciliation-and-scoped-adapters.md',
 ]
 
 for (const requiredPath of requiredPaths) {
@@ -72,6 +78,17 @@ for (const scannedRoot of scannedRoots) {
         errors.push(`${file} imports private surface ${forbiddenImport}`)
       }
     }
+  }
+}
+
+for (const workerSafePath of [
+  'tooling/f42ctl/src/canonical.ts',
+  'tooling/f42ctl/src/plan-shape.ts',
+  'tooling/f42ctl/src/reconciliation.ts',
+]) {
+  const source = await readFile(path.join(root, workerSafePath), 'utf8')
+  if (/from ['"]node:|require\(['"]node:|\bprocess\./.test(source)) {
+    errors.push(`${workerSafePath} must remain Worker-safe and free of Node-only APIs`)
   }
 }
 
