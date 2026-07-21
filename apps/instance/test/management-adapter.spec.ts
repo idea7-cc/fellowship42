@@ -527,7 +527,7 @@ describe('optional management adapter', () => {
               observedAt: new Date(now).toISOString(),
               source: 'management-sync',
               release: {
-                applicationVersion: '0.25.0',
+                applicationVersion: '0.26.0',
                 schemaVersion: 8,
                 managementProtocolWireVersion: '1',
               },
@@ -577,7 +577,7 @@ describe('optional management adapter', () => {
     const sourceManifestSha256 = 'a'.repeat(64)
     const updateEnv = new Proxy(managementEnv, {
       get(target, property, receiver) {
-        if (property === 'F42_RELEASE_TAG') return 'v0.25.0'
+        if (property === 'F42_RELEASE_TAG') return 'v0.26.0'
         if (property === 'F42_RELEASE_MANIFEST_SHA256') {
           return sourceManifestSha256
         }
@@ -589,7 +589,7 @@ describe('optional management adapter', () => {
       formatVersion: 1,
       application: {
         name: 'fellowship42',
-        version: '0.26.0',
+        version: '0.27.0',
         schemaVersion: 8,
       },
       managementProtocol: {
@@ -607,15 +607,15 @@ describe('optional management adapter', () => {
         strategy: 'in-place-expand-contract',
         rollbackPolicy: 'roll-forward-after-migration',
         target: {
-          applicationVersion: '0.26.0',
+          applicationVersion: '0.27.0',
           schemaVersion: 8,
           managementProtocolWireVersion: '1',
         },
         eligibleSources: [
           {
-            releaseTag: 'v0.25.0',
+            releaseTag: 'v0.26.0',
             releaseManifestSha256: sourceManifestSha256,
-            applicationVersion: '0.25.0',
+            applicationVersion: '0.26.0',
             schemaVersion: 8,
             managementProtocolWireVersion: '1',
           },
@@ -629,7 +629,7 @@ describe('optional management adapter', () => {
       },
       artifacts: [
         {
-          file: 'fellowship42-0.26.0-source.tgz',
+          file: 'fellowship42-0.27.0-source.tgz',
           kind: 'portable-instance-source',
           bytes: 42,
           sha256: 'c'.repeat(64),
@@ -677,7 +677,7 @@ describe('optional management adapter', () => {
                 issuedAt: new Date(issuedAt).toISOString(),
                 expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
                 nonce: 'PPPPPPPPPPPPPPPPPPPPPP',
-                input: { releaseTag: 'v0.26.0', releaseManifestSha256: targetManifestSha256 },
+                input: { releaseTag: 'v0.27.0', releaseManifestSha256: targetManifestSha256 },
               }
             : {
                 protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
@@ -732,9 +732,9 @@ describe('optional management adapter', () => {
       output: {
         kind: 'update.preparation',
         preparation: {
-          source: { releaseTag: 'v0.25.0' },
+          source: { releaseTag: 'v0.26.0' },
           target: {
-            releaseTag: 'v0.26.0',
+            releaseTag: 'v0.27.0',
             releaseManifestSha256: targetManifestSha256,
           },
           state: 'awaiting-local-approval',
@@ -746,7 +746,7 @@ describe('optional management adapter', () => {
     const approved = await approveUpdatePreparation(
       updateEnv,
       preparationId,
-      { releaseTag: 'v0.26.0', releaseManifestSha256: targetManifestSha256 },
+      { releaseTag: 'v0.27.0', releaseManifestSha256: targetManifestSha256 },
       ownerId,
       'church_demo',
       'request-update-approval',
@@ -771,7 +771,7 @@ describe('optional management adapter', () => {
           preparationId,
           localApprovalId,
           target: {
-            releaseTag: 'v0.26.0',
+            releaseTag: 'v0.27.0',
             releaseManifestSha256: targetManifestSha256,
           },
           strategy: 'in-place-expand-contract',

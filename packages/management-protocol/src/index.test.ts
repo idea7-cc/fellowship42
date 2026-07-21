@@ -86,8 +86,8 @@ describe('management protocol contracts', () => {
     const commit = 'a'.repeat(40)
     const catalog = operatorReferenceCatalogSchema.parse({
       formatVersion: 1,
-      applicationVersion: '0.25.0',
-      releaseTag: 'v0.25.0',
+      applicationVersion: '0.26.0',
+      releaseTag: 'v0.26.0',
       source: { repository, commit },
       references: [
         {
@@ -96,7 +96,7 @@ describe('management protocol contracts', () => {
           title: 'Verify the release manifest',
           summary: 'Verify the exact checksummed release manifest and its artifacts.',
           audiences: ['service-operator'],
-          immutableUrl: `${repository}/releases/download/v0.25.0/release-manifest.json`,
+          immutableUrl: `${repository}/releases/download/v0.26.0/release-manifest.json`,
           sourcePath: null,
         },
         {
@@ -105,7 +105,7 @@ describe('management protocol contracts', () => {
           title: 'Review the release page',
           summary: 'Review the exact tagged release and its published release notes.',
           audiences: ['service-operator'],
-          immutableUrl: `${repository}/releases/tag/v0.25.0`,
+          immutableUrl: `${repository}/releases/tag/v0.26.0`,
           sourcePath: null,
         },
         ...definitions.references.map((reference) => ({
@@ -118,7 +118,7 @@ describe('management protocol contracts', () => {
     expect(catalog.references).toHaveLength(definitions.references.length + 2)
     expect(catalog.references.every((reference) =>
       reference.immutableUrl.includes(commit) ||
-      reference.immutableUrl.includes('/v0.25.0'),
+      reference.immutableUrl.includes('/v0.26.0'),
     )).toBe(true)
     expect(operatorReferenceCatalogSchema.safeParse({
       ...catalog,

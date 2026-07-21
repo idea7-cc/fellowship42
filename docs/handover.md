@@ -59,7 +59,8 @@ before changing the system shape.
 - a machine-readable repository manifest plus CI boundary enforcement;
 - architecture ADRs and explicit private-repository guidance;
 - the public project site in `apps/project-site`;
-- Apache-2.0 `LICENSE` and `NOTICE` files.
+- Apache-2.0 `LICENSE` and `NOTICE` files plus public governance, trademark,
+  support, conduct, security/privacy, and third-party operator policies.
 
 The public instance has the opt-in management endpoint and complete portable
 export/import implementation. The private control plane remains in the separate
@@ -99,14 +100,15 @@ Remote deployment still needs:
 
 See `docs/deployment.md` for the direct Wrangler rollout shape.
 
-## Recommended next architecture work
+## Recommended next evidence work
 
-1. Consume the public update-authorization wrapper from the private durable
-   upgrade Workflow and retain its bounded evidence.
-2. Exercise the upgrade path in a dedicated staging account, preserving
+1. Complete an independent security/privacy review and resolve or explicitly
+   accept every finding before a production GA claim.
+2. Exercise upgrade, isolated restore, and hosted exit in dedicated accounts,
+   preserving
    redacted evidence, recovery export, and exact idempotent replay.
-3. Complete owner-facing church profile and publication controls after the
-   instance-first bootstrap while retaining `church_id` defense in depth.
+3. Run church and independent-partner pilots against documented service,
+   support, privacy, recovery, and exit expectations.
 4. Keep `fellowship42-cloud` on published lifecycle contracts and immutable
    release artifacts; never a relative checkout or private deployment fork.
 5. Exercise contribution and Queue delivery against a real beta provider and
@@ -137,6 +139,9 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
 | `packages/management-protocol/src/operator-references.ts` | immutable public operator-reference catalog contract |
 | `packages/management-protocol/src/lifecycle.ts` | portable deployment, plan, and doctor contracts |
 | `docs/repository-strategy.md` | two-repository integration and release strategy |
+| `docs/security-and-privacy.md` | public data boundary and production operator duties |
+| `docs/third-party-operators.md` | independent hosting, compatibility, custody, and exit requirements |
+| `docs/ga-readiness.md` | evidence required before project or service GA claims |
 | `tooling/f42ctl/src/cli.ts` | public lifecycle CLI entrypoint |
 | `docs/lifecycle-manifests-and-doctor.md` | lifecycle contract and evidence semantics |
 
@@ -149,5 +154,5 @@ See `docs/deployment.md` for the direct Wrangler rollout shape.
   public caches.
 - Treat D1 migrations as forward-only once a remote instance exists.
 - Do not use `seed.sql` against production.
-- Do not claim migration support until the export/import exercise is automated
-  and verified.
+- Do not claim a live provider, operator, restore, exit, security review, or
+  service objective is certified until its named evidence actually exists.

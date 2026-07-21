@@ -207,9 +207,10 @@ pnpm f42ctl doctor \
   --output doctor-report.json
 ```
 
-Doctor is read-only. Until a future locally authorized identity endpoint can
-prove the portable installation ID, that check remains `unknown` and the
-overall result is `attention`; it must not infer identity from Worker or
+Doctor is read-only. With `--runtime`, it validates the health endpoint's
+SHA-256 portable-identity evidence against the manifest without exposing the
+identifier. Without runtime evidence that check remains `unknown` and the
+overall result is `attention`; doctor never infers identity from Worker or
 Cloudflare resource identifiers.
 
 Deploy the optional public project site separately with:
@@ -220,15 +221,27 @@ pnpm deploy:site
 
 ## 6. Management enrollment
 
-Remote management is not part of bootstrap and is not implemented yet. When it
-is available, enrollment must be an explicit later action through `f42ctl
-connect` or a local owner workflow. A deployment without enrollment is fully
-supported.
+Remote management is not part of bootstrap. A church owner may later use the
+local **Management** console to review a one-use operator proposal and approve
+its exact public identity, endpoint, capabilities, and expiry. The instance
+then creates its own encrypted Ed25519 identity and initiates signed outbound
+sync. An operator cannot enroll itself, add capabilities, or turn management
+into application authentication.
+
+Enrollment is optional and independently revocable. Owners can inspect the
+active operator and grants, rotate the local identity, revoke support, or
+disconnect locally. A deployment without enrollment is fully supported, and a
+disconnected instance keeps normal operation and export. Follow
+[the management protocol](management-protocol.md) and never expose additional
+management routes merely to simplify an operator integration.
 
 ## 7. Portability and exit
 
-Before advertising hosted-to-self-managed migration as supported, automate and
-test this sequence:
+The public `f42ctl` package implements the provider-neutral export, verification,
+staged import, cutover approval, rehearsal, and exit-evidence contracts. The
+operator supplies live D1/R2 collection and provider effects through separately
+scoped adapters; private software is not required. Follow the linked runbooks
+and test this sequence before accepting production custody:
 
 1. quiesce or reconcile writes;
 2. export D1 schema and data;
@@ -243,6 +256,14 @@ test this sequence:
 Account takeover is easiest when the church owns the account from the start.
 Otherwise the supported guarantee is portable export and redeployment, not an
 atomic transfer of Cloudflare resource IDs.
+
+Passing the deterministic rehearsal or compatibility suite proves the public
+software path, not that a particular provider account, service, or operator has
+completed a live migration. Preserve redacted live evidence before making that
+claim. See [Portable exports](portable-exports.md),
+[Portable import and cutover](portable-import-and-cutover.md),
+[Migration rehearsal](migration-rehearsal.md), and
+[Exit packets](exit-packets.md).
 
 ## 8. CI/CD
 

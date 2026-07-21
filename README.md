@@ -32,7 +32,10 @@ without placing infrastructure credentials in the instance. Release `v0.24.0`
 adds locally approved, automatically expiring diagnostic support sessions with
 an explicit human operator, purpose, and immediate local revocation. Release
 `v0.25.0` adds a checksummed, commit-pinned catalog of public operator and
-release references for dashboards, CLIs, and other approved clients.
+release references for dashboards, CLIs, and other approved clients. Release
+`v0.26.0` adds public governance, security/privacy, trademark, support, and
+independent-operator policies needed to evaluate production use without
+confusing open-source compatibility with an operated-service guarantee.
 
 ## Repository map
 
@@ -128,6 +131,9 @@ Completed hosted transfers produce a public
 [independently verifiable exit packet](docs/exit-packets.md).
 Operator clients can consume the checksummed
 [stable operator reference catalog](docs/operator-references.md).
+Independent hosting companies and consultants should also follow
+[the third-party operator guide](docs/third-party-operators.md); compatibility
+does not imply Fellowship42 certification or endorsement.
 
 ## Documentation
 
@@ -138,6 +144,9 @@ Operator clients can consume the checksummed
 - [Durable instance upgrades](docs/durable-upgrades.md)
 - [Instance recovery guide](docs/operator-recovery.md)
 - [Compatible operator test inputs](docs/partner-compatibility.md)
+- [Third-party operator guide](docs/third-party-operators.md)
+- [Security and privacy boundaries](docs/security-and-privacy.md)
+- [General-availability readiness](docs/ga-readiness.md)
 - [Church-approved support sessions](docs/church-approved-support.md)
 - [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
 - [Portable exports](docs/portable-exports.md)
@@ -152,6 +161,10 @@ Operator clients can consume the checksummed
 - [Product plan](docs/fellowship42-product-plan.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security](SECURITY.md)
+- [Governance](GOVERNANCE.md)
+- [Community support](SUPPORT.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Trademark policy](TRADEMARKS.md)
 
 ## License
 

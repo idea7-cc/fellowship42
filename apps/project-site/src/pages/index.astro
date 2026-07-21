@@ -13,49 +13,49 @@ import FeatureCard from '../components/FeatureCard.astro'
 const features = [
   {
     title: 'People & households',
-    body: 'One record for every person. Link family members, track membership status, and manage pastoral care notes.',
+    body: 'Manage a private, role-scoped directory with household relationships, search, lifecycle controls, audit, and conflict-safe edits.',
   },
   {
-    title: 'Ministries & groups',
-    body: 'Organize by ministry, then let people join groups: Sunday school, small groups, Bible studies, and volunteer teams.',
+    title: 'Ministry publishing',
+    body: 'Create groups, courses, lessons, events, sermons, and checksummed media while keeping drafts private and public content intentional.',
   },
   {
-    title: 'Online giving',
-    body: 'Recurring gifts, fund designations, donor history, and year-end statements — all in one place.',
+    title: 'Contributions & delivery',
+    body: 'Keep contribution access finance-scoped, normalize signed payment events, reject replay, and recover durable outbox delivery.',
   },
   {
-    title: 'Events & facilities',
-    body: 'Publish events, accept registrations, and schedule rooms and resources without double-booking.',
+    title: 'One church, one instance',
+    body: 'Run a dedicated Worker, D1 database, R2 bucket, Durable Object namespace, and Queue as one portable ownership boundary.',
   },
   {
-    title: 'Courses & training',
-    body: 'Build new-member classes, volunteer training, and curriculum-based discipleship with progress tracking.',
+    title: 'Tested portability',
+    body: 'Use public manifests, doctor checks, verified exports, staged imports, cutover approval, recovery drills, and exit evidence.',
   },
   {
-    title: 'Church website',
-    body: 'Every church gets a branded public site with service times, sermons, events, and a page builder.',
+    title: 'Optional management',
+    body: 'Connect an operator only with local owner approval. Inspect grants, rotate identity, revoke support, or disconnect without disabling the app.',
   },
 ]
 ---
 
 <Base
-  title="Fellowship42 — Run the church from one system"
-  description="Church software for ministries, members, giving, events, facilities, and public websites."
+  title="Fellowship42 — Portable open-source church software"
+  description="An Apache-2.0 church management system built as one independent, portable Cloudflare application per church."
 >
   <div class="shell">
     <Hero
-      eyebrow="Church software that works together"
-      headline="Run the church from one system instead of five."
-      body="Fellowship42 is built for churches that need one place to manage ministries, people, contributions, events, facilities, and a visitor-ready website."
+      eyebrow="Open source. Managed when wanted. Portable by design."
+      headline="Church software that remains yours."
+      body="Fellowship42 is an Apache-2.0 church management system. Each church runs an independent Cloudflare application that can be self-hosted, professionally operated, optionally managed, exported, and moved without a private service dependency."
     >
-      <a class="f42-button f42-button--primary" href="/demo">See a demo</a>
-      <a class="f42-button f42-button--secondary" href="/pricing">View pricing</a>
+      <a class="f42-button f42-button--primary" href="https://github.com/idea7-cc/fellowship42">View the source</a>
+      <a class="f42-button f42-button--secondary" href="https://github.com/idea7-cc/fellowship42/blob/main/docs/deployment.md">Deploy an instance</a>
     </Hero>
 
     <section class="f42-section">
       <div class="f42-section-heading">
-        <h2>Everything your church needs</h2>
-        <p>One platform. No integration headaches.</p>
+        <h2>The current public release</h2>
+        <p>Complete public workflows and lifecycle contracts, with service claims kept separate from software evidence.</p>
       </div>
       <div class="f42-card-grid">
         {features.map((f) => (
