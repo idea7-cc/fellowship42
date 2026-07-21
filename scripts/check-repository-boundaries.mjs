@@ -67,6 +67,14 @@ const requiredPaths = [
   'docs/operator-reference-definitions.json',
   'docs/operator-references.md',
   'docs/adr/0019-checksummed-operator-reference-catalog.md',
+  'SECURITY.md',
+  'TRADEMARKS.md',
+  'GOVERNANCE.md',
+  'SUPPORT.md',
+  'CODE_OF_CONDUCT.md',
+  'docs/security-and-privacy.md',
+  'docs/third-party-operators.md',
+  'docs/ga-readiness.md',
 ]
 
 for (const requiredPath of requiredPaths) {

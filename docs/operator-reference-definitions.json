@@ -88,6 +88,22 @@
       "summary": "Verify the bounded evidence required to complete hosted exit and record church custody.",
       "audiences": ["church-owner", "partner-operator", "service-operator"],
       "sourcePath": "docs/exit-packets.md"
+    },
+    {
+      "id": "third-party-operations",
+      "kind": "deployment",
+      "title": "Operate Fellowship42 for another church",
+      "summary": "Preserve per-church isolation, custody, public compatibility, secure operation, truthful representation, and a tested exit.",
+      "audiences": ["church-owner", "partner-operator", "service-operator"],
+      "sourcePath": "docs/third-party-operators.md"
+    },
+    {
+      "id": "security-and-privacy",
+      "kind": "security",
+      "title": "Understand security and privacy boundaries",
+      "summary": "Separate public software guarantees from church, operator, provider, service, privacy, and incident-response responsibilities.",
+      "audiences": ["church-owner", "self-hosting-operator", "partner-operator", "service-operator"],
+      "sourcePath": "docs/security-and-privacy.md"
     }
   ]
 }

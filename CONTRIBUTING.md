@@ -3,6 +3,11 @@
 Thank you for helping build portable, church-owned software. Contributions are
 accepted under the repository's Apache-2.0 license.
 
+Participation is governed by [the code of conduct](CODE_OF_CONDUCT.md), and
+project/release decisions follow [the governance policy](GOVERNANCE.md).
+Suspected vulnerabilities must use the private process in
+[SECURITY.md](SECURITY.md), not an issue or pull request.
+
 Read `AGENTS.md` before making changes. In particular, preserve the distinction
 between the complete public church instance and the separately maintained
 private Fellowship42 Cloud control plane.
@@ -49,4 +54,6 @@ Stable release tags and artifacts follow `docs/releases.md`. Never move or
 reuse a tag, and never publish an artifact from a dirty worktree.
 
 Use an issue or ADR for significant product, custody, protocol, or data-model
-changes before beginning a large implementation.
+changes before beginning a large implementation. Community help is best effort
+as described in [SUPPORT.md](SUPPORT.md); compatibility and branding are
+separate questions governed by [TRADEMARKS.md](TRADEMARKS.md).

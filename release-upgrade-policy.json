@@ -3,23 +3,23 @@
   "strategy": "in-place-expand-contract",
   "rollbackPolicy": "roll-forward-after-migration",
   "target": {
-    "applicationVersion": "0.25.0",
+    "applicationVersion": "0.26.0",
     "schemaVersion": 8,
     "managementProtocolWireVersion": "1"
   },
   "eligibleSources": [
     {
-      "releaseTag": "v0.24.0",
-      "releaseManifestSha256": "d6e989b0d87cde3ca587cc55437c6a6e4ef1fc90dc1e7ebe74693c5a60092f66",
-      "applicationVersion": "0.24.0",
+      "releaseTag": "v0.25.0",
+      "releaseManifestSha256": "a19a49f57a7b5d7293f03cd639f71b5bc81a406759d2930b1789ec5386af7c01",
+      "applicationVersion": "0.25.0",
       "schemaVersion": 8,
       "managementProtocolWireVersion": "1"
     },
     {
-      "releaseTag": "v0.23.0",
-      "releaseManifestSha256": "2b7b6c63c09ac90d841cbe4afeb0f610f0a6d7395004817cb6468e39962dd784",
-      "applicationVersion": "0.23.0",
-      "schemaVersion": 7,
+      "releaseTag": "v0.24.0",
+      "releaseManifestSha256": "d6e989b0d87cde3ca587cc55437c6a6e4ef1fc90dc1e7ebe74693c5a60092f66",
+      "applicationVersion": "0.24.0",
+      "schemaVersion": 8,
       "managementProtocolWireVersion": "1"
     }
   ],

@@ -110,14 +110,14 @@ tables speculatively.
 - portable deployment manifest, immutable release/source verification,
   deterministic non-destructive deploy plan, and bounded doctor evidence.
 
-### Instance beta
+### Instance beta — implemented
 
 - pagination, search, error recovery, and accessible form states;
 - finance-scoped contribution views and verified normalized payment webhooks;
 - Queue-backed outbox delivery, retry, stale-claim recovery, and dead-letter
   retention.
 
-### Portability milestone
+### Portability milestone — implemented
 
 - versioned export manifests;
 - provider-neutral `f42ctl` reconciliation plus export, import, and
@@ -127,7 +127,7 @@ tables speculatively.
 - a tested hosted-to-church-owned migration exercise;
 - migration compatibility and expand/contract schema policy.
 
-### Managed hosting milestone
+### Managed hosting milestone — public contracts implemented; service proof pending
 
 - opt-in enrollment, capability grants, disconnect, and key rotation;
 - instance status, backup export, update preparation, and audited update apply;
@@ -135,7 +135,7 @@ tables speculatively.
 - hosted Worker packaging and custom-domain automation;
 - incident, restore, privacy, data-processing, and support runbooks.
 
-### Partner milestone
+### Partner milestone — public compatibility implemented; private pilot pending
 
 - partner organizations, staff, customers, assignments, and least privilege;
 - time-limited support access and immutable operational audit;
@@ -150,9 +150,10 @@ public contracts, and portable lifecycle tools. Private value is operational:
 fleet management, billing, monitoring, releases, support, and the partner
 network.
 
-A separate trademark policy should protect the Fellowship42 name, official
-service, and certified-partner designation without restricting legitimate code
-forks.
+The repository's [trademark policy](../TRADEMARKS.md) protects the Fellowship42
+name, official service, and certified-partner designation without restricting
+legitimate code forks. Compatibility remains separate from endorsement or
+certification.
 
 ## Current product questions
 
