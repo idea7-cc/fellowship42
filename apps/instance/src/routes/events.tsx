@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
 import { CardGrid } from '@/components/card-grid'
 import {
   Card,
@@ -14,13 +14,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
 import { formatTimestamp } from '@/lib/format'
 
-const fieldClass =
-  'min-h-10 rounded-lg border border-input bg-card px-3 py-2 text-sm'
+// Selects and textareas in this route share the one control treatment.
+const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
@@ -277,15 +278,15 @@ export function EventsPage() {
       )
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Events</Eyebrow>
-        <h1>Events &amp; services</h1>
-        <p className="mt-2">
-          {churchQuery.data?.church
+      <PageHeader
+        description={
+          churchQuery.data?.church
             ? `Schedule for ${churchQuery.data.church.name}`
-            : 'Upcoming events and services'}
-        </p>
-      </Section>
+            : 'Upcoming events and services'
+        }
+        eyebrow="Events"
+        title="Events &amp; services"
+      />
       <Section>
         {canWrite ? (
           <form

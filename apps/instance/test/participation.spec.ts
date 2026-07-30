@@ -1,0 +1,365 @@
+import { env } from 'cloudflare:workers'
+import { Hono } from 'hono'
+import { HTTPException } from 'hono/http-exception'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type { CourseEnrollment, GroupRoster } from '../src/lib/api-types'
+import type { AccessIdentity } from '../worker/lib/auth'
+import { AppError } from '../worker/lib/errors'
+import { courseRoutes } from '../worker/routes/courses'
+import { groupRoutes } from '../worker/routes/groups'
+import { peopleRoutes } from '../worker/routes/people'
+
+const owner: AccessIdentity = {
+  provider: 'cloudflare-access',
+  subject: 'demo-owner-access-subject',
+  email: 'owner@example.test',
+  firstName: 'Demo',
+  lastName: 'Owner',
+}
+
+const financeOnly: AccessIdentity = {
+  provider: 'cloudflare-access',
+  subject: 'participation-finance-subject',
+  email: 'finance@example.test',
+  firstName: 'Finance',
+  lastName: 'Only',
+}
+
+function participationApp(requestIdentity: AccessIdentity) {
+  const app = new Hono<{
+    Bindings: Env
+    Variables: { identity: AccessIdentity | null; requestId: string }
+  }>()
+  app.use('*', async (c, next) => {
+    c.set('identity', requestIdentity)
+    c.set('requestId', 'request_participation_test')
+    await next()
+  })
+  app.onError((error, c) => {
+    const status = error instanceof HTTPException ? error.status : 500
+    return c.json(
+      {
+        error: {
+          code: error instanceof AppError ? error.code : 'internal_error',
+          message: error instanceof HTTPException ? error.message : 'Internal server error',
+        },
+      },
+      status,
+    )
+  })
+  app.route('/api/people', peopleRoutes)
+  app.route('/api/groups', groupRoutes)
+  app.route('/api/courses', courseRoutes)
+  return app
+}
+
+const executionContext = {
+  waitUntil() {},
+  passThroughOnException() {},
+  props: {},
+} as unknown as ExecutionContext
+
+function requestAs(identity: AccessIdentity) {
+  const app = participationApp(identity)
+  return (method: string, pathname: string, body?: unknown) =>
+    app.fetch(
+      new Request(`https://fellowship42.test${pathname}`, {
+        method,
+        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+      env,
+      executionContext,
+    )
+}
+
+const request = requestAs(owner)
+
+// The seed creates the owner user but no Access identity, because the worker
+// deliberately refuses to auto-link a new subject to an existing active user.
+// Tests bind the link explicitly, as the other suites do.
+beforeEach(async () => {
+  const now = Date.now()
+  await env.DB
+    .prepare(
+      `
+        INSERT OR IGNORE INTO auth_identities (
+          id, user_id, provider, subject, email_at_provider, created_at, updated_at
+        ) VALUES ('identity_demo_owner', 'user_demo_owner', ?, ?, ?, ?, ?)
+      `,
+    )
+    .bind(owner.provider, owner.subject, owner.email, now, now)
+    .run()
+})
+
+async function createPerson(first: string, last: string) {
+  const response = await request('POST', '/api/people/church_demo', {
+    firstName: first,
+    lastName: last,
+  })
+  expect(response.status).toBe(201)
+  const body = await response.json<{ person: { id: string } }>()
+  return body.person.id
+}
+
+async function createGroup(title: string, slug: string, capacity?: number) {
+  const response = await request('POST', '/api/groups/church_demo', {
+    slug,
+    title,
+    groupType: 'small-group',
+    ...(capacity === undefined ? {} : { capacity }),
+  })
+  expect(response.status).toBe(201)
+  const body = await response.json<{ group: { id: string } }>()
+  return body.group.id
+}
+
+async function createCourse(title: string, slug: string) {
+  const response = await request('POST', '/api/courses/church_demo', {
+    slug,
+    title,
+    courseType: 'formation',
+    deliveryMode: 'cohort',
+  })
+  expect(response.status).toBe(201)
+  const body = await response.json<{ course: { id: string } }>()
+  return body.course.id
+}
+
+describe('group rosters', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM group_memberships').run()
+    await env.DB.prepare('DELETE FROM group_leaders').run()
+  })
+
+  it('adds, updates, and removes members and leaders', async () => {
+    const groupId = await createGroup('Roster Group', 'roster-group')
+    const alice = await createPerson('Alice', 'Roster')
+    const bob = await createPerson('Bob', 'Roster')
+
+    const added = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${alice}`,
+      { status: 'active' },
+    )
+    expect(added.status).toBe(200)
+    const roster = await added.json<GroupRoster>()
+    expect(roster.members).toHaveLength(1)
+    expect(roster.members[0].personId).toBe(alice)
+    expect(roster.members[0].status).toBe('active')
+    expect(roster.members[0].joinedAt).toBeTruthy()
+    expect(roster.activeCount).toBe(1)
+
+    // Re-upserting the same person changes status without duplicating them.
+    const paused = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${alice}`,
+      { status: 'paused', notes: 'Travelling until autumn' },
+    )
+    const pausedRoster = await paused.json<GroupRoster>()
+    expect(pausedRoster.members).toHaveLength(1)
+    expect(pausedRoster.members[0].status).toBe('paused')
+    expect(pausedRoster.members[0].notes).toBe('Travelling until autumn')
+    expect(pausedRoster.activeCount).toBe(0)
+
+    const leader = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/leaders/${bob}`,
+      { role: 'leader' },
+    )
+    const leaderRoster = await leader.json<GroupRoster>()
+    expect(leaderRoster.leaders).toHaveLength(1)
+    expect(leaderRoster.leaders[0].personId).toBe(bob)
+    expect(leaderRoster.leaders[0].role).toBe('leader')
+
+    const removed = await request(
+      'DELETE',
+      `/api/groups/church_demo/${groupId}/members/${alice}`,
+    )
+    expect((await removed.json<GroupRoster>()).members).toHaveLength(0)
+
+    const removedLeader = await request(
+      'DELETE',
+      `/api/groups/church_demo/${groupId}/leaders/${bob}`,
+    )
+    expect((await removedLeader.json<GroupRoster>()).leaders).toHaveLength(0)
+  })
+
+  it('enforces capacity against active members only', async () => {
+    const groupId = await createGroup('Tiny Group', 'tiny-group', 1)
+    const first = await createPerson('First', 'Seat')
+    const second = await createPerson('Second', 'Seat')
+
+    expect(
+      (
+        await request('PUT', `/api/groups/church_demo/${groupId}/members/${first}`, {
+          status: 'active',
+        })
+      ).status,
+    ).toBe(200)
+
+    const full = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${second}`,
+      { status: 'active' },
+    )
+    expect(full.status).toBe(409)
+    expect((await full.json<{ error: { code: string } }>()).error.code).toBe(
+      'group_at_capacity',
+    )
+
+    // A waiting list still works past capacity.
+    const waiting = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${second}`,
+      { status: 'interested' },
+    )
+    expect(waiting.status).toBe(200)
+    const roster = await waiting.json<GroupRoster>()
+    expect(roster.members).toHaveLength(2)
+    expect(roster.activeCount).toBe(1)
+  })
+
+  it('rejects a person from outside the church', async () => {
+    const groupId = await createGroup('Scoped Group', 'scoped-group')
+    const response = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/person_does_not_exist`,
+      { status: 'active' },
+    )
+    expect(response.status).toBe(422)
+    expect((await response.json<{ error: { code: string } }>()).error.code).toBe(
+      'invalid_person',
+    )
+  })
+
+  it('denies roster access without the groups permission', async () => {
+    const groupId = await createGroup('Private Group', 'private-group')
+    const now = Date.now()
+    await env.DB.batch([
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
+           VALUES ('user_participation_finance', 'finance@example.test', 'Finance', 'Only', 'active', ?, ?)`,
+        )
+        .bind(now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
+           VALUES ('authid_participation_finance', 'user_participation_finance', 'cloudflare-access', 'participation-finance-subject', 'finance@example.test', ?, ?)`,
+        )
+        .bind(now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
+           VALUES ('membership_participation_finance', 'church_demo', 'user_participation_finance', 'active', ?, ?, ?)`,
+        )
+        .bind(now, now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
+           VALUES ('church_demo', 'membership_participation_finance', 'role_demo_finance', ?, 'user_demo_owner')`,
+        )
+        .bind(now),
+    ])
+
+    const asFinance = requestAs(financeOnly)
+    expect((await asFinance('GET', `/api/groups/church_demo/${groupId}/roster`)).status).toBe(403)
+    expect(
+      (
+        await asFinance('PUT', `/api/groups/church_demo/${groupId}/members/whoever`, {
+          status: 'active',
+        })
+      ).status,
+    ).toBe(403)
+  })
+})
+
+describe('course enrollments', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM course_enrollments').run()
+  })
+
+  it('enrolls a person and a group, updates status, and removes', async () => {
+    const courseId = await createCourse('Enrollable Course', 'enrollable-course')
+    const personId = await createPerson('Enrolled', 'Person')
+    const groupId = await createGroup('Enrolled Group', 'enrolled-group')
+
+    const person = await request(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { personId, status: 'active' },
+    )
+    expect(person.status).toBe(201)
+    const afterPerson = await person.json<{ enrollments: CourseEnrollment[] }>()
+    expect(afterPerson.enrollments).toHaveLength(1)
+    expect(afterPerson.enrollments[0].subjectName).toBe('Enrolled Person')
+    expect(afterPerson.enrollments[0].startedAt).toBeTruthy()
+
+    const group = await request(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { groupId },
+    )
+    expect(group.status).toBe(201)
+    const afterGroup = await group.json<{ enrollments: CourseEnrollment[] }>()
+    expect(afterGroup.enrollments).toHaveLength(2)
+    expect(
+      afterGroup.enrollments.some((entry) => entry.subjectName === 'Enrolled Group'),
+    ).toBe(true)
+
+    const enrollmentId = afterPerson.enrollments[0].id
+    const completed = await request(
+      'PATCH',
+      `/api/courses/church_demo/${courseId}/enrollments/${enrollmentId}`,
+      { status: 'completed' },
+    )
+    const afterComplete = await completed.json<{ enrollments: CourseEnrollment[] }>()
+    const updated = afterComplete.enrollments.find((entry) => entry.id === enrollmentId)
+    expect(updated?.status).toBe('completed')
+    expect(updated?.completedAt).toBeTruthy()
+
+    const removed = await request(
+      'DELETE',
+      `/api/courses/church_demo/${courseId}/enrollments/${enrollmentId}`,
+    )
+    const afterRemove = await removed.json<{ enrollments: CourseEnrollment[] }>()
+    expect(afterRemove.enrollments).toHaveLength(1)
+  })
+
+  it('rejects enrolling both a person and a group at once', async () => {
+    const courseId = await createCourse('Either Course', 'either-course')
+    const personId = await createPerson('Either', 'Person')
+    const groupId = await createGroup('Either Group', 'either-group')
+
+    const response = await request(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { personId, groupId },
+    )
+    expect(response.status).toBe(422)
+  })
+
+  it('rejects a duplicate enrollment for the same person', async () => {
+    const courseId = await createCourse('Once Course', 'once-course')
+    const personId = await createPerson('Once', 'Only')
+
+    expect(
+      (
+        await request('POST', `/api/courses/church_demo/${courseId}/enrollments`, {
+          personId,
+        })
+      ).status,
+    ).toBe(201)
+
+    const duplicate = await request(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { personId },
+    )
+    expect(duplicate.status).toBe(409)
+    expect((await duplicate.json<{ error: { code: string } }>()).error.code).toBe(
+      'already_enrolled',
+    )
+  })
+})

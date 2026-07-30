@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom'
+import { ChevronRight, MapPin } from 'lucide-react'
 
 import { PageShell } from '@/components/page-shell'
-import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
+import { PageHeader } from '@/components/page-header'
 import { CardGrid } from '@/components/card-grid'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { SkeletonCards } from '@/components/ui/skeleton'
+import { StatusBadge } from '@/components/ui/badge'
+import { ChurchTheme } from '@/components/church-theme'
 import { useApiQuery } from '@/lib/api'
 import type { Church } from '@/lib/api-types'
 
@@ -14,42 +18,63 @@ export function ChurchesPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Church instance</Eyebrow>
-        <h1>Your church</h1>
-        <p className="mt-2">This deployment is one portable church and one ownership boundary.</p>
-      </Section>
+      <PageHeader
+        eyebrow="Church instance"
+        title="Your church"
+        description="This deployment is one portable church and one ownership boundary."
+      />
 
-      <Section>
-        {isLoading ? (
-          <Card className="flex flex-col items-center justify-center border-dashed p-8">
-            <CardContent>
-              <p className="text-center text-muted-foreground">Loading churches...</p>
-            </CardContent>
-          </Card>
-        ) : churches.length > 0 ? (
-          <CardGrid>
-            {churches.map((church) => (
-              <Link key={church.id} to={`/churches/${church.id}`}>
-                <Card className="transition-all duration-200 hover:-translate-y-px hover:shadow-md">
+      {isLoading ? (
+        <SkeletonCards count={2} />
+      ) : churches.length > 0 ? (
+        <CardGrid minWidth="320px">
+          {churches.map((church) => (
+            <ChurchTheme key={church.id} theme={church.theme}>
+              <Link to={`/churches/${church.id}`}>
+                <Card className="group h-full" interactive>
                   <CardHeader>
-                    <CardTitle>{church.name}</CardTitle>
-                    <CardDescription>{church.summary}</CardDescription>
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        aria-hidden
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
+                        style={{
+                          background: 'var(--church-accent)',
+                          color: 'var(--church-accent-contrast)',
+                        }}
+                      >
+                        {church.name.charAt(0).toUpperCase()}
+                      </span>
+                      <CardTitle className="min-w-0 flex-1 truncate">{church.name}</CardTitle>
+                      <ChevronRight
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                      />
+                    </div>
+                    <CardDescription className="mt-1.5 line-clamp-2">
+                      {church.summary}
+                    </CardDescription>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <StatusBadge size="sm" status={church.status} />
+                      {church.address.city ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          <MapPin aria-hidden className="size-3" />
+                          {church.address.city}
+                          {church.address.state ? `, ${church.address.state}` : ''}
+                        </span>
+                      ) : null}
+                    </div>
                   </CardHeader>
                 </Card>
               </Link>
-            ))}
-          </CardGrid>
-        ) : (
-          <Card className="flex flex-col items-center justify-center p-8 border-dashed">
-            <CardContent>
-              <p className="text-center text-muted-foreground">
-                Your church is still in draft or unavailable to this account.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </Section>
+            </ChurchTheme>
+          ))}
+        </CardGrid>
+      ) : (
+        <EmptyState
+          title="No church is available"
+          description="Your church is still in draft, or this account does not have access to it yet."
+        />
+      )}
     </PageShell>
   )
 }

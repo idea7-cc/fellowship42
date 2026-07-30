@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
 import {
   Card,
   CardContent,
@@ -88,14 +88,11 @@ export function ContributionsPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Finance</Eyebrow>
-        <h1>Contributions</h1>
-        <p className="mt-2">
-          Finance-scoped records stay inside this church instance. Payment
-          providers submit only authenticated, normalized events.
-        </p>
-      </Section>
+      <PageHeader
+        description="Finance-scoped records stay inside this church instance. Payment providers submit only authenticated, normalized events."
+        eyebrow="Finance"
+        title="Contributions"
+      />
       <Section>
         {!canRead ? (
           <Card className="border-dashed">

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
 import { CardGrid } from '@/components/card-grid'
 import {
   Card,
@@ -14,12 +14,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { GroupRosterPanel } from '@/components/group-roster-panel'
+import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
-const fieldClass =
-  'min-h-10 rounded-lg border border-input bg-card px-3 py-2 text-sm'
+// Selects and textareas in this route share the one control treatment.
+const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
@@ -227,6 +229,7 @@ export function GroupsPage() {
   const [status, setStatus] = useState('')
   const [cursors, setCursors] = useState<Array<string | null>>([null])
   const [editor, setEditor] = useState<Group | 'new' | null>(null)
+  const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -270,15 +273,15 @@ export function GroupsPage() {
       )
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Groups</Eyebrow>
-        <h1>Groups &amp; teams</h1>
-        <p className="mt-2">
-          {churchQuery.data?.church
+      <PageHeader
+        description={
+          churchQuery.data?.church
             ? `Ministry groups for ${churchQuery.data.church.name}`
-            : 'Groups and teams'}
-        </p>
-      </Section>
+            : 'Groups and teams'
+        }
+        eyebrow="Groups"
+        title="Groups &amp; teams"
+      />
       <Section>
         {canWrite ? (
           <form
@@ -335,6 +338,13 @@ export function GroupsPage() {
             }}
           />
         ) : null}
+        {rosterGroup && churchId ? (
+          <GroupRosterPanel
+            churchId={churchId}
+            group={rosterGroup}
+            onClose={() => setRosterGroup(null)}
+          />
+        ) : null}
         {error ? (
           <p role="alert" className="mb-4 text-sm text-destructive">
             {error}
@@ -364,6 +374,13 @@ export function GroupsPage() {
                   </p>
                   {canWrite ? (
                     <div className="mt-4 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setRosterGroup(group)}
+                      >
+                        Roster
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"

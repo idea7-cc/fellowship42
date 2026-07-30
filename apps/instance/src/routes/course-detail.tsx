@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
+import { CourseEnrollmentPanel } from '@/components/course-enrollment-panel'
 import { Section } from '@/components/section'
-import { Hero } from '@/components/hero'
-import { Eyebrow } from '@/components/eyebrow'
 import {
   Card,
   CardContent,
@@ -11,9 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import type {
@@ -23,8 +24,8 @@ import type {
   MediaRecord,
 } from '@/lib/api-types'
 
-const fieldClass =
-  'min-h-10 rounded-lg border border-input bg-card px-3 py-2 text-sm'
+// Selects and textareas in this route share the one control treatment.
+const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
@@ -256,21 +257,35 @@ export function CourseDetailPage() {
         </Section>
       ) : (
         <>
-          <Hero variant="landing">
-            <Eyebrow>Course</Eyebrow>
-            <h1>{course.title}</h1>
-            <p className="mt-2">{course.summary}</p>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Badge variant="pill">{course.courseType}</Badge>
-              <Badge variant="outline">{course.status}</Badge>
-              <span className="text-sm text-muted-foreground">
-                {lessons.length} lessons
-                {churchQuery.data?.church
-                  ? ` for ${churchQuery.data.church.name}`
-                  : ''}
-              </span>
-            </div>
-          </Hero>
+          <PageHeader
+            actions={
+              <>
+                <Badge variant="brand">{course.courseType}</Badge>
+                <StatusBadge status={course.status} />
+              </>
+            }
+            description={course.summary}
+            eyebrow={
+              <>
+                Course ·{' '}
+                {lessons.length === 1 ? '1 lesson' : `${lessons.length} lessons`}
+                {churchQuery.data?.church ? ` · ${churchQuery.data.church.name}` : ''}
+              </>
+            }
+            title={course.title}
+          />
+          {canWrite && churchId ? (
+            <Section
+              title="Who is taking this"
+              description="Enroll a person or a whole group, and track their progress."
+            >
+              <CourseEnrollmentPanel
+                churchId={churchId}
+                courseId={course.id}
+                courseTitle={course.title}
+              />
+            </Section>
+          ) : null}
           <Section
             title="Lessons"
             description={

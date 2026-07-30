@@ -66,6 +66,64 @@ export interface Group {
   version: number
 }
 
+export type GroupMembershipStatus =
+  | 'interested'
+  | 'pending'
+  | 'active'
+  | 'paused'
+  | 'completed'
+
+export type GroupLeaderRole = 'leader' | 'apprentice' | 'host'
+
+/** A person's participation in a group, with enough person detail to display a roster. */
+export interface GroupMember {
+  id: string
+  groupId: string
+  personId: string
+  firstName: string
+  lastName: string
+  email?: string
+  status: GroupMembershipStatus
+  joinedAt?: number
+  notes?: string
+}
+
+export interface GroupLeader {
+  groupId: string
+  personId: string
+  firstName: string
+  lastName: string
+  email?: string
+  role: GroupLeaderRole
+}
+
+export interface GroupRoster {
+  members: GroupMember[]
+  leaders: GroupLeader[]
+  /** Active members counted against the group's capacity. */
+  activeCount: number
+  capacity?: number
+}
+
+export type CourseEnrollmentStatus = 'invited' | 'active' | 'completed' | 'archived'
+
+/**
+ * A course enrollment is either a person or a whole group, never both — the
+ * schema enforces that with a CHECK constraint.
+ */
+export interface CourseEnrollment {
+  id: string
+  courseId: string
+  status: CourseEnrollmentStatus
+  personId?: string
+  groupId?: string
+  /** Display name of the enrolled person or group. */
+  subjectName: string
+  startedAt?: number
+  completedAt?: number
+  notes?: string
+}
+
 export interface Course {
   id: string
   churchId: string

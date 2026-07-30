@@ -5,12 +5,12 @@ interface CardGridProps extends React.HTMLAttributes<HTMLDivElement> {
   minWidth?: string
 }
 
-export function CardGrid({ children, className, minWidth = '240px', ...props }: CardGridProps) {
+export function CardGrid({ children, className, minWidth = '280px', ...props }: CardGridProps) {
   return (
     <div
-      className={cn('grid gap-4', className)}
+      className={cn('grid gap-3', className)}
       style={{
-        gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`,
       }}
       {...props}
     >

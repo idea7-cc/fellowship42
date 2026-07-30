@@ -1,44 +1,46 @@
-import type { CSSProperties } from 'react'
-
 import { cn } from '@/lib/cn'
 
 interface HeroProps extends React.HTMLAttributes<HTMLElement> {
   /**
-   * default  — plain padding, no card treatment
-   * church   — glass card with gradient (church site hero)
-   * landing  — church-scoped gradient card (landing page hero)
+   * default  — plain padding, no panel treatment
+   * church   — a church-branded panel, tinted with the congregation's accent
+   * landing  — a fuller church-branded panel for public and member-facing pages
    */
   variant?: 'default' | 'church' | 'landing'
 }
 
-const landingHeroStyle: CSSProperties = {
-  background:
-    'linear-gradient(145deg, color-mix(in srgb, var(--card) 88%, white 12%), color-mix(in srgb, var(--primary) 12%, var(--card) 88%))',
-  borderColor: 'color-mix(in srgb, var(--foreground) 12%, white 88%)',
-}
-
-export function Hero({ children, className, style, variant = 'default', ...props }: HeroProps) {
+/**
+ * A hero belongs on church-facing pages, not above an operator table. Both
+ * panel variants draw from the --church-* namespace, so they carry the
+ * congregation's identity while the surrounding chrome stays neutral. Place
+ * them inside a <ChurchTheme> for the tokens to resolve to that church.
+ */
+export function Hero({ children, className, variant = 'default', ...props }: HeroProps) {
   return (
     <section
       className={cn(
-        'py-8 pb-16',
-        variant === 'church' &&
-          'rounded-[calc(var(--radius)+0.5rem)] border border-border/60 bg-gradient-to-br from-white/65 to-amber-50/80 p-8 shadow-[var(--f42-shadow-lg)]',
-        variant === 'landing' &&
-          'rounded-[calc(var(--radius)+0.75rem)] border p-8 shadow-[var(--f42-shadow-lg)]',
+        variant === 'default' && 'py-2',
+        variant !== 'default' && [
+          'relative overflow-hidden rounded-[var(--church-radius)] border border-border',
+          'bg-card p-6 sm:p-8',
+          // A single wash of the church accent from the top-left, mixed
+          // against the card so it stays subtle on any preset.
+          'before:pointer-events-none before:absolute before:inset-0',
+          'before:bg-[radial-gradient(80%_120%_at_0%_0%,var(--church-accent),transparent_70%)]',
+          variant === 'church' ? 'before:opacity-[0.07]' : 'before:opacity-[0.12]',
+        ],
         className,
       )}
-      style={variant === 'landing' ? { ...landingHeroStyle, ...style } : style}
       {...props}
     >
-      {children}
+      {variant === 'default' ? children : <div className="relative">{children}</div>}
     </section>
   )
 }
 
 export function HeroActions({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('mt-6 flex flex-wrap gap-3', className)} {...props}>
+    <div className={cn('mt-5 flex flex-wrap items-center gap-2', className)} {...props}>
       {children}
     </div>
   )

@@ -13,7 +13,14 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import { mapGroup, type GroupRow } from '../lib/records'
+import {
+  mapGroup,
+  mapGroupLeader,
+  mapGroupMember,
+  type GroupLeaderRow,
+  type GroupMemberRow,
+  type GroupRow,
+} from '../lib/records'
 
 type AppEnv = {
   Bindings: Env
@@ -407,4 +414,320 @@ groupRoutes.delete('/:churchId/:groupId', async (c) => {
   }
   broadcastContent(c, churchId, 'group', groupId, 'deleted')
   return c.body(null, 204)
+})
+
+// ---------------------------------------------------------------------------
+// Group roster
+//
+// A group nobody can join is a brochure. These endpoints put people into
+// groups and name their leaders.
+//
+// Roster changes stamp the group's `last_operation_id` and `updated_at` but
+// deliberately do NOT bump its `version`. Version guards concurrent edits to
+// the group record itself; adding a member is not a competing edit to the
+// group's title, and bumping it would make two staff working the same group
+// collide for no reason. Stamping the operation id still lets the shared
+// evidence helper write audit and outbox rows atomically with the change.
+// ---------------------------------------------------------------------------
+
+const membershipStatusSchema = z.enum([
+  'interested',
+  'pending',
+  'active',
+  'paused',
+  'completed',
+])
+const leaderRoleSchema = z.enum(['leader', 'apprentice', 'host'])
+
+const memberUpsertInput = z
+  .object({
+    status: membershipStatusSchema.default('active'),
+    notes: z.string().trim().max(4_000).nullable().default(null),
+  })
+  .strict()
+
+const leaderUpsertInput = z
+  .object({ role: leaderRoleSchema.default('leader') })
+  .strict()
+
+async function requirePerson(db: D1Database, churchId: string, personId: string) {
+  const row = await db
+    .prepare(
+      'SELECT 1 AS present FROM people WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
+    )
+    .bind(churchId, personId)
+    .first<{ present: number }>()
+  if (!row) {
+    throw new AppError(
+      422,
+      'invalid_person',
+      'The selected person does not exist in this church',
+    )
+  }
+}
+
+/** Stamps the group so `mutationEvidence` can attach audit and outbox rows. */
+function touchGroup(
+  db: D1Database,
+  churchId: string,
+  groupId: string,
+  now: number,
+  operationId: string,
+) {
+  return db
+    .prepare(
+      `
+        UPDATE groups SET updated_at = ?, last_operation_id = ?
+        WHERE church_id = ? AND id = ? AND deleted_at IS NULL
+      `,
+    )
+    .bind(now, operationId, churchId, groupId)
+}
+
+async function readRoster(
+  db: D1Database,
+  churchId: string,
+  groupId: string,
+  capacity: number | null,
+) {
+  const [members, leaders] = await Promise.all([
+    db
+      .prepare(
+        `
+          SELECT m.id, m.group_id, m.person_id, p.first_name, p.last_name, p.email,
+                 m.status, m.joined_at, m.notes
+          FROM group_memberships m
+          JOIN people p ON p.church_id = m.church_id AND p.id = m.person_id
+          WHERE m.church_id = ? AND m.group_id = ? AND p.deleted_at IS NULL
+          ORDER BY p.sort_name
+        `,
+      )
+      .bind(churchId, groupId)
+      .all<GroupMemberRow>(),
+    db
+      .prepare(
+        `
+          SELECT l.group_id, l.person_id, p.first_name, p.last_name, p.email, l.role
+          FROM group_leaders l
+          JOIN people p ON p.church_id = l.church_id AND p.id = l.person_id
+          WHERE l.church_id = ? AND l.group_id = ? AND p.deleted_at IS NULL
+          ORDER BY p.sort_name
+        `,
+      )
+      .bind(churchId, groupId)
+      .all<GroupLeaderRow>(),
+  ])
+  const mapped = (members.results ?? []).map(mapGroupMember)
+  return {
+    members: mapped,
+    leaders: (leaders.results ?? []).map(mapGroupLeader),
+    activeCount: mapped.filter((member) => member.status === 'active').length,
+    capacity: capacity ?? undefined,
+  }
+}
+
+groupRoutes.get('/:churchId/:groupId/roster', async (c) => {
+  const churchId = c.req.param('churchId')
+  const groupId = c.req.param('groupId')
+  await requirePermission(c, churchId, 'groups.write')
+  const group = await findGroup(c.env.DB, churchId, groupId)
+  return c.json(await readRoster(c.env.DB, churchId, groupId, group.capacity))
+})
+
+groupRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
+  const churchId = c.req.param('churchId')
+  const groupId = c.req.param('groupId')
+  const personId = c.req.param('personId')
+  const actor = await requirePermission(c, churchId, 'groups.write')
+  const parsed = memberUpsertInput.safeParse(await jsonBody(c))
+  if (!parsed.success) throw validationError(parsed.error)
+
+  const group = await findGroup(c.env.DB, churchId, groupId)
+  await requirePerson(c.env.DB, churchId, personId)
+
+  // Capacity is a real limit, enforced on the server. Counting only `active`
+  // keeps waiting lists (`interested`, `pending`) usable past a full group.
+  if (parsed.data.status === 'active' && group.capacity !== null) {
+    const existing = await c.env.DB
+      .prepare(
+        `
+          SELECT COUNT(*) AS total FROM group_memberships
+          WHERE church_id = ? AND group_id = ? AND status = 'active' AND person_id <> ?
+        `,
+      )
+      .bind(churchId, groupId, personId)
+      .first<{ total: number }>()
+    if ((existing?.total ?? 0) >= group.capacity) {
+      throw new AppError(
+        409,
+        'group_at_capacity',
+        `This group is limited to ${group.capacity} active members`,
+      )
+    }
+  }
+
+  const membershipId = `groupmember_${crypto.randomUUID()}`
+  const operationId = crypto.randomUUID()
+  const now = Date.now()
+  await c.env.DB.batch([
+    touchGroup(c.env.DB, churchId, groupId, now, operationId),
+    c.env.DB
+      .prepare(
+        `
+          INSERT INTO group_memberships (
+            id, church_id, group_id, person_id, status, joined_at, notes,
+            created_at, updated_at
+          )
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+          WHERE EXISTS (
+            SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?
+          )
+          ON CONFLICT(group_id, person_id) DO UPDATE SET
+            status = excluded.status,
+            notes = excluded.notes,
+            joined_at = COALESCE(group_memberships.joined_at, excluded.joined_at),
+            updated_at = excluded.updated_at
+        `,
+      )
+      .bind(
+        membershipId,
+        churchId,
+        groupId,
+        personId,
+        parsed.data.status,
+        parsed.data.status === 'active' ? now : null,
+        parsed.data.notes,
+        now,
+        now,
+        churchId,
+        groupId,
+        operationId,
+      ),
+    ...mutationEvidence(c.env.DB, {
+      churchId,
+      actorId: actor.id,
+      requestId: c.get('requestId'),
+      entityType: 'group',
+      entityId: groupId,
+      eventName: 'groups.member.upserted',
+      operationId,
+      table: 'groups',
+      now,
+      metadata: { personId, status: parsed.data.status },
+    }),
+  ])
+  broadcastContent(c, churchId, 'group', groupId, 'updated')
+  return c.json(await readRoster(c.env.DB, churchId, groupId, group.capacity))
+})
+
+groupRoutes.delete('/:churchId/:groupId/members/:personId', async (c) => {
+  const churchId = c.req.param('churchId')
+  const groupId = c.req.param('groupId')
+  const personId = c.req.param('personId')
+  const actor = await requirePermission(c, churchId, 'groups.write')
+  const group = await findGroup(c.env.DB, churchId, groupId)
+
+  const operationId = crypto.randomUUID()
+  const now = Date.now()
+  await c.env.DB.batch([
+    touchGroup(c.env.DB, churchId, groupId, now, operationId),
+    c.env.DB
+      .prepare(
+        'DELETE FROM group_memberships WHERE church_id = ? AND group_id = ? AND person_id = ?',
+      )
+      .bind(churchId, groupId, personId),
+    ...mutationEvidence(c.env.DB, {
+      churchId,
+      actorId: actor.id,
+      requestId: c.get('requestId'),
+      entityType: 'group',
+      entityId: groupId,
+      eventName: 'groups.member.removed',
+      operationId,
+      table: 'groups',
+      now,
+      metadata: { personId },
+    }),
+  ])
+  broadcastContent(c, churchId, 'group', groupId, 'updated')
+  return c.json(await readRoster(c.env.DB, churchId, groupId, group.capacity))
+})
+
+groupRoutes.put('/:churchId/:groupId/leaders/:personId', async (c) => {
+  const churchId = c.req.param('churchId')
+  const groupId = c.req.param('groupId')
+  const personId = c.req.param('personId')
+  const actor = await requirePermission(c, churchId, 'groups.write')
+  const parsed = leaderUpsertInput.safeParse(await jsonBody(c))
+  if (!parsed.success) throw validationError(parsed.error)
+  const group = await findGroup(c.env.DB, churchId, groupId)
+  await requirePerson(c.env.DB, churchId, personId)
+
+  const operationId = crypto.randomUUID()
+  const now = Date.now()
+  await c.env.DB.batch([
+    touchGroup(c.env.DB, churchId, groupId, now, operationId),
+    c.env.DB
+      .prepare(
+        `
+          INSERT INTO group_leaders (church_id, group_id, person_id, role, created_at)
+          SELECT ?, ?, ?, ?, ?
+          WHERE EXISTS (
+            SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?
+          )
+          ON CONFLICT(group_id, person_id) DO UPDATE SET role = excluded.role
+        `,
+      )
+      .bind(
+        churchId, groupId, personId, parsed.data.role, now,
+        churchId, groupId, operationId,
+      ),
+    ...mutationEvidence(c.env.DB, {
+      churchId,
+      actorId: actor.id,
+      requestId: c.get('requestId'),
+      entityType: 'group',
+      entityId: groupId,
+      eventName: 'groups.leader.upserted',
+      operationId,
+      table: 'groups',
+      now,
+      metadata: { personId, role: parsed.data.role },
+    }),
+  ])
+  broadcastContent(c, churchId, 'group', groupId, 'updated')
+  return c.json(await readRoster(c.env.DB, churchId, groupId, group.capacity))
+})
+
+groupRoutes.delete('/:churchId/:groupId/leaders/:personId', async (c) => {
+  const churchId = c.req.param('churchId')
+  const groupId = c.req.param('groupId')
+  const personId = c.req.param('personId')
+  const actor = await requirePermission(c, churchId, 'groups.write')
+  const group = await findGroup(c.env.DB, churchId, groupId)
+
+  const operationId = crypto.randomUUID()
+  const now = Date.now()
+  await c.env.DB.batch([
+    touchGroup(c.env.DB, churchId, groupId, now, operationId),
+    c.env.DB
+      .prepare(
+        'DELETE FROM group_leaders WHERE church_id = ? AND group_id = ? AND person_id = ?',
+      )
+      .bind(churchId, groupId, personId),
+    ...mutationEvidence(c.env.DB, {
+      churchId,
+      actorId: actor.id,
+      requestId: c.get('requestId'),
+      entityType: 'group',
+      entityId: groupId,
+      eventName: 'groups.leader.removed',
+      operationId,
+      table: 'groups',
+      now,
+      metadata: { personId },
+    }),
+  ])
+  broadcastContent(c, churchId, 'group', groupId, 'updated')
+  return c.json(await readRoster(c.env.DB, churchId, groupId, group.capacity))
 })

@@ -1,83 +1,357 @@
 /*
  * @fellowship42/brand — Portable design tokens
  *
- * This is the canonical token source shared between:
+ * Canonical token source shared between:
  *   - The deployable church instance (apps/instance) via Tailwind / shadcn-ui
  *   - The public project site (apps/project-site)
  *   - Any future consumer (email templates, native apps, etc.)
  *
- * Naming follows the shadcn/ui variable contract so that shadcn components
- * work out of the box. Extended F42-specific tokens use the --f42- prefix.
+ * ---------------------------------------------------------------------------
+ * TWO IDENTITIES, DELIBERATELY SEPARATED
+ * ---------------------------------------------------------------------------
+ * 1. PRODUCT CHROME — the operator UI. Neutral, dense, and identical for every
+ *    church so that a directory, a ledger, or an audit log is always legible.
+ *    Owns the shadcn semantic contract: --background, --card, --primary, ...
  *
- * Consumer CSS files should `@import '@fellowship42/brand/tokens.css'` or
- * copy these variables if the consumer cannot resolve package imports.
+ * 2. CHURCH BRAND — a congregation's own accent, surface, ink, and fonts.
+ *    Lives entirely under the --church-* namespace and NEVER repaints chrome.
+ *    Church-facing surfaces opt in by remapping the semantic tokens locally
+ *    (see `themeToCSS()` in presets.ts and the ChurchTheme component).
+ *
+ * Colors are authored in OKLCH so the neutral ramp is perceptually even and
+ * light/dark pairs stay in balance. Extended tokens use the --f42- prefix.
+ *
+ * Consumers should `@import '@fellowship42/brand/tokens.css'`.
  */
 
 @layer brand {
   :root {
-    /* ------------------------------------------------------------------ */
-    /* CORE SEMANTIC COLORS                                                */
-    /* ------------------------------------------------------------------ */
-    --background: #f8f2ea;
-    --foreground: #20140d;
-
-    --card: #fffaf5;
-    --card-foreground: #20140d;
-
-    --popover: #fffaf5;
-    --popover-foreground: #20140d;
-
-    --primary: #b85c38;
-    --primary-foreground: #ffffff;
-
-    --secondary: rgba(255, 255, 255, 0.65);
-    --secondary-foreground: #20140d;
-
-    --muted: #f4ede3;
-    --muted-foreground: #6b584c;
-
-    --accent: #f4ede3;
-    --accent-foreground: #20140d;
-
-    --destructive: #dc2626;
-    --destructive-foreground: #ffffff;
-
-    --border: rgba(32, 20, 13, 0.14);
-    --input: rgba(32, 20, 13, 0.14);
-    --ring: #b85c38;
-
-    --radius: 1.75rem;
+    color-scheme: light;
 
     /* ------------------------------------------------------------------ */
-    /* EXTENDED F42 TOKENS                                                 */
+    /* NEUTRAL RAMP                                                        */
+    /* A warm-cast gray (hue ~70) — paper, not printer paper. Low chroma   */
+    /* keeps it neutral enough to sit under dense data without tinting it. */
     /* ------------------------------------------------------------------ */
-    --f42-accent-strong: #8e4021;
-    --f42-shadow-sm: 0 2px 8px rgba(62, 28, 10, 0.06);
-    --f42-shadow-md: 0 8px 24px rgba(62, 28, 10, 0.08);
-    --f42-shadow-lg: 0 24px 60px rgba(62, 28, 10, 0.12);
+    --f42-neutral-0: oklch(1 0 0);
+    --f42-neutral-25: oklch(0.99 0.002 75);
+    --f42-neutral-50: oklch(0.975 0.003 75);
+    --f42-neutral-100: oklch(0.958 0.004 75);
+    --f42-neutral-200: oklch(0.922 0.005 75);
+    --f42-neutral-300: oklch(0.872 0.006 72);
+    --f42-neutral-400: oklch(0.742 0.008 70);
+    --f42-neutral-500: oklch(0.6 0.009 68);
+    --f42-neutral-600: oklch(0.505 0.01 66);
+    --f42-neutral-700: oklch(0.402 0.011 64);
+    --f42-neutral-800: oklch(0.302 0.011 62);
+    --f42-neutral-850: oklch(0.248 0.01 62);
+    --f42-neutral-900: oklch(0.205 0.009 62);
+    --f42-neutral-950: oklch(0.163 0.008 62);
+    --f42-neutral-1000: oklch(0.12 0.007 62);
+
+    /* ------------------------------------------------------------------ */
+    /* BRAND RAMP — Fellowship42 harbor teal                               */
+    /* Cool complement to the warm neutrals. Distinct from the semantic    */
+    /* success green (hue 150) so status never reads as brand.             */
+    /* ------------------------------------------------------------------ */
+    --f42-brand-50: oklch(0.972 0.017 197);
+    --f42-brand-100: oklch(0.938 0.036 197);
+    --f42-brand-200: oklch(0.885 0.058 197);
+    --f42-brand-300: oklch(0.81 0.078 197);
+    --f42-brand-400: oklch(0.7 0.093 197);
+    --f42-brand-500: oklch(0.6 0.1 197);
+    --f42-brand-600: oklch(0.48 0.1 197);
+    --f42-brand-700: oklch(0.405 0.088 197);
+    --f42-brand-800: oklch(0.335 0.072 198);
+    --f42-brand-900: oklch(0.278 0.056 199);
+
+    /* ------------------------------------------------------------------ */
+    /* SEMANTIC SURFACES                                                   */
+    /* A three-step hierarchy: page < raised < sunken. Cards lift off the  */
+    /* page with a real value step, not a blur.                            */
+    /* ------------------------------------------------------------------ */
+    --background: var(--f42-neutral-50);
+    --foreground: var(--f42-neutral-900);
+
+    --card: var(--f42-neutral-0);
+    --card-foreground: var(--f42-neutral-900);
+
+    --popover: var(--f42-neutral-0);
+    --popover-foreground: var(--f42-neutral-900);
+
+    /* Sunken wells: table headers, code blocks, inset panels */
+    --f42-surface-sunken: var(--f42-neutral-100);
+    /* Raised chrome: header and sidebar, slightly above the page */
+    --f42-surface-chrome: var(--f42-neutral-25);
+
+    --muted: var(--f42-neutral-100);
+    --muted-foreground: var(--f42-neutral-600);
+
+    /* `accent` in the shadcn contract means "hover/selected surface", not
+     * brand accent. Keeping that meaning is what makes ghost buttons and
+     * menu items behave correctly out of the box. */
+    --accent: var(--f42-neutral-100);
+    --accent-foreground: var(--f42-neutral-900);
+
+    /* ------------------------------------------------------------------ */
+    /* ACTION COLORS                                                       */
+    /* ------------------------------------------------------------------ */
+    --primary: var(--f42-brand-600);
+    --primary-foreground: oklch(1 0 0);
+    /* Text-weight brand color — passes AA on light surfaces where the
+     * button fill would not. Use for links and accent labels. */
+    --f42-primary-text: var(--f42-brand-700);
+    --f42-primary-hover: var(--f42-brand-700);
+    --f42-primary-soft: var(--f42-brand-50);
+    --f42-primary-soft-foreground: var(--f42-brand-800);
+
+    --secondary: var(--f42-neutral-100);
+    --secondary-foreground: var(--f42-neutral-900);
+
+    /* ------------------------------------------------------------------ */
+    /* STATUS COLORS                                                       */
+    /* Each has a solid value (icons, text, fills) and a soft pair          */
+    /* (badge background + readable foreground).                            */
+    /* ------------------------------------------------------------------ */
+    --destructive: oklch(0.52 0.19 25);
+    --destructive-foreground: oklch(1 0 0);
+    --f42-danger: oklch(0.52 0.19 25);
+    --f42-danger-soft: oklch(0.958 0.028 25);
+    --f42-danger-soft-foreground: oklch(0.44 0.16 25);
+
+    --f42-success: oklch(0.52 0.115 150);
+    --f42-success-soft: oklch(0.955 0.035 150);
+    --f42-success-soft-foreground: oklch(0.42 0.1 150);
+
+    --f42-warning: oklch(0.6 0.13 72);
+    --f42-warning-soft: oklch(0.96 0.045 82);
+    --f42-warning-soft-foreground: oklch(0.45 0.1 62);
+
+    --f42-info: oklch(0.53 0.14 258);
+    --f42-info-soft: oklch(0.96 0.028 258);
+    --f42-info-soft-foreground: oklch(0.44 0.13 258);
+
+    /* ------------------------------------------------------------------ */
+    /* LINES & FOCUS                                                       */
+    /* ------------------------------------------------------------------ */
+    /* `border` separates two surfaces and is decorative, so it stays a
+     * hairline. `input` is the *boundary of a control* — it is the only
+     * thing telling a reader where the field is, so WCAG 1.4.11 applies and
+     * it is stepped to clear 3:1 against the surface behind it. */
+    --border: var(--f42-neutral-200);
+    --f42-border-strong: var(--f42-neutral-300);
+    --input: oklch(0.66 0.008 70); /* 3.11:1 on white */
+    --ring: var(--f42-brand-600);
+
+    /* ------------------------------------------------------------------ */
+    /* SIDEBAR                                                             */
+    /* Declared here because globals.css maps them to Tailwind utilities.  */
+    /* ------------------------------------------------------------------ */
+    --sidebar-background: var(--f42-neutral-25);
+    --sidebar-foreground: var(--f42-neutral-700);
+    --sidebar-primary: var(--f42-brand-700);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: var(--f42-neutral-100);
+    --sidebar-accent-foreground: var(--f42-neutral-900);
+    --sidebar-border: var(--f42-neutral-200);
+    --sidebar-ring: var(--f42-brand-600);
+
+    /* ------------------------------------------------------------------ */
+    /* RADIUS                                                              */
+    /* 10px base. Product chrome stays crisp; church surfaces may soften   */
+    /* via --church-radius.                                                */
+    /* ------------------------------------------------------------------ */
+    --radius: 0.625rem;
+
+    /* ------------------------------------------------------------------ */
+    /* ELEVATION                                                          */
+    /* Two-part shadows: a tight contact shadow plus a wide ambient one.   */
+    /* ------------------------------------------------------------------ */
+    --f42-shadow-xs: 0 1px 2px 0 oklch(0.2 0.01 62 / 0.05);
+    --f42-shadow-sm: 0 1px 2px -1px oklch(0.2 0.01 62 / 0.08), 0 1px 3px 0 oklch(0.2 0.01 62 / 0.06);
+    --f42-shadow-md: 0 2px 4px -2px oklch(0.2 0.01 62 / 0.06), 0 6px 16px -4px oklch(0.2 0.01 62 / 0.1);
+    --f42-shadow-lg: 0 4px 8px -4px oklch(0.2 0.01 62 / 0.06), 0 16px 40px -12px oklch(0.2 0.01 62 / 0.14);
+    --f42-shadow-overlay: 0 8px 16px -8px oklch(0.2 0.01 62 / 0.12), 0 24px 64px -16px oklch(0.2 0.01 62 / 0.2);
+    /* Pressed / inset wells */
+    --f42-shadow-inset: inset 0 1px 2px 0 oklch(0.2 0.01 62 / 0.06);
+
+    /* Page background wash. Deliberately almost flat — the gradient is a
+     * whisper of brand at the top edge, not a hero treatment. */
     --f42-gradient-hero: radial-gradient(
-        circle at top left,
-        rgba(184, 92, 56, 0.18),
-        transparent 28%
+        120% 60% at 50% 0%,
+        oklch(0.48 0.1 197 / 0.05),
+        transparent 60%
       ),
-      linear-gradient(180deg, #fdf7f0, #f2e8dd 65%, #efe2d3);
+      var(--f42-neutral-50);
+
+    /* ------------------------------------------------------------------ */
+    /* DATA VISUALIZATION — categorical series                             */
+    /*                                                                     */
+    /* Assign these in fixed slot order; never cycle or generate a 9th.    */
+    /* The ordering IS the colorblind-safety mechanism, so do not reorder  */
+    /* or re-step without re-running the palette validator against both    */
+    /* surfaces. Verified on this system's own surfaces (#ffffff light,    */
+    /* #1a1613 dark): worst adjacent CVD dE 9.1 light / 8.4 dark, worst    */
+    /* adjacent normal-vision dE 19.6 / 19.3.                              */
+    /*                                                                     */
+    /* Two constraints ride along:                                         */
+    /*  - Slots 3, 4, and 5 fall below 3:1 on the light surface. Charts    */
+    /*    using them must carry direct labels or a table view.             */
+    /*  - Only the first three slots clear the all-pairs gate. Scatter,    */
+    /*    bubble, and small-multiple forms cap at three series and fold    */
+    /*    the rest into "Other".                                           */
+    /* ------------------------------------------------------------------ */
+    --f42-chart-1: #2a78d6; /* blue */
+    --f42-chart-2: #eb6834; /* orange */
+    --f42-chart-3: #1baf7a; /* aqua */
+    --f42-chart-4: #eda100; /* yellow */
+    --f42-chart-5: #e87ba4; /* magenta */
+    --f42-chart-6: #008300; /* green */
+    --f42-chart-7: #4a3aa7; /* violet */
+    --f42-chart-8: #e34948; /* red */
 
     /* ------------------------------------------------------------------ */
     /* TYPOGRAPHY                                                          */
+    /* No webfont is loaded: a church instance must render identically     */
+    /* offline and must not phone a font CDN on every page view. The stack */
+    /* prefers Inter when the OS has it and degrades to the platform UI    */
+    /* face, which is a good typeface on every modern system.              */
     /* ------------------------------------------------------------------ */
-    --font-serif: Georgia, 'Times New Roman', serif;
-    --font-sans: 'Helvetica Neue', Arial, sans-serif;
-    --font-humanist: 'Trebuchet MS', 'Gill Sans', sans-serif;
-    --font-mono: 'Courier New', monospace;
+    --font-sans: 'Inter var', Inter, ui-sans-serif, system-ui, -apple-system,
+      'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-serif: ui-serif, Charter, 'Iowan Old Style', 'Source Serif Pro',
+      Georgia, 'Times New Roman', serif;
+    --font-humanist: 'Optima', 'Gill Sans', 'Trebuchet MS', ui-sans-serif,
+      system-ui, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono',
+      Menlo, Consolas, monospace;
 
     /* ------------------------------------------------------------------ */
-    /* CHURCH-SCOPED VARIABLES (overridden per-church)                     */
+    /* MOTION                                                              */
+    /* Short and mostly opacity/color. Nothing in an operator tool should  */
+    /* bounce.                                                             */
     /* ------------------------------------------------------------------ */
-    --church-accent: var(--primary);
-    --church-surface: var(--card);
-    --church-ink: var(--foreground);
+    --f42-ease: cubic-bezier(0.2, 0, 0.1, 1);
+    --f42-duration-fast: 120ms;
+    --f42-duration: 180ms;
+
+    /* ------------------------------------------------------------------ */
+    /* CHURCH BRAND NAMESPACE                                              */
+    /* Defaults to the product identity so a church with no theme set      */
+    /* still renders coherently. Overridden per church by themeToCSS().    */
+    /* ------------------------------------------------------------------ */
+    --church-accent: var(--f42-brand-600);
+    --church-accent-strong: var(--f42-brand-700);
+    --church-accent-contrast: oklch(1 0 0);
+    --church-surface: var(--f42-neutral-0);
+    --church-ink: var(--f42-neutral-900);
     --church-radius: var(--radius);
-    --church-body-font: var(--font-serif);
-    --church-heading-font: var(--font-serif);
+    --church-body-font: var(--font-sans);
+    --church-heading-font: var(--font-sans);
+
+    /* Retained for compatibility with existing call sites. Reads as the
+     * church accent inside a themed surface and as brand elsewhere. */
+    --f42-accent-strong: var(--f42-primary-text);
+  }
+
+  /* -------------------------------------------------------------------- */
+  /* DARK MODE                                                            */
+  /* Not an inversion. Surfaces get lighter as they get closer to the      */
+  /* reader, borders carry more of the separation work than shadows, and   */
+  /* the brand lightens so it stays legible on dark fills.                 */
+  /* -------------------------------------------------------------------- */
+  .dark,
+  [data-theme='dark'] {
+    color-scheme: dark;
+
+    --background: var(--f42-neutral-950);
+    --foreground: var(--f42-neutral-100);
+
+    --card: var(--f42-neutral-900);
+    --card-foreground: var(--f42-neutral-100);
+
+    --popover: var(--f42-neutral-850);
+    --popover-foreground: var(--f42-neutral-100);
+
+    --f42-surface-sunken: var(--f42-neutral-1000);
+    --f42-surface-chrome: var(--f42-neutral-900);
+
+    --muted: var(--f42-neutral-850);
+    --muted-foreground: oklch(0.68 0.009 68);
+
+    --accent: var(--f42-neutral-850);
+    --accent-foreground: var(--f42-neutral-100);
+
+    --primary: var(--f42-brand-400);
+    --primary-foreground: oklch(0.21 0.035 199);
+    --f42-primary-text: var(--f42-brand-300);
+    --f42-primary-hover: var(--f42-brand-300);
+    --f42-primary-soft: oklch(0.32 0.055 198);
+    --f42-primary-soft-foreground: var(--f42-brand-200);
+
+    --secondary: var(--f42-neutral-850);
+    --secondary-foreground: var(--f42-neutral-100);
+
+    --destructive: oklch(0.62 0.19 25);
+    --destructive-foreground: oklch(0.16 0.02 25);
+    --f42-danger: oklch(0.7 0.17 25);
+    --f42-danger-soft: oklch(0.32 0.09 25);
+    --f42-danger-soft-foreground: oklch(0.88 0.075 25);
+
+    --f42-success: oklch(0.72 0.13 150);
+    --f42-success-soft: oklch(0.31 0.07 150);
+    --f42-success-soft-foreground: oklch(0.88 0.09 150);
+
+    --f42-warning: oklch(0.78 0.13 78);
+    --f42-warning-soft: oklch(0.33 0.07 68);
+    --f42-warning-soft-foreground: oklch(0.89 0.09 82);
+
+    --f42-info: oklch(0.7 0.13 258);
+    --f42-info-soft: oklch(0.31 0.08 258);
+    --f42-info-soft-foreground: oklch(0.87 0.07 258);
+
+    --border: oklch(0.3 0.008 62);
+    --f42-border-strong: oklch(0.38 0.009 62);
+    --input: oklch(0.52 0.009 62); /* 3.25:1 on the card surface */
+    --ring: var(--f42-brand-400);
+
+    --sidebar-background: var(--f42-neutral-900);
+    --sidebar-foreground: oklch(0.75 0.008 68);
+    --sidebar-primary: var(--f42-brand-300);
+    --sidebar-primary-foreground: oklch(0.21 0.035 199);
+    --sidebar-accent: var(--f42-neutral-850);
+    --sidebar-accent-foreground: var(--f42-neutral-100);
+    --sidebar-border: oklch(0.3 0.008 62);
+    --sidebar-ring: var(--f42-brand-400);
+
+    /* Dark surfaces need deeper, tighter shadows to read at all. */
+    --f42-shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+    --f42-shadow-sm: 0 1px 2px -1px oklch(0 0 0 / 0.4), 0 1px 3px 0 oklch(0 0 0 / 0.3);
+    --f42-shadow-md: 0 2px 4px -2px oklch(0 0 0 / 0.4), 0 6px 16px -4px oklch(0 0 0 / 0.45);
+    --f42-shadow-lg: 0 4px 8px -4px oklch(0 0 0 / 0.4), 0 16px 40px -12px oklch(0 0 0 / 0.55);
+    --f42-shadow-overlay: 0 8px 16px -8px oklch(0 0 0 / 0.5), 0 24px 64px -16px oklch(0 0 0 / 0.65);
+    --f42-shadow-inset: inset 0 1px 2px 0 oklch(0 0 0 / 0.3);
+
+    --f42-gradient-hero: radial-gradient(
+        120% 60% at 50% 0%,
+        oklch(0.7 0.093 197 / 0.07),
+        transparent 60%
+      ),
+      var(--f42-neutral-950);
+
+    /* The same eight hues re-stepped for the dark surface — not an
+     * inversion, and validated as its own set. */
+    --f42-chart-1: #3987e5;
+    --f42-chart-2: #d95926;
+    --f42-chart-3: #199e70;
+    --f42-chart-4: #c98500;
+    --f42-chart-5: #d55181;
+    --f42-chart-6: #008300;
+    --f42-chart-7: #9085e9;
+    --f42-chart-8: #e66767;
+
+    --church-accent-contrast: oklch(1 0 0);
+    --church-surface: var(--f42-neutral-900);
+    --church-ink: var(--f42-neutral-100);
   }
 }

@@ -161,16 +161,29 @@ describe('people and household directory', () => {
   })
 
   it('creates, searches, paginates, updates, audits, and soft-deletes people', async () => {
+    // These three are paginated as a set, so they share an email domain the
+    // seed data does not use. Asserting against the whole directory made the
+    // test depend on how many people seed.sql happened to contain.
+    const scope = 'directory-pagination.test'
     const amy = await createPerson('Amy', 'Able', {
-      email: 'amy@example.test',
+      email: `amy@${scope}`,
       phone: '555-0101',
       membershipStatus: 'member',
       notes: 'Private care note',
     })
-    await createPerson('Ben', 'Baker', { membershipStatus: 'guest' })
-    await createPerson('Cara', 'Clark', { membershipStatus: 'member' })
+    await createPerson('Ben', 'Baker', {
+      email: `ben@${scope}`,
+      membershipStatus: 'guest',
+    })
+    await createPerson('Cara', 'Clark', {
+      email: `cara@${scope}`,
+      membershipStatus: 'member',
+    })
 
-    const firstPageResponse = await request('GET', '/api/people/church_demo?limit=2')
+    const firstPageResponse = await request(
+      'GET',
+      `/api/people/church_demo?limit=2&query=${encodeURIComponent(scope)}`,
+    )
     const firstPage = await firstPageResponse.json<{
       people: Person[]
       page: { nextCursor: string | null }
@@ -181,14 +194,15 @@ describe('people and household directory', () => {
 
     const secondPageResponse = await request(
       'GET',
-      `/api/people/church_demo?limit=2&cursor=${encodeURIComponent(firstPage.page.nextCursor!)}`,
+      `/api/people/church_demo?limit=2&query=${encodeURIComponent(scope)}` +
+        `&cursor=${encodeURIComponent(firstPage.page.nextCursor!)}`,
     )
     const secondPage = await secondPageResponse.json<{ people: Person[] }>()
     expect(secondPage.people).toHaveLength(1)
 
     const searchResponse = await request(
       'GET',
-      '/api/people/church_demo?query=amy%40example.test&status=member',
+      `/api/people/church_demo?query=${encodeURIComponent(`amy@${scope}`)}&status=member`,
     )
     const search = await searchResponse.json<{ people: Person[] }>()
     expect(search.people.map((person) => person.id)).toEqual([amy.id])

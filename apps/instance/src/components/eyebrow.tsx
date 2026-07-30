@@ -1,12 +1,22 @@
 import { cn } from '@/lib/cn'
-import { Badge, type BadgeProps } from '@/components/ui/badge'
 
-interface EyebrowProps extends BadgeProps {}
+interface EyebrowProps extends React.HTMLAttributes<HTMLSpanElement> {}
 
 /**
- * Small uppercase label used above headings (e.g. "Member portal", "Ministry landing page").
- * Built on the Badge primitive with the default (accent-strong) variant.
+ * A small label that names the region a heading belongs to.
+ *
+ * It used to be a Badge, which gave a piece of orientation text the same
+ * visual weight as a status chip. It is now quiet by construction: a badge
+ * says "this record is published"; an eyebrow only says "you are in People".
  */
 export function Eyebrow({ className, ...props }: EyebrowProps) {
-  return <Badge className={cn('mb-4', className)} {...props} />
+  return (
+    <span
+      className={cn(
+        'mb-1 block text-xs font-medium tracking-wide text-muted-foreground',
+        className,
+      )}
+      {...props}
+    />
+  )
 }

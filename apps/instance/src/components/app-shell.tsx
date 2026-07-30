@@ -1,13 +1,33 @@
-import { useState } from 'react'
-import { Link, useParams, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import {
+  CalendarDays,
+  Church,
+  GraduationCap,
+  HandCoins,
+  Image,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Mic,
+  Monitor,
+  Moon,
+  ShieldCheck,
+  Sun,
+  Users,
+  UsersRound,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 
-import { useAuthState, SignInButton, SignOutButton } from '@/lib/auth-provider'
 import { useApiQuery, useChurchRealtime } from '@/lib/api'
-import type { Church } from '@/lib/api-types'
+import { useAuthState, SignInButton } from '@/lib/auth-provider'
+import { useThemeMode, type ThemeMode } from '@/lib/theme-mode'
+import type { Church as ChurchRecord } from '@/lib/api-types'
 import { cn } from '@/lib/cn'
+import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import { ChurchTheme } from '@/components/church-theme'
 
 // ---------------------------------------------------------------------------
 // Navigation definitions
@@ -16,35 +36,39 @@ import { Separator } from '@/components/ui/separator'
 interface NavItem {
   label: string
   path: string
-  /** When true, only show when inside a church context */
-  churchScoped?: boolean
+  icon: LucideIcon
   /** A note shown as a smaller label */
   note?: string
   permission?: string
 }
 
 const globalNav: NavItem[] = [
-  { label: 'Dashboard', path: '/' },
-  { label: 'Church', path: '/churches' },
+  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { label: 'Church', path: '/churches', icon: Church },
 ]
 
 const churchNav: NavItem[] = [
-  { label: 'Overview', path: '' },
-  { label: 'People', path: '/people' },
-  { label: 'Groups', path: '/groups' },
-  { label: 'Courses', path: '/courses' },
-  { label: 'Events', path: '/events' },
-  { label: 'Sermons', path: '/sermons' },
-  { label: 'Media', path: '/media' },
-  { label: 'Facilities', path: '/facilities' },
-  { label: 'Contributions', path: '/contributions', note: 'finance' },
+  { label: 'Overview', path: '', icon: LayoutDashboard },
+  { label: 'People', path: '/people', icon: Users },
+  { label: 'Groups', path: '/groups', icon: UsersRound },
+  { label: 'Courses', path: '/courses', icon: GraduationCap },
+  { label: 'Events', path: '/events', icon: CalendarDays },
+  { label: 'Sermons', path: '/sermons', icon: Mic },
+  { label: 'Media', path: '/media', icon: Image },
+  // Facilities is intentionally absent: the `facilities` and
+  // `facility_bookings` tables exist but have no API routes or UI yet, so the
+  // nav entry resolved to the 404 page. Restore it with the route.
+  { label: 'Contributions', path: '/contributions', icon: HandCoins, note: 'Finance' },
   {
     label: 'Management',
     path: '/management',
-    note: 'owner',
+    icon: ShieldCheck,
+    note: 'Owner',
     permission: 'management.admin',
   },
 ]
+
+const SIDEBAR_WIDTH = 'w-60'
 
 // ---------------------------------------------------------------------------
 // AppShell
@@ -60,148 +84,133 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const churchIdFromPath = extractChurchId(location.pathname)
   const activeChurchId = churchId ?? churchIdFromPath
 
-  // Fetch church name when inside a church context
-  const churchQuery = useApiQuery<{ church: Church }>(
-    activeChurchId
-      ? `/api/churches/${encodeURIComponent(activeChurchId)}`
-      : null,
+  const churchQuery = useApiQuery<{ church: ChurchRecord }>(
+    activeChurchId ? `/api/churches/${encodeURIComponent(activeChurchId)}` : null,
   )
   const church = churchQuery.data?.church
   useChurchRealtime(activeChurchId)
 
   const churchBasePath = activeChurchId ? `/churches/${activeChurchId}` : null
   const permissions =
-    user?.memberships.find((entry) => entry.churchId === activeChurchId)
-      ?.permissions ?? []
+    user?.memberships.find((entry) => entry.churchId === activeChurchId)?.permissions ?? []
+
+  // Close the drawer on navigation — leaving it open over the new page is the
+  // most common mobile navigation bug in a shell like this.
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!sidebarOpen) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSidebarOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [sidebarOpen])
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* ── Top header ──────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-border/60 bg-card/80 px-4 backdrop-blur-md">
-        {/* Left: hamburger + logo */}
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((prev) => !prev)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-accent lg:hidden"
-            aria-label="Toggle navigation"
-          >
-            <HamburgerIcon />
-          </button>
-          <Link
-            to="/"
-            className="flex items-center gap-2 font-sans text-sm font-bold tracking-tight"
-          >
-            <span className="text-accent-strong">Fellowship42</span>
-          </Link>
-        </div>
-
-        {/* Center: current church name */}
-        <div className="hidden flex-1 items-center justify-center sm:flex">
-          {church ? (
-            <Link
-              to={`/churches/${activeChurchId}`}
-              className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {church.name}
-            </Link>
-          ) : null}
-        </div>
-
-        {/* Right: user menu */}
-        <div className="flex items-center gap-2">
-          {authLoading ? (
-            <span className="text-xs text-muted-foreground">Loading...</span>
-          ) : isSignedIn && user ? (
-            <div className="flex items-center gap-2">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={`${user.firstName} ${user.lastName}`}
-                  className="h-7 w-7 rounded-full object-cover"
-                />
-              ) : (
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-accent-strong">
-                  {user.firstName?.charAt(0) ?? '?'}
-                </span>
-              )}
-              <span className="hidden text-sm font-medium sm:inline">
-                {user.firstName}
-              </span>
-              <SignOutButton />
-            </div>
-          ) : (
-            <SignInButton />
-          )}
-        </div>
+    <div className="min-h-screen bg-background">
+      {/* ── Mobile top bar ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface-chrome px-3 lg:hidden">
+        <Button
+          aria-controls="app-sidebar"
+          aria-expanded={sidebarOpen}
+          aria-label="Open navigation"
+          onClick={() => setSidebarOpen(true)}
+          size="icon-sm"
+          variant="ghost"
+        >
+          <Menu />
+        </Button>
+        <Wordmark />
+        <div className="flex-1" />
+        {isSignedIn && user ? (
+          <Avatar name={`${user.firstName} ${user.lastName}`} src={user.avatarUrl} size="sm" />
+        ) : authLoading ? null : (
+          <SignInButton />
+        )}
       </header>
 
-      <div className="flex flex-1">
-        {/* ── Mobile sidebar overlay ──────────────────────────────── */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
+      {/* ── Drawer scrim ───────────────────────────────────────────────── */}
+      {sidebarOpen ? (
+        <div
+          aria-hidden
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
+
+      {/* ── Sidebar ────────────────────────────────────────────────────── */}
+      <aside
+        aria-label="Main navigation"
+        className={cn(
+          'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar-background',
+          SIDEBAR_WIDTH,
+          'transition-transform duration-200 ease-brand lg:translate-x-0',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
+        id="app-sidebar"
+      >
+        <div className="flex h-14 shrink-0 items-center gap-2 px-3">
+          <Wordmark />
+          <div className="flex-1" />
+          <Button
+            aria-label="Close navigation"
+            className="lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+            size="icon-sm"
+            variant="ghost"
+          >
+            <X />
+          </Button>
+        </div>
 
-        {/* ── Sidebar ─────────────────────────────────────────────── */}
-        <aside
-          className={cn(
-            'fixed inset-y-0 left-0 z-40 mt-14 w-64 transform border-r border-border/60 bg-card/90 backdrop-blur-md transition-transform duration-200 lg:static lg:z-auto lg:mt-0 lg:translate-x-0',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          )}
-        >
-          <nav className="flex h-full flex-col gap-1 overflow-y-auto p-3">
-            {/* Global navigation */}
-            <SidebarSection label="Navigation">
-              {globalNav.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  active={isNavActive(location.pathname, item.path, false)}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </SidebarSection>
+        <nav className="flex-1 overflow-y-auto px-2 pb-3">
+          <NavGroup>
+            {globalNav.map((item) => (
+              <NavLink
+                item={item}
+                key={item.path}
+                active={isNavActive(location.pathname, item.path)}
+                to={item.path}
+              />
+            ))}
+          </NavGroup>
 
-            {/* Church-scoped navigation */}
-            {churchBasePath && (
-              <>
-                <Separator className="my-2" />
-                <SidebarSection label={church?.name ?? 'Church'}>
-                  {churchNav.map((item) => {
-                    if (
-                      item.permission &&
-                      !permissions.includes('*') &&
-                      !permissions.includes(item.permission)
-                    ) {
-                      return null
-                    }
-                    const fullPath = `${churchBasePath}${item.path}`
-                    return (
-                      <NavLink
-                        key={item.path}
-                        to={fullPath}
-                        active={isNavActive(location.pathname, fullPath, true)}
-                        note={item.note}
-                        onClick={() => setSidebarOpen(false)}
-                      >
-                        {item.label}
-                      </NavLink>
-                    )
-                  })}
-                </SidebarSection>
-              </>
-            )}
-          </nav>
-        </aside>
+          {churchBasePath ? (
+            <>
+              <ChurchBadge church={church} churchId={activeChurchId} />
+              <NavGroup>
+                {churchNav.map((item) => {
+                  if (
+                    item.permission &&
+                    !permissions.includes('*') &&
+                    !permissions.includes(item.permission)
+                  ) {
+                    return null
+                  }
+                  const fullPath = `${churchBasePath}${item.path}`
+                  return (
+                    <NavLink
+                      item={item}
+                      key={item.path}
+                      active={isNavActive(location.pathname, fullPath)}
+                      to={fullPath}
+                    />
+                  )
+                })}
+              </NavGroup>
+            </>
+          ) : null}
+        </nav>
 
-        {/* ── Main content ────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
+        <SidebarFooter />
+      </aside>
+
+      {/* ── Main content ───────────────────────────────────────────────── */}
+      <main className="lg:pl-60">{children}</main>
     </div>
   )
 }
@@ -210,54 +219,163 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 // Sidebar building blocks
 // ---------------------------------------------------------------------------
 
-function SidebarSection({
-  label,
-  children,
-}: {
-  label: string
-  children: React.ReactNode
-}) {
+function Wordmark() {
   return (
-    <Card className="border-0 bg-transparent p-0 shadow-none">
-      <span className="mb-1 block px-2 pt-2 font-mono text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground">
-        {label}
+    <Link
+      className="flex items-center gap-2 rounded-sm px-1 py-1 text-sm font-semibold tracking-tight"
+      to="/"
+    >
+      <span
+        aria-hidden
+        className="flex size-6 items-center justify-center rounded-md bg-primary text-[0.6875rem] font-bold text-primary-foreground"
+      >
+        42
       </span>
-      <div className="flex flex-col gap-0.5">{children}</div>
-    </Card>
+      <span className="text-foreground">Fellowship42</span>
+    </Link>
   )
 }
 
-function NavLink({
-  to,
-  active,
-  note,
-  children,
-  onClick,
-}: {
-  to: string
-  active: boolean
-  note?: string
-  children: React.ReactNode
-  onClick?: () => void
-}) {
+function NavGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col gap-px py-1">{children}</div>
+}
+
+function NavLink({ active, item, to }: { active: boolean; item: NavItem; to: string }) {
+  const Icon = item.icon
   return (
-    <Link to={to} onClick={onClick}>
-      <Button
-        variant={active ? 'default' : 'ghost'}
-        size="sm"
-        className={cn(
-          'w-full justify-start gap-2 text-left',
-          active && 'pointer-events-none',
-        )}
-      >
-        <span className="truncate">{children}</span>
-        {note && (
-          <span className="ml-auto shrink-0 rounded-full border border-border px-1.5 py-px text-[0.6rem] font-medium text-muted-foreground">
-            {note}
-          </span>
-        )}
-      </Button>
+    <Link
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'group flex h-8 items-center gap-2.5 rounded-md px-2 text-[0.8125rem] font-medium',
+        'transition-colors duration-150 ease-brand',
+        active
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+      )}
+      to={to}
+    >
+      <Icon
+        aria-hidden
+        className={cn('size-4 shrink-0', active ? 'text-sidebar-primary' : 'text-muted-foreground')}
+      />
+      <span className="truncate">{item.label}</span>
+      {item.note ? (
+        <span className="ml-auto shrink-0 text-[0.6875rem] font-normal text-muted-foreground">
+          {item.note}
+        </span>
+      ) : null}
     </Link>
+  )
+}
+
+/**
+ * The one place a congregation's own color appears in the operator chrome:
+ * a small mark identifying whose data is on screen. Everything else stays in
+ * the product palette so the UI is equally legible for every church.
+ */
+function ChurchBadge({
+  church,
+  churchId,
+}: {
+  church?: ChurchRecord
+  churchId: string | null
+}) {
+  if (!churchId) return null
+  const name = church?.name ?? 'Church'
+
+  return (
+    <ChurchTheme theme={church?.theme} className="mt-3 mb-1 px-2">
+      <div className="mb-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+        Church
+      </div>
+      <Link
+        className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 transition-colors duration-150 hover:border-border-strong"
+        to={`/churches/${churchId}`}
+      >
+        <span
+          aria-hidden
+          className="flex size-6 shrink-0 items-center justify-center rounded-sm text-[0.6875rem] font-semibold"
+          style={{
+            background: 'var(--church-accent)',
+            color: 'var(--church-accent-contrast)',
+          }}
+        >
+          {name.charAt(0).toUpperCase()}
+        </span>
+        <span className="truncate text-[0.8125rem] font-medium">{name}</span>
+      </Link>
+    </ChurchTheme>
+  )
+}
+
+function SidebarFooter() {
+  const { isSignedIn, isLoading, user } = useAuthState()
+
+  return (
+    <div className="shrink-0 border-t border-sidebar-border p-2">
+      <ThemeToggle />
+      <div className="mt-2 flex items-center gap-2 rounded-md px-1 py-1">
+        {isLoading ? (
+          <span className="text-xs text-muted-foreground">Checking session…</span>
+        ) : isSignedIn && user ? (
+          <>
+            <Avatar name={`${user.firstName} ${user.lastName}`} src={user.avatarUrl} size="sm" />
+            <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium">
+              {user.firstName} {user.lastName}
+            </span>
+            <Button aria-label="Sign out" asChild size="icon-xs" variant="ghost">
+              <a href="/cdn-cgi/access/logout">
+                <LogOut />
+              </a>
+            </Button>
+          </>
+        ) : (
+          <SignInButton className="w-full" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+const themeOptions: Array<{ value: ThemeMode; label: string; icon: LucideIcon }> = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+]
+
+function ThemeToggle() {
+  const { mode, setMode } = useThemeMode()
+
+  return (
+    <div
+      aria-label="Color theme"
+      className="flex items-center gap-0.5 rounded-md border border-border bg-surface-sunken p-0.5"
+      role="radiogroup"
+    >
+      {themeOptions.map((option) => {
+        const Icon = option.icon
+        const selected = mode === option.value
+        return (
+          <button
+            aria-checked={selected}
+            className={cn(
+              'flex h-6 flex-1 items-center justify-center rounded-sm transition-colors duration-150',
+              selected
+                ? 'bg-card text-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            key={option.value}
+            onClick={() => setMode(option.value)}
+            role="radio"
+            title={option.label}
+            type="button"
+          >
+            <Icon aria-hidden className="size-3.5" />
+            <span className="sr-only">{option.label}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -271,37 +389,15 @@ function extractChurchId(pathname: string): string | null {
   return match ? match[1] : null
 }
 
-/** Determine if a nav item should be marked active */
-function isNavActive(
-  currentPath: string,
-  itemPath: string,
-  exact: boolean,
-): boolean {
-  if (exact) {
-    // For church-scoped items: exact match needed so "Overview" doesn't stay active on sub-pages
-    return currentPath === itemPath
-  }
-  // For global nav: dashboard is exact, others use startsWith
-  if (itemPath === '/') {
-    return currentPath === '/'
-  }
-  return currentPath.startsWith(itemPath)
-}
-
-function HamburgerIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    >
-      <line x1="3" y1="5" x2="17" y2="5" />
-      <line x1="3" y1="10" x2="17" y2="10" />
-      <line x1="3" y1="15" x2="17" y2="15" />
-    </svg>
-  )
+/**
+ * Determine if a nav item should be marked active.
+ *
+ * Every item matches exactly. A prefix match on the global "Church" entry
+ * lit it up on every church-scoped page, so the sidebar showed two selected
+ * items at once — "Church" and whichever church section you were actually in.
+ * The church's own pages are represented by the church nav group below it,
+ * not by the top-level entry.
+ */
+function isNavActive(currentPath: string, itemPath: string): boolean {
+  return currentPath === itemPath
 }

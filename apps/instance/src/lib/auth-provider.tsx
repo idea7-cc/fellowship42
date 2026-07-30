@@ -5,6 +5,7 @@ import {
   useMemo,
 } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { useApiQuery } from './api'
 import type { SessionResponse, SessionUser } from './api-types'
 
@@ -48,24 +49,20 @@ export function useAuthState(): AuthState {
   return state
 }
 
-const signInClass =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-border bg-white/65 px-3.5 py-2 text-sm font-bold shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-px hover:shadow-md'
-
-const signOutClass =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-bold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground'
-
+// Access sign-in and sign-out are plain navigations, not fetches, so these
+// stay anchors — styled as buttons rather than reimplementing the variants.
 export function SignInButton({ className }: { className?: string }) {
   return (
-    <a href="/cdn-cgi/access/login" className={className ?? signInClass}>
-      Sign in
-    </a>
+    <Button asChild className={className} size="sm" variant="secondary">
+      <a href="/cdn-cgi/access/login">Sign in</a>
+    </Button>
   )
 }
 
 export function SignOutButton({ className }: { className?: string }) {
   return (
-    <a href="/cdn-cgi/access/logout" className={className ?? signOutClass}>
-      Sign out
-    </a>
+    <Button asChild className={className} size="sm" variant="ghost">
+      <a href="/cdn-cgi/access/logout">Sign out</a>
+    </Button>
   )
 }

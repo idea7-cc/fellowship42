@@ -1,86 +1,115 @@
 /*
  * @fellowship42/brand — Reusable CSS recipes
  *
- * Patterns shared between the Next.js app and the Astro marketing site.
- * These are pure CSS — no Tailwind utilities, no framework-specific syntax.
- * They consume the tokens from tokens.css via CSS custom properties.
+ * Framework-free patterns shared by consumers that do not run Tailwind —
+ * today the Astro project site. Pure CSS, driven entirely by the custom
+ * properties in tokens.css, so both modes and any future brand change are
+ * inherited rather than reimplemented.
  *
- * Usage in Astro:  @import '@fellowship42/brand/recipes.css'
- * Usage in Next:   Already included via globals.css (or import directly)
+ * Usage:  @import '@fellowship42/brand/recipes.css'
  */
 
 /* ------------------------------------------------------------------ */
-/* GLASS CARD                                                          */
+/* SURFACE CARD                                                        */
+/* Was a translucent, blurred "glass" panel. Now a real surface with a  */
+/* value step and a hairline, which stays legible over any background   */
+/* and does not cost a compositor layer per card.                       */
 /* ------------------------------------------------------------------ */
-.f42-glass-card {
-  background: rgba(255, 250, 245, 0.76);
-  backdrop-filter: blur(12px);
+.f42-glass-card,
+.f42-surface-card {
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--church-radius, var(--radius));
-  box-shadow: var(--f42-shadow-lg);
+  border-radius: var(--radius);
+  box-shadow: var(--f42-shadow-xs);
+  transition:
+    border-color var(--f42-duration) var(--f42-ease),
+    box-shadow var(--f42-duration) var(--f42-ease);
+}
+
+.f42-glass-card:hover,
+.f42-surface-card:hover {
+  border-color: var(--f42-border-strong);
+  box-shadow: var(--f42-shadow-sm);
 }
 
 /* ------------------------------------------------------------------ */
-/* HERO GRADIENT SURFACE                                               */
+/* HERO SURFACE                                                        */
 /* ------------------------------------------------------------------ */
 .f42-hero-surface {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.65), rgba(248, 234, 220, 0.8));
-  border: 1px solid rgba(32, 20, 13, 0.1);
-  border-radius: calc(var(--church-radius, var(--radius)) + 0.5rem);
-  box-shadow: var(--f42-shadow-lg);
+  background: var(--f42-gradient-hero);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 6px);
+  box-shadow: var(--f42-shadow-sm);
 }
 
 /* ------------------------------------------------------------------ */
 /* TYPOGRAPHY UTILITIES                                                 */
 /* ------------------------------------------------------------------ */
 .f42-eyebrow {
-  color: var(--f42-accent-strong);
+  color: var(--muted-foreground);
   display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .f42-lede {
-  font-size: 1.25rem;
+  color: var(--muted-foreground);
+  font-size: 1.125rem;
   line-height: 1.6;
-  max-width: 52rem;
+  max-width: 58ch;
 }
 
 /* ------------------------------------------------------------------ */
-/* BUTTON BASE                                                         */
+/* BUTTONS                                                             */
+/* Matched to the app's Button primitive: 36px tall, 8px radius, color  */
+/* change on hover rather than a lift.                                  */
 /* ------------------------------------------------------------------ */
 .f42-button {
   align-items: center;
-  border: 0;
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
   cursor: pointer;
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: 0.95rem;
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.375rem;
   justify-content: center;
-  min-height: 3rem;
-  padding: 0.75rem 1.2rem;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
   text-decoration: none;
   transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
+    background-color var(--f42-duration-fast) var(--f42-ease),
+    border-color var(--f42-duration-fast) var(--f42-ease);
 }
 
-.f42-button:hover {
-  transform: translateY(-1px);
+.f42-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .f42-button--primary {
-  background: linear-gradient(135deg, var(--primary), var(--f42-accent-strong));
-  color: white;
+  background: var(--primary);
+  box-shadow: var(--f42-shadow-xs);
+  color: var(--primary-foreground);
+}
+
+.f42-button--primary:hover {
+  background: var(--f42-primary-hover);
 }
 
 .f42-button--secondary {
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: var(--f42-shadow-xs);
+  color: var(--foreground);
+}
+
+.f42-button--secondary:hover {
+  background: var(--accent);
+  border-color: var(--f42-border-strong);
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,18 +118,19 @@
 .f42-card-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 /* ------------------------------------------------------------------ */
 /* SECTION LAYOUT                                                      */
 /* ------------------------------------------------------------------ */
 .f42-section {
-  margin-top: 3rem;
+  margin-top: 4rem;
 }
 
 .f42-section-heading {
   display: grid;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.75rem;
+  max-width: 60ch;
 }

@@ -4,8 +4,10 @@
  * Architecture:
  *   1. Tailwind CSS v4 (preflight + theme + utilities)
  *   2. Brand design tokens (shared @fellowship42/brand package)
- *   3. Tailwind theme mapping (brand tokens -> Tailwind utilities)
- *   4. Base layer (typography, global resets)
+ *   3. Dark-mode variant wiring
+ *   4. Tailwind theme mapping (brand tokens -> Tailwind utilities)
+ *   5. Base layer (typography, global resets)
+ *   6. A small set of utilities Tailwind cannot express from tokens alone
  */
 
 /* 1. TAILWIND */
@@ -14,7 +16,14 @@
 /* 2. BRAND TOKENS */
 @import '@brand/tokens.css';
 
-/* 3. TAILWIND THEME — maps brand tokens to Tailwind utility classes */
+/* 3. DARK MODE
+ * Tailwind v4's `dark:` variant follows prefers-color-scheme by default.
+ * The app writes an explicit choice onto <html>, so point the variant at the
+ * class instead — otherwise a user on a light OS who picks dark gets tokens
+ * from .dark but utilities from the media query, which disagree. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 4. TAILWIND THEME — maps brand tokens to Tailwind utility classes */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -35,6 +44,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
   --color-sidebar-background: var(--sidebar-background);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -44,58 +54,250 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /* Surface hierarchy */
+  --color-surface-sunken: var(--f42-surface-sunken);
+  --color-surface-chrome: var(--f42-surface-chrome);
+  --color-border-strong: var(--f42-border-strong);
+
+  /* Brand — `primary` is the fill, `brand-text` the AA-safe text weight */
+  --color-brand: var(--primary);
+  --color-brand-text: var(--f42-primary-text);
+  --color-brand-hover: var(--f42-primary-hover);
+  --color-brand-soft: var(--f42-primary-soft);
+  --color-brand-soft-foreground: var(--f42-primary-soft-foreground);
+  /* Retained: existing call sites use text-accent-strong */
+  --color-accent-strong: var(--f42-accent-strong);
+
+  /* Status */
+  --color-success: var(--f42-success);
+  --color-success-soft: var(--f42-success-soft);
+  --color-success-soft-foreground: var(--f42-success-soft-foreground);
+  --color-warning: var(--f42-warning);
+  --color-warning-soft: var(--f42-warning-soft);
+  --color-warning-soft-foreground: var(--f42-warning-soft-foreground);
+  --color-danger: var(--f42-danger);
+  --color-danger-soft: var(--f42-danger-soft);
+  --color-danger-soft-foreground: var(--f42-danger-soft-foreground);
+  --color-info: var(--f42-info);
+  --color-info-soft: var(--f42-info-soft);
+  --color-info-soft-foreground: var(--f42-info-soft-foreground);
+
+  /* Church brand — only for surfaces that should read as the congregation's */
+  --color-church-accent: var(--church-accent);
+  --color-church-accent-strong: var(--church-accent-strong);
+  --color-church-accent-contrast: var(--church-accent-contrast);
+  --color-church-surface: var(--church-surface);
+  --color-church-ink: var(--church-ink);
+
+  /* Charts — assign in fixed slot order; see tokens.css for the gates */
+  --color-chart-1: var(--f42-chart-1);
+  --color-chart-2: var(--f42-chart-2);
+  --color-chart-3: var(--f42-chart-3);
+  --color-chart-4: var(--f42-chart-4);
+  --color-chart-5: var(--f42-chart-5);
+  --color-chart-6: var(--f42-chart-6);
+  --color-chart-7: var(--f42-chart-7);
+  --color-chart-8: var(--f42-chart-8);
+
+  --radius-xs: calc(var(--radius) - 6px);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 10px);
 
-  --color-accent-strong: var(--f42-accent-strong);
+  --shadow-xs: var(--f42-shadow-xs);
+  --shadow-sm: var(--f42-shadow-sm);
+  --shadow-md: var(--f42-shadow-md);
+  --shadow-lg: var(--f42-shadow-lg);
+  --shadow-overlay: var(--f42-shadow-overlay);
 
-  --font-serif: var(--font-serif);
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
+
+  --ease-brand: var(--f42-ease);
 }
 
-/* 4. BASE LAYER */
+/* 5. BASE LAYER */
 @layer base {
-  * {
+  *,
+  *::before,
+  *::after {
     border-color: var(--border);
   }
 
   html {
-    background: var(--f42-gradient-hero);
+    background: var(--background);
+    color: var(--foreground);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-size-adjust: 100%;
   }
 
   body {
     background: transparent;
     color: var(--foreground);
-    font-family: var(--church-body-font, var(--font-serif));
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    /* Slightly tighter default tracking reads better in an interface face. */
+    letter-spacing: -0.006em;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--church-heading-font, var(--font-serif));
-    font-weight: 700;
-    line-height: 0.95;
+  /*
+   * Product type scale. This is an operator tool: headings label regions,
+   * they do not perform. Church-facing surfaces opt into display typography
+   * explicitly (see the `display-*` utilities below and ChurchTheme).
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-weight: 600;
+    letter-spacing: -0.016em;
+    line-height: 1.25;
+    text-wrap: balance;
   }
 
   h1 {
-    font-size: clamp(3rem, 8vw, 5.8rem);
-    letter-spacing: -0.06em;
+    font-size: 1.5rem;
+    letter-spacing: -0.021em;
   }
 
   h2 {
-    font-size: clamp(2rem, 4vw, 3rem);
-    letter-spacing: -0.04em;
+    font-size: 1.125rem;
   }
 
   h3 {
-    font-size: 1.35rem;
-    letter-spacing: -0.02em;
+    font-size: 1rem;
   }
 
+  h4,
+  h5,
+  h6 {
+    font-size: 0.9375rem;
+  }
+
+  /*
+   * Paragraphs inherit the foreground. The previous global `p { color: muted }`
+   * washed out every sentence in the product, including error copy.
+   * Use `text-muted-foreground` where secondary really is intended.
+   */
   p {
-    color: var(--muted-foreground);
     line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  /* Numbers in tables, metrics, and money must align on the decimal. */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* One focus treatment for the whole app. An outline (not a ring) so it
+   * follows each element's own border-radius and stays visible on every
+   * surface without per-component offset colors. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* PageHeader already owns the gap below itself. Without this, a <Section>
+   * placed directly after one stacks its own top margin onto that gap and
+   * pushes the first content of the page a screen-inch too far down. */
+  [data-page-header] + section {
+    margin-top: 0;
+  }
+
+  ::selection {
+    background: var(--f42-primary-soft);
+    color: var(--f42-primary-soft-foreground);
+  }
+
+  /* Form controls should follow the palette in both modes without per-control
+   * styling — this is what makes native checkboxes and date pickers match. */
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    accent-color: var(--primary);
+  }
+
+  /* Restrained, token-driven scrollbars instead of the OS default slab. */
+  * {
+    scrollbar-color: var(--f42-border-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* 6. UTILITIES */
+@layer utilities {
+  /*
+   * Display typography — the only place large, tight, expressive headings
+   * belong. Church-facing heroes and the marketing surfaces use these;
+   * operator screens do not.
+   */
+  .display-1 {
+    font-family: var(--church-heading-font, var(--font-sans));
+    font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.5rem);
+    font-weight: 680;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+
+  .display-2 {
+    font-family: var(--church-heading-font, var(--font-sans));
+    font-size: clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem);
+    font-weight: 660;
+    letter-spacing: -0.026em;
+    line-height: 1.1;
+  }
+
+  .lede {
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    max-width: 60ch;
+    color: var(--muted-foreground);
+  }
+
+  /* A hairline that survives fractional device pixel ratios. */
+  .border-hairline {
+    border-width: 1px;
+    border-color: color-mix(in oklab, var(--border) 100%, transparent);
+  }
+
+  /* Church-branded region: opt in explicitly. */
+  .church-surface {
+    background: var(--church-surface);
+    color: var(--church-ink);
+    font-family: var(--church-body-font, var(--font-sans));
+  }
+
+  .church-surface :is(h1, h2, h3, h4, h5, h6) {
+    font-family: var(--church-heading-font, var(--font-sans));
+    color: var(--church-ink);
   }
 }

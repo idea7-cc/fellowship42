@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
 import {
   Card,
   CardContent,
@@ -125,13 +125,11 @@ export function MediaPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Publishing</Eyebrow>
-        <h1>Media library</h1>
-        <p className="mt-2">
-          Church-owned R2 objects with D1 authorization metadata and checksums.
-        </p>
-      </Section>
+      <PageHeader
+        description="Church-owned R2 objects with D1 authorization metadata and checksums."
+        eyebrow="Publishing"
+        title="Media library"
+      />
       <Section>
         {!canWrite ? (
           <Card className="border-dashed">

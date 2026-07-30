@@ -5,14 +5,22 @@ import type { BootstrapResponse, BootstrapStatusResponse } from '@/lib/api-types
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Field } from '@/components/ui/field'
 
 function Page({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-12">
       <div className="w-full max-w-xl">
-        <p className="mb-4 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-accent-strong">
-          Fellowship42 · Instance setup
-        </p>
+        <div className="mb-5 flex items-center gap-2">
+          <span
+            aria-hidden
+            className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground"
+          >
+            42
+          </span>
+          <span className="text-sm font-semibold tracking-tight">Fellowship42</span>
+          <span className="text-sm text-muted-foreground">· Instance setup</span>
+        </div>
         {children}
       </div>
     </main>
@@ -22,15 +30,14 @@ function Page({ children }: { children: ReactNode }) {
 function SetupField({
   label,
   hint,
+  required,
   ...inputProps
 }: React.ComponentProps<typeof Input> & { label: string; hint?: string }) {
   const id = useMemo(() => `bootstrap-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, [label])
   return (
-    <label htmlFor={id} className="grid gap-1.5 text-sm font-semibold">
-      {label}
-      <Input id={id} {...inputProps} />
-      {hint ? <span className="text-xs font-normal text-muted-foreground">{hint}</span> : null}
-    </label>
+    <Field hint={hint} htmlFor={id} label={label} required={required}>
+      <Input id={id} required={required} {...inputProps} />
+    </Field>
   )
 }
 
@@ -104,7 +111,10 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
             pattern="[A-Za-z]{2}"
           />
           {error ? (
-            <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <p
+              className="rounded-md bg-danger-soft p-3 text-sm text-danger-soft-foreground"
+              role="alert"
+            >
               {error}
             </p>
           ) : null}

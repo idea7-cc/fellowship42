@@ -10,8 +10,8 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Eyebrow } from '@/components/eyebrow'
 import { PageShell } from '@/components/page-shell'
+import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import type {
@@ -293,15 +293,11 @@ export function ManagementPage() {
 
   return (
     <PageShell>
-      <Section>
-        <Eyebrow>Church ownership</Eyebrow>
-        <h1>Optional management</h1>
-        <p className="mt-2 max-w-3xl">
-          Review exactly who can manage this instance and what they may ask it
-          to do. The church remains authoritative and can disconnect locally at
-          any time without affecting normal operation or export.
-        </p>
-      </Section>
+      <PageHeader
+        description="Review exactly who can manage this instance and what they may ask it to do. The church remains authoritative and can disconnect locally at any time."
+        eyebrow="Church ownership"
+        title="Optional management"
+      />
 
       <Section>
         {!canAdmin ? (

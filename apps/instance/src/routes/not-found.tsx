@@ -1,25 +1,26 @@
 import { Link } from 'react-router-dom'
+import { FileQuestion } from 'lucide-react'
 
 import { PageShell } from '@/components/page-shell'
-import { Section } from '@/components/section'
-import { Eyebrow } from '@/components/eyebrow'
 import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export function NotFoundPage() {
   return (
-    <PageShell>
-      <Section className="flex flex-col items-center justify-center text-center min-h-[60vh]">
-        <Eyebrow>404</Eyebrow>
-        <h1>Page not found</h1>
-        <p className="mt-4 max-w-md">
-          The page you are looking for does not exist or has been moved.
-        </p>
-        <div className="mt-8">
-          <Link to="/">
-            <Button>Back to dashboard</Button>
-          </Link>
-        </div>
-      </Section>
+    <PageShell width="narrow">
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <EmptyState
+          action={
+            <Button asChild size="sm">
+              <Link to="/">Back to dashboard</Link>
+            </Button>
+          }
+          className="border-0 bg-transparent"
+          description="The page you are looking for does not exist, or it has moved."
+          icon={FileQuestion}
+          title="Page not found"
+        />
+      </div>
     </PageShell>
   )
 }

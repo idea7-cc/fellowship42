@@ -1,8 +1,11 @@
 import type {
   Church,
   Course,
+  CourseEnrollment,
   EventRecord,
   Group,
+  GroupLeader,
+  GroupMember,
   Lesson,
   Ministry,
   Person,
@@ -333,6 +336,91 @@ export function mapPerson(row: PersonRow): Person {
 export function mapPersonDetail(row: PersonRow): PersonDetail {
   return {
     ...mapPerson(row),
+    notes: row.notes ?? undefined,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Group rosters and course enrollments
+//
+// Roster and enrollment rows are always read joined to `people` (or `groups`)
+// so a caller can render a name without a second round trip. The join lives in
+// the query rather than the mapper.
+// ---------------------------------------------------------------------------
+
+export interface GroupMemberRow {
+  id: string
+  group_id: string
+  person_id: string
+  first_name: string
+  last_name: string
+  email: string | null
+  status: GroupMember['status']
+  joined_at: number | null
+  notes: string | null
+}
+
+export function mapGroupMember(row: GroupMemberRow): GroupMember {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    personId: row.person_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email ?? undefined,
+    status: row.status,
+    joinedAt: row.joined_at ?? undefined,
+    notes: row.notes ?? undefined,
+  }
+}
+
+export interface GroupLeaderRow {
+  group_id: string
+  person_id: string
+  first_name: string
+  last_name: string
+  email: string | null
+  role: GroupLeader['role']
+}
+
+export function mapGroupLeader(row: GroupLeaderRow): GroupLeader {
+  return {
+    groupId: row.group_id,
+    personId: row.person_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    email: row.email ?? undefined,
+    role: row.role,
+  }
+}
+
+export interface CourseEnrollmentRow {
+  id: string
+  course_id: string
+  status: CourseEnrollment['status']
+  person_id: string | null
+  group_id: string | null
+  person_first_name: string | null
+  person_last_name: string | null
+  group_title: string | null
+  started_at: number | null
+  completed_at: number | null
+  notes: string | null
+}
+
+export function mapCourseEnrollment(row: CourseEnrollmentRow): CourseEnrollment {
+  const subjectName = row.person_id
+    ? `${row.person_first_name ?? ''} ${row.person_last_name ?? ''}`.trim()
+    : (row.group_title ?? '')
+  return {
+    id: row.id,
+    courseId: row.course_id,
+    status: row.status,
+    personId: row.person_id ?? undefined,
+    groupId: row.group_id ?? undefined,
+    subjectName,
+    startedAt: row.started_at ?? undefined,
+    completedAt: row.completed_at ?? undefined,
     notes: row.notes ?? undefined,
   }
 }
