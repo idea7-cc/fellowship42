@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
+import { ChurchProvider } from '@/lib/church-context'
 
 function Page({ children }: { children: ReactNode }) {
   return (
@@ -64,7 +65,8 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
         }),
       })
       await refetch()
-      window.location.assign(`/churches/${encodeURIComponent(result.instance.churchId)}`)
+      // Routes are flat now; the instance root is the church.
+      window.location.assign('/')
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -157,7 +159,10 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     )
   }
 
-  if (data.state === 'configured') return children
+  if (data.state === 'configured') {
+    // The church is ambient from here down; routes no longer carry it.
+    return <ChurchProvider instance={data.instance}>{children}</ChurchProvider>
+  }
 
   if (!data.ownerConfigured) {
     return (

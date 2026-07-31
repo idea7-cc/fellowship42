@@ -1,4 +1,3 @@
-import { useParams } from 'react-router-dom'
 import {
   CalendarDays,
   Clock,
@@ -25,12 +24,13 @@ import { StatusBadge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApiQuery } from '@/lib/api'
+import { useChurch } from '@/lib/church-context'
 import type { Church, Course, EventRecord, Group, ServiceTime } from '@/lib/api-types'
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-export function ChurchDetailPage() {
-  const { churchId } = useParams<{ churchId: string }>()
+export function OverviewPage() {
+  const { churchId } = useChurch()
   const basePath = churchId ? `/api/churches/${encodeURIComponent(churchId)}` : null
   const churchQuery = useApiQuery<{ church: Church }>(basePath)
   const groupQuery = useApiQuery<{ groups: Group[] }>(basePath ? `${basePath}/groups` : null)
@@ -39,8 +39,6 @@ export function ChurchDetailPage() {
 
   const church = churchQuery.data?.church
   const countsLoading = groupQuery.isLoading || courseQuery.isLoading || eventQuery.isLoading
-
-  if (!churchId) return null
 
   if (churchQuery.isLoading) {
     return (
@@ -70,7 +68,7 @@ export function ChurchDetailPage() {
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Church overview"
+        eyebrow="Overview"
         title={church.name}
         description={church.tagline}
         actions={

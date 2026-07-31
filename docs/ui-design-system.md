@@ -270,6 +270,24 @@ Owned source code. Modify freely.
 
 ---
 
+## Routing: the church is not in the URL
+
+One deployment is one church, so routes are flat — `/people`, `/groups`,
+`/courses/:slug` — and the church comes from `useChurch()` in
+`lib/church-context.tsx`. `BootstrapGate` already fetches `/api/bootstrap` and
+refuses to render until it reports `configured`, so the identity is known
+before any route mounts and costs no extra request.
+
+Routes were previously `/churches/:churchId/...`. That made a single-church
+product navigate like a tenant console: "Church" opened a list of one, which
+opened another view of the same church. `concept/03-experience-principles`
+requires the opposite — "the instance opens directly into the church it serves;
+it does not feel like a generic multi-tenant selector."
+
+`church_id` stays in the data model and on every API path; only the browser's
+navigation collapsed. `/churches/...` URLs redirect to their flat equivalent,
+and the preview harness covers that with a `legacy-redirect` route.
+
 ## Styling rules
 
 1. **Tailwind utility classes only** — no custom class names outside the

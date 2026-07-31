@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
@@ -15,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 import type { CursorPage, MediaRecord } from '@/lib/api-types'
 
 function can(permissions: string[], permission: string) {
@@ -22,7 +22,7 @@ function can(permissions: string[], permission: string) {
 }
 
 export function MediaPage() {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)

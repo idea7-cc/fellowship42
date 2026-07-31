@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   CalendarDays,
   Church,
@@ -28,6 +28,7 @@ import { cn } from '@/lib/cn'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ChurchTheme } from '@/components/church-theme'
+import { useChurch } from '@/lib/church-context'
 
 // ---------------------------------------------------------------------------
 // Navigation definitions
@@ -42,13 +43,13 @@ interface NavItem {
   permission?: string
 }
 
-const globalNav: NavItem[] = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Church', path: '/churches', icon: Church },
-]
-
-const churchNav: NavItem[] = [
-  { label: 'Overview', path: '', icon: LayoutDashboard },
+/**
+ * One flat list. There was previously a "global" group (Dashboard, Church)
+ * above a church-scoped group, which is the shape of a multi-tenant console.
+ * A single-church instance has one set of destinations.
+ */
+const nav: NavItem[] = [
+  { label: 'Overview', path: '/', icon: LayoutDashboard },
   { label: 'People', path: '/people', icon: Users },
   { label: 'Groups', path: '/groups', icon: UsersRound },
   { label: 'Courses', path: '/courses', icon: GraduationCap },
@@ -76,23 +77,18 @@ const SIDEBAR_WIDTH = 'w-60'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { churchId } = useParams<{ churchId: string }>()
   const location = useLocation()
   const { isSignedIn, isLoading: authLoading, user } = useAuthState()
-
-  // Detect church context from the URL path
-  const churchIdFromPath = extractChurchId(location.pathname)
-  const activeChurchId = churchId ?? churchIdFromPath
+  const { churchId, churchName } = useChurch()
 
   const churchQuery = useApiQuery<{ church: ChurchRecord }>(
-    activeChurchId ? `/api/churches/${encodeURIComponent(activeChurchId)}` : null,
+    `/api/churches/${encodeURIComponent(churchId)}`,
   )
   const church = churchQuery.data?.church
-  useChurchRealtime(activeChurchId)
+  useChurchRealtime(churchId)
 
-  const churchBasePath = activeChurchId ? `/churches/${activeChurchId}` : null
   const permissions =
-    user?.memberships.find((entry) => entry.churchId === activeChurchId)?.permissions ?? []
+    user?.memberships.find((entry) => entry.churchId === churchId)?.permissions ?? []
 
   // Close the drawer on navigation — leaving it open over the new page is the
   // most common mobile navigation bug in a shell like this.
@@ -168,42 +164,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 pb-3">
+          <ChurchBadge church={church} churchName={churchName} />
           <NavGroup>
-            {globalNav.map((item) => (
-              <NavLink
-                item={item}
-                key={item.path}
-                active={isNavActive(location.pathname, item.path)}
-                to={item.path}
-              />
-            ))}
+            {nav.map((item) => {
+              if (
+                item.permission &&
+                !permissions.includes('*') &&
+                !permissions.includes(item.permission)
+              ) {
+                return null
+              }
+              return (
+                <NavLink
+                  active={isNavActive(location.pathname, item.path)}
+                  item={item}
+                  key={item.path}
+                  to={item.path}
+                />
+              )
+            })}
           </NavGroup>
-
-          {churchBasePath ? (
-            <>
-              <ChurchBadge church={church} churchId={activeChurchId} />
-              <NavGroup>
-                {churchNav.map((item) => {
-                  if (
-                    item.permission &&
-                    !permissions.includes('*') &&
-                    !permissions.includes(item.permission)
-                  ) {
-                    return null
-                  }
-                  const fullPath = `${churchBasePath}${item.path}`
-                  return (
-                    <NavLink
-                      item={item}
-                      key={item.path}
-                      active={isNavActive(location.pathname, fullPath)}
-                      to={fullPath}
-                    />
-                  )
-                })}
-              </NavGroup>
-            </>
-          ) : null}
         </nav>
 
         <SidebarFooter />
@@ -269,29 +249,24 @@ function NavLink({ active, item, to }: { active: boolean; item: NavItem; to: str
 }
 
 /**
- * The one place a congregation's own color appears in the operator chrome:
- * a small mark identifying whose data is on screen. Everything else stays in
- * the product palette so the UI is equally legible for every church.
+ * Identifies the church this instance serves.
+ *
+ * It is a label, not a switcher and not a link — there is exactly one church
+ * and the Overview entry below already goes to it. The congregation's own
+ * color appears here and nowhere else in the chrome.
  */
 function ChurchBadge({
   church,
-  churchId,
+  churchName,
 }: {
   church?: ChurchRecord
-  churchId: string | null
+  churchName: string
 }) {
-  if (!churchId) return null
-  const name = church?.name ?? 'Church'
+  const name = church?.name ?? churchName
 
   return (
-    <ChurchTheme theme={church?.theme} className="mt-3 mb-1 px-2">
-      <div className="mb-1.5 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-        Church
-      </div>
-      <Link
-        className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5 transition-colors duration-150 hover:border-border-strong"
-        to={`/churches/${churchId}`}
-      >
+    <ChurchTheme className="mb-2 px-1" theme={church?.theme}>
+      <div className="flex items-center gap-2 rounded-md border border-border bg-card p-1.5">
         <span
           aria-hidden
           className="flex size-6 shrink-0 items-center justify-center rounded-sm text-[0.6875rem] font-semibold"
@@ -303,7 +278,7 @@ function ChurchBadge({
           {name.charAt(0).toUpperCase()}
         </span>
         <span className="truncate text-[0.8125rem] font-medium">{name}</span>
-      </Link>
+      </div>
     </ChurchTheme>
   )
 }
@@ -382,12 +357,6 @@ function ThemeToggle() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Extract churchId from a URL path like /churches/:churchId/... */
-function extractChurchId(pathname: string): string | null {
-  const match = pathname.match(/^\/churches\/([^/]+)/)
-  return match ? match[1] : null
-}
 
 /**
  * Determine if a nav item should be marked active.

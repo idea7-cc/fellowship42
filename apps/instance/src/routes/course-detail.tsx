@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 import type {
   Church,
   CourseDetailResponse,
@@ -43,7 +44,7 @@ function LessonForm({
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -195,7 +196,8 @@ function LessonForm({
 }
 
 export function CourseDetailPage() {
-  const { churchId, slug } = useParams<{ churchId: string; slug: string }>()
+  const { churchId } = useChurch()
+  const { slug } = useParams<{ slug: string }>()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)

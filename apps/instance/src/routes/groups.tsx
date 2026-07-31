@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
@@ -18,6 +17,7 @@ import { GroupRosterPanel } from '@/components/group-roster-panel'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -35,7 +35,7 @@ function GroupForm({
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -218,7 +218,7 @@ function GroupForm({
 }
 
 export function GroupsPage() {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)

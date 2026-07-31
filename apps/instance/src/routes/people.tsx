@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
 import {
   ChevronDown,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react'
 
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import type {
   Church,
@@ -121,7 +121,7 @@ function PersonForm({
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const person = editor === 'new' ? null : editor
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -241,7 +241,7 @@ function HouseholdForm({
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const household = editor === 'new' ? null : editor
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -348,7 +348,7 @@ function HouseholdMemberForm({
   people: Person[]
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -423,7 +423,7 @@ function HouseholdMemberForm({
 // ---------------------------------------------------------------------------
 
 export function PeoplePage() {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const { isSignedIn, isLoading: authLoading, user } = useAuthState()
   const [view, setView] = useState<DirectoryView>('people')
   const [search, setSearch] = useState('')

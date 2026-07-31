@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +22,7 @@ import type {
   UpdatePreparationsResponse,
 } from '@/lib/api-types'
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 
 const capabilityDetails: Record<
   ManagementCapability,
@@ -79,7 +79,7 @@ function shortFingerprint(value: string) {
 }
 
 export function ManagementPage() {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)

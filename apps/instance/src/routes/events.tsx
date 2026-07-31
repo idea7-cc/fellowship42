@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
@@ -17,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
+import { useChurch } from '@/lib/church-context'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
 import { formatTimestamp } from '@/lib/format'
 
@@ -44,7 +44,7 @@ function EventForm({
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   async function submit(formEvent: FormEvent<HTMLFormElement>) {
@@ -226,7 +226,7 @@ function EventForm({
 }
 
 export function EventsPage() {
-  const { churchId } = useParams<{ churchId: string }>()
+  const { churchId } = useChurch()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)
