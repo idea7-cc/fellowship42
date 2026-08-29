@@ -2,7 +2,12 @@ import { env } from 'cloudflare:workers'
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { CourseEnrollment, GroupRoster } from '../src/lib/api-types'
+import type {
+  CourseEnrollment,
+  GroupRoster,
+  GroupSession,
+  SessionAttendance,
+} from '../src/lib/api-types'
 import type { AccessIdentity } from '../worker/lib/auth'
 import { AppError } from '../worker/lib/errors'
 import { courseRoutes } from '../worker/routes/courses'
@@ -361,5 +366,182 @@ describe('course enrollments', () => {
     expect((await duplicate.json<{ error: { code: string } }>()).error.code).toBe(
       'already_enrolled',
     )
+  })
+})
+
+describe('group sessions and attendance', () => {
+  beforeEach(async () => {
+    await env.DB.prepare('DELETE FROM attendance_records').run()
+    await env.DB.prepare('DELETE FROM group_sessions').run()
+    await env.DB.prepare('DELETE FROM group_memberships').run()
+  })
+
+  async function seedSession(groupId: string, title = 'Week 1') {
+    const response = await request(
+      'POST',
+      `/api/groups/church_demo/${groupId}/sessions`,
+      { title, startsAt: Date.now(), status: 'open' },
+    )
+    expect(response.status).toBe(201)
+    const body = await response.json<{ sessions: GroupSession[] }>()
+    return body.sessions[0]
+  }
+
+  it('creates, updates, and removes sessions', async () => {
+    const groupId = await createGroup('Session Group', 'session-group')
+    const session = await seedSession(groupId)
+    expect(session.title).toBe('Week 1')
+    expect(session.status).toBe('open')
+
+    const updated = await request(
+      'PATCH',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}`,
+      { status: 'submitted', topic: 'Psalm 23' },
+    )
+    const afterUpdate = await updated.json<{ sessions: GroupSession[] }>()
+    expect(afterUpdate.sessions[0].status).toBe('submitted')
+    expect(afterUpdate.sessions[0].topic).toBe('Psalm 23')
+
+    const removed = await request(
+      'DELETE',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}`,
+    )
+    expect((await removed.json<{ sessions: GroupSession[] }>()).sessions).toHaveLength(0)
+  })
+
+  it('rejects a session that ends before it starts', async () => {
+    const groupId = await createGroup('Backwards Group', 'backwards-group')
+    const startsAt = Date.now()
+    const response = await request(
+      'POST',
+      `/api/groups/church_demo/${groupId}/sessions`,
+      { title: 'Impossible', startsAt, endsAt: startsAt - 3_600_000 },
+    )
+    expect(response.status).toBe(422)
+  })
+
+  it('returns the roster as the register and records marks', async () => {
+    const groupId = await createGroup('Register Group', 'register-group')
+    const present = await createPerson('Present', 'Person')
+    const absent = await createPerson('Absent', 'Person')
+    for (const personId of [present, absent]) {
+      await request('PUT', `/api/groups/church_demo/${groupId}/members/${personId}`, {
+        status: 'active',
+      })
+    }
+    const session = await seedSession(groupId)
+
+    // Every roster member appears, unmarked, before anyone is recorded.
+    const initial = await request(
+      'GET',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance`,
+    )
+    const before = await initial.json<SessionAttendance>()
+    expect(before.entries).toHaveLength(2)
+    expect(before.entries.every((entry) => entry.status === undefined)).toBe(true)
+    expect(before.recordedCount).toBe(0)
+
+    const marked = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance/${present}`,
+      { status: 'present' },
+    )
+    const afterMark = await marked.json<SessionAttendance>()
+    expect(afterMark.presentCount).toBe(1)
+    expect(afterMark.recordedCount).toBe(1)
+    const presentEntry = afterMark.entries.find((entry) => entry.personId === present)
+    expect(presentEntry?.status).toBe('present')
+    expect(presentEntry?.checkedInAt).toBeTruthy()
+
+    // Re-marking the same person updates rather than duplicating.
+    const changed = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance/${present}`,
+      { status: 'excused', notes: 'Away for work' },
+    )
+    const afterChange = await changed.json<SessionAttendance>()
+    expect(afterChange.entries).toHaveLength(2)
+    expect(afterChange.presentCount).toBe(0)
+    expect(afterChange.recordedCount).toBe(1)
+    expect(
+      afterChange.entries.find((entry) => entry.personId === present)?.notes,
+    ).toBe('Away for work')
+  })
+
+  it('refuses to mark someone who is not on the roster', async () => {
+    const groupId = await createGroup('Closed Register', 'closed-register')
+    const outsider = await createPerson('Not', 'Amember')
+    const session = await seedSession(groupId)
+
+    const response = await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance/${outsider}`,
+      { status: 'present' },
+    )
+    expect(response.status).toBe(422)
+    expect((await response.json<{ error: { code: string } }>()).error.code).toBe(
+      'not_a_group_member',
+    )
+  })
+
+  it('separates the attendance permission from group editing', async () => {
+    const groupId = await createGroup('Permission Group', 'permission-group')
+    const session = await seedSession(groupId)
+    const now = Date.now()
+
+    // The seeded ministry-leader role carries attendance.write and groups.write.
+    await env.DB.batch([
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
+           VALUES ('user_participation_leader', 'leader@example.test', 'Ministry', 'Leader', 'active', ?, ?)`,
+        )
+        .bind(now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
+           VALUES ('authid_participation_leader', 'user_participation_leader', 'cloudflare-access', 'participation-leader-subject', 'leader@example.test', ?, ?)`,
+        )
+        .bind(now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
+           VALUES ('membership_participation_leader', 'church_demo', 'user_participation_leader', 'active', ?, ?, ?)`,
+        )
+        .bind(now, now, now),
+      env.DB
+        .prepare(
+          `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
+           VALUES ('church_demo', 'membership_participation_leader', 'role_demo_leader', ?, 'user_demo_owner')`,
+        )
+        .bind(now),
+    ])
+
+    const asLeader = requestAs({
+      provider: 'cloudflare-access',
+      subject: 'participation-leader-subject',
+      email: 'leader@example.test',
+      firstName: 'Ministry',
+      lastName: 'Leader',
+    })
+    expect(
+      (
+        await asLeader(
+          'GET',
+          `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance`,
+        )
+      ).status,
+    ).toBe(200)
+
+    // Finance has neither permission.
+    const asFinance = requestAs(financeOnly)
+    expect(
+      (
+        await asFinance(
+          'GET',
+          `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance`,
+        )
+      ).status,
+    ).toBe(403)
   })
 })

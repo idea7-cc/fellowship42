@@ -105,6 +105,43 @@ export interface GroupRoster {
   capacity?: number
 }
 
+export type GroupSessionStatus = 'planned' | 'open' | 'submitted' | 'cancelled'
+
+/** One meeting occurrence of a group. Attendance is recorded against these. */
+export interface GroupSession {
+  id: string
+  groupId: string
+  title: string
+  status: GroupSessionStatus
+  startsAt: number
+  endsAt?: number
+  location?: string
+  topic?: string
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'serving'
+
+/**
+ * One person's attendance at one session. `status` is undefined until someone
+ * marks them, which is what distinguishes "not recorded" from "absent".
+ */
+export interface AttendanceEntry {
+  personId: string
+  firstName: string
+  lastName: string
+  membershipStatus: string
+  status?: AttendanceStatus
+  checkedInAt?: number
+  notes?: string
+}
+
+export interface SessionAttendance {
+  session: GroupSession
+  entries: AttendanceEntry[]
+  presentCount: number
+  recordedCount: number
+}
+
 export type CourseEnrollmentStatus = 'invited' | 'active' | 'completed' | 'archived'
 
 /**

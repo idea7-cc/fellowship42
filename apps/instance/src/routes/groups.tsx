@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { GroupRosterPanel } from '@/components/group-roster-panel'
+import { GroupSessionsPanel } from '@/components/group-sessions-panel'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
@@ -230,6 +231,7 @@ export function GroupsPage() {
   const [cursors, setCursors] = useState<Array<string | null>>([null])
   const [editor, setEditor] = useState<Group | 'new' | null>(null)
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
+  const [sessionsGroup, setSessionsGroup] = useState<Group | null>(null)
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -345,6 +347,13 @@ export function GroupsPage() {
             onClose={() => setRosterGroup(null)}
           />
         ) : null}
+        {sessionsGroup && churchId ? (
+          <GroupSessionsPanel
+            churchId={churchId}
+            group={sessionsGroup}
+            onClose={() => setSessionsGroup(null)}
+          />
+        ) : null}
         {error ? (
           <p role="alert" className="mb-4 text-sm text-destructive">
             {error}
@@ -377,9 +386,22 @@ export function GroupsPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setRosterGroup(group)}
+                        onClick={() => {
+                          setSessionsGroup(null)
+                          setRosterGroup(group)
+                        }}
                       >
                         Roster
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setRosterGroup(null)
+                          setSessionsGroup(group)
+                        }}
+                      >
+                        Sessions
                       </Button>
                       <Button
                         size="sm"

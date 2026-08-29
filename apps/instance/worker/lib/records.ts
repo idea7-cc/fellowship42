@@ -1,4 +1,5 @@
 import type {
+  AttendanceEntry,
   Church,
   Course,
   CourseEnrollment,
@@ -6,6 +7,7 @@ import type {
   Group,
   GroupLeader,
   GroupMember,
+  GroupSession,
   Lesson,
   Ministry,
   Person,
@@ -421,6 +423,52 @@ export function mapCourseEnrollment(row: CourseEnrollmentRow): CourseEnrollment 
     subjectName,
     startedAt: row.started_at ?? undefined,
     completedAt: row.completed_at ?? undefined,
+    notes: row.notes ?? undefined,
+  }
+}
+
+export interface GroupSessionRow {
+  id: string
+  group_id: string
+  title: string
+  status: GroupSession['status']
+  starts_at: number
+  ends_at: number | null
+  location: string | null
+  topic: string | null
+}
+
+export function mapGroupSession(row: GroupSessionRow): GroupSession {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    title: row.title,
+    status: row.status,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at ?? undefined,
+    location: row.location ?? undefined,
+    topic: row.topic ?? undefined,
+  }
+}
+
+export interface AttendanceEntryRow {
+  person_id: string
+  first_name: string
+  last_name: string
+  membership_status: string
+  status: AttendanceEntry['status'] | null
+  checked_in_at: number | null
+  notes: string | null
+}
+
+export function mapAttendanceEntry(row: AttendanceEntryRow): AttendanceEntry {
+  return {
+    personId: row.person_id,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    membershipStatus: row.membership_status,
+    status: row.status ?? undefined,
+    checkedInAt: row.checked_in_at ?? undefined,
     notes: row.notes ?? undefined,
   }
 }

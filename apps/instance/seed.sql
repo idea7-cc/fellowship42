@@ -346,3 +346,33 @@ INSERT OR IGNORE INTO course_enrollments (
   ('enrollment_demo_04','church_demo','course_demo_finance',NULL,'group_demo_midtown','active',unixepoch()*1000,NULL,'Running as the autumn study',unixepoch()*1000,unixepoch()*1000),
   ('enrollment_demo_05','church_demo','course_demo_baptism','person_demo_21',NULL,'active',unixepoch()*1000,NULL,NULL,unixepoch()*1000,unixepoch()*1000),
   ('enrollment_demo_06','church_demo','course_demo_marriage',NULL,'group_demo_young_adults','invited',NULL,NULL,NULL,unixepoch()*1000,unixepoch()*1000);
+
+-- ---------------------------------------------------------------------------
+-- SESSIONS AND ATTENDANCE
+--
+-- Three weeks of one group's meetings: a fully recorded past week, a partly
+-- recorded one, and an upcoming session with nothing recorded yet. That spread
+-- is what makes "not recorded" visibly different from "absent" in the register.
+-- ---------------------------------------------------------------------------
+
+INSERT OR IGNORE INTO group_sessions (
+  id, church_id, group_id, title, starts_at, ends_at, location, topic, status, created_at, updated_at
+) VALUES
+  ('groupsession_demo_01','church_demo','group_demo_midtown','Week 1 — Welcome',(unixepoch()-1209600)*1000,(unixepoch()-1202400)*1000,'Midtown','Introductions and expectations','submitted',unixepoch()*1000,unixepoch()*1000),
+  ('groupsession_demo_02','church_demo','group_demo_midtown','Week 2 — Psalm 23',(unixepoch()-604800)*1000,(unixepoch()-597600)*1000,'Midtown','Reading and discussion','submitted',unixepoch()*1000,unixepoch()*1000),
+  ('groupsession_demo_03','church_demo','group_demo_midtown','Week 3 — Shared meal',(unixepoch()+172800)*1000,(unixepoch()+180000)*1000,'Midtown',NULL,'planned',unixepoch()*1000,unixepoch()*1000),
+  ('groupsession_demo_04','church_demo','group_demo_womens','Spring study — session 1',(unixepoch()-259200)*1000,NULL,'Room 204',NULL,'open',unixepoch()*1000,unixepoch()*1000);
+
+-- Week 1: everyone recorded.
+INSERT OR IGNORE INTO attendance_records (
+  id, church_id, session_id, person_id, status, checked_in_at, notes, created_at, updated_at
+) VALUES
+  ('attendance_demo_01','church_demo','groupsession_demo_01','person_demo_01','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_02','church_demo','groupsession_demo_01','person_demo_02','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_03','church_demo','groupsession_demo_01','person_demo_04','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_04','church_demo','groupsession_demo_01','person_demo_11','serving',(unixepoch()-1209600)*1000,'Hosting',unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_05','church_demo','groupsession_demo_01','person_demo_14','excused',NULL,'Travelling',unixepoch()*1000,unixepoch()*1000),
+  -- Week 2: partly recorded, so the register shows a real mid-entry state.
+  ('attendance_demo_06','church_demo','groupsession_demo_02','person_demo_01','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_07','church_demo','groupsession_demo_02','person_demo_02','absent',NULL,NULL,unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000);
