@@ -28,7 +28,9 @@ export function ChurchProvider({
   children: ReactNode
   instance: ConfiguredChurchInstance
 }) {
-  return <ChurchContext.Provider value={instance}>{children}</ChurchContext.Provider>
+  return (
+    <ChurchContext.Provider value={instance}>{children}</ChurchContext.Provider>
+  )
 }
 
 export function useChurch(): ConfiguredChurchInstance {

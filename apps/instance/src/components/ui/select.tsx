@@ -4,7 +4,10 @@ import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { controlClass, controlSizeClass, type ControlSize } from './control'
 
-export interface SelectProps extends Omit<React.ComponentProps<'select'>, 'size'> {
+export interface SelectProps extends Omit<
+  React.ComponentProps<'select'>,
+  'size'
+> {
   selectSize?: ControlSize
   /** Classes for the wrapper, e.g. width constraints. */
   containerClassName?: string
@@ -15,7 +18,10 @@ export interface SelectProps extends Omit<React.ComponentProps<'select'>, 'size'
  * and form submission for free — worth more here than a custom listbox.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, containerClassName, selectSize = 'default', ...props }, ref) => (
+  (
+    { className, containerClassName, selectSize = 'default', ...props },
+    ref,
+  ) => (
     <div className={cn('relative', containerClassName)}>
       <select
         className={cn(

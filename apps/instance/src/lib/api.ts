@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiErrorBody } from './api-types'
+import { connectRealtime } from './realtime-client'
 
 export class ApiError extends Error {
   constructor(
@@ -44,48 +45,72 @@ export async function apiRequest<T>(
 }
 
 export function useApiQuery<T>(path: string | null) {
-  const [data, setData] = useState<T | undefined>()
-  const [error, setError] = useState<ApiError | null>(null)
-  const [isLoading, setIsLoading] = useState(Boolean(path))
+  const [result, setResult] = useState<{
+    path: string | null
+    data?: T
+    error: ApiError | null
+    loading: boolean
+  }>({ path, error: null, loading: Boolean(path) })
   const requestNumber = useRef(0)
+  const controller = useRef<AbortController | null>(null)
+  const activePath = useRef<string | null>(path)
+  const mounted = useRef(false)
 
   const load = useCallback(async () => {
+    if (!mounted.current || activePath.current !== path) return
+    const currentRequest = ++requestNumber.current
+    controller.current?.abort()
+    controller.current = null
     if (!path) {
-      setData(undefined)
-      setError(null)
-      setIsLoading(false)
+      setResult({ path, error: null, loading: false })
       return
     }
-
-    const currentRequest = ++requestNumber.current
-    setIsLoading(true)
+    const abort = new AbortController()
+    controller.current = abort
+    setResult((previous) => ({
+      path,
+      data: previous.path === path ? previous.data : undefined,
+      error: null,
+      loading: true,
+    }))
     try {
-      const next = await apiRequest<T>(path)
-      if (currentRequest === requestNumber.current) {
-        setData(next)
-        setError(null)
+      const data = await apiRequest<T>(path, { signal: abort.signal })
+      if (currentRequest === requestNumber.current && !abort.signal.aborted) {
+        setResult({ path, data, error: null, loading: false })
       }
     } catch (caught) {
-      if (currentRequest === requestNumber.current) {
-        setData(undefined)
-        setError(
-          caught instanceof ApiError
-            ? caught
-            : new ApiError(
-                'Unexpected request failure',
-                500,
-                'unexpected_error',
-              ),
-        )
+      if (currentRequest === requestNumber.current && !abort.signal.aborted) {
+        setResult({
+          path,
+          error:
+            caught instanceof ApiError
+              ? caught
+              : new ApiError(
+                  'Unexpected request failure',
+                  500,
+                  'unexpected_error',
+                ),
+          loading: false,
+        })
       }
-    } finally {
-      if (currentRequest === requestNumber.current) setIsLoading(false)
     }
   }, [path])
 
+  const cancelPending = useCallback(() => {
+    ++requestNumber.current
+    controller.current?.abort()
+  }, [])
+
   useEffect(() => {
+    mounted.current = true
+    activePath.current = path
     void load()
-  }, [load])
+    return () => {
+      mounted.current = false
+      activePath.current = null
+      cancelPending()
+    }
+  }, [path, load, cancelPending])
 
   useEffect(() => {
     const invalidate = () => void load()
@@ -93,22 +118,25 @@ export function useApiQuery<T>(path: string | null) {
     return () => window.removeEventListener('f42:invalidate', invalidate)
   }, [load])
 
-  return { data, error, isLoading, refetch: load }
+  const current =
+    result.path === path
+      ? result
+      : { data: undefined, error: null, loading: Boolean(path) }
+  return {
+    data: current.data,
+    error: current.error,
+    isLoading: current.loading,
+    refetch: load,
+  }
 }
 
 export function useChurchRealtime(churchId: string | null) {
   useEffect(() => {
     if (!churchId) return
-
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const socket = new WebSocket(
+    return connectRealtime(
       `${protocol}//${window.location.host}/api/churches/${encodeURIComponent(churchId)}/live`,
+      () => window.dispatchEvent(new CustomEvent('f42:invalidate')),
     )
-
-    socket.addEventListener('message', () => {
-      window.dispatchEvent(new CustomEvent('f42:invalidate'))
-    })
-
-    return () => socket.close(1000, 'navigation')
   }, [churchId])
 }

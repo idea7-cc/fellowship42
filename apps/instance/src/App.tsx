@@ -38,8 +38,14 @@ export function App() {
 
         {/* Keep older church-scoped links working rather than 404ing them. */}
         <Route path="/churches" element={<Navigate replace to="/" />} />
-        <Route path="/churches/:churchId" element={<Navigate replace to="/" />} />
-        <Route path="/churches/:churchId/*" element={<LegacyChurchRedirect />} />
+        <Route
+          path="/churches/:churchId"
+          element={<Navigate replace to="/" />}
+        />
+        <Route
+          path="/churches/:churchId/*"
+          element={<LegacyChurchRedirect />}
+        />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

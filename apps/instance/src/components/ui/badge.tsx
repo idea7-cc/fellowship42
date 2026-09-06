@@ -38,11 +38,17 @@ const badgeVariants = cva(
 )
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
+  extends
+    React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, size, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ size, variant }), className)} {...props} />
+  return (
+    <span
+      className={cn(badgeVariants({ size, variant }), className)}
+      {...props}
+    />
+  )
 }
 
 type BadgeVariant = NonNullable<BadgeProps['variant']>
@@ -93,7 +99,10 @@ function humanizeStatus(status: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
-export interface StatusBadgeProps extends Omit<BadgeProps, 'children' | 'variant'> {
+export interface StatusBadgeProps extends Omit<
+  BadgeProps,
+  'children' | 'variant'
+> {
   status: string
   /** Override the derived color for a status this map does not know. */
   variant?: BadgeVariant

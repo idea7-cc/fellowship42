@@ -46,7 +46,8 @@ const updateLocalApprovalSchema = z
   })
   .strict()
   .superRefine((approval, context) => {
-    const lifetime = Date.parse(approval.expiresAt) - Date.parse(approval.approvedAt)
+    const lifetime =
+      Date.parse(approval.expiresAt) - Date.parse(approval.approvedAt)
     if (lifetime <= 0 || lifetime > 30 * 60_000) {
       context.addIssue({
         code: 'custom',
@@ -61,7 +62,8 @@ const updateLocalApprovalSchema = z
     ) {
       context.addIssue({
         code: 'custom',
-        message: 'Local update approval consumption must occur during its validity window',
+        message:
+          'Local update approval consumption must occur during its validity window',
         path: ['consumedAt'],
       })
     }
@@ -76,7 +78,8 @@ const updateAuthorizationSummarySchema = z
   .strict()
   .superRefine((authorization, context) => {
     const lifetime =
-      Date.parse(authorization.expiresAt) - Date.parse(authorization.authorizedAt)
+      Date.parse(authorization.expiresAt) -
+      Date.parse(authorization.authorizedAt)
     if (lifetime <= 0 || lifetime > 60 * 60_000) {
       context.addIssue({
         code: 'custom',
@@ -106,7 +109,9 @@ export const updatePreparationSchema = z
   })
   .strict()
   .superRefine((preparation, context) => {
-    if (Date.parse(preparation.expiresAt) <= Date.parse(preparation.preparedAt)) {
+    if (
+      Date.parse(preparation.expiresAt) <= Date.parse(preparation.preparedAt)
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Update preparation must expire after it was prepared',
@@ -125,8 +130,7 @@ export const updatePreparationSchema = z
     }
     if (
       preparation.state === 'awaiting-local-approval' &&
-      (preparation.localApproval !== null ||
-        preparation.authorization !== null)
+      (preparation.localApproval !== null || preparation.authorization !== null)
     ) {
       context.addIssue({
         code: 'custom',
@@ -182,7 +186,10 @@ export const updatePreparationSchema = z
         path: ['authorization'],
       })
     }
-    if ((preparation.state === 'applied') !== (preparation.appliedAt !== null)) {
+    if (
+      (preparation.state === 'applied') !==
+      (preparation.appliedAt !== null)
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Applied update state requires appliedAt',
@@ -208,7 +215,8 @@ export const updateApplyAuthorizationSchema = z
   .strict()
   .superRefine((authorization, context) => {
     const lifetime =
-      Date.parse(authorization.expiresAt) - Date.parse(authorization.authorizedAt)
+      Date.parse(authorization.expiresAt) -
+      Date.parse(authorization.authorizedAt)
     if (lifetime <= 0 || lifetime > 60 * 60_000) {
       context.addIssue({
         code: 'custom',

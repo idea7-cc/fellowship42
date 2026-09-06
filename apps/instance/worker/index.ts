@@ -19,9 +19,7 @@ import { courseRoutes } from './routes/courses'
 import { eventRoutes } from './routes/events'
 import { sermonRoutes } from './routes/sermons'
 import { sessionRoutes } from './routes/session'
-import {
-  bootstrapRoutes,
-} from './routes/bootstrap'
+import { bootstrapRoutes } from './routes/bootstrap'
 import {
   contributionRoutes,
   paymentWebhookRoutes,
@@ -43,6 +41,10 @@ type AppEnv = {
 const app = new Hono<AppEnv>()
 
 app.use('*', secureHeaders())
+app.use('/api/*', async (c, next) => {
+  c.header('Cache-Control', 'private, no-store')
+  await next()
+})
 const jsonBodyLimit = bodyLimit({ maxSize: 64 * 1024 })
 const mediaBodyLimit = bodyLimit({ maxSize: 20 * 1024 * 1024 })
 app.use('/api/*', (c, next) =>
@@ -143,7 +145,7 @@ app.route('/api/management', managementRoutes)
 app.route('/media', mediaRoutes)
 app.route('/webhooks/payments', paymentWebhookRoutes)
 
-app.all('/api/*', (c) => {
+app.all('/api/*', (_c) => {
   throw new AppError(404, 'route_not_found', 'API route not found')
 })
 

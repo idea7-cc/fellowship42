@@ -1,7 +1,14 @@
 import { z } from 'zod'
 import { exportEvidenceSchema } from './exports.js'
-import { cutoverApprovalSchema, importExecutionReportSchema, importPlanSchema } from './imports.js'
-import { deploymentReleaseSchema, portableInstanceIdSchema } from './lifecycle.js'
+import {
+  cutoverApprovalSchema,
+  importExecutionReportSchema,
+  importPlanSchema,
+} from './imports.js'
+import {
+  deploymentReleaseSchema,
+  portableInstanceIdSchema,
+} from './lifecycle.js'
 import { sha256DigestSchema } from './releases.js'
 
 export const EXIT_PACKET_FORMAT_VERSION = 1 as const
@@ -20,7 +27,9 @@ const hostnameSchema = z
   .string()
   .min(1)
   .max(253)
-  .regex(/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/)
+  .regex(
+    /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
+  )
 
 export const managementExitDispositionSchema = z
   .object({
@@ -45,14 +54,20 @@ export const managementExitDispositionSchema = z
   })
   .strict()
   .superRefine((disposition, context) => {
-    if (Date.parse(disposition.observedAt) < Date.parse(disposition.disconnectedAt)) {
+    if (
+      Date.parse(disposition.observedAt) <
+      Date.parse(disposition.disconnectedAt)
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Management disposition observation predates disconnection',
         path: ['observedAt'],
       })
     }
-    if (disposition.auditEventId !== `management-disconnect:${disposition.connectionId}`) {
+    if (
+      disposition.auditEventId !==
+      `management-disconnect:${disposition.connectionId}`
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Management disposition audit event does not match connection',
@@ -61,7 +76,9 @@ export const managementExitDispositionSchema = z
     }
   })
 
-export type ManagementExitDisposition = z.output<typeof managementExitDispositionSchema>
+export type ManagementExitDisposition = z.output<
+  typeof managementExitDispositionSchema
+>
 
 export const exitResourceKindSchema = z.enum([
   'd1-database',
@@ -86,7 +103,12 @@ const exitResourceSchema = z
   .object({
     kind: exitResourceKindSchema,
     destinationState: z.literal('verified'),
-    sourceDisposition: z.enum(['retained-under-policy', 'routing-retired', 'access-revoked', 'not-applicable']),
+    sourceDisposition: z.enum([
+      'retained-under-policy',
+      'routing-retired',
+      'access-revoked',
+      'not-applicable',
+    ]),
   })
   .strict()
 
@@ -102,7 +124,12 @@ const exitOperatorSchema = z
   .object({
     subject: subjectSchema,
     role: z.enum(['infrastructure-owner', 'instance-operator', 'support']),
-    disposition: z.enum(['church-controlled', 'partner-authorized', 'revoked', 'expired']),
+    disposition: z.enum([
+      'church-controlled',
+      'partner-authorized',
+      'revoked',
+      'expired',
+    ]),
   })
   .strict()
 
@@ -164,14 +191,19 @@ export const exitHandoffSchema = z
         path: ['resources', exitResourceKindSchema.options.length - 1],
       })
     }
-    if (new Set(handoff.domains.map((domain) => domain.hostname)).size !== handoff.domains.length) {
+    if (
+      new Set(handoff.domains.map((domain) => domain.hostname)).size !==
+      handoff.domains.length
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Exit handoff domains must be unique',
         path: ['domains'],
       })
     }
-    const operatorKeys = handoff.operators.map((operator) => `${operator.subject}:${operator.role}`)
+    const operatorKeys = handoff.operators.map(
+      (operator) => `${operator.subject}:${operator.role}`,
+    )
     if (new Set(operatorKeys).size !== operatorKeys.length) {
       context.addIssue({
         code: 'custom',
@@ -182,7 +214,8 @@ export const exitHandoffSchema = z
     if (
       !handoff.operators.some(
         (operator) =>
-          operator.subject === handoff.destinationCustody.infrastructureOwnerSubject &&
+          operator.subject ===
+            handoff.destinationCustody.infrastructureOwnerSubject &&
           operator.role === 'infrastructure-owner' &&
           operator.disposition === 'church-controlled',
       )
@@ -289,7 +322,10 @@ export const exitPacketSchema = z
         path: ['resources', exitResourceKindSchema.options.length - 1],
       })
     }
-    if (new Set(packet.domains.map((domain) => domain.hostname)).size !== packet.domains.length) {
+    if (
+      new Set(packet.domains.map((domain) => domain.hostname)).size !==
+      packet.domains.length
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Exit packet domains must be unique',
@@ -299,7 +335,8 @@ export const exitPacketSchema = z
     if (
       !packet.operators.some(
         (operator) =>
-          operator.subject === packet.destinationCustody.infrastructureOwnerSubject &&
+          operator.subject ===
+            packet.destinationCustody.infrastructureOwnerSubject &&
           operator.role === 'infrastructure-owner' &&
           operator.disposition === 'church-controlled',
       )
@@ -353,7 +390,9 @@ export const exitPacketVerificationEvidenceSchema = z
   })
   .strict()
 
-export type ExitPacketVerificationEvidence = z.output<typeof exitPacketVerificationEvidenceSchema>
+export type ExitPacketVerificationEvidence = z.output<
+  typeof exitPacketVerificationEvidenceSchema
+>
 
 export const exitPacketBuildInputsSchema = z
   .object({

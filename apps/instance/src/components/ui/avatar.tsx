@@ -53,8 +53,7 @@ function initialsFrom(name: string): string {
 }
 
 export interface AvatarProps
-  extends React.ComponentProps<'span'>,
-    VariantProps<typeof avatarVariants> {
+  extends React.ComponentProps<'span'>, VariantProps<typeof avatarVariants> {
   name: string
   src?: string | null
 }

@@ -55,15 +55,13 @@ function randomNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 function publicFailureCode(error: unknown): string {
   if (error instanceof AppError) return error.code
-  if (error instanceof Error && error.name === 'AbortError') return 'sync_timeout'
+  if (error instanceof Error && error.name === 'AbortError')
+    return 'sync_timeout'
   return 'sync_failed'
 }
 
@@ -98,21 +96,37 @@ async function postEnvelope(
 
   const declaredLength = Number(response.headers.get('content-length') ?? '0')
   if (declaredLength > MAX_RESPONSE_BYTES) {
-    throw new AppError(503, 'operator_response_too_large', 'The management response exceeded the size limit')
+    throw new AppError(
+      503,
+      'operator_response_too_large',
+      'The management response exceeded the size limit',
+    )
   }
   const text = await response.text()
   if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-    throw new AppError(503, 'operator_response_too_large', 'The management response exceeded the size limit')
+    throw new AppError(
+      503,
+      'operator_response_too_large',
+      'The management response exceeded the size limit',
+    )
   }
   let value: unknown
   try {
     value = JSON.parse(text)
   } catch {
-    throw new AppError(503, 'operator_response_invalid', 'The management operator returned invalid JSON')
+    throw new AppError(
+      503,
+      'operator_response_invalid',
+      'The management operator returned invalid JSON',
+    )
   }
   const parsed = envelopeResponseSchema.safeParse(value)
   if (!parsed.success) {
-    throw new AppError(503, 'operator_response_invalid', 'The management operator returned an invalid envelope')
+    throw new AppError(
+      503,
+      'operator_response_invalid',
+      'The management operator returned an invalid envelope',
+    )
   }
   return parsed.data.jws
 }
@@ -122,7 +136,7 @@ async function freshEnrollmentApproval(
   connection: ActiveConnection,
   identity: StoredIdentity,
   now: number,
-) : Promise<ManagementJws> {
+): Promise<ManagementJws> {
   try {
     const payload = await verifyManagementJws(
       connection.enrollmentApproval,
@@ -160,11 +174,10 @@ async function freshEnrollmentApproval(
     },
     await privateKey(env, identity),
   )
-  await env.DB
-    .prepare(
-      `UPDATE management_connections SET enrollment_approval_jws_json = ?
+  await env.DB.prepare(
+    `UPDATE management_connections SET enrollment_approval_jws_json = ?
        WHERE connection_id = ? AND approval_delivered_at IS NULL`,
-    )
+  )
     .bind(JSON.stringify(approval), connection.connectionId)
     .run()
   return approval
@@ -222,11 +235,10 @@ async function freshRotationNotice(
     },
     await privateKey(env, identity),
   )
-  await env.DB
-    .prepare(
-      `UPDATE management_connections SET pending_control_jws_json = ?
+  await env.DB.prepare(
+    `UPDATE management_connections SET pending_control_jws_json = ?
        WHERE connection_id = ? AND pending_replacement_key_id = ?`,
-    )
+  )
     .bind(JSON.stringify(notice), connection.connectionId, replacement.keyId)
     .run()
   return notice
@@ -247,23 +259,17 @@ async function deliverPendingControlMessages(
       now,
     )
     await postEnvelope(connection.syncUrl, approval, transport, false)
-    await env.DB
-      .prepare(
-        `UPDATE management_connections
+    await env.DB.prepare(
+      `UPDATE management_connections
          SET approval_delivered_at = ?
          WHERE connection_id = ? AND approval_delivered_at IS NULL`,
-      )
+    )
       .bind(now, connection.connectionId)
       .run()
   }
   if (connection.pendingReplacement) {
     const notice = await freshRotationNotice(env, connection, identity, now)
-    await postEnvelope(
-      connection.syncUrl,
-      notice,
-      transport,
-      false,
-    )
+    await postEnvelope(connection.syncUrl, notice, transport, false)
     const replacement = connection.pendingReplacement
     const activated = await env.DB.batch([
       env.DB.prepare(
@@ -292,11 +298,7 @@ async function deliverPendingControlMessages(
              SELECT 1 FROM management_identities
              WHERE singleton = 1 AND key_id = ?
            )`,
-      ).bind(
-        connection.connectionId,
-        replacement.keyId,
-        replacement.keyId,
-      ),
+      ).bind(connection.connectionId, replacement.keyId, replacement.keyId),
     ])
     if ((activated[0]?.meta.changes ?? 0) !== 1) {
       throw new AppError(
@@ -350,7 +352,9 @@ async function readStoredCommand(
     ? {
         nonce: row.nonce,
         payloadHash: row.payload_sha256,
-        result: managementCommandResultSchema.parse(JSON.parse(row.result_json)),
+        result: managementCommandResultSchema.parse(
+          JSON.parse(row.result_json),
+        ),
       }
     : null
 }
@@ -487,7 +491,10 @@ async function evaluateCommand(
       commandType: command.capability,
       status: 'rejected',
       completedAt,
-      error: { code: 'instance_mismatch', message: 'Command instance binding does not match' },
+      error: {
+        code: 'instance_mismatch',
+        message: 'Command instance binding does not match',
+      },
     })
   }
   if (
@@ -501,7 +508,10 @@ async function evaluateCommand(
       commandType: command.capability,
       status: 'rejected',
       completedAt,
-      error: { code: 'command_stale', message: 'Command is outside the accepted clock window' },
+      error: {
+        code: 'command_stale',
+        message: 'Command is outside the accepted clock window',
+      },
     })
   }
   const grant = grants.get(command.capability)
@@ -513,7 +523,10 @@ async function evaluateCommand(
       commandType: command.capability,
       status: 'rejected',
       completedAt,
-      error: { code: 'capability_not_granted', message: 'The requested capability is not granted' },
+      error: {
+        code: 'capability_not_granted',
+        message: 'The requested capability is not granted',
+      },
     })
   }
   if (
@@ -528,7 +541,10 @@ async function evaluateCommand(
       commandType: command.capability,
       status: 'rejected',
       completedAt,
-      error: { code: 'local_approval_required', message: 'This command requires a fresh local approval' },
+      error: {
+        code: 'local_approval_required',
+        message: 'This command requires a fresh local approval',
+      },
     })
   }
   if (command.type === 'instance.status.read') {
@@ -659,7 +675,8 @@ async function evaluateCommand(
     completedAt,
     error: {
       code: 'command_not_implemented',
-      message: 'This command is recognized but is not implemented by this release',
+      message:
+        'This command is recognized but is not implemented by this release',
     },
   })
 }
@@ -682,7 +699,11 @@ async function executeCommand(
   )
   if (prior) {
     if (prior.nonce !== command.nonce || prior.payloadHash !== payloadHash) {
-      throw new AppError(409, 'command_replay_conflict', 'A command identifier or nonce was reused with different content')
+      throw new AppError(
+        409,
+        'command_replay_conflict',
+        'A command identifier or nonce was reused with different content',
+      )
     }
     return prior.result
   }
@@ -754,7 +775,11 @@ async function executeCommand(
     ) {
       return raced.result
     }
-    throw new AppError(409, 'command_replay_conflict', 'A command identifier or nonce was reused with different content')
+    throw new AppError(
+      409,
+      'command_replay_conflict',
+      'A command identifier or nonce was reused with different content',
+    )
   }
 }
 
@@ -777,7 +802,11 @@ async function replayOutcome(
     .first<{ payload_sha256: string; outcome_json: string | null }>()
   if (!row) return { found: false, outcome: null }
   if (row.payload_sha256 !== payloadHash) {
-    throw new AppError(409, 'message_replay_conflict', 'A signed message identifier was reused with different content')
+    throw new AppError(
+      409,
+      'message_replay_conflict',
+      'A signed message identifier was reused with different content',
+    )
   }
   return {
     found: true,
@@ -799,15 +828,27 @@ async function processCommandBatch(
   try {
     payload = await verifyManagementJws(envelope, connection.operatorKey)
   } catch {
-    throw new AppError(403, 'operator_signature_invalid', 'The operator response signature is invalid')
+    throw new AppError(
+      403,
+      'operator_signature_invalid',
+      'The operator response signature is invalid',
+    )
   }
   if (payload.type !== 'command.batch') {
-    throw new AppError(422, 'operator_message_unexpected', 'Expected a command batch')
+    throw new AppError(
+      422,
+      'operator_message_unexpected',
+      'Expected a command batch',
+    )
   }
   try {
     assertFreshManagementPayload(payload, new Date(now))
   } catch {
-    throw new AppError(403, 'operator_message_stale', 'The operator response is outside the accepted clock window')
+    throw new AppError(
+      403,
+      'operator_message_stale',
+      'The operator response is outside the accepted clock window',
+    )
   }
   if (
     payload.connectionId !== connection.connectionId ||
@@ -815,7 +856,11 @@ async function processCommandBatch(
     payload.senderKeyId !== connection.operatorKey.kid ||
     payload.audienceKeyId !== identity.keyId
   ) {
-    throw new AppError(403, 'operator_message_binding_mismatch', 'The operator response does not match this connection')
+    throw new AppError(
+      403,
+      'operator_message_binding_mismatch',
+      'The operator response does not match this connection',
+    )
   }
 
   const payloadHash = await sha256Hex(JSON.stringify(envelope))
@@ -837,13 +882,12 @@ async function processCommandBatch(
   }
 
   try {
-    await env.DB
-      .prepare(
-        `INSERT INTO management_replay_records (
+    await env.DB.prepare(
+      `INSERT INTO management_replay_records (
            connection_id, sender_key_id, message_id, nonce, payload_sha256,
            expires_at, created_at
          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
+    )
       .bind(
         connection.connectionId,
         payload.senderKeyId,
@@ -908,12 +952,11 @@ async function processCommandBatch(
     ),
     nextCommandCursor: payload.nextCommandCursor,
   }
-  await env.DB
-    .prepare(
-      `UPDATE management_replay_records SET outcome_json = ?
+  await env.DB.prepare(
+    `UPDATE management_replay_records SET outcome_json = ?
        WHERE connection_id = ? AND sender_key_id = ?
          AND message_id = ? AND nonce = ? AND payload_sha256 = ?`,
-    )
+  )
     .bind(
       JSON.stringify(outcome),
       connection.connectionId,
@@ -978,13 +1021,21 @@ export async function syncManagementOnce(
   if (!connection) return { state: 'disconnected', commandCount: 0 }
   let identity = await readIdentity(env.DB)
   if (!identity || identity.instanceId !== connection.instanceId) {
-    throw new AppError(503, 'management_identity_missing', 'The active connection has no usable instance identity')
+    throw new AppError(
+      503,
+      'management_identity_missing',
+      'The active connection has no usable instance identity',
+    )
   }
 
   await deliverPendingControlMessages(env, connection, identity, transport, now)
   identity = await readIdentity(env.DB)
   if (!identity || identity.instanceId !== connection.instanceId) {
-    throw new AppError(503, 'management_identity_missing', 'The active connection identity was not activated')
+    throw new AppError(
+      503,
+      'management_identity_missing',
+      'The active connection identity was not activated',
+    )
   }
   const request = await buildSyncRequest(env, connection, identity, now)
   const commandEnvelope = await postEnvelope(
@@ -1003,41 +1054,41 @@ export async function syncManagementOnce(
     releaseTransport,
   )
   await postEnvelope(connection.syncUrl, outcome.response, transport, false)
-  const decoded = await verifyManagementJws(outcome.response, identity.publicKey)
-  const commandCount = decoded.type === 'command.results' ? decoded.results.length : 0
+  const decoded = await verifyManagementJws(
+    outcome.response,
+    identity.publicKey,
+  )
+  const commandCount =
+    decoded.type === 'command.results' ? decoded.results.length : 0
   const installed = await installation(env.DB)
   const syncRequestId = crypto.randomUUID()
   await env.DB.batch([
-    env.DB
-      .prepare(
-        `UPDATE management_connections
+    env.DB.prepare(
+      `UPDATE management_connections
          SET last_sync_at = ?, last_sync_status = 'succeeded',
              last_sync_code = NULL, command_cursor = ?
          WHERE connection_id = ? AND status = 'active'`,
-      )
-      .bind(now, outcome.nextCommandCursor, connection.connectionId),
-    env.DB
-      .prepare('DELETE FROM management_replay_records WHERE expires_at < ?')
-      .bind(now),
-    env.DB
-      .prepare(
-        `INSERT INTO audit_events (
+    ).bind(now, outcome.nextCommandCursor, connection.connectionId),
+    env.DB.prepare(
+      'DELETE FROM management_replay_records WHERE expires_at < ?',
+    ).bind(now),
+    env.DB.prepare(
+      `INSERT INTO audit_events (
            id, church_id, actor_user_id, action, entity_type, entity_id,
            request_id, metadata_json, occurred_at
          ) VALUES (?, ?, NULL, 'management.sync_succeeded',
                    'management_connection', ?, ?, ?, ?)`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        installed.churchId,
-        connection.connectionId,
-        syncRequestId,
-        JSON.stringify({
-          commandCount,
-          commandCursor: outcome.nextCommandCursor,
-        }),
-        now,
-      ),
+    ).bind(
+      crypto.randomUUID(),
+      installed.churchId,
+      connection.connectionId,
+      syncRequestId,
+      JSON.stringify({
+        commandCount,
+        commandCursor: outcome.nextCommandCursor,
+      }),
+      now,
+    ),
   ])
   return { state: 'succeeded', commandCount }
 }

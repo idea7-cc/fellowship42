@@ -81,7 +81,9 @@ contain changes that are not in a published release. See
 
 ## Run locally
 
-Use Node.js 22 and the pnpm version declared in `package.json`.
+Use the Node.js version in `.node-version` and the pnpm version declared in
+`package.json`. Run `pnpm verify` for the same gate used by CI; `pnpm lint`
+and `pnpm format:check` provide focused feedback.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -175,3 +177,6 @@ Additional documentation:
 ## License
 
 [Apache License 2.0](LICENSE).
+
+For implementation maturity and remaining work, read
+[Current state](docs/current-state.md).

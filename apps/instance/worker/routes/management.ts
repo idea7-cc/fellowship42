@@ -55,7 +55,8 @@ const supportDecisionSchema = z
     if (value.action !== 'approve' && !value.reason) {
       context.addIssue({
         code: 'custom',
-        message: 'A reason is required when rejecting or revoking support access',
+        message:
+          'A reason is required when rejecting or revoking support access',
         path: ['reason'],
       })
     }
@@ -65,7 +66,11 @@ async function jsonBody(c: Context<AppEnv>): Promise<unknown> {
   try {
     return await c.req.json<unknown>()
   } catch {
-    throw new AppError(400, 'invalid_json', 'The request body must be valid JSON')
+    throw new AppError(
+      400,
+      'invalid_json',
+      'The request body must be valid JSON',
+    )
   }
 }
 

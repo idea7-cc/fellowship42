@@ -24,7 +24,10 @@ const Label = React.forwardRef<HTMLLabelElement, React.ComponentProps<'label'>>(
 )
 Label.displayName = 'Label'
 
-export interface FieldProps extends Omit<React.ComponentProps<'label'>, 'title'> {
+export interface FieldProps extends Omit<
+  React.ComponentProps<'label'>,
+  'title'
+> {
   label: React.ReactNode
   /** Guidance shown under the control. */
   hint?: React.ReactNode
@@ -64,11 +67,16 @@ Field.displayName = 'Field'
 
 /** A responsive two-column field grid. */
 function FieldGrid({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div className={cn('grid gap-4 sm:grid-cols-2', className)} {...props} />
+  return (
+    <div className={cn('grid gap-4 sm:grid-cols-2', className)} {...props} />
+  )
 }
 
 /** A checkbox with its label, aligned on the control rather than the text. */
-export interface CheckboxFieldProps extends Omit<React.ComponentProps<'input'>, 'type'> {
+export interface CheckboxFieldProps extends Omit<
+  React.ComponentProps<'input'>,
+  'type'
+> {
   label: React.ReactNode
   hint?: React.ReactNode
 }
@@ -83,8 +91,12 @@ const CheckboxField = React.forwardRef<HTMLInputElement, CheckboxFieldProps>(
         {...props}
       />
       <span className="grid gap-0.5">
-        <span className="text-[0.8125rem] leading-tight font-medium">{label}</span>
-        {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+        <span className="text-[0.8125rem] leading-tight font-medium">
+          {label}
+        </span>
+        {hint ? (
+          <span className="text-xs text-muted-foreground">{hint}</span>
+        ) : null}
       </span>
     </label>
   ),
@@ -95,7 +107,10 @@ CheckboxField.displayName = 'CheckboxField'
 function FormActions({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      className={cn('flex flex-wrap items-center gap-2 border-t border-border pt-4', className)}
+      className={cn(
+        'flex flex-wrap items-center gap-2 border-t border-border pt-4',
+        className,
+      )}
       {...props}
     />
   )

@@ -179,21 +179,20 @@ export async function buildReconciliationPreview(
       const desiredFingerprint = await sha256Canonical(
         desiredStepState(manifest, step.kind),
       )
-      const ownershipBlocked = ['unverified', 'foreign'].includes(
-        observed.ownership,
-      ) || (
-        observed.state !== 'absent' &&
-        !['verify-release', 'apply-migrations', 'verify-runtime'].includes(
-          step.kind,
-        ) &&
-        observed.ownership !== 'verified'
-      )
+      const ownershipBlocked =
+        ['unverified', 'foreign'].includes(observed.ownership) ||
+        (observed.state !== 'absent' &&
+          !['verify-release', 'apply-migrations', 'verify-runtime'].includes(
+            step.kind,
+          ) &&
+          observed.ownership !== 'verified')
       const inconsistentMatch =
         observed.state === 'matching' &&
         observed.actualFingerprint !== desiredFingerprint
-      const action = ownershipBlocked || inconsistentMatch
-        ? ('blocked' as const)
-        : actionFor(step.kind, observed.state)
+      const action =
+        ownershipBlocked || inconsistentMatch
+          ? ('blocked' as const)
+          : actionFor(step.kind, observed.state)
       const reasonCode = ownershipBlocked
         ? observed.ownership === 'not-applicable'
           ? 'ownership-unverified'
@@ -352,8 +351,7 @@ export async function executeDeploymentReconciliation(options: {
       !allowedActions[planStep.kind].includes(change.action) ||
       (change.action === 'none' &&
         change.expectedActualFingerprint !== desiredFingerprint) ||
-      (change.action === 'create' &&
-        change.expectedActualFingerprint !== null)
+      (change.action === 'create' && change.expectedActualFingerprint !== null)
     ) {
       throw new ReconciliationError(
         'preview_plan_mismatch',

@@ -23,7 +23,11 @@ const MAX_JSON_BYTES = 16 * 1024 * 1024
 
 async function readJson(file: string): Promise<unknown> {
   const details = await lstat(file)
-  if (!details.isFile() || details.isSymbolicLink() || details.size > MAX_JSON_BYTES) {
+  if (
+    !details.isFile() ||
+    details.isSymbolicLink() ||
+    details.size > MAX_JSON_BYTES
+  ) {
     throw new Error(`Expected a bounded regular JSON file: ${file}`)
   }
   return JSON.parse(await readFile(file, 'utf8'))
@@ -59,7 +63,9 @@ export async function buildPortableImportPlan(options: {
     await readJson(options.destinationManifestPath),
   )
   if (destination.instance.id !== exportManifest.instanceId) {
-    throw new Error('Destination must preserve the exported portable instance identity')
+    throw new Error(
+      'Destination must preserve the exported portable instance identity',
+    )
   }
   if (
     destination.target.environment === 'production' &&
@@ -98,20 +104,87 @@ export async function buildPortableImportPlan(options: {
     steps: [
       step(1, 'verify-export', 'read-only', null, []),
       step(2, 'verify-release-compatibility', 'read-only', null, [1]),
-      step(3, 'verify-destination-manifest', 'read-only', destination.worker.name, [2]),
-      step(4, 'verify-new-empty-d1', 'read-only', destination.resources.d1.name, [3]),
-      step(5, 'verify-new-empty-r2', 'read-only', destination.resources.r2.name, [3]),
-      step(6, 'restore-d1', 'writes-destination', destination.resources.d1.name, [4]),
-      step(7, 'restore-r2', 'writes-destination', destination.resources.r2.name, [5]),
-      step(8, 'apply-forward-migrations', 'writes-destination', destination.resources.d1.name, [6]),
-      step(9, 'deploy-without-domains', 'writes-destination', destination.worker.name, [7, 8]),
+      step(
+        3,
+        'verify-destination-manifest',
+        'read-only',
+        destination.worker.name,
+        [2],
+      ),
+      step(
+        4,
+        'verify-new-empty-d1',
+        'read-only',
+        destination.resources.d1.name,
+        [3],
+      ),
+      step(
+        5,
+        'verify-new-empty-r2',
+        'read-only',
+        destination.resources.r2.name,
+        [3],
+      ),
+      step(
+        6,
+        'restore-d1',
+        'writes-destination',
+        destination.resources.d1.name,
+        [4],
+      ),
+      step(
+        7,
+        'restore-r2',
+        'writes-destination',
+        destination.resources.r2.name,
+        [5],
+      ),
+      step(
+        8,
+        'apply-forward-migrations',
+        'writes-destination',
+        destination.resources.d1.name,
+        [6],
+      ),
+      step(
+        9,
+        'deploy-without-domains',
+        'writes-destination',
+        destination.worker.name,
+        [7, 8],
+      ),
       step(10, 'rotate-deployment-credentials', 'credential-change', null, [9]),
       step(11, 'rotate-application-secrets', 'credential-change', null, [10]),
-      step(12, 'rotate-management-credentials', 'credential-change', null, [11]),
-      step(13, 'verify-restored-identity', 'read-only', destination.resources.d1.name, [12]),
+      step(
+        12,
+        'rotate-management-credentials',
+        'credential-change',
+        null,
+        [11],
+      ),
+      step(
+        13,
+        'verify-restored-identity',
+        'read-only',
+        destination.resources.d1.name,
+        [12],
+      ),
       step(14, 'verify-runtime', 'read-only', destination.worker.name, [13]),
-      step(15, 'cutover-domains', 'cutover', destination.worker.domains[0] ?? destination.worker.name, [14], true),
-      step(16, 'verify-independent-operation', 'read-only', destination.worker.name, [15]),
+      step(
+        15,
+        'cutover-domains',
+        'cutover',
+        destination.worker.domains[0] ?? destination.worker.name,
+        [14],
+        true,
+      ),
+      step(
+        16,
+        'verify-independent-operation',
+        'read-only',
+        destination.worker.name,
+        [15],
+      ),
       step(17, 'retire-source-routing', 'source-change', null, [16], true),
     ],
   })
@@ -135,8 +208,13 @@ export function verifyCutoverApproval(
   ) {
     throw new Error('Cutover approval does not bind to the exact import target')
   }
-  if (JSON.stringify(approval.domains) !== JSON.stringify(destination.worker.domains)) {
-    throw new Error('Cutover approval domains do not match the destination manifest')
+  if (
+    JSON.stringify(approval.domains) !==
+    JSON.stringify(destination.worker.domains)
+  ) {
+    throw new Error(
+      'Cutover approval domains do not match the destination manifest',
+    )
   }
   return approval
 }
@@ -164,7 +242,9 @@ export interface PortableImportAdapter {
   rotateManagementCredentials(context: ImportContext): Promise<void>
   verifyRestoredIdentity(context: ImportContext): Promise<string>
   verifyRuntime(context: ImportContext): Promise<boolean>
-  cutoverDomains(context: ImportContext & { approval: CutoverApproval }): Promise<void>
+  cutoverDomains(
+    context: ImportContext & { approval: CutoverApproval },
+  ): Promise<void>
   verifyIndependentOperation(
     context: ImportContext & { approval: CutoverApproval },
   ): Promise<boolean>
@@ -245,7 +325,8 @@ export async function executePortableImportRestore(options: {
       operationId: plan.operationId,
       generatedAt: plan.generatedAt,
     })
-    if (canonicalJson(rebuilt) !== canonicalJson(plan)) return fail(0, 'plan-binding-mismatch')
+    if (canonicalJson(rebuilt) !== canonicalJson(plan))
+      return fail(0, 'plan-binding-mismatch')
     succeed(0)
     succeed(1)
     localFailurePosition = 2
@@ -271,10 +352,12 @@ export async function executePortableImportRestore(options: {
       preflight.operationId !== plan.operationId ||
       preflight.instanceId !== plan.instanceId ||
       preflight.destinationManifestSha256 !== plan.destinationManifestSha256
-    ) return fail(3, 'destination-preflight-binding-mismatch')
+    )
+      return fail(3, 'destination-preflight-binding-mismatch')
     if (
       Date.parse(preflight.observedAt) < Date.parse(plan.generatedAt) ||
-      Date.parse(preflight.observedAt) > Date.parse(startedAt) + 5 * 60 * 1_000 ||
+      Date.parse(preflight.observedAt) >
+        Date.parse(startedAt) + 5 * 60 * 1_000 ||
       Date.parse(preflight.d1.createdAt) < Date.parse(plan.generatedAt) ||
       Date.parse(preflight.r2.createdAt) < Date.parse(plan.generatedAt) ||
       Date.parse(preflight.d1.createdAt) > Date.parse(preflight.observedAt) ||
@@ -320,11 +403,31 @@ export async function executePortableImportRestore(options: {
     return fail(6, 'r2-restore-failed')
   }
   for (const [position, operation, failureCode] of [
-    [7, () => options.adapter.applyForwardMigrations(context), 'migration-apply-failed'],
-    [8, () => options.adapter.deployWithoutDomains(context), 'domainless-deploy-failed'],
-    [9, () => options.adapter.rotateDeploymentCredentials(context), 'deployment-credential-rotation-failed'],
-    [10, () => options.adapter.rotateApplicationSecrets(context), 'application-secret-rotation-failed'],
-    [11, () => options.adapter.rotateManagementCredentials(context), 'management-credential-rotation-failed'],
+    [
+      7,
+      () => options.adapter.applyForwardMigrations(context),
+      'migration-apply-failed',
+    ],
+    [
+      8,
+      () => options.adapter.deployWithoutDomains(context),
+      'domainless-deploy-failed',
+    ],
+    [
+      9,
+      () => options.adapter.rotateDeploymentCredentials(context),
+      'deployment-credential-rotation-failed',
+    ],
+    [
+      10,
+      () => options.adapter.rotateApplicationSecrets(context),
+      'application-secret-rotation-failed',
+    ],
+    [
+      11,
+      () => options.adapter.rotateManagementCredentials(context),
+      'management-credential-rotation-failed',
+    ],
   ] as const) {
     try {
       await operation()
@@ -334,7 +437,10 @@ export async function executePortableImportRestore(options: {
     }
   }
   try {
-    if ((await options.adapter.verifyRestoredIdentity(context)) !== plan.instanceId) {
+    if (
+      (await options.adapter.verifyRestoredIdentity(context)) !==
+      plan.instanceId
+    ) {
       return fail(12, 'restored-identity-mismatch')
     }
     succeed(12)
@@ -363,16 +469,22 @@ export async function executePortableCutover(options: {
   const plan = importPlanSchema.parse(options.plan)
   const report = importExecutionReportSchema.parse(options.report)
   if (report.status !== 'awaiting-cutover') {
-    throw new Error('Cutover requires an import awaiting explicit cutover approval')
+    throw new Error(
+      'Cutover requires an import awaiting explicit cutover approval',
+    )
   }
-  const destination = deploymentManifestSchema.parse(options.destinationManifest)
+  const destination = deploymentManifestSchema.parse(
+    options.destinationManifest,
+  )
   if (
     report.operationId !== plan.operationId ||
     report.instanceId !== plan.instanceId ||
     report.exportManifestSha256 !== plan.exportManifestSha256 ||
     report.destinationManifestSha256 !== plan.destinationManifestSha256
   ) {
-    throw new Error('Execution report does not bind to the supplied import plan')
+    throw new Error(
+      'Execution report does not bind to the supplied import plan',
+    )
   }
   const approval = verifyCutoverApproval(plan, destination, options.approval)
   const now = options.now ?? (() => new Date().toISOString())
@@ -382,7 +494,9 @@ export async function executePortableCutover(options: {
     Date.parse(cutoverStartedAt) < Date.parse(approval.approvedAt) ||
     Date.parse(cutoverStartedAt) >= Date.parse(approval.rollbackDeadline)
   ) {
-    throw new Error('Cutover approval is stale, premature, or outside its rollback window')
+    throw new Error(
+      'Cutover approval is stale, premature, or outside its rollback window',
+    )
   }
   const steps = report.steps.map((step) => ({ ...step }))
   const context = { plan, destination }
@@ -410,7 +524,12 @@ export async function executePortableCutover(options: {
     return fail(14, 'domain-cutover-failed')
   }
   try {
-    if (!(await options.adapter.verifyIndependentOperation({ ...context, approval }))) {
+    if (
+      !(await options.adapter.verifyIndependentOperation({
+        ...context,
+        approval,
+      }))
+    ) {
       return fail(15, 'independent-operation-unhealthy')
     }
     succeed(15)

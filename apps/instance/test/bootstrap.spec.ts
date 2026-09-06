@@ -16,8 +16,7 @@ const ownerIdentity: AccessIdentity = {
   firstName: 'First',
   lastName: 'Owner',
 }
-const portableInstanceId =
-  'instance_42424242-1234-5678-9abc-123456789abc'
+const portableInstanceId = 'instance_42424242-1234-5678-9abc-123456789abc'
 
 beforeEach(async () => {
   await env.DB.batch([
@@ -32,7 +31,9 @@ beforeEach(async () => {
 describe('production instance bootstrap', () => {
   it('matches the configured owner email without case sensitivity or disclosure', () => {
     expect(isBootstrapOwner(ownerIdentity, ' OWNER@example.test ')).toBe(true)
-    expect(isBootstrapOwner(ownerIdentity, 'someone-else@example.test')).toBe(false)
+    expect(isBootstrapOwner(ownerIdentity, 'someone-else@example.test')).toBe(
+      false,
+    )
     expect(isBootstrapOwner(ownerIdentity, undefined)).toBe(false)
   })
 
@@ -82,26 +83,26 @@ describe('production instance bootstrap', () => {
       inspectBootstrapReadiness(env.DB, portableInstanceId, undefined),
     ).resolves.toMatchObject({ state: 'configured' })
 
-    const installation = await env.DB
-      .prepare(`
+    const installation = await env.DB.prepare(
+      `
         SELECT im.instance_id, im.topology, c.name, c.slug, c.status, c.plan,
                c.timezone, c.locale, cp.country_code
         FROM instance_metadata im
         JOIN churches c ON c.id = im.primary_church_id
         JOIN church_profiles cp ON cp.church_id = c.id
         WHERE im.singleton = 1
-      `)
-      .first<{
-        instance_id: string
-        topology: string
-        name: string
-        slug: string
-        status: string
-        plan: string
-        timezone: string
-        locale: string
-        country_code: string
-      }>()
+      `,
+    ).first<{
+      instance_id: string
+      topology: string
+      name: string
+      slug: string
+      status: string
+      plan: string
+      timezone: string
+      locale: string
+      country_code: string
+    }>()
     expect(installation).toEqual({
       instance_id: result.instance.id,
       topology: 'single-church',
@@ -114,8 +115,8 @@ describe('production instance bootstrap', () => {
       country_code: 'US',
     })
 
-    const owner = await env.DB
-      .prepare(`
+    const owner = await env.DB.prepare(
+      `
         SELECT u.email, ai.provider, ai.subject, r.key, rp.permission
         FROM users u
         JOIN auth_identities ai ON ai.user_id = u.id
@@ -124,7 +125,8 @@ describe('production instance bootstrap', () => {
         JOIN roles r ON r.id = mr.role_id AND r.church_id = cm.church_id
         JOIN role_permissions rp ON rp.role_id = r.id
         WHERE cm.church_id = ?
-      `)
+      `,
+    )
       .bind(result.instance.churchId)
       .first<{
         email: string
@@ -141,18 +143,20 @@ describe('production instance bootstrap', () => {
       permission: '*',
     })
 
-    const roleCount = await env.DB
-      .prepare('SELECT COUNT(*) AS total FROM roles WHERE church_id = ? AND is_system = 1')
+    const roleCount = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM roles WHERE church_id = ? AND is_system = 1',
+    )
       .bind(result.instance.churchId)
       .first<{ total: number }>()
     expect(roleCount?.total).toBe(4)
 
-    const audit = await env.DB
-      .prepare(`
+    const audit = await env.DB.prepare(
+      `
         SELECT action, entity_type, entity_id, request_id, metadata_json
         FROM audit_events
         WHERE church_id = ?
-      `)
+      `,
+    )
       .bind(result.instance.churchId)
       .first<{
         action: string
@@ -167,7 +171,9 @@ describe('production instance bootstrap', () => {
       entity_id: result.instance.id,
       request_id: 'request_bootstrap_test',
     })
-    expect(JSON.parse(audit!.metadata_json)).toEqual({ identityProvider: 'cloudflare-access' })
+    expect(JSON.parse(audit!.metadata_json)).toEqual({
+      identityProvider: 'cloudflare-access',
+    })
 
     const ownerApp = new Hono<{
       Bindings: Env
@@ -186,13 +192,21 @@ describe('production instance bootstrap', () => {
     )
     expect(draftResponse.status).toBe(200)
     await expect(draftResponse.json()).resolves.toMatchObject({
-      church: { id: result.instance.churchId, name: 'Grace Community Church', status: 'draft' },
+      church: {
+        id: result.instance.churchId,
+        name: 'Grace Community Church',
+        status: 'draft',
+      },
     })
 
     await expect(
       bootstrapInstance(
         env.DB,
-        { ...ownerIdentity, subject: 'second-owner', email: 'second@example.test' },
+        {
+          ...ownerIdentity,
+          subject: 'second-owner',
+          email: 'second@example.test',
+        },
         'second@example.test',
         portableInstanceId,
         {
@@ -204,7 +218,10 @@ describe('production instance bootstrap', () => {
         },
         'request_second_bootstrap',
       ),
-    ).rejects.toMatchObject({ status: 409, code: 'instance_already_configured' })
+    ).rejects.toMatchObject({
+      status: 409,
+      code: 'instance_already_configured',
+    })
   })
 
   it('rejects missing owner configuration, mismatched identities, and invalid timezones', async () => {
@@ -225,7 +242,10 @@ describe('production instance bootstrap', () => {
         input,
         'request_missing_owner',
       ),
-    ).rejects.toMatchObject({ status: 503, code: 'bootstrap_owner_not_configured' })
+    ).rejects.toMatchObject({
+      status: 503,
+      code: 'bootstrap_owner_not_configured',
+    })
     await expect(
       bootstrapInstance(
         env.DB,
@@ -261,9 +281,9 @@ describe('production instance bootstrap', () => {
       code: 'bootstrap_instance_id_not_configured',
     })
 
-    const instanceCount = await env.DB
-      .prepare('SELECT COUNT(*) AS total FROM instance_metadata')
-      .first<{ total: number }>()
+    const instanceCount = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM instance_metadata',
+    ).first<{ total: number }>()
     expect(instanceCount?.total).toBe(0)
   })
 })

@@ -26,12 +26,7 @@ pnpm dev
 Before opening a change, run:
 
 ```bash
-pnpm check:architecture
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm deploy:dry-run
-pnpm deploy:site:dry-run
+pnpm verify
 ```
 
 Keep changes focused and include tests for authorization, church boundaries,

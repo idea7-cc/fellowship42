@@ -24,11 +24,7 @@ type SupportSessionRow = {
   support_operator_id: string
   support_operator_display_name: string
   state:
-    | 'awaiting-local-approval'
-    | 'approved'
-    | 'rejected'
-    | 'revoked'
-    | 'expired'
+    'awaiting-local-approval' | 'approved' | 'rejected' | 'revoked' | 'expired'
   requested_at: number
   decision_due_at: number
   decided_at: number | null
@@ -78,21 +74,31 @@ function resource(row: SupportSessionRow): SupportSessionResource {
 }
 
 async function expireSessions(db: D1Database, now: number) {
-  await db.prepare(`
+  await db
+    .prepare(
+      `
     UPDATE management_support_sessions SET state = 'expired'
     WHERE (state = 'awaiting-local-approval' AND decision_due_at <= ?)
        OR (state = 'approved' AND expires_at <= ?)
-  `).bind(now, now).run()
+  `,
+    )
+    .bind(now, now)
+    .run()
 }
 
 async function sessionById(db: D1Database, requestId: string) {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT request_id, instance_id, connection_id, source_command_id, reason,
            requested_minutes, scope, support_operator_id,
            support_operator_display_name, state, requested_at, decision_due_at,
            decided_at, expires_at, revoked_at, decision_reason
     FROM management_support_sessions WHERE request_id = ?
-  `).bind(requestId).first<SupportSessionRow>()
+  `,
+    )
+    .bind(requestId)
+    .first<SupportSessionRow>()
 }
 
 function output(row: SupportSessionRow) {
@@ -130,7 +136,11 @@ export async function requestSupportSession(
 ) {
   const command = managementCommandSchema.parse(commandInput) as SupportCommand
   if (command.type !== 'support.session.request') {
-    throw new AppError(422, 'support_command_invalid', 'Expected a support session request')
+    throw new AppError(
+      422,
+      'support_command_invalid',
+      'Expected a support session request',
+    )
   }
   await expireSessions(db, now)
   const requestId = command.input.requestId ?? crypto.randomUUID()
@@ -160,43 +170,51 @@ export async function requestSupportSession(
   }
 
   await db.batch([
-    db.prepare(`
+    db
+      .prepare(
+        `
       INSERT INTO management_support_sessions (
         request_id, instance_id, connection_id, source_command_id, reason,
         requested_minutes, scope, support_operator_id,
         support_operator_display_name, state, requested_at, decision_due_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'awaiting-local-approval', ?, ?)
-    `).bind(
-      requestId,
-      connection.instanceId,
-      connection.connectionId,
-      command.commandId,
-      command.input.reason,
-      command.input.requestedMinutes,
-      scope,
-      supportOperator.id,
-      supportOperator.displayName,
-      now,
-      now + PENDING_APPROVAL_MS,
-    ),
-    db.prepare(`
+    `,
+      )
+      .bind(
+        requestId,
+        connection.instanceId,
+        connection.connectionId,
+        command.commandId,
+        command.input.reason,
+        command.input.requestedMinutes,
+        scope,
+        supportOperator.id,
+        supportOperator.displayName,
+        now,
+        now + PENDING_APPROVAL_MS,
+      ),
+    db
+      .prepare(
+        `
       INSERT INTO audit_events (
         id, church_id, actor_user_id, action, entity_type, entity_id,
         request_id, metadata_json, occurred_at
       ) VALUES (?, ?, NULL, 'management.support_session_requested',
                 'management_support_session', ?, ?, ?, ?)
-    `).bind(
-      crypto.randomUUID(),
-      churchId,
-      requestId,
-      managementMessageId,
-      JSON.stringify({
-        operatorId: supportOperator.id,
-        scope,
-        requestedMinutes: command.input.requestedMinutes,
-      }),
-      now,
-    ),
+    `,
+      )
+      .bind(
+        crypto.randomUUID(),
+        churchId,
+        requestId,
+        managementMessageId,
+        JSON.stringify({
+          operatorId: supportOperator.id,
+          scope,
+          requestedMinutes: command.input.requestedMinutes,
+        }),
+        now,
+      ),
   ])
   const created = await sessionById(db, requestId)
   if (!created) throw new Error('Support session request disappeared')
@@ -209,7 +227,9 @@ export async function listSupportSessions(
   now = Date.now(),
 ) {
   await expireSessions(db, now)
-  const rows = await db.prepare(`
+  const rows = await db
+    .prepare(
+      `
     SELECT request_id, instance_id, connection_id, source_command_id, reason,
            requested_minutes, scope, support_operator_id,
            support_operator_display_name, state, requested_at, decision_due_at,
@@ -217,7 +237,10 @@ export async function listSupportSessions(
     FROM management_support_sessions
     WHERE instance_id = ?
     ORDER BY requested_at DESC, request_id DESC LIMIT 50
-  `).bind(instanceId).all<SupportSessionRow>()
+  `,
+    )
+    .bind(instanceId)
+    .all<SupportSessionRow>()
   return rows.results.map(resource)
 }
 
@@ -233,51 +256,102 @@ export async function decideSupportSession(
 ) {
   await expireSessions(db, now)
   const prior = await sessionById(db, requestId)
-  if (!prior || prior.instance_id !== (await db.prepare(
-    'SELECT instance_id FROM instance_metadata WHERE singleton = 1',
-  ).first<{ instance_id: string }>())?.instance_id) {
-    throw new AppError(404, 'support_session_not_found', 'Support session request not found')
+  if (
+    !prior ||
+    prior.instance_id !==
+      (
+        await db
+          .prepare(
+            'SELECT instance_id FROM instance_metadata WHERE singleton = 1',
+          )
+          .first<{ instance_id: string }>()
+      )?.instance_id
+  ) {
+    throw new AppError(
+      404,
+      'support_session_not_found',
+      'Support session request not found',
+    )
   }
   if (action === 'revoke') {
     if (prior.state !== 'approved') {
-      throw new AppError(409, 'support_session_not_active', 'Only an active support session can be revoked')
+      throw new AppError(
+        409,
+        'support_session_not_active',
+        'Only an active support session can be revoked',
+      )
     }
   } else if (prior.state !== 'awaiting-local-approval') {
-    throw new AppError(409, 'support_session_already_decided', 'The support session request is no longer awaiting a decision')
+    throw new AppError(
+      409,
+      'support_session_already_decided',
+      'The support session request is no longer awaiting a decision',
+    )
   }
-  const nextState = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'revoked'
-  const expiresAt = action === 'approve' ? now + prior.requested_minutes * 60_000 : prior.expires_at
-  const changed = action === 'revoke'
-    ? await db.prepare(`
+  const nextState =
+    action === 'approve'
+      ? 'approved'
+      : action === 'reject'
+        ? 'rejected'
+        : 'revoked'
+  const expiresAt =
+    action === 'approve'
+      ? now + prior.requested_minutes * 60_000
+      : prior.expires_at
+  const changed =
+    action === 'revoke'
+      ? await db
+          .prepare(
+            `
         UPDATE management_support_sessions
         SET state = 'revoked', revoked_by_user_id = ?, revoked_at = ?,
             decision_reason = ?
         WHERE request_id = ? AND state = 'approved'
-      `).bind(actorUserId, now, reason, requestId).run()
-    : await db.prepare(`
+      `,
+          )
+          .bind(actorUserId, now, reason, requestId)
+          .run()
+      : await db
+          .prepare(
+            `
         UPDATE management_support_sessions
         SET state = ?, decided_by_user_id = ?, decided_at = ?, expires_at = ?,
             decision_reason = ?
         WHERE request_id = ? AND state = 'awaiting-local-approval'
-      `).bind(nextState, actorUserId, now, expiresAt, reason, requestId).run()
+      `,
+          )
+          .bind(nextState, actorUserId, now, expiresAt, reason, requestId)
+          .run()
   if ((changed.meta.changes ?? 0) !== 1) {
-    throw new AppError(409, 'support_session_changed', 'The support session changed while applying the decision')
+    throw new AppError(
+      409,
+      'support_session_changed',
+      'The support session changed while applying the decision',
+    )
   }
-  await db.prepare(`
+  await db
+    .prepare(
+      `
     INSERT INTO audit_events (
       id, church_id, actor_user_id, action, entity_type, entity_id,
       request_id, metadata_json, occurred_at
     ) VALUES (?, ?, ?, ?, 'management_support_session', ?, ?, ?, ?)
-  `).bind(
-    crypto.randomUUID(),
-    churchId,
-    actorUserId,
-    `management.support_session_${nextState}`,
-    requestId,
-    requestTraceId,
-    JSON.stringify({ scope: prior.scope, operatorId: prior.support_operator_id }),
-    now,
-  ).run()
+  `,
+    )
+    .bind(
+      crypto.randomUUID(),
+      churchId,
+      actorUserId,
+      `management.support_session_${nextState}`,
+      requestId,
+      requestTraceId,
+      JSON.stringify({
+        scope: prior.scope,
+        operatorId: prior.support_operator_id,
+      }),
+      now,
+    )
+    .run()
   const updated = await sessionById(db, requestId)
   if (!updated) throw new Error('Support session decision disappeared')
   return resource(updated)

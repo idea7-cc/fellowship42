@@ -15,7 +15,12 @@ interface HeroProps extends React.HTMLAttributes<HTMLElement> {
  * congregation's identity while the surrounding chrome stays neutral. Place
  * them inside a <ChurchTheme> for the tokens to resolve to that church.
  */
-export function Hero({ children, className, variant = 'default', ...props }: HeroProps) {
+export function Hero({
+  children,
+  className,
+  variant = 'default',
+  ...props
+}: HeroProps) {
   return (
     <section
       className={cn(
@@ -27,20 +32,33 @@ export function Hero({ children, className, variant = 'default', ...props }: Her
           // against the card so it stays subtle on any preset.
           'before:pointer-events-none before:absolute before:inset-0',
           'before:bg-[radial-gradient(80%_120%_at_0%_0%,var(--church-accent),transparent_70%)]',
-          variant === 'church' ? 'before:opacity-[0.07]' : 'before:opacity-[0.12]',
+          variant === 'church'
+            ? 'before:opacity-[0.07]'
+            : 'before:opacity-[0.12]',
         ],
         className,
       )}
       {...props}
     >
-      {variant === 'default' ? children : <div className="relative">{children}</div>}
+      {variant === 'default' ? (
+        children
+      ) : (
+        <div className="relative">{children}</div>
+      )}
     </section>
   )
 }
 
-export function HeroActions({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function HeroActions({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('mt-5 flex flex-wrap items-center gap-2', className)} {...props}>
+    <div
+      className={cn('mt-5 flex flex-wrap items-center gap-2', className)}
+      {...props}
+    >
       {children}
     </div>
   )

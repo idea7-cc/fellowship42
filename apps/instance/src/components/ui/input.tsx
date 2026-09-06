@@ -4,7 +4,10 @@ import { Search } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { controlClass, controlSizeClass, type ControlSize } from './control'
 
-export interface InputProps extends Omit<React.ComponentProps<'input'>, 'size'> {
+export interface InputProps extends Omit<
+  React.ComponentProps<'input'>,
+  'size'
+> {
   inputSize?: ControlSize
 }
 
@@ -33,7 +36,13 @@ const SearchInput = React.forwardRef<HTMLInputElement, InputProps>(
         aria-hidden
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
       />
-      <Input className="pl-8.5" inputSize={inputSize} ref={ref} type="search" {...props} />
+      <Input
+        className="pl-8.5"
+        inputSize={inputSize}
+        ref={ref}
+        type="search"
+        {...props}
+      />
     </div>
   ),
 )

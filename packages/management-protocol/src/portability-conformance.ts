@@ -18,8 +18,7 @@ export const portableRestoreConformanceScenarioIdSchema = z.enum([
   'partial-restore-fails-closed',
 ])
 
-const orderedScenarioIds =
-  portableRestoreConformanceScenarioIdSchema.options
+const orderedScenarioIds = portableRestoreConformanceScenarioIdSchema.options
 
 export const portableRestoreConformanceReportSchema = z
   .object({

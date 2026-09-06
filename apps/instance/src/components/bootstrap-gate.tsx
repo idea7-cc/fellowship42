@@ -1,9 +1,18 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { SignInButton, SignOutButton } from '@/lib/auth-provider'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
-import type { BootstrapResponse, BootstrapStatusResponse } from '@/lib/api-types'
+import type {
+  BootstrapResponse,
+  BootstrapStatusResponse,
+} from '@/lib/api-types'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { ChurchProvider } from '@/lib/church-context'
@@ -19,8 +28,12 @@ function Page({ children }: { children: ReactNode }) {
           >
             42
           </span>
-          <span className="text-sm font-semibold tracking-tight">Fellowship42</span>
-          <span className="text-sm text-muted-foreground">· Instance setup</span>
+          <span className="text-sm font-semibold tracking-tight">
+            Fellowship42
+          </span>
+          <span className="text-sm text-muted-foreground">
+            · Instance setup
+          </span>
         </div>
         {children}
       </div>
@@ -34,7 +47,10 @@ function SetupField({
   required,
   ...inputProps
 }: React.ComponentProps<typeof Input> & { label: string; hint?: string }) {
-  const id = useMemo(() => `bootstrap-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, [label])
+  const id = useMemo(
+    () => `bootstrap-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    [label],
+  )
   return (
     <Field hint={hint} htmlFor={id} label={label} required={required}>
       <Input id={id} required={required} {...inputProps} />
@@ -45,7 +61,8 @@ function SetupField({
 function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const defaultTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+  const defaultTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
   const defaultLocale = navigator.language || 'en-US'
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -54,7 +71,7 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
     setError(null)
     const form = new FormData(event.currentTarget)
     try {
-      const result = await apiRequest<BootstrapResponse>('/api/bootstrap', {
+      await apiRequest<BootstrapResponse>('/api/bootstrap', {
         method: 'POST',
         body: JSON.stringify({
           name: form.get('name'),
@@ -82,13 +99,20 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
       <CardHeader>
         <CardTitle>Create this church instance</CardTitle>
         <CardDescription>
-          This creates one portable church, its permanent instance identity, and your first owner
-          membership. It does not connect Fellowship42 Cloud.
+          This creates one portable church, its permanent instance identity, and
+          your first owner membership. It does not connect Fellowship42 Cloud.
         </CardDescription>
       </CardHeader>
       <CardContent className="mt-6">
         <form className="grid gap-5" onSubmit={submit}>
-          <SetupField label="Church name" name="name" required minLength={2} maxLength={120} autoFocus />
+          <SetupField
+            label="Church name"
+            name="name"
+            required
+            minLength={2}
+            maxLength={120}
+            autoFocus
+          />
           <SetupField
             label="Church slug"
             name="slug"
@@ -100,8 +124,18 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
             hint="Lowercase letters, numbers, and single hyphens."
           />
           <div className="grid gap-5 sm:grid-cols-2">
-            <SetupField label="Timezone" name="timezone" required defaultValue={defaultTimezone} />
-            <SetupField label="Locale" name="locale" required defaultValue={defaultLocale} />
+            <SetupField
+              label="Timezone"
+              name="timezone"
+              required
+              defaultValue={defaultTimezone}
+            />
+            <SetupField
+              label="Locale"
+              name="locale"
+              required
+              defaultValue={defaultLocale}
+            />
           </div>
           <SetupField
             label="Country code"
@@ -133,12 +167,17 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
 }
 
 export function BootstrapGate({ children }: { children: ReactNode }) {
-  const { data, error, isLoading, refetch } = useApiQuery<BootstrapStatusResponse>('/api/bootstrap')
+  const { data, error, isLoading, refetch } =
+    useApiQuery<BootstrapStatusResponse>('/api/bootstrap')
 
   if (isLoading) {
     return (
       <Page>
-        <Card><CardContent><p>Checking instance setup…</p></CardContent></Card>
+        <Card>
+          <CardContent>
+            <p>Checking instance setup…</p>
+          </CardContent>
+        </Card>
       </Page>
     )
   }
@@ -149,7 +188,9 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
         <Card>
           <CardHeader>
             <CardTitle>Setup status is unavailable</CardTitle>
-            <CardDescription>{error?.message ?? 'The instance did not return a setup status.'}</CardDescription>
+            <CardDescription>
+              {error?.message ?? 'The instance did not return a setup status.'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="mt-5">
             <Button onClick={() => void refetch()}>Try again</Button>
@@ -171,8 +212,9 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
           <CardHeader>
             <CardTitle>First owner configuration required</CardTitle>
             <CardDescription>
-              Set the deployment-scoped <code>BOOTSTRAP_OWNER_EMAIL</code> Worker secret to the
-              exact email allowed to initialize this instance, then reload this page.
+              Set the deployment-scoped <code>BOOTSTRAP_OWNER_EMAIL</code>{' '}
+              Worker secret to the exact email allowed to initialize this
+              instance, then reload this page.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -187,11 +229,13 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
           <CardHeader>
             <CardTitle>Sign in as the first owner</CardTitle>
             <CardDescription>
-              Cloudflare Access verifies the identity selected during deployment before setup can
-              create any church records.
+              Cloudflare Access verifies the identity selected during deployment
+              before setup can create any church records.
             </CardDescription>
           </CardHeader>
-          <CardContent className="mt-5"><SignInButton /></CardContent>
+          <CardContent className="mt-5">
+            <SignInButton />
+          </CardContent>
         </Card>
       </Page>
     )
@@ -202,17 +246,25 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
       <Page>
         <Card>
           <CardHeader>
-            <CardTitle>This account is not the configured first owner</CardTitle>
+            <CardTitle>
+              This account is not the configured first owner
+            </CardTitle>
             <CardDescription>
-              Sign out and use the exact Access identity selected for this deployment. The expected
-              email is never returned to the browser.
+              Sign out and use the exact Access identity selected for this
+              deployment. The expected email is never returned to the browser.
             </CardDescription>
           </CardHeader>
-          <CardContent className="mt-5"><SignOutButton /></CardContent>
+          <CardContent className="mt-5">
+            <SignOutButton />
+          </CardContent>
         </Card>
       </Page>
     )
   }
 
-  return <Page><BootstrapForm refetch={refetch} /></Page>
+  return (
+    <Page>
+      <BootstrapForm refetch={refetch} />
+    </Page>
+  )
 }

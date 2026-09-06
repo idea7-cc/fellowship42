@@ -1,9 +1,4 @@
-import {
-  type ReactNode,
-  createContext,
-  useContext,
-  useMemo,
-} from 'react'
+import { type ReactNode, createContext, useContext, useMemo } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useApiQuery } from './api'
@@ -24,7 +19,8 @@ const AuthStateContext = createContext<AuthState | null>(null)
  * church roles and permissions for the UI.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading, refetch } = useApiQuery<SessionResponse>('/api/session')
+  const { data, error, isLoading, refetch } =
+    useApiQuery<SessionResponse>('/api/session')
 
   const value = useMemo<AuthState>(
     () => ({
@@ -37,10 +33,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   if (error && error.status >= 500) {
-    console.error('[Fellowship42] Unable to load the Cloudflare Access session', error)
+    console.error(
+      '[Fellowship42] Unable to load the Cloudflare Access session',
+      error,
+    )
   }
 
-  return <AuthStateContext.Provider value={value}>{children}</AuthStateContext.Provider>
+  return (
+    <AuthStateContext.Provider value={value}>
+      {children}
+    </AuthStateContext.Provider>
+  )
 }
 
 export function useAuthState(): AuthState {

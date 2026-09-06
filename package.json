@@ -12,7 +12,7 @@
     "build": "pnpm -r --if-present build",
     "build:site": "pnpm --filter @fellowship42/project-site build",
     "typecheck": "pnpm build:contracts && pnpm -r --if-present typecheck",
-    "test": "pnpm build:contracts && pnpm -r --if-present test",
+    "test": "pnpm test:tooling && pnpm build:contracts && pnpm -r --if-present test",
     "test:migration-rehearsal": "pnpm build:contracts && pnpm --filter @fellowship42/f42ctl build && node scripts/rehearse-hosted-to-church-owned.mjs",
     "check:architecture": "node scripts/check-repository-boundaries.mjs",
     "cf-typegen": "pnpm --filter @fellowship42/instance cf-typegen",
@@ -28,11 +28,23 @@
     "release:artifacts": "pnpm build && pnpm release:assemble && pnpm release:check-reproducibility",
     "release:check-reproducibility": "node scripts/check-release-reproducibility.mjs",
     "release:check-tag": "node scripts/check-release-tag.mjs",
-    "f42ctl": "node tooling/f42ctl/dist/cli.js"
+    "f42ctl": "node tooling/f42ctl/dist/cli.js",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write \"{apps,packages,tooling,scripts}/**/*.{ts,tsx,mjs}\" \"*.mjs\" \"*.json\"",
+    "format:check": "prettier --check \"{apps,packages,tooling,scripts}/**/*.{ts,tsx,mjs}\" \"*.mjs\" \"*.json\"",
+    "test:tooling": "node --test scripts/*.test.mjs",
+    "verify": "pnpm check:architecture && pnpm format:check && pnpm lint && pnpm cf-typegen:check && pnpm typecheck && pnpm test && pnpm test:migration-rehearsal && pnpm build && pnpm deploy:dry-run && pnpm deploy:site:dry-run"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "fflate": "0.8.2",
-    "typescript": "^5.7.0"
+    "prettier": "^3.9.5",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.69.0"
+  },
+  "engines": {
+    "node": ">=22.23.2 <23"
   }
 }

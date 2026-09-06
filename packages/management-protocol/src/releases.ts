@@ -13,9 +13,9 @@ export const semanticVersionSchema = z
 
 export function compareSemanticVersions(left: string, right: string): number {
   const parse = (value: string) => {
-    const match = semanticVersionSchema.parse(value).match(
-      /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/,
-    )!
+    const match = semanticVersionSchema
+      .parse(value)
+      .match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/)!
     return {
       core: [BigInt(match[1]!), BigInt(match[2]!), BigInt(match[3]!)],
       prerelease: match[4]?.split('.') ?? null,
@@ -181,7 +181,9 @@ export const releaseUpgradeMetadataSchema = z
 
 export type ReleaseUpgradeSource = z.infer<typeof releaseUpgradeSourceSchema>
 export type ReleaseUpgradeTarget = z.infer<typeof releaseUpgradeTargetSchema>
-export type ReleaseUpgradeMetadata = z.infer<typeof releaseUpgradeMetadataSchema>
+export type ReleaseUpgradeMetadata = z.infer<
+  typeof releaseUpgradeMetadataSchema
+>
 
 export const releaseManifestSchema = z
   .object({

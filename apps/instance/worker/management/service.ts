@@ -361,7 +361,9 @@ async function activeConnection(
         ),
         syncUrl: row.sync_url,
         grantVersion: row.grant_version,
-        grantSet: managementGrantSetSchema.parse(JSON.parse(row.grant_set_json)),
+        grantSet: managementGrantSetSchema.parse(
+          JSON.parse(row.grant_set_json),
+        ),
         grantReviewDueAt: row.grant_review_due_at,
         approvedAt: row.approved_at,
         enrollmentApproval: managementJwsSchema.parse(
@@ -371,8 +373,7 @@ async function activeConnection(
         pendingControlMessage: row.pending_control_jws_json
           ? managementJwsSchema.parse(JSON.parse(row.pending_control_jws_json))
           : null,
-        pendingRotationLocalApprovalId:
-          row.pending_rotation_local_approval_id,
+        pendingRotationLocalApprovalId: row.pending_rotation_local_approval_id,
         pendingReplacement:
           row.pending_replacement_key_id &&
           row.pending_replacement_public_jwk_json &&
@@ -384,8 +385,7 @@ async function activeConnection(
                 publicKey: managementPublicKeySchema.parse(
                   JSON.parse(row.pending_replacement_public_jwk_json),
                 ),
-                ciphertext:
-                  row.pending_replacement_private_jwk_ciphertext,
+                ciphertext: row.pending_replacement_private_jwk_ciphertext,
                 iv: row.pending_replacement_private_jwk_iv,
               }
             : null,
@@ -499,14 +499,22 @@ export async function submitEnrollmentProposal(
     )
   }
   if (proposal.type !== 'enrollment.proposal') {
-    throw new AppError(422, 'invalid_enrollment_message', 'Expected an enrollment proposal')
+    throw new AppError(
+      422,
+      'invalid_enrollment_message',
+      'Expected an enrollment proposal',
+    )
   }
   if (
     proposal.challengeId !== input.challengeId ||
     proposal.instanceId !== installed.instanceId ||
     proposal.audienceKeyId !== (await readIdentity(db))?.keyId
   ) {
-    throw new AppError(403, 'enrollment_binding_mismatch', 'Enrollment proposal does not match this instance')
+    throw new AppError(
+      403,
+      'enrollment_binding_mismatch',
+      'Enrollment proposal does not match this instance',
+    )
   }
   if (
     JSON.stringify(proposal.operator.key) !== JSON.stringify(input.operatorKey)
@@ -517,36 +525,46 @@ export async function submitEnrollmentProposal(
       'The submitted operator key does not match the signed proposal',
     )
   }
-  if (Date.parse(proposal.issuedAt) > now + 60_000 || Date.parse(proposal.expiresAt) < now - 60_000) {
-    throw new AppError(403, 'enrollment_proposal_stale', 'Enrollment proposal is outside the accepted clock window')
+  if (
+    Date.parse(proposal.issuedAt) > now + 60_000 ||
+    Date.parse(proposal.expiresAt) < now - 60_000
+  ) {
+    throw new AppError(
+      403,
+      'enrollment_proposal_stale',
+      'Enrollment proposal is outside the accepted clock window',
+    )
   }
 
   const codeHash = await sha256Hex(input.oneTimeCode)
   const proposalWrite = await db.batch([
-    db.prepare(
-      `UPDATE management_enrollment_challenges
+    db
+      .prepare(
+        `UPDATE management_enrollment_challenges
        SET consumed_at = ?, proposal_jws_json = ?, operator_id = ?,
            operator_display_name = ?, operator_key_id = ?,
            operator_public_jwk_json = ?, sync_url = ?,
            requested_capabilities_json = ?
        WHERE challenge_id = ? AND instance_id = ? AND consumed_at IS NULL
          AND expires_at >= ? AND code_sha256 = ?`,
-    ).bind(
-      now,
-      JSON.stringify(input.proposal),
-      proposal.operator.id,
-      proposal.operator.displayName,
-      proposal.operator.key.kid,
-      JSON.stringify(proposal.operator.key),
-      proposal.operator.syncUrl,
-      JSON.stringify(proposal.requestedCapabilities),
-      input.challengeId,
-      installed.instanceId,
-      now,
-      codeHash,
-    ),
-    db.prepare(
-      `INSERT OR IGNORE INTO audit_events (
+      )
+      .bind(
+        now,
+        JSON.stringify(input.proposal),
+        proposal.operator.id,
+        proposal.operator.displayName,
+        proposal.operator.key.kid,
+        JSON.stringify(proposal.operator.key),
+        proposal.operator.syncUrl,
+        JSON.stringify(proposal.requestedCapabilities),
+        input.challengeId,
+        installed.instanceId,
+        now,
+        codeHash,
+      ),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO audit_events (
          id, church_id, actor_user_id, action, entity_type, entity_id,
          request_id, metadata_json, occurred_at
        )
@@ -557,26 +575,31 @@ export async function submitEnrollmentProposal(
          WHERE challenge_id = ? AND instance_id = ?
            AND consumed_at = ? AND proposal_jws_json = ?
        )`,
-    ).bind(
-      `management-proposal:${input.challengeId}`,
-      installed.churchId,
-      input.challengeId,
-      requestId,
-      JSON.stringify({
-        operatorId: proposal.operator.id,
-        operatorKeyId: proposal.operator.key.kid,
-        requestedCapabilityCount: proposal.requestedCapabilities.length,
-      }),
-      now,
-      input.challengeId,
-      installed.instanceId,
-      now,
-      JSON.stringify(input.proposal),
-    ),
+      )
+      .bind(
+        `management-proposal:${input.challengeId}`,
+        installed.churchId,
+        input.challengeId,
+        requestId,
+        JSON.stringify({
+          operatorId: proposal.operator.id,
+          operatorKeyId: proposal.operator.key.kid,
+          requestedCapabilityCount: proposal.requestedCapabilities.length,
+        }),
+        now,
+        input.challengeId,
+        installed.instanceId,
+        now,
+        JSON.stringify(input.proposal),
+      ),
   ])
   const result = proposalWrite[0]
   if ((result.meta.changes ?? 0) !== 1) {
-    throw new AppError(403, 'enrollment_challenge_invalid', 'Enrollment challenge is invalid, expired, or already used')
+    throw new AppError(
+      403,
+      'enrollment_challenge_invalid',
+      'Enrollment challenge is invalid, expired, or already used',
+    )
   }
   return {
     challengeId: input.challengeId,
@@ -585,7 +608,9 @@ export async function submitEnrollmentProposal(
       displayName: proposal.operator.displayName,
       syncUrl: proposal.operator.syncUrl,
       keyId: proposal.operator.key.kid,
-      keyFingerprint: await managementPublicKeyFingerprint(proposal.operator.key),
+      keyFingerprint: await managementPublicKeyFingerprint(
+        proposal.operator.key,
+      ),
     },
     requestedCapabilities: proposal.requestedCapabilities,
   }
@@ -646,7 +671,11 @@ export async function approveEnrollment(
       consumed_at: number
     }>()
   if (!challenge) {
-    throw new AppError(404, 'enrollment_proposal_not_found', 'Verified enrollment proposal not found')
+    throw new AppError(
+      404,
+      'enrollment_proposal_not_found',
+      'Verified enrollment proposal not found',
+    )
   }
   if (challenge.consumed_at < now - 30 * 60_000) {
     throw new AppError(
@@ -656,13 +685,21 @@ export async function approveEnrollment(
     )
   }
   if (await activeConnection(db)) {
-    throw new AppError(409, 'management_already_connected', 'The instance already has an active operator')
+    throw new AppError(
+      409,
+      'management_already_connected',
+      'The instance already has an active operator',
+    )
   }
   const requested = new Set<string>(
     JSON.parse(challenge.requested_capabilities_json),
   )
   if (grants.grants.some((grant) => !requested.has(grant.capability))) {
-    throw new AppError(422, 'grant_not_requested', 'A grant was not requested by the operator')
+    throw new AppError(
+      422,
+      'grant_not_requested',
+      'A grant was not requested by the operator',
+    )
   }
 
   const identity = await readIdentity(db)
@@ -762,7 +799,11 @@ export async function approveEnrollment(
   try {
     await db.batch(statements)
   } catch {
-    throw new AppError(409, 'management_already_connected', 'The instance already has an active operator')
+    throw new AppError(
+      409,
+      'management_already_connected',
+      'The instance already has an active operator',
+    )
   }
   return { connectionId, approval }
 }
@@ -826,7 +867,11 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           requires_local_approval: number
         }>()
     : { results: [] }
-  const supportSessions = await listSupportSessions(db, installed.instanceId, now)
+  const supportSessions = await listSupportSessions(
+    db,
+    installed.instanceId,
+    now,
+  )
   return {
     instanceId: installed.instanceId,
     enabled: Boolean(connection),
@@ -860,7 +905,9 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
       ? {
           connectionId: lastDisposition.connection_id,
           operatorId: lastDisposition.operator_id,
-          disconnectedAt: new Date(lastDisposition.disconnected_at).toISOString(),
+          disconnectedAt: new Date(
+            lastDisposition.disconnected_at,
+          ).toISOString(),
         }
       : null,
     supportSessions,
@@ -1024,7 +1071,11 @@ export async function rotateManagementIdentity(
   const connection = await activeConnection(db)
   const previous = await readIdentity(db)
   if (!connection || !previous) {
-    throw new AppError(409, 'management_not_connected', 'No active management connection exists')
+    throw new AppError(
+      409,
+      'management_not_connected',
+      'No active management connection exists',
+    )
   }
   if (connection.pendingReplacement) {
     throw new AppError(
@@ -1051,10 +1102,14 @@ export async function rotateManagementIdentity(
     previousKeyValidUntil: new Date(now + 5 * 60_000).toISOString(),
     localApprovalId,
   } as const
-  const signed = await signManagementPayload(payload, await privateKey(env, previous))
+  const signed = await signManagementPayload(
+    payload,
+    await privateKey(env, previous),
+  )
   const rotation = await db.batch([
-    db.prepare(
-      `UPDATE management_connections
+    db
+      .prepare(
+        `UPDATE management_connections
        SET pending_control_jws_json = ?,
            pending_rotation_local_approval_id = ?,
            pending_replacement_key_id = ?,
@@ -1067,18 +1122,20 @@ export async function rotateManagementIdentity(
            SELECT 1 FROM management_identities
            WHERE singleton = 1 AND key_id = ?
          )`,
-    ).bind(
-      JSON.stringify(signed),
-      localApprovalId,
-      replacement.keyId,
-      JSON.stringify(replacement.publicKey),
-      replacement.ciphertext,
-      replacement.iv,
-      connection.connectionId,
-      previous.keyId,
-    ),
-    db.prepare(
-      `INSERT INTO audit_events (
+      )
+      .bind(
+        JSON.stringify(signed),
+        localApprovalId,
+        replacement.keyId,
+        JSON.stringify(replacement.publicKey),
+        replacement.ciphertext,
+        replacement.iv,
+        connection.connectionId,
+        previous.keyId,
+      ),
+    db
+      .prepare(
+        `INSERT INTO audit_events (
          id, church_id, actor_user_id, action, entity_type, entity_id,
          request_id, metadata_json, occurred_at
        )
@@ -1089,20 +1146,21 @@ export async function rotateManagementIdentity(
          WHERE connection_id = ? AND status = 'active'
            AND pending_replacement_key_id = ?
        )`,
-    ).bind(
-      crypto.randomUUID(),
-      installed.churchId,
-      actorUserId,
-      connection.connectionId,
-      requestId,
-      JSON.stringify({
-        previousKeyId: previous.keyId,
-        replacementKeyId: replacement.keyId,
-      }),
-      now,
-      connection.connectionId,
-      replacement.keyId,
-    ),
+      )
+      .bind(
+        crypto.randomUUID(),
+        installed.churchId,
+        actorUserId,
+        connection.connectionId,
+        requestId,
+        JSON.stringify({
+          previousKeyId: previous.keyId,
+          replacementKeyId: replacement.keyId,
+        }),
+        now,
+        connection.connectionId,
+        replacement.keyId,
+      ),
   ])
   if ((rotation[0]?.meta.changes ?? 0) !== 1) {
     throw new AppError(
@@ -1149,7 +1207,12 @@ export async function disconnectManagement(
              decision_reason = ?
          WHERE connection_id = ? AND state = 'awaiting-local-approval'`,
       )
-      .bind(actorUserId, now, 'Management disconnected locally', connection.connectionId),
+      .bind(
+        actorUserId,
+        now,
+        'Management disconnected locally',
+        connection.connectionId,
+      ),
     db
       .prepare(
         `UPDATE management_support_sessions
@@ -1157,19 +1220,20 @@ export async function disconnectManagement(
              decision_reason = ?
          WHERE connection_id = ? AND state = 'approved'`,
       )
-      .bind(actorUserId, now, 'Management disconnected locally', connection.connectionId),
+      .bind(
+        actorUserId,
+        now,
+        'Management disconnected locally',
+        connection.connectionId,
+      ),
     db
       .prepare(`DELETE FROM management_grants WHERE connection_id = ?`)
       .bind(connection.connectionId),
     db
-      .prepare(
-        `DELETE FROM management_replay_records WHERE connection_id = ?`,
-      )
+      .prepare(`DELETE FROM management_replay_records WHERE connection_id = ?`)
       .bind(connection.connectionId),
     db
-      .prepare(
-        `DELETE FROM management_command_records WHERE connection_id = ?`,
-      )
+      .prepare(`DELETE FROM management_command_records WHERE connection_id = ?`)
       .bind(connection.connectionId),
     db
       .prepare(

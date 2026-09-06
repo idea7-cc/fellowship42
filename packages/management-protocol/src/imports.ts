@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { deploymentReleaseSchema, portableInstanceIdSchema } from './lifecycle.js'
+import {
+  deploymentReleaseSchema,
+  portableInstanceIdSchema,
+} from './lifecycle.js'
 import { sha256DigestSchema } from './releases.js'
 
 export const PORTABLE_IMPORT_FORMAT_VERSION = 1 as const
@@ -87,7 +90,10 @@ export const importPlanSchema = z
     ] as const
     for (const [position, step] of plan.steps.entries()) {
       const expectedId = `import-${String(position + 1).padStart(2, '0')}`
-      if (step.id !== expectedId || step.kind !== importStepKindSchema.options[position]) {
+      if (
+        step.id !== expectedId ||
+        step.kind !== importStepKindSchema.options[position]
+      ) {
         context.addIssue({
           code: 'custom',
           message: `Expected ordered import step ${expectedId}`,
@@ -102,7 +108,11 @@ export const importPlanSchema = z
         })
       }
       if (seen.has(step.id)) {
-        context.addIssue({ code: 'custom', message: 'Duplicate import step', path: ['steps', position] })
+        context.addIssue({
+          code: 'custom',
+          message: 'Duplicate import step',
+          path: ['steps', position],
+        })
       }
       for (const dependency of step.dependsOn) {
         if (!seen.has(dependency)) {
@@ -118,16 +128,21 @@ export const importPlanSchema = z
       if (step.approvalRequired !== (cutoverStep || sourceStep)) {
         context.addIssue({
           code: 'custom',
-          message: 'Only cutover and source-routing changes require explicit approval',
+          message:
+            'Only cutover and source-routing changes require explicit approval',
           path: ['steps', position, 'approvalRequired'],
         })
       }
       seen.add(step.id)
     }
-    if (JSON.stringify(plan.sourceRelease) !== JSON.stringify(plan.destinationRelease)) {
+    if (
+      JSON.stringify(plan.sourceRelease) !==
+      JSON.stringify(plan.destinationRelease)
+    ) {
       context.addIssue({
         code: 'custom',
-        message: 'Import format v1 requires an exact source and destination release match',
+        message:
+          'Import format v1 requires an exact source and destination release match',
         path: ['destinationRelease'],
       })
     }
@@ -171,7 +186,8 @@ export const cutoverApprovalSchema = z
   .strict()
   .superRefine((approval, context) => {
     if (
-      Date.parse(approval.destinationVerifiedAt) > Date.parse(approval.approvedAt) ||
+      Date.parse(approval.destinationVerifiedAt) >
+        Date.parse(approval.approvedAt) ||
       Date.parse(approval.sourceVerifiedAt) > Date.parse(approval.approvedAt)
     ) {
       context.addIssue({
@@ -180,7 +196,9 @@ export const cutoverApprovalSchema = z
         path: ['approvedAt'],
       })
     }
-    if (Date.parse(approval.rollbackDeadline) <= Date.parse(approval.approvedAt)) {
+    if (
+      Date.parse(approval.rollbackDeadline) <= Date.parse(approval.approvedAt)
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Rollback deadline must follow approval',
@@ -188,7 +206,11 @@ export const cutoverApprovalSchema = z
       })
     }
     if (new Set(approval.domains).size !== approval.domains.length) {
-      context.addIssue({ code: 'custom', message: 'Cutover domains must be unique', path: ['domains'] })
+      context.addIssue({
+        code: 'custom',
+        message: 'Cutover domains must be unique',
+        path: ['domains'],
+      })
     }
   })
 
@@ -253,31 +275,58 @@ export const importExecutionReportSchema = z
   .strict()
   .superRefine((report, context) => {
     if (report.steps.length !== importStepKindSchema.options.length) {
-      context.addIssue({ code: 'custom', message: 'Execution report must include every import step', path: ['steps'] })
+      context.addIssue({
+        code: 'custom',
+        message: 'Execution report must include every import step',
+        path: ['steps'],
+      })
       return
     }
     let failureSeen = false
     let pendingSeen = false
     for (const [position, step] of report.steps.entries()) {
       const expectedId = `import-${String(position + 1).padStart(2, '0')}`
-      if (step.id !== expectedId || step.kind !== importStepKindSchema.options[position]) {
-        context.addIssue({ code: 'custom', message: `Expected execution step ${expectedId}`, path: ['steps', position] })
+      if (
+        step.id !== expectedId ||
+        step.kind !== importStepKindSchema.options[position]
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message: `Expected execution step ${expectedId}`,
+          path: ['steps', position],
+        })
       }
       if ((step.status === 'pending') !== (step.completedAt === null)) {
-        context.addIssue({ code: 'custom', message: 'Only pending steps omit completion time', path: ['steps', position] })
+        context.addIssue({
+          code: 'custom',
+          message: 'Only pending steps omit completion time',
+          path: ['steps', position],
+        })
       }
       if (failureSeen && step.status !== 'pending') {
-        context.addIssue({ code: 'custom', message: 'No step may run after a failed step', path: ['steps', position] })
+        context.addIssue({
+          code: 'custom',
+          message: 'No step may run after a failed step',
+          path: ['steps', position],
+        })
       }
       if (pendingSeen && step.status !== 'pending') {
-        context.addIssue({ code: 'custom', message: 'No step may run after a pending step', path: ['steps', position] })
+        context.addIssue({
+          code: 'custom',
+          message: 'No step may run after a pending step',
+          path: ['steps', position],
+        })
       }
       if (
         step.completedAt !== null &&
         (Date.parse(step.completedAt) < Date.parse(report.startedAt) ||
           Date.parse(step.completedAt) > Date.parse(report.updatedAt))
       ) {
-        context.addIssue({ code: 'custom', message: 'Step completion is outside the report window', path: ['steps', position, 'completedAt'] })
+        context.addIssue({
+          code: 'custom',
+          message: 'Step completion is outside the report window',
+          path: ['steps', position, 'completedAt'],
+        })
       }
       if (step.status === 'failed') failureSeen = true
       if (step.status === 'pending') pendingSeen = true
@@ -295,10 +344,18 @@ export const importExecutionReportSchema = z
           ? 'awaiting-cutover'
           : null
     if (report.status !== expectedStatus) {
-      context.addIssue({ code: 'custom', message: 'Execution status does not match step results', path: ['status'] })
+      context.addIssue({
+        code: 'custom',
+        message: 'Execution status does not match step results',
+        path: ['status'],
+      })
     }
     if (Date.parse(report.updatedAt) < Date.parse(report.startedAt)) {
-      context.addIssue({ code: 'custom', message: 'Execution update cannot precede start', path: ['updatedAt'] })
+      context.addIssue({
+        code: 'custom',
+        message: 'Execution update cannot precede start',
+        path: ['updatedAt'],
+      })
     }
   })
 

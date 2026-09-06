@@ -1,7 +1,9 @@
 import { cn } from '@/lib/cn'
 
-export interface PageHeaderProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+export interface PageHeaderProps extends Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  'title'
+> {
   title: React.ReactNode
   /** One line of orientation. Not a paragraph. */
   description?: React.ReactNode
@@ -37,15 +39,21 @@ export function PageHeader({
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="mb-1 text-xs font-medium text-muted-foreground">{eyebrow}</div>
+          <div className="mb-1 text-xs font-medium text-muted-foreground">
+            {eyebrow}
+          </div>
         ) : null}
         <h1 className="truncate">{title}</h1>
         {description ? (
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {description}
+          </p>
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
     </div>
   )
@@ -56,10 +64,16 @@ export function PageHeader({
  * the right. Keeping every list's controls in the same place is most of what
  * makes a multi-module admin feel like one product.
  */
-export function Toolbar({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Toolbar({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('mb-4 flex flex-col gap-2 sm:flex-row sm:items-center', className)}
+      className={cn(
+        'mb-4 flex flex-col gap-2 sm:flex-row sm:items-center',
+        className,
+      )}
       {...props}
     />
   )

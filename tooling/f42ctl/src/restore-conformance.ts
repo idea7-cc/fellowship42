@@ -17,9 +17,7 @@ import {
 } from './portable-import.js'
 
 export type RestoreConformanceAdapterScenario =
-  | 'isolated-restore'
-  | 'nonempty-destination'
-  | 'partial-restore'
+  'isolated-restore' | 'nonempty-destination' | 'partial-restore'
 
 export interface PortableRestoreConformanceHarness {
   createAdapter(
@@ -56,9 +54,7 @@ function failingStep(
 export async function runPortableRestoreConformance(
   options: PortableRestoreConformanceOptions,
 ): Promise<PortableRestoreConformanceReport> {
-  const startedAt = Date.parse(
-    options.startedAt ?? new Date().toISOString(),
-  )
+  const startedAt = Date.parse(options.startedAt ?? new Date().toISOString())
   if (!Number.isFinite(startedAt)) {
     throw new Error('Restore conformance start time is invalid')
   }
@@ -173,8 +169,9 @@ export async function runPortableRestoreConformance(
     formatVersion: 1,
     profile: 'f42-portable-restore-v1',
     release: options.release,
-    scenarios: portableRestoreConformanceScenarioIdSchema.options.map(
-      (id) => ({ id, status: 'passed' as const }),
-    ),
+    scenarios: portableRestoreConformanceScenarioIdSchema.options.map((id) => ({
+      id,
+      status: 'passed' as const,
+    })),
   })
 }

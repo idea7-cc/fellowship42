@@ -22,9 +22,7 @@ export const managementCapabilitySchema = z.enum([
 
 export type ManagementCapability = z.infer<typeof managementCapabilitySchema>
 
-export const supportSessionScopeSchema = z.enum([
-  'operational-diagnostics',
-])
+export const supportSessionScopeSchema = z.enum(['operational-diagnostics'])
 
 export type SupportSessionScope = z.infer<typeof supportSessionScopeSchema>
 

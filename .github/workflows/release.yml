@@ -26,7 +26,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
@@ -35,29 +35,11 @@ jobs:
       - name: Validate release tag
         run: pnpm release:check-tag "$GITHUB_REF_NAME"
 
-      - name: Check repository boundaries
-        run: pnpm check:architecture
-
-      - name: Check generated Cloudflare bindings
-        run: pnpm cf-typegen:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Rehearse hosted-to-church-owned migration
-        run: pnpm test:migration-rehearsal
+      - name: Verify repository
+        run: pnpm verify
 
       - name: Build and verify release artifacts
         run: pnpm release:artifacts
-
-      - name: Verify Worker deployment bundle
-        run: pnpm deploy:dry-run
-
-      - name: Verify project-site deployment bundle
-        run: pnpm deploy:site:dry-run
 
       - name: Publish immutable GitHub release
         env:

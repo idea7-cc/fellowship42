@@ -77,7 +77,11 @@ async function jsonBody(c: AppContext): Promise<unknown> {
   try {
     return await c.req.json<unknown>()
   } catch {
-    throw new AppError(400, 'invalid_json', 'The request body must be valid JSON')
+    throw new AppError(
+      400,
+      'invalid_json',
+      'The request body must be valid JSON',
+    )
   }
 }
 
@@ -87,12 +91,14 @@ function escapeLike(value: string) {
 
 async function findPerson(db: D1Database, churchId: string, personId: string) {
   const row = await db
-    .prepare(`
+    .prepare(
+      `
       SELECT id, church_id, first_name, last_name, sort_name, email, phone,
              membership_status, volunteer_ready, notes, version, updated_at
       FROM people
       WHERE church_id = ? AND id = ? AND deleted_at IS NULL
-    `)
+    `,
+    )
     .bind(churchId, personId)
     .first<StoredPerson>()
   if (!row) throw new AppError(404, 'person_not_found', 'Person not found')
@@ -116,10 +122,18 @@ function personSnapshot(person: {
 }
 
 function isEmailConflict(error: unknown) {
-  return error instanceof Error && error.message.includes('people.church_id, people.email')
+  return (
+    error instanceof Error &&
+    error.message.includes('people.church_id, people.email')
+  )
 }
 
-function broadcast(c: AppContext, churchId: string, personId: string, action: 'created' | 'updated' | 'deleted') {
+function broadcast(
+  c: AppContext,
+  churchId: string,
+  personId: string,
+  action: 'created' | 'updated' | 'deleted',
+) {
   const event: ChurchChangeEvent = {
     churchId,
     entity: 'person',
@@ -127,7 +141,9 @@ function broadcast(c: AppContext, churchId: string, personId: string, action: 'c
     action,
     occurredAt: Date.now(),
   }
-  c.executionCtx.waitUntil(c.env.CHURCH_ROOMS.getByName(churchId).broadcast(event))
+  c.executionCtx.waitUntil(
+    c.env.CHURCH_ROOMS.getByName(churchId).broadcast(event),
+  )
 }
 
 export const peopleRoutes = new Hono<AppEnv>()
@@ -155,31 +171,42 @@ peopleRoutes.get('/:churchId', async (c) => {
     bindings.push(parsed.data.status)
   }
   if (parsed.data.cursor) {
-    const cursor = await c.env.DB
-      .prepare(`
+    const cursor = await c.env.DB.prepare(
+      `
         SELECT sort_name, id FROM people
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL
-      `)
+      `,
+    )
       .bind(churchId, parsed.data.cursor)
       .first<{ sort_name: string; id: string }>()
-    if (!cursor) throw new AppError(422, 'invalid_cursor', 'The directory cursor is invalid')
-    conditions.push('(p.sort_name COLLATE NOCASE > ? COLLATE NOCASE OR (p.sort_name = ? COLLATE NOCASE AND p.id > ?))')
+    if (!cursor)
+      throw new AppError(
+        422,
+        'invalid_cursor',
+        'The directory cursor is invalid',
+      )
+    conditions.push(
+      '(p.sort_name COLLATE NOCASE > ? COLLATE NOCASE OR (p.sort_name = ? COLLATE NOCASE AND p.id > ?))',
+    )
     bindings.push(cursor.sort_name, cursor.sort_name, cursor.id)
   }
 
-  const result = await c.env.DB
-    .prepare(`
+  const result = await c.env.DB.prepare(
+    `
       SELECT p.id, p.church_id, p.first_name, p.last_name, p.email, p.phone,
              p.membership_status, p.volunteer_ready, p.version
       FROM people p
       WHERE ${conditions.join(' AND ')}
       ORDER BY p.sort_name COLLATE NOCASE, p.id
       LIMIT ?
-    `)
+    `,
+  )
     .bind(...bindings, parsed.data.limit + 1)
     .all<PersonRow>()
   const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore ? result.results.slice(0, parsed.data.limit) : result.results
+  const rows = hasMore
+    ? result.results.slice(0, parsed.data.limit)
+    : result.results
   return c.json({
     people: rows.map(mapPerson),
     page: {
@@ -201,70 +228,86 @@ peopleRoutes.post('/:churchId', async (c) => {
   const person = parsed.data
   try {
     await c.env.DB.batch([
-      c.env.DB
-        .prepare(`
+      c.env.DB.prepare(
+        `
           INSERT INTO people (
             id, church_id, first_name, last_name, sort_name, email, phone,
             membership_status, volunteer_ready, notes, version,
             created_at, updated_at, last_operation_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-        `)
-        .bind(
-          id,
-          churchId,
-          person.firstName,
-          person.lastName,
-          `${person.lastName}, ${person.firstName}`,
-          person.email?.toLowerCase() ?? null,
-          person.phone ?? null,
-          person.membershipStatus,
-          person.volunteerReady ? 1 : 0,
-          person.notes ?? null,
-          now,
-          now,
-          operationId,
-        ),
-      c.env.DB
-        .prepare(`
+        `,
+      ).bind(
+        id,
+        churchId,
+        person.firstName,
+        person.lastName,
+        `${person.lastName}, ${person.firstName}`,
+        person.email?.toLowerCase() ?? null,
+        person.phone ?? null,
+        person.membershipStatus,
+        person.volunteerReady ? 1 : 0,
+        person.notes ?? null,
+        now,
+        now,
+        operationId,
+      ),
+      c.env.DB.prepare(
+        `
           INSERT INTO audit_events (
             id, church_id, actor_user_id, action, entity_type, entity_id,
             request_id, after_json, occurred_at
           ) VALUES (?, ?, ?, 'people.created', 'person', ?, ?, ?, ?)
-        `)
-        .bind(
-          crypto.randomUUID(),
-          churchId,
-          actor.id,
-          id,
-          c.get('requestId'),
-          JSON.stringify(personSnapshot(person)),
-          now,
-        ),
-      c.env.DB
-        .prepare(`
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        actor.id,
+        id,
+        c.get('requestId'),
+        JSON.stringify(personSnapshot(person)),
+        now,
+      ),
+      c.env.DB.prepare(
+        `
           INSERT INTO outbox_events (
             id, church_id, topic, aggregate_type, aggregate_id, payload_json,
             status, available_at, created_at
           ) VALUES (?, ?, 'people.created', 'person', ?, ?, 'pending', ?, ?)
-        `)
-        .bind(crypto.randomUUID(), churchId, id, JSON.stringify({ personId: id }), now, now),
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        id,
+        JSON.stringify({ personId: id }),
+        now,
+        now,
+      ),
     ])
   } catch (error) {
     if (isEmailConflict(error)) {
-      throw new AppError(409, 'person_email_exists', 'A person with this email already exists')
+      throw new AppError(
+        409,
+        'person_email_exists',
+        'A person with this email already exists',
+      )
     }
     throw error
   }
 
   broadcast(c, churchId, id, 'created')
-  return c.json({ person: mapPerson(await findPerson(c.env.DB, churchId, id)) }, 201)
+  return c.json(
+    { person: mapPerson(await findPerson(c.env.DB, churchId, id)) },
+    201,
+  )
 })
 
 peopleRoutes.get('/:churchId/:personId', async (c) => {
   const churchId = c.req.param('churchId')
   await requirePermission(c, churchId, 'people.read')
   return c.json({
-    person: mapPersonDetail(await findPerson(c.env.DB, churchId, c.req.param('personId'))),
+    person: mapPersonDetail(
+      await findPerson(c.env.DB, churchId, c.req.param('personId')),
+    ),
   })
 })
 
@@ -276,7 +319,11 @@ peopleRoutes.patch('/:churchId/:personId', async (c) => {
   if (!parsed.success) throw validationError(parsed.error)
   const current = await findPerson(c.env.DB, churchId, personId)
   if (current.version !== parsed.data.version) {
-    throw new AppError(409, 'version_conflict', 'The person changed after it was loaded')
+    throw new AppError(
+      409,
+      'version_conflict',
+      'The person changed after it was loaded',
+    )
   }
 
   const next = {
@@ -296,31 +343,31 @@ peopleRoutes.patch('/:churchId/:personId', async (c) => {
   let results: D1Result[]
   try {
     results = await c.env.DB.batch([
-      c.env.DB
-        .prepare(`
+      c.env.DB.prepare(
+        `
           UPDATE people SET
             first_name = ?, last_name = ?, sort_name = ?, email = ?, phone = ?,
             membership_status = ?, volunteer_ready = ?, notes = ?,
             version = version + 1, updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
-        `)
-        .bind(
-          next.firstName,
-          next.lastName,
-          `${next.lastName}, ${next.firstName}`,
-          next.email?.toLowerCase() ?? null,
-          next.phone ?? null,
-          next.membershipStatus,
-          next.volunteerReady ? 1 : 0,
-          next.notes ?? null,
-          now,
-          operationId,
-          churchId,
-          personId,
-          current.version,
-        ),
-      c.env.DB
-        .prepare(`
+        `,
+      ).bind(
+        next.firstName,
+        next.lastName,
+        `${next.lastName}, ${next.firstName}`,
+        next.email?.toLowerCase() ?? null,
+        next.phone ?? null,
+        next.membershipStatus,
+        next.volunteerReady ? 1 : 0,
+        next.notes ?? null,
+        now,
+        operationId,
+        churchId,
+        personId,
+        current.version,
+      ),
+      c.env.DB.prepare(
+        `
           INSERT INTO audit_events (
             id, church_id, actor_user_id, action, entity_type, entity_id,
             request_id, before_json, after_json, metadata_json, occurred_at
@@ -330,31 +377,35 @@ peopleRoutes.patch('/:churchId/:personId', async (c) => {
             SELECT 1 FROM people
             WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
-        `)
-        .bind(
-          crypto.randomUUID(),
-          churchId,
-          actor.id,
-          personId,
-          c.get('requestId'),
-          JSON.stringify(
-            personSnapshot({
-              membershipStatus: current.membership_status,
-              volunteerReady: current.volunteer_ready === 1,
-              email: current.email,
-              phone: current.phone,
-              notes: current.notes,
-            }),
-          ),
-          JSON.stringify(personSnapshot(next)),
-          JSON.stringify({ changedFields: Object.keys(parsed.data).filter((key) => key !== 'version') }),
-          now,
-          churchId,
-          personId,
-          operationId,
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        actor.id,
+        personId,
+        c.get('requestId'),
+        JSON.stringify(
+          personSnapshot({
+            membershipStatus: current.membership_status,
+            volunteerReady: current.volunteer_ready === 1,
+            email: current.email,
+            phone: current.phone,
+            notes: current.notes,
+          }),
         ),
-      c.env.DB
-        .prepare(`
+        JSON.stringify(personSnapshot(next)),
+        JSON.stringify({
+          changedFields: Object.keys(parsed.data).filter(
+            (key) => key !== 'version',
+          ),
+        }),
+        now,
+        churchId,
+        personId,
+        operationId,
+      ),
+      c.env.DB.prepare(
+        `
           INSERT INTO outbox_events (
             id, church_id, topic, aggregate_type, aggregate_id, payload_json,
             status, available_at, created_at
@@ -364,31 +415,41 @@ peopleRoutes.patch('/:churchId/:personId', async (c) => {
             SELECT 1 FROM people
             WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
-        `)
-        .bind(
-          crypto.randomUUID(),
-          churchId,
-          personId,
-          JSON.stringify({ personId }),
-          now,
-          now,
-          churchId,
-          personId,
-          operationId,
-        ),
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        personId,
+        JSON.stringify({ personId }),
+        now,
+        now,
+        churchId,
+        personId,
+        operationId,
+      ),
     ])
   } catch (error) {
     if (isEmailConflict(error)) {
-      throw new AppError(409, 'person_email_exists', 'A person with this email already exists')
+      throw new AppError(
+        409,
+        'person_email_exists',
+        'A person with this email already exists',
+      )
     }
     throw error
   }
   if ((results[0].meta.changes ?? 0) !== 1) {
-    throw new AppError(409, 'version_conflict', 'The person changed after it was loaded')
+    throw new AppError(
+      409,
+      'version_conflict',
+      'The person changed after it was loaded',
+    )
   }
 
   broadcast(c, churchId, personId, 'updated')
-  return c.json({ person: mapPersonDetail(await findPerson(c.env.DB, churchId, personId)) })
+  return c.json({
+    person: mapPersonDetail(await findPerson(c.env.DB, churchId, personId)),
+  })
 })
 
 peopleRoutes.delete('/:churchId/:personId', async (c) => {
@@ -402,15 +463,15 @@ peopleRoutes.delete('/:churchId/:personId', async (c) => {
   const operationId = crypto.randomUUID()
   const now = Date.now()
   const results = await c.env.DB.batch([
-    c.env.DB
-      .prepare(`
+    c.env.DB.prepare(
+      `
         UPDATE people SET
           deleted_at = ?, updated_at = ?, version = version + 1, last_operation_id = ?
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
-      `)
-      .bind(now, now, operationId, churchId, personId, parsed.data.version),
-    c.env.DB
-      .prepare(`
+      `,
+    ).bind(now, now, operationId, churchId, personId, parsed.data.version),
+    c.env.DB.prepare(
+      `
         INSERT INTO audit_events (
           id, church_id, actor_user_id, action, entity_type, entity_id,
           request_id, metadata_json, occurred_at
@@ -420,21 +481,21 @@ peopleRoutes.delete('/:churchId/:personId', async (c) => {
           SELECT 1 FROM people
           WHERE church_id = ? AND id = ? AND last_operation_id = ?
         )
-      `)
-      .bind(
-        crypto.randomUUID(),
-        churchId,
-        actor.id,
-        personId,
-        c.get('requestId'),
-        JSON.stringify({ previousVersion: parsed.data.version }),
-        now,
-        churchId,
-        personId,
-        operationId,
-      ),
-    c.env.DB
-      .prepare(`
+      `,
+    ).bind(
+      crypto.randomUUID(),
+      churchId,
+      actor.id,
+      personId,
+      c.get('requestId'),
+      JSON.stringify({ previousVersion: parsed.data.version }),
+      now,
+      churchId,
+      personId,
+      operationId,
+    ),
+    c.env.DB.prepare(
+      `
         INSERT INTO outbox_events (
           id, church_id, topic, aggregate_type, aggregate_id, payload_json,
           status, available_at, created_at
@@ -444,21 +505,25 @@ peopleRoutes.delete('/:churchId/:personId', async (c) => {
           SELECT 1 FROM people
           WHERE church_id = ? AND id = ? AND last_operation_id = ?
         )
-      `)
-      .bind(
-        crypto.randomUUID(),
-        churchId,
-        personId,
-        JSON.stringify({ personId }),
-        now,
-        now,
-        churchId,
-        personId,
-        operationId,
-      ),
+      `,
+    ).bind(
+      crypto.randomUUID(),
+      churchId,
+      personId,
+      JSON.stringify({ personId }),
+      now,
+      now,
+      churchId,
+      personId,
+      operationId,
+    ),
   ])
   if ((results[0].meta.changes ?? 0) !== 1) {
-    throw new AppError(409, 'version_conflict', 'The person changed after it was loaded')
+    throw new AppError(
+      409,
+      'version_conflict',
+      'The person changed after it was loaded',
+    )
   }
 
   broadcast(c, churchId, personId, 'deleted')

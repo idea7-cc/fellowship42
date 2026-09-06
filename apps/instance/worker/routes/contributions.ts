@@ -8,7 +8,7 @@ import {
   validationError,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import type { Contribution } from '../../src/lib/api-types'
+import type { Contribution } from '../../contracts/api'
 
 type PaymentEnv = Env & { PAYMENT_WEBHOOK_SECRET?: string }
 

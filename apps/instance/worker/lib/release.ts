@@ -6,7 +6,7 @@ import instancePackage from '../../package.json'
 import { AppError } from './errors'
 
 export const APPLICATION_VERSION = instancePackage.version
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 export type ReleaseCoordinateBindings = {
   F42_RELEASE_TAG?: string
@@ -23,10 +23,7 @@ export function currentReleaseSource(
     schemaVersion: SCHEMA_VERSION,
     managementProtocolWireVersion: '1',
   })
-  if (
-    !parsed.success ||
-    parsed.data.releaseManifestSha256 === '0'.repeat(64)
-  ) {
+  if (!parsed.success || parsed.data.releaseManifestSha256 === '0'.repeat(64)) {
     throw new AppError(
       503,
       'release_coordinates_not_configured',

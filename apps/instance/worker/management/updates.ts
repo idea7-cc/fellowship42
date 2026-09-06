@@ -318,7 +318,11 @@ export async function prepareUpdate(
 
   const source = currentReleaseSource(env)
   if (source.applicationVersion !== APPLICATION_VERSION) {
-    throw new AppError(503, 'release_coordinates_invalid', 'Release coordinates are inconsistent')
+    throw new AppError(
+      503,
+      'release_coordinates_invalid',
+      'Release coordinates are inconsistent',
+    )
   }
   await assertUpdateReadiness(env)
   const downloaded = await downloadTargetManifest(
@@ -326,7 +330,10 @@ export async function prepareUpdate(
     command.input.releaseManifestSha256,
     fetcher,
   )
-  const eligibility = assessReleaseUpgradeEligibility(downloaded.manifest, source)
+  const eligibility = assessReleaseUpgradeEligibility(
+    downloaded.manifest,
+    source,
+  )
   if (!eligibility.eligible) {
     throw new AppError(
       409,
@@ -337,7 +344,8 @@ export async function prepareUpdate(
   if (
     downloaded.manifest.application.schemaVersion < SCHEMA_VERSION ||
     downloaded.manifest.upgrade?.strategy !== 'in-place-expand-contract' ||
-    downloaded.manifest.upgrade.rollbackPolicy !== 'roll-forward-after-migration'
+    downloaded.manifest.upgrade.rollbackPolicy !==
+      'roll-forward-after-migration'
   ) {
     throw new AppError(
       409,
@@ -445,7 +453,12 @@ export async function approveUpdatePreparation(
 ): Promise<UpdatePreparation> {
   await reconcilePreparationStates(env, now)
   const row = await readPreparation(env.DB, preparationId)
-  if (!row) throw new AppError(404, 'update_preparation_not_found', 'Update preparation not found')
+  if (!row)
+    throw new AppError(
+      404,
+      'update_preparation_not_found',
+      'Update preparation not found',
+    )
   if (
     row.target_release_tag !== expected.releaseTag ||
     row.target_manifest_sha256 !== expected.releaseManifestSha256
@@ -481,10 +494,7 @@ export async function approveUpdatePreparation(
     )
   }
   const localApprovalId = crypto.randomUUID()
-  const approvalExpiresAt = Math.min(
-    row.expires_at,
-    now + APPROVAL_LIFETIME_MS,
-  )
+  const approvalExpiresAt = Math.min(row.expires_at, now + APPROVAL_LIFETIME_MS)
   const result = await env.DB.batch([
     env.DB.prepare(
       `UPDATE management_update_preparations
@@ -521,7 +531,11 @@ export async function approveUpdatePreparation(
     ),
   ])
   if ((result[0]?.meta.changes ?? 0) !== 1) {
-    throw new AppError(409, 'update_approval_race', 'The preparation changed while being approved')
+    throw new AppError(
+      409,
+      'update_approval_race',
+      'The preparation changed while being approved',
+    )
   }
   const approved = await readPreparation(env.DB, preparationId)
   if (!approved) throw new Error('Approved update was not persisted')
@@ -539,8 +553,16 @@ export async function authorizePreparedUpdate(
 ): Promise<UpdateApplyAuthorization> {
   await reconcilePreparationStates(env, now)
   const row = await readPreparation(env.DB, command.input.preparationId)
-  if (!row || row.connection_id !== connectionId || row.instance_id !== instanceId) {
-    throw new AppError(404, 'update_preparation_not_found', 'Update preparation not found')
+  if (
+    !row ||
+    row.connection_id !== connectionId ||
+    row.instance_id !== instanceId
+  ) {
+    throw new AppError(
+      404,
+      'update_preparation_not_found',
+      'Update preparation not found',
+    )
   }
   if (
     row.state === 'authorized' &&
@@ -625,7 +647,11 @@ export async function authorizePreparedUpdate(
     ),
   ])
   if ((result[0]?.meta.changes ?? 0) !== 1) {
-    throw new AppError(409, 'local_approval_race', 'The local approval was consumed concurrently')
+    throw new AppError(
+      409,
+      'local_approval_race',
+      'The local approval was consumed concurrently',
+    )
   }
   const authorized = await readPreparation(env.DB, row.preparation_id)
   if (!authorized) throw new Error('Authorized update was not persisted')

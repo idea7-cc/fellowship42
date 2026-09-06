@@ -3,15 +3,9 @@
   "repositoryType": "public-portable-instance",
   "deployableInstance": "apps/instance",
   "projectSite": "apps/project-site",
-  "publicContracts": [
-    "packages/management-protocol"
-  ],
-  "publicSharedPackages": [
-    "packages/brand"
-  ],
-  "publicPortableTooling": [
-    "tooling/f42ctl"
-  ],
+  "publicContracts": ["packages/management-protocol"],
+  "publicSharedPackages": ["packages/brand"],
+  "publicPortableTooling": ["tooling/f42ctl"],
   "releaseContract": {
     "documentation": "docs/releases.md",
     "workflow": ".github/workflows/release.yml",

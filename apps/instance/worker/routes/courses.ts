@@ -814,7 +814,12 @@ courseRoutes.delete('/:churchId/:courseId/lessons/:lessonId', async (c) => {
 // a competing edit to the course's title or lessons.
 // ---------------------------------------------------------------------------
 
-const enrollmentStatusSchema = z.enum(['invited', 'active', 'completed', 'archived'])
+const enrollmentStatusSchema = z.enum([
+  'invited',
+  'active',
+  'completed',
+  'archived',
+])
 
 const enrollmentInput = z
   .object({
@@ -824,13 +829,13 @@ const enrollmentInput = z
     notes: z.string().trim().max(4_000).nullable().default(null),
   })
   .strict()
-  .refine(
-    (value) => Boolean(value.personId) !== Boolean(value.groupId),
-    { message: 'Enroll exactly one of a person or a group' },
-  )
+  .refine((value) => Boolean(value.personId) !== Boolean(value.groupId), {
+    message: 'Enroll exactly one of a person or a group',
+  })
 
 const enrollmentUpdateInput = z
   .object({
+    version: z.number().int().positive(),
     status: enrollmentStatusSchema,
     notes: z.string().trim().max(4_000).nullable().optional(),
   })
@@ -842,25 +847,42 @@ function touchCourse(
   courseId: string,
   now: number,
   operationId: string,
+  enrollment?: { id: string; version: number },
 ) {
   return db
     .prepare(
       `
         UPDATE courses SET updated_at = ?, last_operation_id = ?
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM course_enrollments
+            WHERE church_id = ? AND course_id = ? AND id = ? AND version = ?))
       `,
     )
-    .bind(now, operationId, churchId, courseId)
+    .bind(
+      now,
+      operationId,
+      churchId,
+      courseId,
+      enrollment?.id ?? null,
+      churchId,
+      courseId,
+      enrollment?.id ?? null,
+      enrollment?.version ?? null,
+    )
 }
 
-async function readEnrollments(db: D1Database, churchId: string, courseId: string) {
+async function readEnrollments(
+  db: D1Database,
+  churchId: string,
+  courseId: string,
+) {
   const rows = await db
     .prepare(
       `
         SELECT e.id, e.course_id, e.status, e.person_id, e.group_id,
                p.first_name AS person_first_name, p.last_name AS person_last_name,
                g.title AS group_title,
-               e.started_at, e.completed_at, e.notes
+               e.started_at, e.completed_at, e.notes, e.version
         FROM course_enrollments e
         LEFT JOIN people p ON p.church_id = e.church_id AND p.id = e.person_id
         LEFT JOIN groups g ON g.church_id = e.church_id AND g.id = e.group_id
@@ -914,7 +936,9 @@ courseRoutes.get('/:churchId/:courseId/enrollments', async (c) => {
   const courseId = c.req.param('courseId')
   await requirePermission(c, churchId, 'courses.write')
   await findCourse(c.env.DB, churchId, courseId)
-  return c.json({ enrollments: await readEnrollments(c.env.DB, churchId, courseId) })
+  return c.json({
+    enrollments: await readEnrollments(c.env.DB, churchId, courseId),
+  })
 })
 
 courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
@@ -932,9 +956,8 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
   try {
     await c.env.DB.batch([
       touchCourse(c.env.DB, churchId, courseId, now, operationId),
-      c.env.DB
-        .prepare(
-          `
+      c.env.DB.prepare(
+        `
             INSERT INTO course_enrollments (
               id, church_id, course_id, person_id, group_id, status,
               started_at, notes, created_at, updated_at
@@ -944,22 +967,21 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
               SELECT 1 FROM courses WHERE church_id = ? AND id = ? AND last_operation_id = ?
             )
           `,
-        )
-        .bind(
-          enrollmentId,
-          churchId,
-          courseId,
-          parsed.data.personId ?? null,
-          parsed.data.groupId ?? null,
-          parsed.data.status,
-          parsed.data.status === 'active' ? now : null,
-          parsed.data.notes,
-          now,
-          now,
-          churchId,
-          courseId,
-          operationId,
-        ),
+      ).bind(
+        enrollmentId,
+        churchId,
+        courseId,
+        parsed.data.personId ?? null,
+        parsed.data.groupId ?? null,
+        parsed.data.status,
+        parsed.data.status === 'active' ? now : null,
+        parsed.data.notes,
+        now,
+        now,
+        churchId,
+        courseId,
+        operationId,
+      ),
       ...mutationEvidence(c.env.DB, {
         churchId,
         actorId: actor.id,
@@ -1003,43 +1025,48 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
   )
 })
 
-courseRoutes.patch('/:churchId/:courseId/enrollments/:enrollmentId', async (c) => {
-  const churchId = c.req.param('churchId')
-  const courseId = c.req.param('courseId')
-  const enrollmentId = c.req.param('enrollmentId')
-  const actor = await requirePermission(c, churchId, 'courses.write')
-  const parsed = enrollmentUpdateInput.safeParse(await jsonBody(c))
-  if (!parsed.success) throw validationError(parsed.error)
-  await findCourse(c.env.DB, churchId, courseId)
+courseRoutes.patch(
+  '/:churchId/:courseId/enrollments/:enrollmentId',
+  async (c) => {
+    const churchId = c.req.param('churchId')
+    const courseId = c.req.param('courseId')
+    const enrollmentId = c.req.param('enrollmentId')
+    const actor = await requirePermission(c, churchId, 'courses.write')
+    const parsed = enrollmentUpdateInput.safeParse(await jsonBody(c))
+    if (!parsed.success) throw validationError(parsed.error)
+    await findCourse(c.env.DB, churchId, courseId)
 
-  const existing = await c.env.DB
-    .prepare(
+    const existing = await c.env.DB.prepare(
       'SELECT id FROM course_enrollments WHERE church_id = ? AND course_id = ? AND id = ?',
     )
-    .bind(churchId, courseId, enrollmentId)
-    .first<{ id: string }>()
-  if (!existing) {
-    throw new AppError(404, 'enrollment_not_found', 'Enrollment not found')
-  }
+      .bind(churchId, courseId, enrollmentId)
+      .first<{ id: string }>()
+    if (!existing) {
+      throw new AppError(404, 'enrollment_not_found', 'Enrollment not found')
+    }
 
-  const operationId = crypto.randomUUID()
-  const now = Date.now()
-  await c.env.DB.batch([
-    touchCourse(c.env.DB, churchId, courseId, now, operationId),
-    c.env.DB
-      .prepare(
+    const operationId = crypto.randomUUID()
+    const now = Date.now()
+    const results = await c.env.DB.batch([
+      touchCourse(c.env.DB, churchId, courseId, now, operationId, {
+        id: enrollmentId,
+        version: parsed.data.version,
+      }),
+      c.env.DB.prepare(
         `
           UPDATE course_enrollments SET
             status = ?,
-            notes = COALESCE(?, notes),
+            notes = CASE WHEN ? THEN ? ELSE notes END,
+            version = version + 1,
             started_at = CASE WHEN ? = 'active' AND started_at IS NULL THEN ? ELSE started_at END,
             completed_at = CASE WHEN ? = 'completed' THEN ? ELSE NULL END,
             updated_at = ?
           WHERE church_id = ? AND course_id = ? AND id = ?
+            AND EXISTS (SELECT 1 FROM courses WHERE church_id = ? AND id = ? AND last_operation_id = ?)
         `,
-      )
-      .bind(
+      ).bind(
         parsed.data.status,
+        parsed.data.notes !== undefined ? 1 : 0,
         parsed.data.notes ?? null,
         parsed.data.status,
         now,
@@ -1049,53 +1076,82 @@ courseRoutes.patch('/:churchId/:courseId/enrollments/:enrollmentId', async (c) =
         churchId,
         courseId,
         enrollmentId,
+        churchId,
+        courseId,
+        operationId,
       ),
-    ...mutationEvidence(c.env.DB, {
-      churchId,
-      actorId: actor.id,
-      requestId: c.get('requestId'),
-      entityType: 'course',
-      entityId: courseId,
-      eventName: 'courses.enrollment.updated',
-      operationId,
-      table: 'courses',
-      now,
-      metadata: { enrollmentId, status: parsed.data.status },
-    }),
-  ])
-  broadcastContent(c, churchId, 'course', courseId, 'updated')
-  return c.json({ enrollments: await readEnrollments(c.env.DB, churchId, courseId) })
-})
-
-courseRoutes.delete('/:churchId/:courseId/enrollments/:enrollmentId', async (c) => {
-  const churchId = c.req.param('churchId')
-  const courseId = c.req.param('courseId')
-  const enrollmentId = c.req.param('enrollmentId')
-  const actor = await requirePermission(c, churchId, 'courses.write')
-  await findCourse(c.env.DB, churchId, courseId)
-
-  const operationId = crypto.randomUUID()
-  const now = Date.now()
-  await c.env.DB.batch([
-    touchCourse(c.env.DB, churchId, courseId, now, operationId),
-    c.env.DB
-      .prepare(
-        'DELETE FROM course_enrollments WHERE church_id = ? AND course_id = ? AND id = ?',
+      ...mutationEvidence(c.env.DB, {
+        churchId,
+        actorId: actor.id,
+        requestId: c.get('requestId'),
+        entityType: 'course',
+        entityId: courseId,
+        eventName: 'courses.enrollment.updated',
+        operationId,
+        table: 'courses',
+        now,
+        metadata: { enrollmentId, status: parsed.data.status },
+      }),
+    ])
+    if (results[0]?.meta.changes !== 1) {
+      throw new AppError(
+        409,
+        'version_conflict',
+        'The enrollment changed. Refresh before trying again.',
       )
-      .bind(churchId, courseId, enrollmentId),
-    ...mutationEvidence(c.env.DB, {
-      churchId,
-      actorId: actor.id,
-      requestId: c.get('requestId'),
-      entityType: 'course',
-      entityId: courseId,
-      eventName: 'courses.enrollment.removed',
-      operationId,
-      table: 'courses',
-      now,
-      metadata: { enrollmentId },
-    }),
-  ])
-  broadcastContent(c, churchId, 'course', courseId, 'updated')
-  return c.json({ enrollments: await readEnrollments(c.env.DB, churchId, courseId) })
-})
+    }
+    broadcastContent(c, churchId, 'course', courseId, 'updated')
+    return c.json({
+      enrollments: await readEnrollments(c.env.DB, churchId, courseId),
+    })
+  },
+)
+
+courseRoutes.delete(
+  '/:churchId/:courseId/enrollments/:enrollmentId',
+  async (c) => {
+    const churchId = c.req.param('churchId')
+    const courseId = c.req.param('courseId')
+    const enrollmentId = c.req.param('enrollmentId')
+    const actor = await requirePermission(c, churchId, 'courses.write')
+    await findCourse(c.env.DB, churchId, courseId)
+
+    const parsed = versionInputSchema.safeParse(await jsonBody(c))
+    if (!parsed.success) throw validationError(parsed.error)
+    const operationId = crypto.randomUUID()
+    const now = Date.now()
+    const results = await c.env.DB.batch([
+      touchCourse(c.env.DB, churchId, courseId, now, operationId, {
+        id: enrollmentId,
+        version: parsed.data.version,
+      }),
+      c.env.DB.prepare(
+        `DELETE FROM course_enrollments WHERE church_id = ? AND course_id = ? AND id = ?
+          AND EXISTS (SELECT 1 FROM courses WHERE church_id = ? AND id = ? AND last_operation_id = ?)`,
+      ).bind(churchId, courseId, enrollmentId, churchId, courseId, operationId),
+      ...mutationEvidence(c.env.DB, {
+        churchId,
+        actorId: actor.id,
+        requestId: c.get('requestId'),
+        entityType: 'course',
+        entityId: courseId,
+        eventName: 'courses.enrollment.removed',
+        operationId,
+        table: 'courses',
+        now,
+        metadata: { enrollmentId },
+      }),
+    ])
+    if (results[0]?.meta.changes !== 1) {
+      throw new AppError(
+        409,
+        'version_conflict',
+        'The enrollment changed. Refresh before trying again.',
+      )
+    }
+    broadcastContent(c, churchId, 'course', courseId, 'updated')
+    return c.json({
+      enrollments: await readEnrollments(c.env.DB, churchId, courseId),
+    })
+  },
+)

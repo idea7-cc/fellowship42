@@ -46,7 +46,10 @@ function participationApp(requestIdentity: AccessIdentity) {
       {
         error: {
           code: error instanceof AppError ? error.code : 'internal_error',
-          message: error instanceof HTTPException ? error.message : 'Internal server error',
+          message:
+            error instanceof HTTPException
+              ? error.message
+              : 'Internal server error',
         },
       },
       status,
@@ -70,7 +73,10 @@ function requestAs(identity: AccessIdentity) {
     app.fetch(
       new Request(`https://fellowship42.test${pathname}`, {
         method,
-        headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+        headers:
+          body === undefined
+            ? undefined
+            : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
       env,
@@ -85,14 +91,13 @@ const request = requestAs(owner)
 // Tests bind the link explicitly, as the other suites do.
 beforeEach(async () => {
   const now = Date.now()
-  await env.DB
-    .prepare(
-      `
+  await env.DB.prepare(
+    `
         INSERT OR IGNORE INTO auth_identities (
           id, user_id, provider, subject, email_at_provider, created_at, updated_at
         ) VALUES ('identity_demo_owner', 'user_demo_owner', ?, ?, ?, ?, ?)
       `,
-    )
+  )
     .bind(owner.provider, owner.subject, owner.email, now, now)
     .run()
 })
@@ -159,7 +164,7 @@ describe('group rosters', () => {
     const paused = await request(
       'PUT',
       `/api/groups/church_demo/${groupId}/members/${alice}`,
-      { status: 'paused', notes: 'Travelling until autumn' },
+      { version: 1, status: 'paused', notes: 'Travelling until autumn' },
     )
     const pausedRoster = await paused.json<GroupRoster>()
     expect(pausedRoster.members).toHaveLength(1)
@@ -180,12 +185,14 @@ describe('group rosters', () => {
     const removed = await request(
       'DELETE',
       `/api/groups/church_demo/${groupId}/members/${alice}`,
+      { version: 2 },
     )
     expect((await removed.json<GroupRoster>()).members).toHaveLength(0)
 
     const removedLeader = await request(
       'DELETE',
       `/api/groups/church_demo/${groupId}/leaders/${bob}`,
+      { version: 1 },
     )
     expect((await removedLeader.json<GroupRoster>()).leaders).toHaveLength(0)
   })
@@ -197,9 +204,13 @@ describe('group rosters', () => {
 
     expect(
       (
-        await request('PUT', `/api/groups/church_demo/${groupId}/members/${first}`, {
-          status: 'active',
-        })
+        await request(
+          'PUT',
+          `/api/groups/church_demo/${groupId}/members/${first}`,
+          {
+            status: 'active',
+          },
+        )
       ).status,
     ).toBe(200)
 
@@ -233,48 +244,47 @@ describe('group rosters', () => {
       { status: 'active' },
     )
     expect(response.status).toBe(422)
-    expect((await response.json<{ error: { code: string } }>()).error.code).toBe(
-      'invalid_person',
-    )
+    expect(
+      (await response.json<{ error: { code: string } }>()).error.code,
+    ).toBe('invalid_person')
   })
 
   it('denies roster access without the groups permission', async () => {
     const groupId = await createGroup('Private Group', 'private-group')
     const now = Date.now()
     await env.DB.batch([
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
            VALUES ('user_participation_finance', 'finance@example.test', 'Finance', 'Only', 'active', ?, ?)`,
-        )
-        .bind(now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
+      ).bind(now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
            VALUES ('authid_participation_finance', 'user_participation_finance', 'cloudflare-access', 'participation-finance-subject', 'finance@example.test', ?, ?)`,
-        )
-        .bind(now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
+      ).bind(now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
            VALUES ('membership_participation_finance', 'church_demo', 'user_participation_finance', 'active', ?, ?, ?)`,
-        )
-        .bind(now, now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
+      ).bind(now, now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
            VALUES ('church_demo', 'membership_participation_finance', 'role_demo_finance', ?, 'user_demo_owner')`,
-        )
-        .bind(now),
+      ).bind(now),
     ])
 
     const asFinance = requestAs(financeOnly)
-    expect((await asFinance('GET', `/api/groups/church_demo/${groupId}/roster`)).status).toBe(403)
+    expect(
+      (await asFinance('GET', `/api/groups/church_demo/${groupId}/roster`))
+        .status,
+    ).toBe(403)
     expect(
       (
-        await asFinance('PUT', `/api/groups/church_demo/${groupId}/members/whoever`, {
-          status: 'active',
-        })
+        await asFinance(
+          'PUT',
+          `/api/groups/church_demo/${groupId}/members/whoever`,
+          {
+            status: 'active',
+          },
+        )
       ).status,
     ).toBe(403)
   })
@@ -286,7 +296,10 @@ describe('course enrollments', () => {
   })
 
   it('enrolls a person and a group, updates status, and removes', async () => {
-    const courseId = await createCourse('Enrollable Course', 'enrollable-course')
+    const courseId = await createCourse(
+      'Enrollable Course',
+      'enrollable-course',
+    )
     const personId = await createPerson('Enrolled', 'Person')
     const groupId = await createGroup('Enrolled Group', 'enrolled-group')
 
@@ -310,25 +323,34 @@ describe('course enrollments', () => {
     const afterGroup = await group.json<{ enrollments: CourseEnrollment[] }>()
     expect(afterGroup.enrollments).toHaveLength(2)
     expect(
-      afterGroup.enrollments.some((entry) => entry.subjectName === 'Enrolled Group'),
+      afterGroup.enrollments.some(
+        (entry) => entry.subjectName === 'Enrolled Group',
+      ),
     ).toBe(true)
 
     const enrollmentId = afterPerson.enrollments[0].id
     const completed = await request(
       'PATCH',
       `/api/courses/church_demo/${courseId}/enrollments/${enrollmentId}`,
-      { status: 'completed' },
+      { version: afterPerson.enrollments[0].version, status: 'completed' },
     )
-    const afterComplete = await completed.json<{ enrollments: CourseEnrollment[] }>()
-    const updated = afterComplete.enrollments.find((entry) => entry.id === enrollmentId)
+    const afterComplete = await completed.json<{
+      enrollments: CourseEnrollment[]
+    }>()
+    const updated = afterComplete.enrollments.find(
+      (entry) => entry.id === enrollmentId,
+    )
     expect(updated?.status).toBe('completed')
     expect(updated?.completedAt).toBeTruthy()
 
     const removed = await request(
       'DELETE',
       `/api/courses/church_demo/${courseId}/enrollments/${enrollmentId}`,
+      { version: updated?.version },
     )
-    const afterRemove = await removed.json<{ enrollments: CourseEnrollment[] }>()
+    const afterRemove = await removed.json<{
+      enrollments: CourseEnrollment[]
+    }>()
     expect(afterRemove.enrollments).toHaveLength(1)
   })
 
@@ -351,9 +373,13 @@ describe('course enrollments', () => {
 
     expect(
       (
-        await request('POST', `/api/courses/church_demo/${courseId}/enrollments`, {
-          personId,
-        })
+        await request(
+          'POST',
+          `/api/courses/church_demo/${courseId}/enrollments`,
+          {
+            personId,
+          },
+        )
       ).status,
     ).toBe(201)
 
@@ -363,9 +389,9 @@ describe('course enrollments', () => {
       { personId },
     )
     expect(duplicate.status).toBe(409)
-    expect((await duplicate.json<{ error: { code: string } }>()).error.code).toBe(
-      'already_enrolled',
-    )
+    expect(
+      (await duplicate.json<{ error: { code: string } }>()).error.code,
+    ).toBe('already_enrolled')
   })
 })
 
@@ -396,7 +422,7 @@ describe('group sessions and attendance', () => {
     const updated = await request(
       'PATCH',
       `/api/groups/church_demo/${groupId}/sessions/${session.id}`,
-      { status: 'submitted', topic: 'Psalm 23' },
+      { version: session.version, status: 'submitted', topic: 'Psalm 23' },
     )
     const afterUpdate = await updated.json<{ sessions: GroupSession[] }>()
     expect(afterUpdate.sessions[0].status).toBe('submitted')
@@ -405,8 +431,11 @@ describe('group sessions and attendance', () => {
     const removed = await request(
       'DELETE',
       `/api/groups/church_demo/${groupId}/sessions/${session.id}`,
+      { version: afterUpdate.sessions[0].version },
     )
-    expect((await removed.json<{ sessions: GroupSession[] }>()).sessions).toHaveLength(0)
+    expect(
+      (await removed.json<{ sessions: GroupSession[] }>()).sessions,
+    ).toHaveLength(0)
   })
 
   it('rejects a session that ends before it starts', async () => {
@@ -425,9 +454,13 @@ describe('group sessions and attendance', () => {
     const present = await createPerson('Present', 'Person')
     const absent = await createPerson('Absent', 'Person')
     for (const personId of [present, absent]) {
-      await request('PUT', `/api/groups/church_demo/${groupId}/members/${personId}`, {
-        status: 'active',
-      })
+      await request(
+        'PUT',
+        `/api/groups/church_demo/${groupId}/members/${personId}`,
+        {
+          status: 'active',
+        },
+      )
     }
     const session = await seedSession(groupId)
 
@@ -438,7 +471,9 @@ describe('group sessions and attendance', () => {
     )
     const before = await initial.json<SessionAttendance>()
     expect(before.entries).toHaveLength(2)
-    expect(before.entries.every((entry) => entry.status === undefined)).toBe(true)
+    expect(before.entries.every((entry) => entry.status === undefined)).toBe(
+      true,
+    )
     expect(before.recordedCount).toBe(0)
 
     const marked = await request(
@@ -449,7 +484,9 @@ describe('group sessions and attendance', () => {
     const afterMark = await marked.json<SessionAttendance>()
     expect(afterMark.presentCount).toBe(1)
     expect(afterMark.recordedCount).toBe(1)
-    const presentEntry = afterMark.entries.find((entry) => entry.personId === present)
+    const presentEntry = afterMark.entries.find(
+      (entry) => entry.personId === present,
+    )
     expect(presentEntry?.status).toBe('present')
     expect(presentEntry?.checkedInAt).toBeTruthy()
 
@@ -457,7 +494,11 @@ describe('group sessions and attendance', () => {
     const changed = await request(
       'PUT',
       `/api/groups/church_demo/${groupId}/sessions/${session.id}/attendance/${present}`,
-      { status: 'excused', notes: 'Away for work' },
+      {
+        version: presentEntry?.version,
+        status: 'excused',
+        notes: 'Away for work',
+      },
     )
     const afterChange = await changed.json<SessionAttendance>()
     expect(afterChange.entries).toHaveLength(2)
@@ -479,9 +520,9 @@ describe('group sessions and attendance', () => {
       { status: 'present' },
     )
     expect(response.status).toBe(422)
-    expect((await response.json<{ error: { code: string } }>()).error.code).toBe(
-      'not_a_group_member',
-    )
+    expect(
+      (await response.json<{ error: { code: string } }>()).error.code,
+    ).toBe('not_a_group_member')
   })
 
   it('separates the attendance permission from group editing', async () => {
@@ -491,30 +532,22 @@ describe('group sessions and attendance', () => {
 
     // The seeded ministry-leader role carries attendance.write and groups.write.
     await env.DB.batch([
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO users (id, email, first_name, last_name, status, created_at, updated_at)
            VALUES ('user_participation_leader', 'leader@example.test', 'Ministry', 'Leader', 'active', ?, ?)`,
-        )
-        .bind(now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
+      ).bind(now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO auth_identities (id, user_id, provider, subject, email_at_provider, created_at, updated_at)
            VALUES ('authid_participation_leader', 'user_participation_leader', 'cloudflare-access', 'participation-leader-subject', 'leader@example.test', ?, ?)`,
-        )
-        .bind(now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
+      ).bind(now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO church_memberships (id, church_id, user_id, status, joined_at, created_at, updated_at)
            VALUES ('membership_participation_leader', 'church_demo', 'user_participation_leader', 'active', ?, ?, ?)`,
-        )
-        .bind(now, now, now),
-      env.DB
-        .prepare(
-          `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
+      ).bind(now, now, now),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
            VALUES ('church_demo', 'membership_participation_leader', 'role_demo_leader', ?, 'user_demo_owner')`,
-        )
-        .bind(now),
+      ).bind(now),
     ])
 
     const asLeader = requestAs({
@@ -543,5 +576,174 @@ describe('group sessions and attendance', () => {
         )
       ).status,
     ).toBe(403)
+  })
+})
+
+describe('participation concurrency regressions', () => {
+  it('admits only one concurrent applicant for the final seat and audits only the winner', async () => {
+    const groupId = await createGroup('Concurrent Seats', 'concurrent-seats', 1)
+    const people = await Promise.all([
+      createPerson('Seat', 'One'),
+      createPerson('Seat', 'Two'),
+    ])
+    const replies = await Promise.all(
+      people.map((personId) =>
+        request(
+          'PUT',
+          `/api/groups/church_demo/${groupId}/members/${personId}`,
+          { status: 'active' },
+        ),
+      ),
+    )
+    expect(replies.map((reply) => reply.status).sort()).toEqual([200, 409])
+    const roster = await (
+      await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+    ).json<GroupRoster>()
+    expect(roster.activeCount).toBe(1)
+    const evidence = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM audit_events WHERE entity_id = ? AND action = 'groups.member.upserted'",
+    )
+      .bind(groupId)
+      .first<{ count: number }>()
+    expect(evidence?.count).toBe(1)
+    const parent = await env.DB.prepare(
+      'SELECT version FROM groups WHERE id = ?',
+    )
+      .bind(groupId)
+      .first<{ version: number }>()
+    expect(parent?.version).toBe(1)
+  })
+
+  it('rejects stale membership edits and removals without changing the record', async () => {
+    const groupId = await createGroup('Versioned Roster', 'versioned-roster')
+    const personId = await createPerson('Versioned', 'Member')
+    const path = `/api/groups/church_demo/${groupId}/members/${personId}`
+    expect((await request('PUT', path, { status: 'active' })).status).toBe(200)
+    expect(
+      (
+        await request('PUT', path, {
+          version: 1,
+          status: 'paused',
+          notes: 'Keep this',
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (await request('PUT', path, { version: 1, status: 'completed' })).status,
+    ).toBe(409)
+    expect((await request('PUT', path, { status: 'active' })).status).toBe(409)
+    expect((await request('DELETE', path, { version: 1 })).status).toBe(409)
+    const roster = await (
+      await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+    ).json<GroupRoster>()
+    expect(roster.members[0]).toMatchObject({
+      status: 'paused',
+      notes: 'Keep this',
+      version: 2,
+    })
+  })
+
+  it('rejects stale session patches and attendance marks while preserving independent edits', async () => {
+    const groupId = await createGroup(
+      'Versioned Sessions',
+      'versioned-sessions',
+    )
+    const personId = await createPerson('Versioned', 'Attendee')
+    await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${personId}`,
+      { status: 'active' },
+    )
+    const base = `/api/groups/church_demo/${groupId}/sessions`
+    const created = await (
+      await request('POST', base, { title: 'Original', startsAt: Date.now() })
+    ).json<{ sessions: GroupSession[] }>()
+    const session = created.sessions[0]
+    const path = `${base}/${session.id}`
+    expect(
+      (
+        await request('PATCH', path, {
+          version: session.version,
+          title: 'New title',
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (
+        await request('PATCH', path, {
+          version: session.version,
+          topic: 'Stale change',
+        })
+      ).status,
+    ).toBe(409)
+    expect(
+      (await request('DELETE', path, { version: session.version })).status,
+    ).toBe(409)
+    const attendancePath = `${path}/attendance/${personId}`
+    expect(
+      (await request('PUT', attendancePath, { status: 'present' })).status,
+    ).toBe(200)
+    expect(
+      (
+        await request('PUT', attendancePath, {
+          version: 1,
+          status: 'excused',
+          notes: 'Keep',
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (await request('PUT', attendancePath, { version: 1, status: 'absent' }))
+        .status,
+    ).toBe(409)
+    const result = await (
+      await request('GET', `${path}/attendance`)
+    ).json<SessionAttendance>()
+    expect(result.session).toMatchObject({ title: 'New title', version: 2 })
+    expect(result.entries[0]).toMatchObject({
+      status: 'excused',
+      version: 2,
+      notes: 'Keep',
+    })
+  })
+
+  it('clears enrollment notes explicitly and rejects a stale edit or delete', async () => {
+    const courseId = await createCourse(
+      'Versioned Enrollment',
+      'versioned-enrollment',
+    )
+    const personId = await createPerson('Versioned', 'Student')
+    const base = `/api/courses/church_demo/${courseId}/enrollments`
+    const created = await (
+      await request('POST', base, { personId, notes: 'Original note' })
+    ).json<{ enrollments: CourseEnrollment[] }>()
+    const enrollment = created.enrollments[0]
+    const path = `${base}/${enrollment.id}`
+    const changed = await request('PATCH', path, {
+      version: enrollment.version,
+      status: 'active',
+      notes: null,
+    })
+    expect(changed.status).toBe(200)
+    expect(
+      (await changed.json<{ enrollments: CourseEnrollment[] }>())
+        .enrollments[0],
+    ).toMatchObject({ version: 2, status: 'active' })
+    const stored = await env.DB.prepare(
+      'SELECT notes FROM course_enrollments WHERE id = ?',
+    )
+      .bind(enrollment.id)
+      .first<{ notes: string | null }>()
+    expect(stored?.notes).toBeNull()
+    expect(
+      (
+        await request('PATCH', path, {
+          version: 1,
+          status: 'completed',
+          notes: 'Stale note',
+        })
+      ).status,
+    ).toBe(409)
+    expect((await request('DELETE', path, { version: 1 })).status).toBe(409)
   })
 })
