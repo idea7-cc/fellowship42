@@ -122,7 +122,7 @@ export const releaseUpgradeMetadataSchema = z
     strategy: z.literal('in-place-expand-contract'),
     rollbackPolicy: z.literal('roll-forward-after-migration'),
     target: releaseUpgradeTargetSchema,
-    eligibleSources: z.array(releaseUpgradeSourceSchema).min(1).max(64),
+    eligibleSources: z.array(releaseUpgradeSourceSchema).max(64),
     requiredEvidence: z
       .array(releaseUpgradeEvidenceIdSchema)
       .min(1)

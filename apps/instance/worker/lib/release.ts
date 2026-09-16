@@ -6,7 +6,7 @@ import instancePackage from '../../package.json'
 import { AppError } from './errors'
 
 export const APPLICATION_VERSION = instancePackage.version
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 1
 
 export type ReleaseCoordinateBindings = {
   F42_RELEASE_TAG?: string

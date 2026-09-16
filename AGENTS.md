@@ -20,6 +20,30 @@ system shape.
 6. Private billing, fleet orchestration, partner administration, and dashboard
    code must never be added to this repository.
 
+## Pre-alpha development policy
+
+Fellowship42 has no deployed instances and no users. Until a working alpha is
+declared and early testing starts, speed wins over compatibility:
+
+- `apps/instance/migrations/0001_initial.sql` is the whole schema and is edited
+  in place. Do not add numbered migrations, expand/contract steps, or data
+  backfills. The schema version stays at `1`. After changing the schema, reset
+  local state with `rm -rf apps/instance/.wrangler/state` and rerun
+  `pnpm db:migrate && pnpm db:seed`.
+- Breaking changes to routes, API shapes, contracts, and UI paths are fine. Do
+  not add compatibility shims, legacy redirects, deprecation paths, or dual
+  code paths.
+- `release-upgrade-policy.json` declares no eligible upgrade sources. Tagged
+  releases are snapshots for reference and provenance, not upgrade targets.
+  Nothing has to be applied "before running the new Worker".
+- Deterministic lifecycle contracts and their fixtures stay green because they
+  are synthetic; do not invest in live upgrade, restore, or exit evidence for
+  pre-alpha changes.
+- ADRs are still required for changes to ownership, custody, management trust,
+  authentication, or repository boundaries. Everything else needs none.
+
+Revisit this section when the alpha is declared.
+
 ## Repository boundaries
 
 - `apps/instance` is the only deployable church product. It contains the React

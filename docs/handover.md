@@ -6,9 +6,9 @@ Start with [Current state](current-state.md), [Architecture](architecture.md),
 [Repository strategy](repository-strategy.md), and [Maintenance](maintenance.md).
 `AGENTS.md` remains authoritative for invariants; `pnpm verify` owns validation.
 
-Working source is ahead of published v0.26.0. Migrations 0009 and 0010 add
-independent participation and membership versions and must be applied before
-the updated Worker. Existing
+Working source is ahead of published v0.26.0 and does not upgrade from it.
+The pre-alpha policy in `AGENTS.md` applies: one schema file edited in place,
+no eligible upgrade sources, breaking changes without shims. Existing
 release fixtures and published checksums remain historical evidence.
 
 The public instance is independently useful. Member self-service identity is

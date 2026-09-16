@@ -10,7 +10,7 @@ worker/                    server-side Worker code
   management/              optional management boundary; disabled by default
   routes/                  public and authenticated application APIs
   lib/                     shared Worker authorization, errors, and mappings
-migrations/                forward-only portable D1 schema
+migrations/                the whole D1 schema in one file, edited in place before alpha
 test/                      Workers-runtime integration tests
 wrangler.jsonc             development deployment template
 ```

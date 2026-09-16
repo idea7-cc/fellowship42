@@ -26,6 +26,11 @@ The public instance consumes this metadata through the owner-controlled flow in
 [Durable instance upgrades](durable-upgrades.md) and
 [ADR 0017](adr/0017-instance-owned-update-authorization.md).
 
+Until a working alpha is declared, `release-upgrade-policy.json` lists no
+eligible sources and the schema version stays at 1, because the schema file is
+edited in place rather than migrated (see `AGENTS.md`). A release manifest
+still embeds that metadata so every candidate upgrade is declared incompatible.
+
 Application releases remain pre-1.0 and may contain breaking changes in a minor
 release. Management protocol package `1.x` follows semantic versioning: additive
 contracts use minor releases, fixes use patches, and changes to required wire

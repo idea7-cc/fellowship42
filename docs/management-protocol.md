@@ -260,6 +260,8 @@ definitions and the generated, release-pinned catalog without changing wire
 major 1. The catalog is informational and never grants management authority.
 See [Stable operator references](operator-references.md).
 
+Protocol package `1.13.0` lets release upgrade metadata declare no eligible
+sources, which is how pre-alpha releases state that no direct upgrade exists.
 ## Compatible operator inputs
 
 Protocol package `1.10.0` adds the strict

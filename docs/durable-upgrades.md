@@ -1,5 +1,9 @@
 # Durable instance upgrades
 
+> Pre-alpha: the checked-in policy declares no eligible upgrade sources, so the
+> flow below rejects every candidate. It is exercised by tests with synthetic
+> policies and becomes operational once the alpha is declared.
+
 Fellowship42 separates four facts that are often collapsed into one deploy
 button: public release compatibility, local instance readiness, church-owner
 approval, and infrastructure authority.
