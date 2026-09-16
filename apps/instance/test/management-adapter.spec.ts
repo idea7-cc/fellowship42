@@ -541,7 +541,7 @@ describe('optional management adapter', () => {
               source: 'management-sync',
               release: {
                 applicationVersion: '0.26.0',
-                schemaVersion: 9,
+                schemaVersion: 10,
                 managementProtocolWireVersion: '1',
               },
               connection: { status: 'connected', grantVersion: 1 },
@@ -607,7 +607,7 @@ describe('optional management adapter', () => {
       application: {
         name: 'fellowship42',
         version: '0.27.0',
-        schemaVersion: 9,
+        schemaVersion: 10,
       },
       managementProtocol: {
         package: '@fellowship42/management-protocol',
@@ -625,7 +625,7 @@ describe('optional management adapter', () => {
         rollbackPolicy: 'roll-forward-after-migration',
         target: {
           applicationVersion: '0.27.0',
-          schemaVersion: 9,
+          schemaVersion: 10,
           managementProtocolWireVersion: '1',
         },
         eligibleSources: [
@@ -633,7 +633,7 @@ describe('optional management adapter', () => {
             releaseTag: 'v0.26.0',
             releaseManifestSha256: sourceManifestSha256,
             applicationVersion: '0.26.0',
-            schemaVersion: 9,
+            schemaVersion: 10,
             managementProtocolWireVersion: '1',
           },
         ],

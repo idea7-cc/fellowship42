@@ -181,6 +181,10 @@ After setup succeeds, remove the one-time selector:
 pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER_EMAIL
 ```
 
+The owner then adds every other staff member from the **Team** page. Each
+invited email must also be allowed by the Access policy; the instance sends no
+email and cannot change the policy. See [Team and roles](team-and-roles.md).
+
 Attach the instance custom domain and verify:
 
 - `/api/health` reports `fellowship42-instance`, `single-church`, coarse

@@ -508,3 +508,56 @@ export interface EnrollmentChallenge {
   issuedAt: string
   expiresAt: string
 }
+
+// ---------------------------------------------------------------------------
+// Team: the staff and leaders who can sign in to this instance
+// ---------------------------------------------------------------------------
+
+/** Sign-in account state. `invited` means the person has not signed in yet. */
+export type TeamAccountStatus = 'invited' | 'active' | 'suspended'
+/** Church membership state; `left` memberships are not returned. */
+export type TeamMembershipStatus = 'active' | 'suspended'
+
+export interface TeamMember {
+  membershipId: string
+  userId: string
+  email: string
+  firstName: string
+  lastName: string
+  accountStatus: TeamAccountStatus
+  membershipStatus: TeamMembershipStatus
+  roleKeys: string[]
+  joinedAt?: number
+  lastSeenAt?: number
+  version: number
+}
+
+export interface TeamRole {
+  key: string
+  name: string
+  description: string
+  permissions: string[]
+  isSystem: boolean
+}
+
+export interface TeamResponse {
+  members: TeamMember[]
+  roles: TeamRole[]
+}
+
+export interface TeamMemberResponse {
+  member: TeamMember
+}
+
+export interface TeamInviteInput {
+  email: string
+  firstName?: string
+  lastName?: string
+  roleKeys: string[]
+}
+
+export interface TeamMemberUpdateInput {
+  version: number
+  roleKeys?: string[]
+  status?: TeamMembershipStatus
+}

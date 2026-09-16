@@ -13,6 +13,7 @@ import {
   Moon,
   ShieldCheck,
   Sun,
+  UserCog,
   Users,
   UsersRound,
   X,
@@ -63,6 +64,13 @@ const nav: NavItem[] = [
     path: '/contributions',
     icon: HandCoins,
     note: 'Finance',
+  },
+  {
+    label: 'Team',
+    path: '/team',
+    icon: UserCog,
+    note: 'Owner',
+    permission: 'team.manage',
   },
   {
     label: 'Management',

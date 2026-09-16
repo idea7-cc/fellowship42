@@ -25,6 +25,7 @@ import {
   paymentWebhookRoutes,
 } from './routes/contributions'
 import { managementRoutes } from './routes/management'
+import { teamRoutes } from './routes/team'
 import { runScheduledManagementSync } from './management/sync'
 import { inspectInstanceRuntimeHealth } from './lib/runtime-health'
 
@@ -142,6 +143,7 @@ app.route('/api/sermons', sermonRoutes)
 app.route('/api/media', mediaManagementRoutes)
 app.route('/api/contributions', contributionRoutes)
 app.route('/api/management', managementRoutes)
+app.route('/api/team', teamRoutes)
 app.route('/media', mediaRoutes)
 app.route('/webhooks/payments', paymentWebhookRoutes)
 
