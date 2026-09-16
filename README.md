@@ -1,70 +1,90 @@
 # Fellowship42
 
-Fellowship42 is an Apache-2.0 church management system built as a portable,
-single-church Cloudflare application. Every church can run an independent
-Worker, D1 database, R2 bucket, Durable Object namespace, and outbox Queue in an
-account it owns or in an account operated by Fellowship42 or a certified
-partner.
+Open-source church software built around church ownership and portability.
 
-The open-source instance is complete and useful without a hosted service. An
-instance may optionally enroll with separately maintained Fellowship42 Cloud
-software for managed updates, backups, monitoring, support, and partner fleet
-operations. Disconnecting that management relationship must never disable the
-church application or prevent export.
+> **Early alpha — for development and evaluation with synthetic data.**
+> Fellowship42 has working application features and automated tests, but known
+> defects and incomplete workflows remain. It is not ready for production
+> church records, live donations, or reliance as a church's system of record.
 
-The current beta includes Access-gated production setup, church-scoped roles,
-the private people/household directory, and complete group, course/lesson,
-event, sermon, and R2 media publishing workflows. Protected mutations use
-strict validation, optimistic concurrency, audit/outbox evidence, and realtime
-invalidation while public routes expose only published content. Finance-scoped
-contributions, verified normalized payment events, and Queue-backed outbox
-recovery complete the current instance beta workflow.
+Fellowship42 brings people, households, groups, attendance, courses, events,
+sermons, and contribution records into one church application. The project is
+licensed under Apache-2.0 and built on Cloudflare Workers, D1, R2, Durable
+Objects, and Queues.
 
-Optional management now includes owner-controlled enrollment, encrypted local
-identity, outbound-only signed status sync, replay and grant enforcement, key
-rotation, local disconnect, an executable public adapter-conformance suite, and
-a church-owner console for reviewing the operator, grants, sync state, and safe
-local rotation/disconnect actions. The console emits local revocation evidence,
-and public `f42ctl` builds and independently verifies a provider-neutral hosted
-exit packet for church-owned transfers. Release `v0.21.0` also adds immutable
-update preparation, exact owner approval, and signed deployment authorization
-without placing infrastructure credentials in the instance. Release `v0.24.0`
-adds locally approved, automatically expiring diagnostic support sessions with
-an explicit human operator, purpose, and immediate local revocation. Release
-`v0.25.0` adds a checksummed, commit-pinned catalog of public operator and
-release references for dashboards, CLIs, and other approved clients. Release
-`v0.26.0` adds public governance, security/privacy, trademark, support, and
-independent-operator policies needed to evaluate production use without
-confusing open-source compatibility with an operated-service guarantee.
+## Why Fellowship42 exists
 
-## Repository map
+A church should be able to choose who operates its software and keep control
+of its data. That principle shapes the project:
 
-```text
-apps/
-  instance/                 one deployable church application
-  project-site/             public project/community site
-packages/
-  brand/                    shared public visual system
-  management-protocol/      public instance/control-plane contracts
-tooling/
-  f42ctl/                   public lifecycle, export, and diagnostic CLI
-docs/
-  adr/                      durable architecture decisions
-  architecture.md           runtime and ownership boundaries
-  repository-strategy.md    public/private repository contract
-```
+- **One church, one instance.** Each installation has its own application,
+  database, media storage, and portable identity.
+- **Independent operation.** The church application runs without Fellowship42
+  Cloud, a partner, or a private backend. A church-owned Cloudflare account is
+  the strongest ownership mode.
+- **Optional management.** An owner can approve and revoke an operator's
+  management access. Disconnecting management must preserve the application,
+  its data, and the ability to export.
+- **A documented exit path.** Public export, verification, and restore tooling
+  is part of the project. Portability must be testable by independent operators.
 
-The private dashboard, partner console, billing, and fleet control plane do not
-belong in this repository. They live in a separate `fellowship42-cloud`
-repository and integrate through versioned public contracts and release
-artifacts. See [Repository strategy](docs/repository-strategy.md).
+Fellowship42 Cloud is a separately developed, optional management service.
+Its private dashboard, billing, and fleet operations live outside this
+repository. Core church features are not gated by a paid service.
+See the [architecture](docs/architecture.md) and
+[repository boundaries](docs/repository-strategy.md).
 
-## Local development
+## What you can explore today
 
-The repository uses Node.js 22 and pnpm 10.
+The current source includes these features for development and evaluation:
+
+| Area | Implemented features |
+|---|---|
+| Setup and access | First-owner setup through Cloudflare Access, church roles, and server-side permission checks |
+| People and households | Private directory, household relationships, search, pagination, and record editing |
+| Groups and learning | Group rosters, sessions and attendance, courses, lessons, and enrollment |
+| Publishing | Groups, courses, events, sermons, and authorized media storage with draft/public visibility controls |
+| Contributions | Finance-scoped manual entry, a signed normalized payment-event API, and durable outbox delivery |
+| Optional management | Owner-approved enrollment, signed sync, grants, rotation, disconnect, update authorization, and diagnostic support approval |
+| Portability | Release verification, deployment planning, export assembly, staged import contracts, and deterministic migration rehearsals |
+
+The payment-event API is an integration boundary; connecting a payment provider
+requires an adapter and provider testing. The lifecycle tools also require
+operator-supplied collection and provider adapters for live infrastructure work.
+Automated conformance tests do not establish a successful live restore or exit.
+
+## What still needs work
+
+Before a public beta, the project needs to close gaps in the everyday church
+experience and prove the operating procedures:
+
+- Staff invitations, role administration, and ownership handoff inside the
+  church application.
+- Church profile and service-time editing, plus a way to publish the church
+  after initial setup.
+- Form submission and retry reliability, attendance history when rosters
+  change, and access to records beyond the first page in every workflow.
+- Wider browser, mobile, accessibility, and multi-user testing with realistic
+  synthetic datasets.
+- Live deployment, upgrade, backup, restore, and exit exercises, security/privacy
+  review, and church pilot feedback.
+
+Member sign-in and account claiming remain proposed; Cloudflare Access is the
+current authentication adapter. A congregation-wide self-service portal is
+not available yet. See the [member identity proposal](docs/adr/0020-instance-owned-member-identity.md).
+
+Tagged releases identify exact software artifacts. They do not imply beta,
+production, hosted-service, or partner readiness. The development branch can
+contain changes that are not in a published release. See
+[release policy](docs/releases.md) and
+[readiness evidence](docs/ga-readiness.md) before evaluating a deployment.
+
+## Run locally
+
+Use Node.js 22 and the pnpm version declared in `package.json`.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm db:migrate
 pnpm db:seed
 pnpm dev
@@ -73,40 +93,24 @@ pnpm dev
 The instance UI and API run together at `http://localhost:5173`. Start the
 separate public project site with `pnpm dev:site`.
 
-Local public routes work without authentication. Protected routes require a
-valid Cloudflare Access JWT; copy `apps/instance/.dev.vars.example` to
-`apps/instance/.dev.vars` when testing Access through a forwarded request.
+Public routes work without authentication. Protected workflows require a valid
+Cloudflare Access JWT; local seed data does not provide a sign-in bypass. Use
+`apps/instance/.dev.vars.example` as the configuration reference when testing
+Access through a forwarded request.
 
-## Required checks
+`seed.sql` contains local demo data only. For a fresh deployed installation,
+follow the Access-gated first-owner setup in the
+[deployment runbook](docs/deployment.md).
 
-```bash
-pnpm check:architecture
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm deploy:dry-run
-pnpm deploy:site:dry-run
-```
+## Deployment and portability
 
-Worker tests run in Cloudflare's Vitest integration against fresh D1 migrations
-and deterministic development data.
+Deployment currently requires a technically capable operator and a Cloudflare
+account with dedicated resources for each church. The committed Wrangler
+configuration contains placeholders; it is not ready to deploy unchanged.
+Use disposable environments and synthetic data while evaluating this alpha.
 
-`seed.sql` is local demo data only. A production database is initialized by the
-Access-gated, one-time instance setup flow documented in
-[the deployment runbook](docs/deployment.md).
-
-## Deploying an instance
-
-Each deployment needs dedicated D1 and R2 resources plus its own application
-configuration. Replace the placeholder D1 ID, portable instance ID, and Access
-values in `apps/instance/wrangler.jsonc`, then follow
-[the deployment runbook](docs/deployment.md).
-
-The committed Wrangler configuration is development scaffolding, not a hosted
-multi-tenant environment. Hosted orchestration must produce the same portable
-instance shape as a church-managed deployment.
-
-Start with a strict desired-state manifest and inspect its deterministic plan:
+Start with the [deployment runbook](docs/deployment.md). To inspect the example
+manifest and its offline configuration evidence:
 
 ```bash
 pnpm f42ctl plan \
@@ -116,56 +120,58 @@ pnpm f42ctl doctor \
   --offline
 ```
 
-These commands do not create or mutate Cloudflare resources. See
-[Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md).
-Portable export assembly and offline verification are documented in
-[Portable exports](docs/portable-exports.md).
-Staged restoration and approval-gated routing changes are documented in
-[Portable import and cutover](docs/portable-import-and-cutover.md).
-The complete public compatibility exercise is documented in
-[Hosted-to-church-owned migration rehearsal](docs/migration-rehearsal.md).
-Hosted backup implementations can run the payload-free
-[isolated-restore conformance suite](docs/portable-restore-conformance.md)
-without granting the public package storage credentials.
-Completed hosted transfers produce a public
-[independently verifiable exit packet](docs/exit-packets.md).
-Operator clients can consume the checksummed
-[stable operator reference catalog](docs/operator-references.md).
-Independent hosting companies and consultants should also follow
-[the third-party operator guide](docs/third-party-operators.md); compatibility
-does not imply Fellowship42 certification or endorsement.
+These commands do not create or change Cloudflare resources. Continue with the
+[lifecycle tooling guide](docs/lifecycle-manifests-and-doctor.md),
+[portable exports](docs/portable-exports.md),
+[import and cutover](docs/portable-import-and-cutover.md), and
+[migration rehearsal](docs/migration-rehearsal.md).
 
-## Documentation
+## Repository layout
 
-- [Architecture](docs/architecture.md)
-- [Repository strategy](docs/repository-strategy.md)
-- [Management protocol](docs/management-protocol.md)
-- [Releases and immutable artifacts](docs/releases.md)
-- [Durable instance upgrades](docs/durable-upgrades.md)
-- [Instance recovery guide](docs/operator-recovery.md)
-- [Compatible operator test inputs](docs/partner-compatibility.md)
-- [Third-party operator guide](docs/third-party-operators.md)
-- [Security and privacy boundaries](docs/security-and-privacy.md)
-- [General-availability readiness](docs/ga-readiness.md)
-- [Church-approved support sessions](docs/church-approved-support.md)
-- [Lifecycle manifests and doctor](docs/lifecycle-manifests-and-doctor.md)
-- [Portable exports](docs/portable-exports.md)
-- [Portable import and cutover](docs/portable-import-and-cutover.md)
-- [Hosted-to-church-owned migration rehearsal](docs/migration-rehearsal.md)
-- [Portable restore conformance](docs/portable-restore-conformance.md)
-- [Hosted exit packets](docs/exit-packets.md)
+```text
+apps/instance/                 React UI and Worker API for one church
+apps/project-site/             Public project/community website
+packages/brand/                Shared presentation code
+packages/management-protocol/  Public, versioned management contracts
+tooling/f42ctl/                Public lifecycle and verification tooling
+docs/                         Architecture, workflows, runbooks, and ADRs
+```
+
+## Contribute and give feedback
+
+Contributions and reproducible bug reports are welcome. Read
+[AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing
+code. Use synthetic data in issues and examples, and include the exact release
+or commit you tested.
+
+Run the repository checks before submitting a change:
+
+```bash
+pnpm check:architecture
+pnpm typecheck
+pnpm test
+pnpm test:migration-rehearsal
+pnpm build
+pnpm deploy:dry-run
+pnpm deploy:site:dry-run
+```
+
+Community support is best effort; there is no response, uptime, or recovery
+SLA. See [SUPPORT.md](SUPPORT.md). Report suspected vulnerabilities privately
+through [SECURITY.md](SECURITY.md).
+
+Additional documentation:
+
+- [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
-- [Contributions and durable delivery](docs/contributions-and-delivery.md)
-- [Architecture decisions](docs/adr/README.md)
-- [Current handover](docs/handover.md)
-- [Product plan](docs/fellowship42-product-plan.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
-- [Governance](GOVERNANCE.md)
-- [Community support](SUPPORT.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Trademark policy](TRADEMARKS.md)
+- [Contributions and delivery](docs/contributions-and-delivery.md)
+- [Optional management protocol](docs/management-protocol.md)
+- [Security and privacy boundaries](docs/security-and-privacy.md)
+- [Operator recovery](docs/operator-recovery.md)
+- [Independent operator guidance](docs/third-party-operators.md)
+- [Governance](GOVERNANCE.md), [code of conduct](CODE_OF_CONDUCT.md), and
+  [trademark policy](TRADEMARKS.md)
 
 ## License
 
-Fellowship42 is licensed under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE).
