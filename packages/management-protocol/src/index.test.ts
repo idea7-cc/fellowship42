@@ -77,7 +77,10 @@ describe('management protocol contracts', () => {
     const definitions = operatorReferenceDefinitionsSchema.parse(
       JSON.parse(
         await readFile(
-          new URL('../../../docs/operator-reference-definitions.json', import.meta.url),
+          new URL(
+            '../../../docs/operator-reference-definitions.json',
+            import.meta.url,
+          ),
           'utf8',
         ),
       ),
@@ -94,7 +97,8 @@ describe('management protocol contracts', () => {
           id: 'release-manifest',
           kind: 'release',
           title: 'Verify the release manifest',
-          summary: 'Verify the exact checksummed release manifest and its artifacts.',
+          summary:
+            'Verify the exact checksummed release manifest and its artifacts.',
           audiences: ['service-operator'],
           immutableUrl: `${repository}/releases/download/v0.26.0/release-manifest.json`,
           sourcePath: null,
@@ -103,7 +107,8 @@ describe('management protocol contracts', () => {
           id: 'release-page',
           kind: 'release',
           title: 'Review the release page',
-          summary: 'Review the exact tagged release and its published release notes.',
+          summary:
+            'Review the exact tagged release and its published release notes.',
           audiences: ['service-operator'],
           immutableUrl: `${repository}/releases/tag/v0.26.0`,
           sourcePath: null,
@@ -116,17 +121,26 @@ describe('management protocol contracts', () => {
     })
 
     expect(catalog.references).toHaveLength(definitions.references.length + 2)
-    expect(catalog.references.every((reference) =>
-      reference.immutableUrl.includes(commit) ||
-      reference.immutableUrl.includes('/v0.26.0'),
-    )).toBe(true)
-    expect(operatorReferenceCatalogSchema.safeParse({
-      ...catalog,
-      references: catalog.references.map((reference) =>
-        reference.id === 'operator-recovery'
-          ? { ...reference, immutableUrl: `${repository}/blob/main/docs/operator-recovery.md` }
-          : reference),
-    }).success).toBe(false)
+    expect(
+      catalog.references.every(
+        (reference) =>
+          reference.immutableUrl.includes(commit) ||
+          reference.immutableUrl.includes('/v0.26.0'),
+      ),
+    ).toBe(true)
+    expect(
+      operatorReferenceCatalogSchema.safeParse({
+        ...catalog,
+        references: catalog.references.map((reference) =>
+          reference.id === 'operator-recovery'
+            ? {
+                ...reference,
+                immutableUrl: `${repository}/blob/main/docs/operator-recovery.md`,
+              }
+            : reference,
+        ),
+      }).success,
+    ).toBe(false)
   })
 
   it('accepts only the ordered payload-free partner compatibility inputs', async () => {
@@ -141,15 +155,23 @@ describe('management protocol contracts', () => {
     )
     expect(partnerCompatibilityProfileSchema.parse(profile)).toEqual(profile)
     expect(profile).toEqual(partnerCompatibilityProfile)
-    expect(partnerCompatibilityProfileSchema.safeParse({
-      ...profile,
-      inputs: [...profile.inputs].reverse(),
-    }).success).toBe(false)
-    expect(partnerCompatibilityProfileSchema.safeParse({
-      ...profile,
-      inputs: profile.inputs.map((input: Record<string, unknown>, index: number) =>
-        index === 0 ? { ...input, requiresProviderCredential: true } : input),
-    }).success).toBe(false)
+    expect(
+      partnerCompatibilityProfileSchema.safeParse({
+        ...profile,
+        inputs: [...profile.inputs].reverse(),
+      }).success,
+    ).toBe(false)
+    expect(
+      partnerCompatibilityProfileSchema.safeParse({
+        ...profile,
+        inputs: profile.inputs.map(
+          (input: Record<string, unknown>, index: number) =>
+            index === 0
+              ? { ...input, requiresProviderCredential: true }
+              : input,
+        ),
+      }).success,
+    ).toBe(false)
   })
 
   it('requires complete local revocation and ordered hosted-exit handoff evidence', () => {
@@ -206,16 +228,20 @@ describe('management protocol contracts', () => {
         sourceDisposition:
           kind === 'domains' ? 'routing-retired' : 'access-revoked',
       })),
-      domains: [{
-        hostname: 'new.example.org',
-        destinationRouting: 'active',
-        sourceRouting: 'retired',
-      }],
-      operators: [{
-        subject: 'organization:new-example-church',
-        role: 'infrastructure-owner',
-        disposition: 'church-controlled',
-      }],
+      domains: [
+        {
+          hostname: 'new.example.org',
+          destinationRouting: 'active',
+          sourceRouting: 'retired',
+        },
+      ],
+      operators: [
+        {
+          subject: 'organization:new-example-church',
+          role: 'infrastructure-owner',
+          disposition: 'church-controlled',
+        },
+      ],
       credentialAttestation: {
         deployment: 'rotated',
         applicationSecrets: 'rotated',
@@ -260,9 +286,7 @@ describe('management protocol contracts', () => {
         'partial-restore-fails-closed',
       ].map((id) => ({ id, status: 'passed' })),
     }
-    expect(portableRestoreConformanceReportSchema.parse(report)).toEqual(
-      report,
-    )
+    expect(portableRestoreConformanceReportSchema.parse(report)).toEqual(report)
     expect(
       portableRestoreConformanceReportSchema.safeParse({
         ...report,
@@ -610,10 +634,7 @@ describe('management protocol contracts', () => {
   it('accepts the immutable hosted-to-church-owned rehearsal fixture', async () => {
     const fixture = JSON.parse(
       await readFile(
-        new URL(
-          '../fixtures/migration-rehearsal.v1.json',
-          import.meta.url,
-        ),
+        new URL('../fixtures/migration-rehearsal.v1.json', import.meta.url),
         'utf8',
       ),
     )
@@ -751,14 +772,24 @@ describe('management protocol contracts', () => {
         quiescedAt: '2026-07-19T21:00:00.000Z',
       },
       artifacts: [
-        { kind: 'd1-sql', file: 'd1/database.sql', bytes: 42, sha256: 'a'.repeat(64) },
+        {
+          kind: 'd1-sql',
+          file: 'd1/database.sql',
+          bytes: 42,
+          sha256: 'a'.repeat(64),
+        },
         {
           kind: 'portable-configuration',
           file: 'config/portable.json',
           bytes: 42,
           sha256: 'b'.repeat(64),
         },
-        { kind: 'r2-index', file: 'r2/index.json', bytes: 42, sha256: 'c'.repeat(64) },
+        {
+          kind: 'r2-index',
+          file: 'r2/index.json',
+          bytes: 42,
+          sha256: 'c'.repeat(64),
+        },
       ],
     })
 
@@ -766,7 +797,10 @@ describe('management protocol contracts', () => {
     expect(
       portableExportManifestSchema.safeParse({
         ...exported,
-        consistency: { ...exported.consistency, quiescedAt: '2026-07-19T22:00:00.000Z' },
+        consistency: {
+          ...exported.consistency,
+          quiescedAt: '2026-07-19T22:00:00.000Z',
+        },
       }).success,
     ).toBe(false)
   })
@@ -791,7 +825,9 @@ describe('management protocol contracts', () => {
       verificationStatus: 'verified',
     })
 
-    expect(Object.keys(configuration.settings)).toEqual(['paymentWebhookProvider'])
+    expect(Object.keys(configuration.settings)).toEqual([
+      'paymentWebhookProvider',
+    ])
     expect(JSON.stringify(evidence)).not.toContain('objectKey')
   })
 
@@ -802,9 +838,15 @@ describe('management protocol contracts', () => {
       bytes: 10,
       sha256: 'e'.repeat(64),
     }
-    expect(r2ExportIndexSchema.parse({ formatVersion: 1, objects: [object] }).objects).toHaveLength(1)
     expect(
-      r2ExportIndexSchema.safeParse({ formatVersion: 1, objects: [object, object] }).success,
+      r2ExportIndexSchema.parse({ formatVersion: 1, objects: [object] })
+        .objects,
+    ).toHaveLength(1)
+    expect(
+      r2ExportIndexSchema.safeParse({
+        formatVersion: 1,
+        objects: [object, object],
+      }).success,
     ).toBe(false)
     expect(
       r2ExportIndexSchema.safeParse({
@@ -859,8 +901,10 @@ describe('management protocol contracts', () => {
         kind,
         risk: risks[index],
         resourceName: null,
-        dependsOn: index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
-        approvalRequired: kind === 'cutover-domains' || kind === 'retire-source-routing',
+        dependsOn:
+          index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
+        approvalRequired:
+          kind === 'cutover-domains' || kind === 'retire-source-routing',
       })),
     })
     expect(plan.steps).toHaveLength(17)

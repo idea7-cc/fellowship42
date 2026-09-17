@@ -158,7 +158,9 @@ export function ManagementPage() {
     if (!handoff) return
     await action('copy', async () => {
       await navigator.clipboard.writeText(handoff)
-      setNotice('Enrollment handoff copied. Share it only with the intended operator.')
+      setNotice(
+        'Enrollment handoff copied. Share it only with the intended operator.',
+      )
     })
   }
 
@@ -213,7 +215,9 @@ export function ManagementPage() {
       setDisconnectConfirmation('')
       setDisconnectReason('')
       setChallenge(null)
-      setNotice('Management was disconnected locally. Church operations remain available.')
+      setNotice(
+        'Management was disconnected locally. Church operations remain available.',
+      )
       await status.refetch()
     })
   }
@@ -251,8 +255,7 @@ export function ManagementPage() {
           method: 'POST',
           body: JSON.stringify({
             releaseTag: currentUpdate.target.releaseTag,
-            releaseManifestSha256:
-              currentUpdate.target.releaseManifestSha256,
+            releaseManifestSha256: currentUpdate.target.releaseManifestSha256,
           }),
         },
       )
@@ -270,15 +273,18 @@ export function ManagementPage() {
   ) {
     if (decision !== 'approve' && !supportDecisionReason.trim()) return
     await action(`support-${requestId}-${decision}`, async () => {
-      await apiRequest(`/api/management/support-sessions/${requestId}/decision`, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: decision,
-          ...(decision === 'approve'
-            ? {}
-            : { reason: supportDecisionReason.trim() }),
-        }),
-      })
+      await apiRequest(
+        `/api/management/support-sessions/${requestId}/decision`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            action: decision,
+            ...(decision === 'approve'
+              ? {}
+              : { reason: supportDecisionReason.trim() }),
+          }),
+        },
+      )
       setSupportDecisionReason('')
       setNotice(
         decision === 'approve'
@@ -317,10 +323,14 @@ export function ManagementPage() {
         ) : status.data ? (
           <div className="grid gap-6">
             {error ? (
-              <p role="alert" className="text-sm text-destructive">{error}</p>
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
             ) : null}
             {notice ? (
-              <p role="status" className="text-sm text-accent-strong">{notice}</p>
+              <p role="status" className="text-sm text-accent-strong">
+                {notice}
+              </p>
             ) : null}
 
             <div className="grid gap-4 lg:grid-cols-3">
@@ -355,7 +365,8 @@ export function ManagementPage() {
                     {displayTime(status.data.connection?.lastSyncAt ?? null)}
                   </CardTitle>
                   <CardDescription>
-                    {status.data.connection?.lastSyncStatus ?? 'No connected sync'}
+                    {status.data.connection?.lastSyncStatus ??
+                      'No connected sync'}
                     {status.data.connection?.lastSyncCode
                       ? ` · ${status.data.connection.lastSyncCode}`
                       : ''}
@@ -423,13 +434,17 @@ export function ManagementPage() {
                     onClick={() => void createChallenge()}
                     disabled={busy !== null}
                   >
-                    {busy === 'challenge' ? 'Creating…' : 'Create 15-minute handoff'}
+                    {busy === 'challenge'
+                      ? 'Creating…'
+                      : 'Create 15-minute handoff'}
                   </Button>
                   {challenge && handoff ? (
                     <div className="grid gap-3 rounded-lg border border-border bg-background/60 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="font-semibold">One-time enrollment handoff</p>
+                          <p className="font-semibold">
+                            One-time enrollment handoff
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             Expires {displayTime(challenge.expiresAt)}
                           </p>
@@ -474,19 +489,27 @@ export function ManagementPage() {
                   <dl className="grid gap-3 text-sm sm:grid-cols-2">
                     <div>
                       <dt className="text-muted-foreground">Operator ID</dt>
-                      <dd className="font-mono break-all">{pending.operator.id}</dd>
+                      <dd className="font-mono break-all">
+                        {pending.operator.id}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Key fingerprint</dt>
-                      <dd className="font-mono break-all">{pending.operator.keyFingerprint}</dd>
+                      <dd className="font-mono break-all">
+                        {pending.operator.keyFingerprint}
+                      </dd>
                     </div>
                     <div className="sm:col-span-2">
                       <dt className="text-muted-foreground">Sync endpoint</dt>
-                      <dd className="font-mono break-all">{pending.operator.syncUrl}</dd>
+                      <dd className="font-mono break-all">
+                        {pending.operator.syncUrl}
+                      </dd>
                     </div>
                   </dl>
                   <fieldset className="grid gap-3">
-                    <legend className="mb-2 font-semibold">30-day grants</legend>
+                    <legend className="mb-2 font-semibold">
+                      30-day grants
+                    </legend>
                     {pending.requestedCapabilities.map((capability) => {
                       const detail = capabilityDetails[capability]
                       return (
@@ -502,15 +525,21 @@ export function ManagementPage() {
                               setSelected((current) =>
                                 event.target.checked
                                   ? [...current, capability]
-                                  : current.filter((item) => item !== capability),
+                                  : current.filter(
+                                      (item) => item !== capability,
+                                    ),
                               )
                             }
                           />
                           <span>
-                            <span className="block font-semibold">{detail.label}</span>
+                            <span className="block font-semibold">
+                              {detail.label}
+                            </span>
                             <span className="text-sm text-muted-foreground">
                               {detail.description}
-                              {detail.localApproval ? ' Every use requires local approval.' : ''}
+                              {detail.localApproval
+                                ? ' Every use requires local approval.'
+                                : ''}
                             </span>
                           </span>
                         </label>
@@ -523,7 +552,9 @@ export function ManagementPage() {
                     onClick={() => void approve()}
                     disabled={busy !== null || selected.length === 0}
                   >
-                    {busy === 'approve' ? 'Approving…' : 'Approve selected grants'}
+                    {busy === 'approve'
+                      ? 'Approving…'
+                      : 'Approve selected grants'}
                   </Button>
                 </CardContent>
               </Card>
@@ -532,7 +563,9 @@ export function ManagementPage() {
             {status.data.connection ? (
               <>
                 {status.data.supportSessions.some((session) =>
-                  ['awaiting-local-approval', 'approved'].includes(session.state),
+                  ['awaiting-local-approval', 'approved'].includes(
+                    session.state,
+                  ),
                 ) ? (
                   <Section
                     title="Support sessions"
@@ -550,7 +583,9 @@ export function ManagementPage() {
                             <CardHeader>
                               <Badge
                                 variant={
-                                  session.state === 'approved' ? 'pill' : 'outline'
+                                  session.state === 'approved'
+                                    ? 'pill'
+                                    : 'outline'
                                 }
                               >
                                 {session.state === 'approved'
@@ -560,12 +595,16 @@ export function ManagementPage() {
                               <CardTitle>
                                 {session.supportOperator.displayName}
                               </CardTitle>
-                              <CardDescription>{session.reason}</CardDescription>
+                              <CardDescription>
+                                {session.reason}
+                              </CardDescription>
                             </CardHeader>
                             <CardContent className="mt-4">
                               <dl className="grid gap-3 text-sm sm:grid-cols-2">
                                 <div>
-                                  <dt className="text-muted-foreground">Scope</dt>
+                                  <dt className="text-muted-foreground">
+                                    Scope
+                                  </dt>
                                   <dd>Operational diagnostics only</dd>
                                 </div>
                                 <div>
@@ -588,7 +627,10 @@ export function ManagementPage() {
                                     size="sm"
                                     disabled={busy !== null}
                                     onClick={() =>
-                                      void decideSupport(session.requestId, 'approve')
+                                      void decideSupport(
+                                        session.requestId,
+                                        'approve',
+                                      )
                                     }
                                   >
                                     Approve session
@@ -602,7 +644,10 @@ export function ManagementPage() {
                                       !supportDecisionReason.trim()
                                     }
                                     onClick={() =>
-                                      void decideSupport(session.requestId, 'reject')
+                                      void decideSupport(
+                                        session.requestId,
+                                        'reject',
+                                      )
                                     }
                                   >
                                     Reject request
@@ -614,10 +659,14 @@ export function ManagementPage() {
                                   size="sm"
                                   variant="destructive"
                                   disabled={
-                                    busy !== null || !supportDecisionReason.trim()
+                                    busy !== null ||
+                                    !supportDecisionReason.trim()
                                   }
                                   onClick={() =>
-                                    void decideSupport(session.requestId, 'revoke')
+                                    void decideSupport(
+                                      session.requestId,
+                                      'revoke',
+                                    )
                                   }
                                 >
                                   Revoke now
@@ -669,11 +718,15 @@ export function ManagementPage() {
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-muted-foreground">Approval window</dt>
+                          <dt className="text-muted-foreground">
+                            Approval window
+                          </dt>
                           <dd>{displayTime(currentUpdate.expiresAt)}</dd>
                         </div>
                         <div className="sm:col-span-2">
-                          <dt className="text-muted-foreground">Target manifest SHA-256</dt>
+                          <dt className="text-muted-foreground">
+                            Target manifest SHA-256
+                          </dt>
                           <dd className="break-all font-mono text-xs">
                             {currentUpdate.target.releaseManifestSha256}
                           </dd>
@@ -682,7 +735,8 @@ export function ManagementPage() {
                       {currentUpdate.state === 'awaiting-local-approval' ? (
                         <>
                           <label className="grid gap-1 text-sm font-semibold">
-                            Type APPROVE {currentUpdate.target.releaseTag} to confirm
+                            Type APPROVE {currentUpdate.target.releaseTag} to
+                            confirm
                             <Input
                               value={updateConfirmation}
                               onChange={(event) =>
@@ -722,23 +776,33 @@ export function ManagementPage() {
                 <Card>
                   <CardHeader>
                     <Badge variant="pill">Active operator</Badge>
-                    <CardTitle>{status.data.connection.operator.displayName}</CardTitle>
+                    <CardTitle>
+                      {status.data.connection.operator.displayName}
+                    </CardTitle>
                     <CardDescription>
-                      Approved {displayTime(status.data.connection.approvedAt)} ·
-                      grant set {status.data.connection.grantVersion}
+                      Approved {displayTime(status.data.connection.approvedAt)}{' '}
+                      · grant set {status.data.connection.grantVersion}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="mt-4">
                     <dl className="grid gap-3 text-sm sm:grid-cols-2">
                       <div>
                         <dt className="text-muted-foreground">Operator key</dt>
-                        <dd className="font-mono" title={status.data.connection.operator.keyFingerprint}>
-                          {shortFingerprint(status.data.connection.operator.keyFingerprint)}
+                        <dd
+                          className="font-mono"
+                          title={status.data.connection.operator.keyFingerprint}
+                        >
+                          {shortFingerprint(
+                            status.data.connection.operator.keyFingerprint,
+                          )}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-muted-foreground">Instance key</dt>
-                        <dd className="font-mono" title={status.data.identity?.fingerprint}>
+                        <dd
+                          className="font-mono"
+                          title={status.data.identity?.fingerprint}
+                        >
                           {status.data.identity
                             ? shortFingerprint(status.data.identity.fingerprint)
                             : 'Unavailable'}
@@ -747,9 +811,14 @@ export function ManagementPage() {
                     </dl>
                     <div className="grid gap-3">
                       {status.data.connection.grants.map((grant) => (
-                        <div key={grant.capability} className="rounded-lg border border-border p-3">
+                        <div
+                          key={grant.capability}
+                          className="rounded-lg border border-border p-3"
+                        >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <strong>{capabilityDetails[grant.capability].label}</strong>
+                            <strong>
+                              {capabilityDetails[grant.capability].label}
+                            </strong>
                             {grant.requiresLocalApproval ? (
                               <Badge variant="outline">Local approval</Badge>
                             ) : null}
@@ -774,14 +843,18 @@ export function ManagementPage() {
                     </CardHeader>
                     <CardContent className="mt-4">
                       {status.data.connection.rotationPending ? (
-                        <Badge variant="outline">Rotation pending delivery</Badge>
+                        <Badge variant="outline">
+                          Rotation pending delivery
+                        </Badge>
                       ) : (
                         <>
                           <label className="grid gap-1 text-sm font-semibold">
                             Type ROTATE to confirm
                             <Input
                               value={rotationConfirmation}
-                              onChange={(event) => setRotationConfirmation(event.target.value)}
+                              onChange={(event) =>
+                                setRotationConfirmation(event.target.value)
+                              }
                               autoComplete="off"
                             />
                           </label>
@@ -790,9 +863,13 @@ export function ManagementPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => void rotate()}
-                            disabled={busy !== null || rotationConfirmation !== 'ROTATE'}
+                            disabled={
+                              busy !== null || rotationConfirmation !== 'ROTATE'
+                            }
                           >
-                            {busy === 'rotate' ? 'Queueing…' : 'Queue identity rotation'}
+                            {busy === 'rotate'
+                              ? 'Queueing…'
+                              : 'Queue identity rotation'}
                           </Button>
                         </>
                       )}
@@ -812,7 +889,9 @@ export function ManagementPage() {
                         Reason
                         <Input
                           value={disconnectReason}
-                          onChange={(event) => setDisconnectReason(event.target.value)}
+                          onChange={(event) =>
+                            setDisconnectReason(event.target.value)
+                          }
                           maxLength={240}
                         />
                       </label>
@@ -820,7 +899,9 @@ export function ManagementPage() {
                         Type DISCONNECT to confirm
                         <Input
                           value={disconnectConfirmation}
-                          onChange={(event) => setDisconnectConfirmation(event.target.value)}
+                          onChange={(event) =>
+                            setDisconnectConfirmation(event.target.value)
+                          }
                           autoComplete="off"
                         />
                       </label>
@@ -835,7 +916,9 @@ export function ManagementPage() {
                           !disconnectReason.trim()
                         }
                       >
-                        {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect management'}
+                        {busy === 'disconnect'
+                          ? 'Disconnecting…'
+                          : 'Disconnect management'}
                       </Button>
                     </CardContent>
                   </Card>

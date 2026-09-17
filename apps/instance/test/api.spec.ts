@@ -1,6 +1,10 @@
 import { env, exports } from 'cloudflare:workers'
 import { describe, expect, it } from 'vitest'
-import { syncCurrentUser, type AccessIdentity } from '../worker/lib/auth'
+import {
+  resolveAccessIdentity,
+  syncCurrentUser,
+  type AccessIdentity,
+} from '../worker/lib/auth'
 
 async function get(path: string) {
   return exports.default.fetch(new Request(`https://fellowship42.test${path}`))
@@ -182,4 +186,25 @@ describe('Fellowship42 edge API', () => {
       }),
     ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
   })
+})
+
+it('rejects a malformed Access assertion as an authentication failure', async () => {
+  await expect(
+    resolveAccessIdentity(
+      new Request('https://fellowship42.test/api/session', {
+        headers: { 'cf-access-jwt-assertion': 'not-a-jwt' },
+      }),
+      {
+        ...env,
+        ACCESS_TEAM_DOMAIN: 'https://example.cloudflareaccess.com',
+        ACCESS_AUD: 'test-audience',
+      },
+    ),
+  ).rejects.toMatchObject({ status: 401, code: 'invalid_identity' })
+})
+
+it('prevents caching of private API responses, including authorization failures', async () => {
+  const response = await get('/api/people/church_demo')
+  expect(response.status).toBe(401)
+  expect(response.headers.get('cache-control')).toBe('private, no-store')
 })

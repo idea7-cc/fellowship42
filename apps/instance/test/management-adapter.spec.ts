@@ -294,7 +294,9 @@ describe('optional management adapter', () => {
     }>()
     expect(identity?.public_jwk_json).not.toContain('"d"')
     expect(identity?.private_jwk_ciphertext).not.toContain('"d"')
-    expect(identity?.private_jwk_ciphertext).not.toContain(challenge.instanceKey.x)
+    expect(identity?.private_jwk_ciphertext).not.toContain(
+      challenge.instanceKey.x,
+    )
     expect(identity?.private_jwk_iv).toMatch(/^[A-Za-z0-9_-]{16}$/)
 
     const storedChallenge = await env.DB.prepare(
@@ -326,7 +328,10 @@ describe('optional management adapter', () => {
       init?: RequestInit,
     ): Promise<Response> => {
       const jws = await bodyJws(init)
-      const payload = await verifyManagementJws(jws, enrolled.challenge.instanceKey)
+      const payload = await verifyManagementJws(
+        jws,
+        enrolled.challenge.instanceKey,
+      )
       if (payload.type === 'enrollment.approval') {
         return new Response(null, { status: 204 })
       }
@@ -431,14 +436,19 @@ describe('optional management adapter', () => {
     expect(results.at(-1)).toMatchObject({
       output: { requestId: supportRequestId, state: 'revoked' },
     })
-    expect(await listSupportSessions(env.DB, enrolled.challenge.instanceId, phaseNow))
-      .toMatchObject([
-        {
-          requestId: supportRequestId,
-          state: 'revoked',
-          decisionReason: 'Diagnostic work is complete',
-        },
-      ])
+    expect(
+      await listSupportSessions(
+        env.DB,
+        enrolled.challenge.instanceId,
+        phaseNow,
+      ),
+    ).toMatchObject([
+      {
+        requestId: supportRequestId,
+        state: 'revoked',
+        decisionReason: 'Diagnostic work is complete',
+      },
+    ])
   })
 
   it('polls outbound, executes only granted status, and returns byte-identical replay results', async () => {
@@ -453,7 +463,10 @@ describe('optional management adapter', () => {
       init?: RequestInit,
     ): Promise<Response> => {
       const jws = await bodyJws(init)
-      const payload = await verifyManagementJws(jws, enrolled.challenge.instanceKey)
+      const payload = await verifyManagementJws(
+        jws,
+        enrolled.challenge.instanceKey,
+      )
       if (payload.type === 'enrollment.approval') {
         return new Response(null, { status: 204 })
       }
@@ -528,7 +541,7 @@ describe('optional management adapter', () => {
               source: 'management-sync',
               release: {
                 applicationVersion: '0.26.0',
-                schemaVersion: 8,
+                schemaVersion: 10,
                 managementProtocolWireVersion: '1',
               },
               connection: { status: 'connected', grantVersion: 1 },
@@ -544,7 +557,9 @@ describe('optional management adapter', () => {
       throw new Error(`Unexpected message type: ${payload.type}`)
     }
 
-    await expect(syncManagementOnce(managementEnv, now, transport)).resolves.toEqual({
+    await expect(
+      syncManagementOnce(managementEnv, now, transport),
+    ).resolves.toEqual({
       state: 'succeeded',
       commandCount: 2,
     })
@@ -553,7 +568,9 @@ describe('optional management adapter', () => {
     ).resolves.toEqual({ state: 'succeeded', commandCount: 2 })
     expect(syncRequestCount).toBe(2)
     expect(postedResults).toHaveLength(2)
-    expect(JSON.stringify(postedResults[1])).toBe(JSON.stringify(postedResults[0]))
+    expect(JSON.stringify(postedResults[1])).toBe(
+      JSON.stringify(postedResults[0]),
+    )
 
     const connection = await env.DB.prepare(
       `SELECT approval_delivered_at, command_cursor, last_sync_status
@@ -590,7 +607,7 @@ describe('optional management adapter', () => {
       application: {
         name: 'fellowship42',
         version: '0.27.0',
-        schemaVersion: 8,
+        schemaVersion: 10,
       },
       managementProtocol: {
         package: '@fellowship42/management-protocol',
@@ -608,7 +625,7 @@ describe('optional management adapter', () => {
         rollbackPolicy: 'roll-forward-after-migration',
         target: {
           applicationVersion: '0.27.0',
-          schemaVersion: 8,
+          schemaVersion: 10,
           managementProtocolWireVersion: '1',
         },
         eligibleSources: [
@@ -616,7 +633,7 @@ describe('optional management adapter', () => {
             releaseTag: 'v0.26.0',
             releaseManifestSha256: sourceManifestSha256,
             applicationVersion: '0.26.0',
-            schemaVersion: 8,
+            schemaVersion: 10,
             managementProtocolWireVersion: '1',
           },
         ],
@@ -677,7 +694,10 @@ describe('optional management adapter', () => {
                 issuedAt: new Date(issuedAt).toISOString(),
                 expiresAt: new Date(issuedAt + 5 * 60_000).toISOString(),
                 nonce: 'PPPPPPPPPPPPPPPPPPPPPP',
-                input: { releaseTag: 'v0.27.0', releaseManifestSha256: targetManifestSha256 },
+                input: {
+                  releaseTag: 'v0.27.0',
+                  releaseManifestSha256: targetManifestSha256,
+                },
               }
             : {
                 protocolVersion: MANAGEMENT_PROTOCOL_VERSION,
@@ -779,9 +799,14 @@ describe('optional management adapter', () => {
         },
       },
     })
-    expect((await listUpdatePreparations(updateEnv, now + 1_000))[0]).toMatchObject({
+    expect(
+      (await listUpdatePreparations(updateEnv, now + 1_000))[0],
+    ).toMatchObject({
       state: 'authorized',
-      localApproval: { localApprovalId, consumedAt: new Date(now + 1_000).toISOString() },
+      localApproval: {
+        localApprovalId,
+        consumedAt: new Date(now + 1_000).toISOString(),
+      },
     })
   })
 
@@ -794,8 +819,12 @@ describe('optional management adapter', () => {
       init?: RequestInit,
     ): Promise<Response> => {
       const jws = await bodyJws(init)
-      const payload = await verifyManagementJws(jws, enrolled.challenge.instanceKey)
-      if (payload.type === 'enrollment.approval') return new Response(null, { status: 204 })
+      const payload = await verifyManagementJws(
+        jws,
+        enrolled.challenge.instanceKey,
+      )
+      if (payload.type === 'enrollment.approval')
+        return new Response(null, { status: 204 })
       if (payload.type === 'sync.request') {
         const command = await signManagementPayload(
           {
@@ -972,7 +1001,9 @@ describe('optional management adapter', () => {
     )
       .bind(enrolled.connectionId)
       .first<{ pending_control_jws_json: string | null }>()
-    expect(JSON.parse(pending?.pending_control_jws_json ?? '{}')).toEqual(rotation)
+    expect(JSON.parse(pending?.pending_control_jws_json ?? '{}')).toEqual(
+      rotation,
+    )
 
     await expect(
       disconnectManagement(
@@ -1020,12 +1051,11 @@ describe('optional management adapter', () => {
         churchOperationsAvailable: true,
       },
     })
-    const disconnectedState = await env.DB
-      .prepare(
-        `SELECT pending_replacement_private_jwk_ciphertext,
+    const disconnectedState = await env.DB.prepare(
+      `SELECT pending_replacement_private_jwk_ciphertext,
                 pending_control_jws_json, command_cursor
          FROM management_connections WHERE connection_id = ?`,
-      )
+    )
       .bind(enrolled.connectionId)
       .first<{
         pending_replacement_private_jwk_ciphertext: string | null
@@ -1037,13 +1067,13 @@ describe('optional management adapter', () => {
       pending_control_jws_json: null,
       command_cursor: null,
     })
-    const retainedGrants = await env.DB
-      .prepare('SELECT COUNT(*) AS count FROM management_grants WHERE connection_id = ?')
+    const retainedGrants = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM management_grants WHERE connection_id = ?',
+    )
       .bind(enrolled.connectionId)
       .first<{ count: number }>()
     expect(retainedGrants?.count).toBe(0)
-    await env.DB
-      .prepare('DELETE FROM audit_events WHERE id = ?')
+    await env.DB.prepare('DELETE FROM audit_events WHERE id = ?')
       .bind(`management-disconnect:${enrolled.connectionId}`)
       .run()
     await expect(
@@ -1061,9 +1091,7 @@ describe('optional management adapter', () => {
     })
 
     const exitResponse = await exports.default.fetch(
-      new Request(
-        'https://fellowship42.test/api/management/exit-disposition',
-      ),
+      new Request('https://fellowship42.test/api/management/exit-disposition'),
     )
     expect(exitResponse.status).toBe(401)
 

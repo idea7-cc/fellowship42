@@ -25,20 +25,43 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApiQuery } from '@/lib/api'
 import { useChurch } from '@/lib/church-context'
-import type { Church, Course, EventRecord, Group, ServiceTime } from '@/lib/api-types'
+import type {
+  Church,
+  Course,
+  EventRecord,
+  Group,
+  ServiceTime,
+} from '@/lib/api-types'
 
-const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const dayNames = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
 
 export function OverviewPage() {
   const { churchId } = useChurch()
-  const basePath = churchId ? `/api/churches/${encodeURIComponent(churchId)}` : null
+  const basePath = churchId
+    ? `/api/churches/${encodeURIComponent(churchId)}`
+    : null
   const churchQuery = useApiQuery<{ church: Church }>(basePath)
-  const groupQuery = useApiQuery<{ groups: Group[] }>(basePath ? `${basePath}/groups` : null)
-  const courseQuery = useApiQuery<{ courses: Course[] }>(basePath ? `${basePath}/courses` : null)
-  const eventQuery = useApiQuery<{ events: EventRecord[] }>(basePath ? `${basePath}/events` : null)
+  const groupQuery = useApiQuery<{ groups: Group[] }>(
+    basePath ? `${basePath}/groups` : null,
+  )
+  const courseQuery = useApiQuery<{ courses: Course[] }>(
+    basePath ? `${basePath}/courses` : null,
+  )
+  const eventQuery = useApiQuery<{ events: EventRecord[] }>(
+    basePath ? `${basePath}/events` : null,
+  )
 
   const church = churchQuery.data?.church
-  const countsLoading = groupQuery.isLoading || courseQuery.isLoading || eventQuery.isLoading
+  const countsLoading =
+    groupQuery.isLoading || courseQuery.isLoading || eventQuery.isLoading
 
   if (churchQuery.isLoading) {
     return (
@@ -107,11 +130,16 @@ export function OverviewPage() {
             <h2 className="text-2xl leading-tight font-semibold tracking-tight sm:text-3xl">
               {church.name}
             </h2>
-            <p className="mt-1.5 max-w-2xl text-sm opacity-80">{church.summary}</p>
+            <p className="mt-1.5 max-w-2xl text-sm opacity-80">
+              {church.summary}
+            </p>
             {church.serviceTimes.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
                 {church.serviceTimes.map((service: ServiceTime) => (
-                  <span className="inline-flex items-center gap-1.5 text-sm" key={service.id}>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-sm"
+                    key={service.id}
+                  >
                     <Clock aria-hidden className="size-3.5 opacity-60" />
                     <span className="font-medium">{service.label}</span>
                     <span className="opacity-70">
@@ -137,7 +165,9 @@ export function OverviewPage() {
             hint="Open for enrollment"
             icon={GraduationCap}
             label="Published courses"
-            value={countsLoading ? '—' : (courseQuery.data?.courses.length ?? 0)}
+            value={
+              countsLoading ? '—' : (courseQuery.data?.courses.length ?? 0)
+            }
           />
           <Metric
             hint="On the public calendar"
@@ -154,7 +184,9 @@ export function OverviewPage() {
             <DetailRow icon={MapPin} label="Address">
               {[
                 church.address.street,
-                [church.address.city, church.address.state].filter(Boolean).join(', '),
+                [church.address.city, church.address.state]
+                  .filter(Boolean)
+                  .join(', '),
                 church.address.postalCode,
               ]
                 .filter(Boolean)

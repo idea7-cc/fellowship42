@@ -44,7 +44,9 @@ function EmptyState({
       ) : null}
       <p className="text-sm font-medium text-foreground">{title}</p>
       {description ? (
-        <p className="mt-1 max-w-sm text-[0.8125rem] text-muted-foreground">{description}</p>
+        <p className="mt-1 max-w-sm text-[0.8125rem] text-muted-foreground">
+          {description}
+        </p>
       ) : null}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>

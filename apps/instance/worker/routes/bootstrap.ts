@@ -13,7 +13,7 @@ import { AppError } from '../lib/errors'
 import type {
   BootstrapResponse,
   BootstrapStatusResponse,
-} from '../../src/lib/api-types'
+} from '../../contracts/api'
 
 type BootstrapBindings = Env & {
   BOOTSTRAP_OWNER_EMAIL?: string
@@ -171,7 +171,7 @@ export function isBootstrapOwner(
 ) {
   return Boolean(
     configuredEmail?.trim() &&
-      identity.email.toLowerCase() === configuredEmail.trim().toLowerCase(),
+    identity.email.toLowerCase() === configuredEmail.trim().toLowerCase(),
   )
 }
 

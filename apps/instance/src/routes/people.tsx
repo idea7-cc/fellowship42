@@ -28,10 +28,20 @@ import { Button } from '@/components/ui/button'
 import { Input, SearchInput } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { CheckboxField, Field, FieldGrid, FormActions } from '@/components/ui/field'
+import {
+  CheckboxField,
+  Field,
+  FieldGrid,
+  FormActions,
+} from '@/components/ui/field'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge, humanizeStatus, StatusBadge } from '@/components/ui/badge'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonTable } from '@/components/ui/skeleton'
 import { Tab, Tabs } from '@/components/ui/tabs'
@@ -92,7 +102,12 @@ function Pagination({
         Up to {page?.limit ?? 0} results per page
       </span>
       <div className="flex gap-2">
-        <Button disabled={!hasPrevious} onClick={onPrevious} size="sm" variant="secondary">
+        <Button
+          disabled={!hasPrevious}
+          onClick={onPrevious}
+          size="sm"
+          variant="secondary"
+        >
           Previous
         </Button>
         <Button
@@ -145,7 +160,10 @@ function PersonForm({
       if (person) {
         await apiRequest(
           `/api/people/${encodeURIComponent(churchId)}/${encodeURIComponent(person.id)}`,
-          { method: 'PATCH', body: JSON.stringify({ version: person.version, ...common }) },
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ version: person.version, ...common }),
+          },
         )
       } else {
         await apiRequest(`/api/people/${encodeURIComponent(churchId)}`, {
@@ -155,7 +173,11 @@ function PersonForm({
       }
       await onSaved()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The person could not be saved.')
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : 'The person could not be saved.',
+      )
       setSaving(false)
     }
   }
@@ -166,13 +188,20 @@ function PersonForm({
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle>
-              {person ? `Edit ${person.firstName} ${person.lastName}` : 'Add a person'}
+              {person
+                ? `Edit ${person.firstName} ${person.lastName}`
+                : 'Add a person'}
             </CardTitle>
             <CardDescription>
               Contact and care notes remain inside this church instance.
             </CardDescription>
           </div>
-          <Button aria-label="Close" onClick={onCancel} size="icon-xs" variant="ghost">
+          <Button
+            aria-label="Close"
+            onClick={onCancel}
+            size="icon-xs"
+            variant="ghost"
+          >
             <X />
           </Button>
         </div>
@@ -180,10 +209,20 @@ function PersonForm({
       <form className="grid gap-4" onSubmit={submit}>
         <FieldGrid>
           <Field label="First name" required>
-            <Input defaultValue={person?.firstName} maxLength={100} name="firstName" required />
+            <Input
+              defaultValue={person?.firstName}
+              maxLength={100}
+              name="firstName"
+              required
+            />
           </Field>
           <Field label="Last name" required>
-            <Input defaultValue={person?.lastName} maxLength={100} name="lastName" required />
+            <Input
+              defaultValue={person?.lastName}
+              maxLength={100}
+              name="lastName"
+              required
+            />
           </Field>
           <Field label="Email">
             <Input defaultValue={person?.email} name="email" type="email" />
@@ -192,7 +231,10 @@ function PersonForm({
             <Input defaultValue={person?.phone} maxLength={50} name="phone" />
           </Field>
           <Field label="Membership status">
-            <Select defaultValue={person?.membershipStatus ?? 'guest'} name="membershipStatus">
+            <Select
+              defaultValue={person?.membershipStatus ?? 'guest'}
+              name="membershipStatus"
+            >
               {membershipStatuses.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -212,7 +254,12 @@ function PersonForm({
           hint="Only visible to accounts with directory access."
           label="Private notes"
         >
-          <Textarea defaultValue={person?.notes} maxLength={10_000} name="notes" rows={4} />
+          <Textarea
+            defaultValue={person?.notes}
+            maxLength={10_000}
+            name="notes"
+            rows={4}
+          />
         </Field>
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -254,17 +301,22 @@ function HouseholdForm({
     const form = new FormData(event.currentTarget)
     const value = {
       name: String(form.get('name') ?? ''),
-      street: String(form.get('street') ?? '') || (household ? null : undefined),
+      street:
+        String(form.get('street') ?? '') || (household ? null : undefined),
       city: String(form.get('city') ?? '') || (household ? null : undefined),
       state: String(form.get('state') ?? '') || (household ? null : undefined),
-      postalCode: String(form.get('postalCode') ?? '') || (household ? null : undefined),
+      postalCode:
+        String(form.get('postalCode') ?? '') || (household ? null : undefined),
       countryCode: String(form.get('countryCode') ?? 'US'),
     }
     try {
       if (household) {
         await apiRequest(
           `/api/households/${encodeURIComponent(churchId)}/${encodeURIComponent(household.id)}`,
-          { method: 'PATCH', body: JSON.stringify({ version: household.version, ...value }) },
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ version: household.version, ...value }),
+          },
         )
       } else {
         await apiRequest(`/api/households/${encodeURIComponent(churchId)}`, {
@@ -274,7 +326,11 @@ function HouseholdForm({
       }
       await onSaved()
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'The household could not be saved.')
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : 'The household could not be saved.',
+      )
       setSaving(false)
     }
   }
@@ -284,19 +340,31 @@ function HouseholdForm({
       <CardHeader className="mb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle>{household ? `Edit ${household.name}` : 'Add a household'}</CardTitle>
+            <CardTitle>
+              {household ? `Edit ${household.name}` : 'Add a household'}
+            </CardTitle>
             <CardDescription>
               Household contact information remains private to the church.
             </CardDescription>
           </div>
-          <Button aria-label="Close" onClick={onCancel} size="icon-xs" variant="ghost">
+          <Button
+            aria-label="Close"
+            onClick={onCancel}
+            size="icon-xs"
+            variant="ghost"
+          >
             <X />
           </Button>
         </div>
       </CardHeader>
       <form className="grid gap-4" onSubmit={submit}>
         <Field label="Household name" required>
-          <Input defaultValue={household?.name} maxLength={160} name="name" required />
+          <Input
+            defaultValue={household?.name}
+            maxLength={160}
+            name="name"
+            required
+          />
         </Field>
         <Field label="Street">
           <Input defaultValue={household?.address.street} name="street" />
@@ -309,7 +377,10 @@ function HouseholdForm({
             <Input defaultValue={household?.address.state} name="state" />
           </Field>
           <Field label="Postal code">
-            <Input defaultValue={household?.address.postalCode} name="postalCode" />
+            <Input
+              defaultValue={household?.address.postalCode}
+              name="postalCode"
+            />
           </Field>
           <Field label="Country code" required>
             <Input
@@ -372,13 +443,18 @@ function HouseholdMemberForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : 'The household member could not be saved.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The household member could not be saved.',
       )
     }
   }
 
   return (
-    <form className="mt-3 grid gap-3 rounded-md border border-border bg-surface-sunken p-3" onSubmit={submit}>
+    <form
+      className="mt-3 grid gap-3 rounded-md border border-border bg-surface-sunken p-3"
+      onSubmit={submit}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Person" required>
           <Select defaultValue="" name="personId" required selectSize="sm">
@@ -429,14 +505,22 @@ export function PeoplePage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [peopleCursors, setPeopleCursors] = useState<Array<string | null>>([null])
-  const [householdCursors, setHouseholdCursors] = useState<Array<string | null>>([null])
+  const [peopleCursors, setPeopleCursors] = useState<Array<string | null>>([
+    null,
+  ])
+  const [householdCursors, setHouseholdCursors] = useState<
+    Array<string | null>
+  >([null])
   const [personEditor, setPersonEditor] = useState<PersonEditor>(null)
   const [householdEditor, setHouseholdEditor] = useState<HouseholdEditor>(null)
-  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(null)
+  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
+    null,
+  )
   const [mutationError, setMutationError] = useState<string | null>(null)
 
-  const membership = user?.memberships.find((entry) => entry.churchId === churchId)
+  const membership = user?.memberships.find(
+    (entry) => entry.churchId === churchId,
+  )
   const permissions = membership?.permissions ?? []
   const canWritePeople = can(permissions, 'people.write')
   const canReadHouseholds = can(permissions, 'households.read')
@@ -460,7 +544,10 @@ export function PeoplePage() {
       ? `/api/people/${encodeURIComponent(churchId)}?${peopleParams}`
       : null,
   )
-  const householdQuery = useApiQuery<{ households: Household[]; page: CursorPage }>(
+  const householdQuery = useApiQuery<{
+    households: Household[]
+    page: CursorPage
+  }>(
     isSignedIn && canReadHouseholds && churchId
       ? `/api/households/${encodeURIComponent(churchId)}?${householdParams}`
       : null,
@@ -492,13 +579,19 @@ export function PeoplePage() {
       setPersonEditor(result.person)
     } catch (caught) {
       setMutationError(
-        caught instanceof ApiError ? caught.message : 'The person could not be loaded.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The person could not be loaded.',
       )
     }
   }
 
   async function deletePerson(person: Person) {
-    if (!churchId || !window.confirm(`Delete ${person.firstName} ${person.lastName}?`)) return
+    if (
+      !churchId ||
+      !window.confirm(`Delete ${person.firstName} ${person.lastName}?`)
+    )
+      return
     try {
       await apiRequest(
         `/api/people/${encodeURIComponent(churchId)}/${encodeURIComponent(person.id)}`,
@@ -507,7 +600,9 @@ export function PeoplePage() {
       await peopleQuery.refetch()
     } catch (caught) {
       setMutationError(
-        caught instanceof ApiError ? caught.message : 'The person could not be deleted.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The person could not be deleted.',
       )
     }
   }
@@ -517,12 +612,17 @@ export function PeoplePage() {
     try {
       await apiRequest(
         `/api/households/${encodeURIComponent(churchId)}/${encodeURIComponent(household.id)}`,
-        { method: 'DELETE', body: JSON.stringify({ version: household.version }) },
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ version: household.version }),
+        },
       )
       await householdQuery.refetch()
     } catch (caught) {
       setMutationError(
-        caught instanceof ApiError ? caught.message : 'The household could not be deleted.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The household could not be deleted.',
       )
     }
   }
@@ -532,12 +632,17 @@ export function PeoplePage() {
     try {
       await apiRequest(
         `/api/households/${encodeURIComponent(churchId)}/${encodeURIComponent(household.id)}/members/${encodeURIComponent(member.personId)}`,
-        { method: 'DELETE', body: JSON.stringify({ version: household.version }) },
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ version: household.version }),
+        },
       )
       await householdQuery.refetch()
     } catch (caught) {
       setMutationError(
-        caught instanceof ApiError ? caught.message : 'The member could not be removed.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The member could not be removed.',
       )
     }
   }
@@ -567,7 +672,9 @@ export function PeoplePage() {
           ) : null
         }
         description={
-          church ? `Protected directory for ${church.name}` : 'Protected church directory'
+          church
+            ? `Protected directory for ${church.name}`
+            : 'Protected church directory'
         }
         eyebrow="Directory"
         title="People"
@@ -590,7 +697,9 @@ export function PeoplePage() {
               value={view}
             >
               <Tab value="people">People</Tab>
-              {canReadHouseholds ? <Tab value="households">Households</Tab> : null}
+              {canReadHouseholds ? (
+                <Tab value="households">Households</Tab>
+              ) : null}
             </Tabs>
             <ToolbarSpacer />
             <form
@@ -609,7 +718,9 @@ export function PeoplePage() {
                 id="directory-search"
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={
-                  view === 'people' ? 'Search name, email, or phone' : 'Search household or member'
+                  view === 'people'
+                    ? 'Search name, email, or phone'
+                    : 'Search household or member'
                 }
                 value={search}
               />
@@ -653,7 +764,10 @@ export function PeoplePage() {
                   onCancel={() => setPersonEditor(null)}
                   onSaved={async () => {
                     setPersonEditor(null)
-                    await Promise.all([peopleQuery.refetch(), peopleOptionsQuery.refetch()])
+                    await Promise.all([
+                      peopleQuery.refetch(),
+                      peopleOptionsQuery.refetch(),
+                    ])
                   }}
                 />
               ) : null}
@@ -674,8 +788,12 @@ export function PeoplePage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
-                        <TableHead className="hidden sm:table-cell">Contact</TableHead>
-                        <TableHead className="hidden sm:table-cell">Status</TableHead>
+                        <TableHead className="hidden sm:table-cell">
+                          Contact
+                        </TableHead>
+                        <TableHead className="hidden sm:table-cell">
+                          Status
+                        </TableHead>
                         {canWritePeople ? (
                           <TableHead align="right">
                             <span className="sr-only">Actions</span>
@@ -700,7 +818,9 @@ export function PeoplePage() {
                               <div className="flex items-center gap-2.5">
                                 <Avatar name={fullName} size="default" />
                                 <div className="min-w-0">
-                                  <span className="block truncate font-medium">{fullName}</span>
+                                  <span className="block truncate font-medium">
+                                    {fullName}
+                                  </span>
                                   <div className="flex items-center gap-1.5 sm:hidden">
                                     <StatusBadge
                                       size="sm"
@@ -724,7 +844,9 @@ export function PeoplePage() {
                               ) : (
                                 <span className="text-muted-foreground">—</span>
                               )}
-                              {person.phone ? <TableMeta>{person.phone}</TableMeta> : null}
+                              {person.phone ? (
+                                <TableMeta>{person.phone}</TableMeta>
+                              ) : null}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               <div className="flex flex-wrap items-center gap-1.5">
@@ -778,7 +900,11 @@ export function PeoplePage() {
                 <EmptyState
                   action={
                     hasFilters ? (
-                      <Button onClick={clearFilters} size="sm" variant="secondary">
+                      <Button
+                        onClick={clearFilters}
+                        size="sm"
+                        variant="secondary"
+                      >
                         Clear filters
                       </Button>
                     ) : canWritePeople ? (
@@ -800,8 +926,12 @@ export function PeoplePage() {
 
               <Pagination
                 hasPrevious={peopleCursors.length > 1}
-                onNext={(cursor) => setPeopleCursors((value) => [...value, cursor])}
-                onPrevious={() => setPeopleCursors((value) => value.slice(0, -1))}
+                onNext={(cursor) =>
+                  setPeopleCursors((value) => [...value, cursor])
+                }
+                onPrevious={() =>
+                  setPeopleCursors((value) => value.slice(0, -1))
+                }
                 page={peopleQuery.data?.page}
               />
             </>
@@ -828,7 +958,9 @@ export function PeoplePage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Household</TableHead>
-                        <TableHead className="hidden sm:table-cell">Location</TableHead>
+                        <TableHead className="hidden sm:table-cell">
+                          Location
+                        </TableHead>
                         <TableHead align="right">Members</TableHead>
                         {canWriteHouseholds ? (
                           <TableHead align="right">
@@ -852,29 +984,43 @@ export function PeoplePage() {
                                   aria-expanded={expanded}
                                   className="flex items-center gap-2 text-left font-medium"
                                   onClick={() =>
-                                    setExpandedHousehold(expanded ? null : household.id)
+                                    setExpandedHousehold(
+                                      expanded ? null : household.id,
+                                    )
                                   }
                                   type="button"
                                 >
                                   {expanded ? (
-                                    <ChevronDown aria-hidden className="size-4 text-muted-foreground" />
+                                    <ChevronDown
+                                      aria-hidden
+                                      className="size-4 text-muted-foreground"
+                                    />
                                   ) : (
-                                    <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
+                                    <ChevronRight
+                                      aria-hidden
+                                      className="size-4 text-muted-foreground"
+                                    />
                                   )}
                                   {household.name}
                                 </button>
-                                <TableMeta className="pl-6 sm:hidden">{location}</TableMeta>
+                                <TableMeta className="pl-6 sm:hidden">
+                                  {location}
+                                </TableMeta>
                               </TableCell>
                               <TableCell className="hidden text-muted-foreground sm:table-cell">
                                 {location}
                               </TableCell>
-                              <TableCell align="right">{household.members.length}</TableCell>
+                              <TableCell align="right">
+                                {household.members.length}
+                              </TableCell>
                               {canWriteHouseholds ? (
                                 <TableCell align="right">
                                   <TableActions>
                                     <Button
                                       aria-label={`Edit ${household.name}`}
-                                      onClick={() => setHouseholdEditor(household)}
+                                      onClick={() =>
+                                        setHouseholdEditor(household)
+                                      }
                                       size="icon-xs"
                                       variant="ghost"
                                     >
@@ -882,7 +1028,9 @@ export function PeoplePage() {
                                     </Button>
                                     <Button
                                       aria-label={`Delete ${household.name}`}
-                                      onClick={() => void deleteHousehold(household)}
+                                      onClick={() =>
+                                        void deleteHousehold(household)
+                                      }
                                       size="icon-xs"
                                       variant="destructive-ghost"
                                     >
@@ -911,10 +1059,13 @@ export function PeoplePage() {
                                               size="sm"
                                             />
                                             <span className="font-medium">
-                                              {member.firstName} {member.lastName}
+                                              {member.firstName}{' '}
+                                              {member.lastName}
                                             </span>
                                             <Badge size="sm" variant="neutral">
-                                              {humanizeStatus(member.relationship)}
+                                              {humanizeStatus(
+                                                member.relationship,
+                                              )}
                                             </Badge>
                                             {member.isPrimary ? (
                                               <Badge size="sm" variant="brand">
@@ -924,7 +1075,12 @@ export function PeoplePage() {
                                           </span>
                                           {canWriteHouseholds ? (
                                             <Button
-                                              onClick={() => void removeMember(household, member)}
+                                              onClick={() =>
+                                                void removeMember(
+                                                  household,
+                                                  member,
+                                                )
+                                              }
                                               size="xs"
                                               variant="ghost"
                                             >
@@ -936,14 +1092,17 @@ export function PeoplePage() {
                                     </ul>
                                   ) : (
                                     <p className="text-sm text-muted-foreground">
-                                      No one has been added to this household yet.
+                                      No one has been added to this household
+                                      yet.
                                     </p>
                                   )}
                                   {canWriteHouseholds ? (
                                     <HouseholdMemberForm
                                       household={household}
                                       onSaved={householdQuery.refetch}
-                                      people={peopleOptionsQuery.data?.people ?? []}
+                                      people={
+                                        peopleOptionsQuery.data?.people ?? []
+                                      }
                                     />
                                   ) : null}
                                 </TableCell>
@@ -959,11 +1118,18 @@ export function PeoplePage() {
                 <EmptyState
                   action={
                     hasFilters ? (
-                      <Button onClick={clearFilters} size="sm" variant="secondary">
+                      <Button
+                        onClick={clearFilters}
+                        size="sm"
+                        variant="secondary"
+                      >
                         Clear filters
                       </Button>
                     ) : canWriteHouseholds ? (
-                      <Button onClick={() => setHouseholdEditor('new')} size="sm">
+                      <Button
+                        onClick={() => setHouseholdEditor('new')}
+                        size="sm"
+                      >
                         <Plus />
                         Add household
                       </Button>
@@ -981,8 +1147,12 @@ export function PeoplePage() {
 
               <Pagination
                 hasPrevious={householdCursors.length > 1}
-                onNext={(cursor) => setHouseholdCursors((value) => [...value, cursor])}
-                onPrevious={() => setHouseholdCursors((value) => value.slice(0, -1))}
+                onNext={(cursor) =>
+                  setHouseholdCursors((value) => [...value, cursor])
+                }
+                onPrevious={() =>
+                  setHouseholdCursors((value) => value.slice(0, -1))
+                }
                 page={householdQuery.data?.page}
               />
             </>

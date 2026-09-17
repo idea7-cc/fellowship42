@@ -1,6 +1,9 @@
 import { cn } from '@/lib/cn'
 
-interface SectionProps extends Omit<React.HTMLAttributes<HTMLElement>, 'title'> {
+interface SectionProps extends Omit<
+  React.HTMLAttributes<HTMLElement>,
+  'title'
+> {
   /** Section title */
   title?: React.ReactNode
   /** Section description */
@@ -24,10 +27,14 @@ export function Section({
           <div className="min-w-0">
             {title && <h2>{title}</h2>}
             {description && (
-              <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {description}
+              </p>
             )}
           </div>
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+          {actions ? (
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          ) : null}
         </div>
       )}
       {children}

@@ -58,8 +58,7 @@ const wrangler = {
   vars: {
     ACCESS_TEAM_DOMAIN: '',
     ACCESS_AUD: '',
-    F42_PORTABLE_INSTANCE_ID:
-      'instance_42424242-1234-5678-9abc-123456789abc',
+    F42_PORTABLE_INSTANCE_ID: 'instance_42424242-1234-5678-9abc-123456789abc',
     F42_RELEASE_TAG: manifest.instance.release.tag,
     F42_RELEASE_MANIFEST_SHA256: manifest.instance.release.manifestSha256,
   },
@@ -120,9 +119,7 @@ describe('f42ctl deployment planning', () => {
 
   it('emits clean JSON and rejects unknown CLI options', async () => {
     const cliPath = path.resolve('dist/cli.js')
-    const manifestPath = path.resolve(
-      'examples/deployment-manifest.local.json',
-    )
+    const manifestPath = path.resolve('examples/deployment-manifest.local.json')
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       cliPath,
       'plan',
@@ -408,7 +405,10 @@ describe('f42ctl portable export', () => {
         d1Path,
         `CREATE TABLE instance_metadata (instance_id TEXT);\nINSERT INTO instance_metadata VALUES ('${manifest.instance.id}');\n-- private member payload`,
       )
-      await writeFile(path.join(source, 'r2/first.bin'), 'private media payload')
+      await writeFile(
+        path.join(source, 'r2/first.bin'),
+        'private media payload',
+      )
       await writeFile(
         indexPath,
         JSON.stringify({
@@ -455,7 +455,9 @@ describe('f42ctl portable export', () => {
       })
       expect(cli.stdout).not.toContain('private')
       expect(
-        (await readFile(path.join(output, 'r2/index.json'), 'utf8')).match(/r2\/objects\//g),
+        (await readFile(path.join(output, 'r2/index.json'), 'utf8')).match(
+          /r2\/objects\//g,
+        ),
       ).toHaveLength(2)
       const objectFiles = await import('node:fs/promises').then(({ readdir }) =>
         readdir(path.join(output, 'r2/objects')),
@@ -473,8 +475,14 @@ describe('f42ctl portable export', () => {
       const d1Path = path.join(root, 'database.sql')
       const indexPath = path.join(root, 'r2-source.json')
       await writeFile(manifestPath, JSON.stringify(manifest))
-      await writeFile(d1Path, 'CREATE TABLE instance_metadata (instance_id TEXT);')
-      await writeFile(indexPath, JSON.stringify({ formatVersion: 1, objects: [] }))
+      await writeFile(
+        d1Path,
+        'CREATE TABLE instance_metadata (instance_id TEXT);',
+      )
+      await writeFile(
+        indexPath,
+        JSON.stringify({ formatVersion: 1, objects: [] }),
+      )
       await expect(
         assemblePortableExport({
           deploymentManifestPath: manifestPath,
@@ -499,7 +507,9 @@ describe('f42ctl portable export', () => {
         exportedAt: '2026-07-19T21:01:00.000Z',
       })
       await writeFile(path.join(output, 'unexpected.txt'), 'not referenced')
-      await expect(verifyPortableExport({ directory: output })).rejects.toThrow('unreferenced')
+      await expect(verifyPortableExport({ directory: output })).rejects.toThrow(
+        'unreferenced',
+      )
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -569,13 +579,20 @@ describe('f42ctl portable import and cutover planning', () => {
 
       expect(plan.steps).toHaveLength(17)
       expect(plan.steps.slice(3, 5)).toEqual([
-        expect.objectContaining({ kind: 'verify-new-empty-d1', risk: 'read-only' }),
-        expect.objectContaining({ kind: 'verify-new-empty-r2', risk: 'read-only' }),
+        expect.objectContaining({
+          kind: 'verify-new-empty-d1',
+          risk: 'read-only',
+        }),
+        expect.objectContaining({
+          kind: 'verify-new-empty-r2',
+          risk: 'read-only',
+        }),
       ])
-      expect(plan.steps.filter((step) => step.approvalRequired).map((step) => step.kind)).toEqual([
-        'cutover-domains',
-        'retire-source-routing',
-      ])
+      expect(
+        plan.steps
+          .filter((step) => step.approvalRequired)
+          .map((step) => step.kind),
+      ).toEqual(['cutover-domains', 'retire-source-routing'])
       const approval = {
         formatVersion: 1,
         operationId,
@@ -594,7 +611,9 @@ describe('f42ctl portable import and cutover planning', () => {
         domains: destination.worker.domains,
         rollbackDeadline: '2026-07-20T22:30:00.000Z',
       }
-      expect(verifyCutoverApproval(plan, destination, approval)).toEqual(approval)
+      expect(verifyCutoverApproval(plan, destination, approval)).toEqual(
+        approval,
+      )
       const planPath = path.join(root, 'import-plan.json')
       const approvalPath = path.join(root, 'cutover-approval.json')
       await writeFile(planPath, JSON.stringify(plan))
@@ -635,15 +654,27 @@ describe('f42ctl portable import and cutover planning', () => {
             durableObjectNamespace: 'absent',
           }
         },
-        async restoreD1() { events.push('restore-d1') },
+        async restoreD1() {
+          events.push('restore-d1')
+        },
         async restoreR2Object(input) {
           events.push(`restore-r2:${input.key}`)
         },
-        async applyForwardMigrations() { events.push('migrate') },
-        async deployWithoutDomains() { events.push('deploy-domainless') },
-        async rotateDeploymentCredentials() { events.push('rotate-deployment') },
-        async rotateApplicationSecrets() { events.push('rotate-application') },
-        async rotateManagementCredentials() { events.push('rotate-management') },
+        async applyForwardMigrations() {
+          events.push('migrate')
+        },
+        async deployWithoutDomains() {
+          events.push('deploy-domainless')
+        },
+        async rotateDeploymentCredentials() {
+          events.push('rotate-deployment')
+        },
+        async rotateApplicationSecrets() {
+          events.push('rotate-application')
+        },
+        async rotateManagementCredentials() {
+          events.push('rotate-management')
+        },
         async verifyRestoredIdentity() {
           events.push('verify-identity')
           return manifest.instance.id
@@ -652,12 +683,16 @@ describe('f42ctl portable import and cutover planning', () => {
           events.push('verify-runtime')
           return true
         },
-        async cutoverDomains() { events.push('cutover') },
+        async cutoverDomains() {
+          events.push('cutover')
+        },
         async verifyIndependentOperation() {
           events.push('verify-independent')
           return true
         },
-        async retireSourceRouting() { events.push('retire-source-routing') },
+        async retireSourceRouting() {
+          events.push('retire-source-routing')
+        },
       }
       const restored = await executePortableImportRestore({
         plan,
@@ -667,8 +702,14 @@ describe('f42ctl portable import and cutover planning', () => {
         now: () => '2026-07-19T22:10:00.000Z',
       })
       expect(restored.status).toBe('awaiting-cutover')
-      expect(restored.steps.slice(0, 14).every((step) => step.status === 'succeeded')).toBe(true)
-      expect(restored.steps.slice(14).every((step) => step.status === 'pending')).toBe(true)
+      expect(
+        restored.steps
+          .slice(0, 14)
+          .every((step) => step.status === 'succeeded'),
+      ).toBe(true)
+      expect(
+        restored.steps.slice(14).every((step) => step.status === 'pending'),
+      ).toBe(true)
       expect(events).toEqual([
         'preflight',
         'restore-d1',
@@ -862,7 +903,10 @@ describe('f42ctl portable import and cutover planning', () => {
       const bundle = path.join(root, 'export')
       await writeFile(sourceManifestPath, JSON.stringify(manifest))
       await writeFile(d1Path, `instance_metadata ${manifest.instance.id}`)
-      await writeFile(indexPath, JSON.stringify({ formatVersion: 1, objects: [] }))
+      await writeFile(
+        indexPath,
+        JSON.stringify({ formatVersion: 1, objects: [] }),
+      )
       await assemblePortableExport({
         deploymentManifestPath: sourceManifestPath,
         d1ExportPath: d1Path,

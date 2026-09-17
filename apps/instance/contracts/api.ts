@@ -1,0 +1,563 @@
+import type { ChurchThemeInput } from '@fellowship42/brand'
+
+export type PublishStatus = 'draft' | 'published' | 'archived'
+
+export interface ServiceTime {
+  id: string
+  label: string
+  day: number
+  time: string
+}
+
+export interface Church {
+  id: string
+  slug: string
+  name: string
+  status: PublishStatus
+  tagline: string
+  summary: string
+  timezone: string
+  address: {
+    street: string
+    city: string
+    state: string
+    postalCode: string
+    countryCode: string
+  }
+  contact: {
+    phone?: string
+    email?: string
+    website?: string
+  }
+  givingUrl?: string
+  livestreamUrl?: string
+  theme: ChurchThemeInput
+  serviceTimes: ServiceTime[]
+}
+
+export interface Ministry {
+  id: string
+  churchId: string
+  slug: string
+  title: string
+  status: PublishStatus
+  audience: string
+  schedule: string
+  featured: boolean
+  summary: string
+}
+
+export interface Group {
+  id: string
+  churchId: string
+  ministryId?: string
+  slug: string
+  title: string
+  status: PublishStatus
+  groupType: string
+  audience: string
+  schedule: string
+  location?: string
+  enrollmentPolicy: 'closed' | 'request' | 'open'
+  openEnrollment: boolean
+  capacity?: number
+  featured: boolean
+  summary: string
+  version: number
+}
+
+export type GroupMembershipStatus =
+  'interested' | 'pending' | 'active' | 'paused' | 'completed'
+
+export type GroupLeaderRole = 'leader' | 'apprentice' | 'host'
+
+/** A person's participation in a group, with enough person detail to display a roster. */
+export interface GroupMember {
+  version: number
+  id: string
+  groupId: string
+  personId: string
+  firstName: string
+  lastName: string
+  email?: string
+  status: GroupMembershipStatus
+  joinedAt?: number
+  notes?: string
+}
+
+export interface GroupLeader {
+  version: number
+  groupId: string
+  personId: string
+  firstName: string
+  lastName: string
+  email?: string
+  role: GroupLeaderRole
+}
+
+export interface GroupRoster {
+  members: GroupMember[]
+  leaders: GroupLeader[]
+  /** Active members counted against the group's capacity. */
+  activeCount: number
+  capacity?: number
+}
+
+export type GroupSessionStatus = 'planned' | 'open' | 'submitted' | 'cancelled'
+
+/** One meeting occurrence of a group. Attendance is recorded against these. */
+export interface GroupSession {
+  version: number
+  id: string
+  groupId: string
+  title: string
+  status: GroupSessionStatus
+  startsAt: number
+  endsAt?: number
+  location?: string
+  topic?: string
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'serving'
+
+/**
+ * One person's attendance at one session. `status` is undefined until someone
+ * marks them, which is what distinguishes "not recorded" from "absent".
+ */
+export interface AttendanceEntry {
+  version: number
+  personId: string
+  firstName: string
+  lastName: string
+  membershipStatus: string
+  status?: AttendanceStatus
+  checkedInAt?: number
+  notes?: string
+}
+
+export interface SessionAttendance {
+  session: GroupSession
+  entries: AttendanceEntry[]
+  presentCount: number
+  recordedCount: number
+}
+
+export type CourseEnrollmentStatus =
+  'invited' | 'active' | 'completed' | 'archived'
+
+/**
+ * A course enrollment is either a person or a whole group, never both — the
+ * schema enforces that with a CHECK constraint.
+ */
+export interface CourseEnrollment {
+  version: number
+  id: string
+  courseId: string
+  status: CourseEnrollmentStatus
+  personId?: string
+  groupId?: string
+  /** Display name of the enrolled person or group. */
+  subjectName: string
+  startedAt?: number
+  completedAt?: number
+  notes?: string
+}
+
+export interface Course {
+  id: string
+  churchId: string
+  ministryId?: string
+  slug: string
+  title: string
+  status: PublishStatus
+  courseType: string
+  deliveryMode: string
+  audience: string
+  duration: string
+  featured: boolean
+  certificateOffered: boolean
+  summary: string
+  lessonCount: number
+  version: number
+}
+
+export interface Lesson {
+  id: string
+  courseId: string
+  title: string
+  summary: string
+  estimatedMinutes?: number
+  required: boolean
+  sortOrder: number
+  content?: string
+  mediaId?: string
+  version: number
+}
+
+export interface EventRecord {
+  id: string
+  churchId: string
+  slug: string
+  title: string
+  status: PublishStatus
+  summary: string
+  startDate: number
+  endDate?: number
+  timezone: string
+  location: string
+  registrationUrl?: string
+  featured: boolean
+  capacity?: number
+  version: number
+}
+
+export interface Sermon {
+  id: string
+  churchId: string
+  slug: string
+  title: string
+  status: PublishStatus
+  speaker: string
+  series?: string
+  summary: string
+  videoUrl?: string
+  audioMediaId?: string
+  preachedAt: number
+  featured: boolean
+  version: number
+}
+
+export interface MediaRecord {
+  id: string
+  churchId: string
+  mediaType: string
+  contentType: string
+  byteSize: number
+  checksum?: string
+  altText: string
+  visibility: 'public' | 'private'
+  createdAt: number
+  version: number
+  url?: string
+}
+
+export interface Contribution {
+  id: string
+  churchId: string
+  personId?: string
+  donorName: string
+  amountMinor: number
+  currency: string
+  fund: string
+  paymentMethod: string
+  status: 'pending' | 'succeeded' | 'refunded' | 'failed'
+  recurring: boolean
+  provider?: string
+  providerPaymentId?: string
+  donatedAt: number
+  createdAt: number
+  updatedAt: number
+  version: number
+}
+
+export interface Person {
+  id: string
+  churchId: string
+  firstName: string
+  lastName: string
+  email?: string
+  phone?: string
+  membershipStatus: string
+  volunteerReady: boolean
+  version: number
+}
+
+export interface PersonDetail extends Person {
+  notes?: string
+}
+
+export interface HouseholdMember {
+  personId: string
+  firstName: string
+  lastName: string
+  relationship: 'spouse' | 'child' | 'parent' | 'guardian' | 'other'
+  isPrimary: boolean
+}
+
+export interface Household {
+  id: string
+  churchId: string
+  name: string
+  address: {
+    street?: string
+    city?: string
+    state?: string
+    postalCode?: string
+    countryCode: string
+  }
+  members: HouseholdMember[]
+  version: number
+}
+
+export interface CursorPage {
+  limit: number
+  nextCursor: string | null
+}
+
+export interface SessionUser {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  avatarUrl?: string
+  memberships: Array<{
+    churchId: string
+    churchName: string
+    permissions: string[]
+    roles: string[]
+  }>
+}
+
+export interface SessionResponse {
+  user: SessionUser | null
+}
+
+export interface ConfiguredChurchInstance {
+  churchId: string
+  churchName: string
+  churchSlug: string
+}
+
+export type BootstrapStatusResponse =
+  | { state: 'configured'; instance: ConfiguredChurchInstance }
+  | {
+      state: 'unconfigured'
+      authenticated: boolean
+      eligible: boolean
+      ownerConfigured: boolean
+    }
+
+export interface BootstrapResponse {
+  state: 'configured'
+  instance: ConfiguredChurchInstance & { id: string }
+}
+
+export interface CourseDetailResponse {
+  course: Course
+  lessons: Lesson[]
+}
+
+export interface ApiErrorBody {
+  error: {
+    code: string
+    message: string
+    requestId?: string
+  }
+}
+
+export type ManagementCapability =
+  | 'instance.status.read'
+  | 'instance.health.read'
+  | 'backup.export'
+  | 'update.prepare'
+  | 'update.apply'
+  | 'support.session.request'
+  | 'management.disconnect'
+
+export interface ManagementOperatorSummary {
+  id: string
+  displayName: string
+  keyId: string
+  keyFingerprint: string
+  syncUrl?: string
+}
+
+export interface ManagementGrantSummary {
+  capability: ManagementCapability
+  grantedAt: string
+  expiresAt: string
+  requiresLocalApproval: boolean
+}
+
+export interface ManagementStatusResponse {
+  instanceId: string
+  enabled: boolean
+  identity: { keyId: string; fingerprint: string } | null
+  pendingEnrollment: {
+    challengeId: string
+    operator: ManagementOperatorSummary & { syncUrl: string }
+    requestedCapabilities: ManagementCapability[]
+    submittedAt: string
+  } | null
+  lastDisposition: {
+    connectionId: string
+    operatorId: string
+    disconnectedAt: string
+  } | null
+  supportSessions: Array<{
+    requestId: string
+    connectionId: string
+    reason: string
+    requestedMinutes: number
+    scope: 'operational-diagnostics'
+    supportOperator: { id: string; displayName: string }
+    state:
+      | 'awaiting-local-approval'
+      | 'approved'
+      | 'rejected'
+      | 'revoked'
+      | 'expired'
+    requestedAt: string
+    decisionDueAt: string
+    approvedAt: string | null
+    expiresAt: string | null
+    revokedAt: string | null
+    decisionReason: string | null
+  }>
+  connection: {
+    connectionId: string
+    operator: ManagementOperatorSummary
+    grantVersion: number
+    rotationPending: boolean
+    grants: ManagementGrantSummary[]
+    approvedAt: string
+    lastSyncAt: string | null
+    lastSyncStatus: string | null
+    lastSyncCode: string | null
+  } | null
+}
+
+export interface ManagementExitDispositionResponse {
+  formatVersion: 1
+  instanceId: string
+  state: 'disconnected'
+  connectionId: string
+  operatorId: string
+  disconnectedAt: string
+  observedAt: string
+  auditEventId: string
+  checks: {
+    activeConnectionAbsent: true
+    activeGrantsRevoked: true
+    localKeyMaterialRemoved: true
+    replayStateRemoved: true
+    commandStateRemoved: true
+    churchOperationsAvailable: true
+  }
+}
+
+export interface UpdatePreparation {
+  formatVersion: 1
+  preparationId: string
+  instanceId: string
+  source: {
+    releaseTag: string
+    releaseManifestSha256: string
+    applicationVersion: string
+    schemaVersion: number
+    managementProtocolWireVersion: string
+  }
+  target: {
+    releaseTag: string
+    releaseManifestSha256: string
+    applicationVersion: string
+    schemaVersion: number
+    managementProtocolWireVersion: string
+  }
+  requiredEvidence: string[]
+  state:
+    | 'awaiting-local-approval'
+    | 'approved'
+    | 'authorized'
+    | 'applied'
+    | 'expired'
+    | 'superseded'
+  preparedAt: string
+  expiresAt: string
+  localApproval: {
+    localApprovalId: string
+    approvedAt: string
+    expiresAt: string
+    consumedAt: string | null
+  } | null
+  authorization: {
+    authorizationId: string
+    authorizedAt: string
+    expiresAt: string
+  } | null
+  appliedAt: string | null
+}
+
+export interface UpdatePreparationsResponse {
+  preparations: UpdatePreparation[]
+}
+
+export interface EnrollmentChallenge {
+  protocolVersion: '1'
+  challengeId: string
+  instanceId: string
+  instanceKey: {
+    kty: 'OKP'
+    crv: 'Ed25519'
+    x: string
+    kid: string
+    use: 'sig'
+    alg: 'EdDSA'
+  }
+  oneTimeCode: string
+  issuedAt: string
+  expiresAt: string
+}
+
+// ---------------------------------------------------------------------------
+// Team: the staff and leaders who can sign in to this instance
+// ---------------------------------------------------------------------------
+
+/** Sign-in account state. `invited` means the person has not signed in yet. */
+export type TeamAccountStatus = 'invited' | 'active' | 'suspended'
+/** Church membership state; `left` memberships are not returned. */
+export type TeamMembershipStatus = 'active' | 'suspended'
+
+export interface TeamMember {
+  membershipId: string
+  userId: string
+  email: string
+  firstName: string
+  lastName: string
+  accountStatus: TeamAccountStatus
+  membershipStatus: TeamMembershipStatus
+  roleKeys: string[]
+  joinedAt?: number
+  lastSeenAt?: number
+  version: number
+}
+
+export interface TeamRole {
+  key: string
+  name: string
+  description: string
+  permissions: string[]
+  isSystem: boolean
+}
+
+export interface TeamResponse {
+  members: TeamMember[]
+  roles: TeamRole[]
+}
+
+export interface TeamMemberResponse {
+  member: TeamMember
+}
+
+export interface TeamInviteInput {
+  email: string
+  firstName?: string
+  lastName?: string
+  roleKeys: string[]
+}
+
+export interface TeamMemberUpdateInput {
+  version: number
+  roleKeys?: string[]
+  status?: TeamMembershipStatus
+}

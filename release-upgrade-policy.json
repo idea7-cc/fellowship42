@@ -4,7 +4,7 @@
   "rollbackPolicy": "roll-forward-after-migration",
   "target": {
     "applicationVersion": "0.26.0",
-    "schemaVersion": 8,
+    "schemaVersion": 10,
     "managementProtocolWireVersion": "1"
   },
   "eligibleSources": [

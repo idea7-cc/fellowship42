@@ -49,9 +49,11 @@ export const managementGrantSchema = z
     }
 
     if (
-      ['update.apply', 'support.session.request', 'management.disconnect'].includes(
-        grant.capability,
-      ) &&
+      [
+        'update.apply',
+        'support.session.request',
+        'management.disconnect',
+      ].includes(grant.capability) &&
       !grant.requiresLocalApproval
     ) {
       context.addIssue({
@@ -164,8 +166,8 @@ export const enrollmentProposalSchema = z
     }
     const syncUrl = new URL(proposal.operator.syncUrl)
     const hostname = syncUrl.hostname.toLowerCase()
-    const ipLiteral = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
-      hostname.includes(':')
+    const ipLiteral =
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')
     if (
       syncUrl.username ||
       syncUrl.password ||
@@ -179,7 +181,8 @@ export const enrollmentProposalSchema = z
     ) {
       context.addIssue({
         code: 'custom',
-        message: 'Operator sync URL must use a public HTTPS DNS endpoint without credentials, query parameters, or fragments',
+        message:
+          'Operator sync URL must use a public HTTPS DNS endpoint without credentials, query parameters, or fragments',
         path: ['operator', 'syncUrl'],
       })
     }
@@ -313,7 +316,8 @@ export const signedManagementPayloadSchema = z
     disconnectNoticeSchema,
   ])
   .superRefine((payload, context) => {
-    const lifetime = Date.parse(payload.expiresAt) - Date.parse(payload.issuedAt)
+    const lifetime =
+      Date.parse(payload.expiresAt) - Date.parse(payload.issuedAt)
     if (lifetime <= 0 || lifetime > MANAGEMENT_MAX_MESSAGE_LIFETIME_MS) {
       context.addIssue({
         code: 'custom',
@@ -370,9 +374,7 @@ export type ManagementInteroperabilityFixture = z.infer<
 export const protocolCompatibilitySchema = z
   .object({
     protocolVersion: z.literal(MANAGEMENT_PROTOCOL_VERSION),
-    securityProfiles: z
-      .array(z.literal(MANAGEMENT_SECURITY_PROFILE))
-      .length(1),
+    securityProfiles: z.array(z.literal(MANAGEMENT_SECURITY_PROFILE)).length(1),
     messageTypes: z
       .array(
         z.enum([
@@ -391,9 +393,7 @@ export const protocolCompatibilitySchema = z
   })
   .strict()
 
-export type ProtocolCompatibility = z.infer<
-  typeof protocolCompatibilitySchema
->
+export type ProtocolCompatibility = z.infer<typeof protocolCompatibilitySchema>
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder('utf-8', { fatal: true })
@@ -456,7 +456,11 @@ export async function signManagementPayload(
   )
   const payloadValue = encodeBase64Url(encoder.encode(JSON.stringify(payload)))
   const signingInput = encoder.encode(`${protectedValue}.${payloadValue}`)
-  const signature = await crypto.subtle.sign('Ed25519', privateKey, signingInput)
+  const signature = await crypto.subtle.sign(
+    'Ed25519',
+    privateKey,
+    signingInput,
+  )
 
   return managementJwsSchema.parse({
     protected: protectedValue,

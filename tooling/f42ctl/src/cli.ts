@@ -4,8 +4,14 @@ import path from 'node:path'
 import { deploymentManifestSchema } from '@fellowship42/management-protocol'
 import { doctorFromFiles } from './doctor.js'
 import { buildDeployPlan } from './plan.js'
-import { assemblePortableExport, verifyPortableExport } from './portable-export.js'
-import { buildPortableImportPlan, verifyCutoverApproval } from './portable-import.js'
+import {
+  assemblePortableExport,
+  verifyPortableExport,
+} from './portable-export.js'
+import {
+  buildPortableImportPlan,
+  verifyCutoverApproval,
+} from './portable-import.js'
 import {
   buildExitPacket,
   createExitPacketVerificationEvidence,
@@ -43,10 +49,11 @@ async function emit(value: unknown, output?: string) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2)
   if (!command) usage()
-  const allowed = command === 'plan'
-    ? new Set(['--manifest', '--output'])
-    : command === 'doctor'
-      ? new Set([
+  const allowed =
+    command === 'plan'
+      ? new Set(['--manifest', '--output'])
+      : command === 'doctor'
+        ? new Set([
             '--manifest',
             '--wrangler',
             '--migrations',
@@ -54,52 +61,60 @@ async function main() {
             '--offline',
             '--output',
           ])
-      : command === 'export'
-        ? new Set([
-            '--manifest',
-            '--d1',
-            '--r2-index',
-            '--r2-root',
-            '--directory',
-            '--quiesced-at',
-            '--exported-at',
-            '--output',
-          ])
-        : command === 'verify-export'
+        : command === 'export'
           ? new Set([
+              '--manifest',
+              '--d1',
+              '--r2-index',
+              '--r2-root',
               '--directory',
-              '--verified-at',
-              '--evidence-id',
+              '--quiesced-at',
+              '--exported-at',
               '--output',
             ])
-          : command === 'plan-import'
+          : command === 'verify-export'
             ? new Set([
                 '--directory',
-                '--destination',
-                '--operation-id',
-                '--generated-at',
+                '--verified-at',
+                '--evidence-id',
                 '--output',
               ])
-            : command === 'verify-cutover'
+            : command === 'plan-import'
               ? new Set([
-                  '--plan',
+                  '--directory',
                   '--destination',
-                  '--approval',
+                  '--operation-id',
+                  '--generated-at',
                   '--output',
                 ])
-              : command === 'build-exit-packet'
-                ? new Set([
-                    '--plan', '--report', '--approval', '--export-evidence',
-                    '--management-disposition', '--handoff', '--packet-id',
-                    '--generated-at', '--output',
-                  ])
-                : command === 'verify-exit-packet'
+              : command === 'verify-cutover'
+                ? new Set(['--plan', '--destination', '--approval', '--output'])
+                : command === 'build-exit-packet'
                   ? new Set([
-                      '--packet', '--plan', '--report', '--approval',
-                      '--export-evidence', '--management-disposition',
-                      '--handoff', '--evidence-id', '--verified-at', '--output',
+                      '--plan',
+                      '--report',
+                      '--approval',
+                      '--export-evidence',
+                      '--management-disposition',
+                      '--handoff',
+                      '--packet-id',
+                      '--generated-at',
+                      '--output',
                     ])
-          : usage()
+                  : command === 'verify-exit-packet'
+                    ? new Set([
+                        '--packet',
+                        '--plan',
+                        '--report',
+                        '--approval',
+                        '--export-evidence',
+                        '--management-disposition',
+                        '--handoff',
+                        '--evidence-id',
+                        '--verified-at',
+                        '--output',
+                      ])
+                    : usage()
   const options = argumentsFor(rest, allowed)
   const output = options.get('--output')
   if (output !== undefined && typeof output !== 'string') usage()
@@ -112,7 +127,8 @@ async function main() {
       typeof directory !== 'string' ||
       (verifiedAt !== undefined && typeof verifiedAt !== 'string') ||
       (evidenceId !== undefined && typeof evidenceId !== 'string')
-    ) usage()
+    )
+      usage()
     await emit(
       await verifyPortableExport({ directory, verifiedAt, evidenceId }),
       output,
@@ -129,7 +145,8 @@ async function main() {
       typeof destinationManifestPath !== 'string' ||
       (operationId !== undefined && typeof operationId !== 'string') ||
       (generatedAt !== undefined && typeof generatedAt !== 'string')
-    ) usage()
+    )
+      usage()
     await emit(
       await buildPortableImportPlan({
         exportDirectory: directory,
@@ -149,7 +166,8 @@ async function main() {
       typeof planPath !== 'string' ||
       typeof destinationPath !== 'string' ||
       typeof approvalPath !== 'string'
-    ) usage()
+    )
+      usage()
     await emit(
       verifyCutoverApproval(
         JSON.parse(await readFile(planPath, 'utf8')),
@@ -174,7 +192,9 @@ async function main() {
       plan: JSON.parse(await readFile(paths.plan as string, 'utf8')),
       report: JSON.parse(await readFile(paths.report as string, 'utf8')),
       approval: JSON.parse(await readFile(paths.approval as string, 'utf8')),
-      exportEvidence: JSON.parse(await readFile(paths.exportEvidence as string, 'utf8')),
+      exportEvidence: JSON.parse(
+        await readFile(paths.exportEvidence as string, 'utf8'),
+      ),
       managementDisposition: JSON.parse(
         await readFile(paths.managementDisposition as string, 'utf8'),
       ),
@@ -186,7 +206,8 @@ async function main() {
       if (
         (packetId !== undefined && typeof packetId !== 'string') ||
         (generatedAt !== undefined && typeof generatedAt !== 'string')
-      ) usage()
+      )
+        usage()
       await emit(buildExitPacket({ inputs, packetId, generatedAt }), output)
       return
     }
@@ -197,7 +218,8 @@ async function main() {
       typeof packetPath !== 'string' ||
       (evidenceId !== undefined && typeof evidenceId !== 'string') ||
       (verifiedAt !== undefined && typeof verifiedAt !== 'string')
-    ) usage()
+    )
+      usage()
     await emit(
       createExitPacketVerificationEvidence({
         packet: JSON.parse(await readFile(packetPath, 'utf8')),
@@ -256,7 +278,8 @@ async function main() {
       typeof outputDirectory !== 'string' ||
       typeof quiescedAt !== 'string' ||
       (exportedAt !== undefined && typeof exportedAt !== 'string')
-    ) usage()
+    )
+      usage()
     await emit(
       await assemblePortableExport({
         deploymentManifestPath: manifestPath,

@@ -19,17 +19,8 @@ export const instanceHealthObservationSchema = z
     observedAt: z.iso
       .datetime({ offset: true })
       .transform((value) => new Date(value).toISOString()),
-    source: z.enum([
-      'instance-doctor',
-      'management-sync',
-      'operator-verified',
-    ]),
-    overallStatus: z.enum([
-      'healthy',
-      'degraded',
-      'unavailable',
-      'unknown',
-    ]),
+    source: z.enum(['instance-doctor', 'management-sync', 'operator-verified']),
+    overallStatus: z.enum(['healthy', 'degraded', 'unavailable', 'unknown']),
     release: z
       .object({
         applicationVersion: semanticVersionSchema,
@@ -68,12 +59,7 @@ export const instanceHealthObservationSchema = z
       .strict(),
     traffic: z
       .object({
-        availability: z.enum([
-          'healthy',
-          'degraded',
-          'unavailable',
-          'unknown',
-        ]),
+        availability: z.enum(['healthy', 'degraded', 'unavailable', 'unknown']),
         errorRate: z.enum(['none', 'low', 'elevated', 'high', 'unknown']),
         latency: z.enum(['low', 'normal', 'high', 'unknown']),
         window: z.enum([
@@ -117,9 +103,7 @@ export const instanceHealthObservationSchema = z
       ].some((status) => ['degraded', 'unavailable'].includes(status)) ||
       ['pending', 'failed'].includes(observation.checks.migrations) ||
       ['backlog-large', 'blocked'].includes(observation.checks.outbox) ||
-      ['degraded', 'unavailable'].includes(
-        observation.traffic.availability,
-      ) ||
+      ['degraded', 'unavailable'].includes(observation.traffic.availability) ||
       ['elevated', 'high'].includes(observation.traffic.errorRate) ||
       observation.traffic.latency === 'high'
     if (observation.overallStatus === 'healthy' && hasKnownDegradation) {

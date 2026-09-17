@@ -11,6 +11,7 @@ import { MediaPage } from './routes/media'
 import { SermonsPage } from './routes/sermons'
 import { ContributionsPage } from './routes/contributions'
 import { ManagementPage } from './routes/management'
+import { TeamPage } from './routes/team'
 import { NotFoundPage } from './routes/not-found'
 
 /**
@@ -34,12 +35,19 @@ export function App() {
         <Route path="/sermons" element={<SermonsPage />} />
         <Route path="/media" element={<MediaPage />} />
         <Route path="/contributions" element={<ContributionsPage />} />
+        <Route path="/team" element={<TeamPage />} />
         <Route path="/management" element={<ManagementPage />} />
 
         {/* Keep older church-scoped links working rather than 404ing them. */}
         <Route path="/churches" element={<Navigate replace to="/" />} />
-        <Route path="/churches/:churchId" element={<Navigate replace to="/" />} />
-        <Route path="/churches/:churchId/*" element={<LegacyChurchRedirect />} />
+        <Route
+          path="/churches/:churchId"
+          element={<Navigate replace to="/" />}
+        />
+        <Route
+          path="/churches/:churchId/*"
+          element={<LegacyChurchRedirect />}
+        />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

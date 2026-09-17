@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { deploymentReleaseSchema, portableInstanceIdSchema } from './lifecycle.js'
+import {
+  deploymentReleaseSchema,
+  portableInstanceIdSchema,
+} from './lifecycle.js'
 import { sha256DigestSchema } from './releases.js'
 
 export const MIGRATION_REHEARSAL_FORMAT_VERSION = 1 as const
@@ -71,7 +74,11 @@ export const migrationRehearsalEvidenceSchema = z
       evidence.cutoverApprovedAt,
       evidence.completedAt,
     ].map(Date.parse)
-    if (orderedTimes.some((time, index) => index > 0 && time < orderedTimes[index - 1]!)) {
+    if (
+      orderedTimes.some(
+        (time, index) => index > 0 && time < orderedTimes[index - 1]!,
+      )
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Rehearsal evidence timestamps must be monotonic',

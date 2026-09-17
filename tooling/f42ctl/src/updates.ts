@@ -17,8 +17,7 @@ export function releaseCoordinateVariables(manifestInput: unknown): {
   const manifest = deploymentManifestSchema.parse(manifestInput)
   return {
     F42_RELEASE_TAG: manifest.instance.release.tag,
-    F42_RELEASE_MANIFEST_SHA256:
-      manifest.instance.release.manifestSha256,
+    F42_RELEASE_MANIFEST_SHA256: manifest.instance.release.manifestSha256,
   }
 }
 

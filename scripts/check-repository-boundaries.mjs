@@ -1,3 +1,4 @@
+import { inspectImportBoundaries } from './import-boundaries.mjs'
 import { access, readFile, readdir } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import path from 'node:path'
@@ -26,7 +27,8 @@ async function sourceFiles(relativePath) {
     if (['dist', 'node_modules', '.wrangler'].includes(entry.name)) continue
     const child = path.join(relativePath, entry.name)
     if (entry.isDirectory()) files.push(...(await sourceFiles(child)))
-    if (entry.isFile() && /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name)) files.push(child)
+    if (entry.isFile() && /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name))
+      files.push(child)
   }
 
   return files
@@ -78,12 +80,15 @@ const requiredPaths = [
 ]
 
 for (const requiredPath of requiredPaths) {
-  if (!(await exists(requiredPath))) errors.push(`required public path is missing: ${requiredPath}`)
+  if (!(await exists(requiredPath)))
+    errors.push(`required public path is missing: ${requiredPath}`)
 }
 
 for (const forbiddenPath of manifest.forbiddenPrivatePaths) {
   if (await exists(forbiddenPath)) {
-    errors.push(`private hosted-service code must live in ${manifest.privateRepository}: ${forbiddenPath}`)
+    errors.push(
+      `private hosted-service code must live in ${manifest.privateRepository}: ${forbiddenPath}`,
+    )
   }
 }
 
@@ -106,9 +111,13 @@ for (const workerSafePath of [
 ]) {
   const source = await readFile(path.join(root, workerSafePath), 'utf8')
   if (/from ['"]node:|require\(['"]node:|\bprocess\./.test(source)) {
-    errors.push(`${workerSafePath} must remain Worker-safe and free of Node-only APIs`)
+    errors.push(
+      `${workerSafePath} must remain Worker-safe and free of Node-only APIs`,
+    )
   }
 }
+
+errors.push(...(await inspectImportBoundaries(root, 'public')))
 
 if (errors.length > 0) {
   console.error(errors.map((error) => `- ${error}`).join('\n'))

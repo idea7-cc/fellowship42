@@ -27,8 +27,7 @@ export const managementAdapterConformanceScenarioIdSchema = z.enum([
   'local-disconnect',
 ])
 
-const orderedScenarioIds =
-  managementAdapterConformanceScenarioIdSchema.options
+const orderedScenarioIds = managementAdapterConformanceScenarioIdSchema.options
 
 export const managementAdapterConformanceReportSchema = z
   .object({
@@ -108,10 +107,7 @@ function randomNonce(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 async function runtimeIdentity(keyId: string): Promise<RuntimeIdentity> {
@@ -266,7 +262,10 @@ export async function runManagementAdapterConformance(
                 issuedAt: new Date(now + 2_000).toISOString(),
                 expiresAt: new Date(now + 302_000).toISOString(),
                 nonce: randomNonce(),
-                input: { reason: 'public conformance denial', retentionDays: 1 },
+                input: {
+                  reason: 'public conformance denial',
+                  retentionDays: 1,
+                },
               }
             : null
       const batch = await signManagementPayload(
@@ -308,7 +307,10 @@ export async function runManagementAdapterConformance(
           result.commandType === 'backup.export' &&
           result.error?.code === 'capability_not_granted'
       } else {
-        assertion(payload.results.length === 0, 'rotation heartbeat was not empty')
+        assertion(
+          payload.results.length === 0,
+          'rotation heartbeat was not empty',
+        )
       }
       return new Response(null, { status: 204 })
     }
@@ -326,7 +328,10 @@ export async function runManagementAdapterConformance(
   assertion(statusPassed, 'the granted status command did not succeed')
   assertion(replayPassed, 'an exact command retry changed its signed result')
   assertion(grantDenialPassed, 'an ungranted backup command was not denied')
-  assertion(rotationPassed, 'instance key rotation was not delivered by the old key')
+  assertion(
+    rotationPassed,
+    'instance key rotation was not delivered by the old key',
+  )
   assertion(
     disconnected.state === 'disconnected' && disconnected.commandCount === 0,
     'local disconnect did not stop management sync',

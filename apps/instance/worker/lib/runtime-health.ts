@@ -46,8 +46,7 @@ export async function inspectInstanceRuntimeHealth(
   ].includes(bootstrap.state)
 
   return instanceRuntimeHealthSchema.parse({
-    status:
-      outboxStatus === 'stalled' || identityDegraded ? 'degraded' : 'ok',
+    status: outboxStatus === 'stalled' || identityDegraded ? 'degraded' : 'ok',
     service: 'fellowship42-instance',
     topology: INSTANCE_TOPOLOGY,
     storage: 'd1',

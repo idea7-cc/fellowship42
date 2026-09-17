@@ -15,49 +15,83 @@ function sha256Canonical(value: unknown): string {
 }
 
 function requireEqual(actual: unknown, expected: unknown, message: string) {
-  if (canonicalJson(actual) !== canonicalJson(expected)) throw new Error(message)
+  if (canonicalJson(actual) !== canonicalJson(expected))
+    throw new Error(message)
 }
 
 function validateBindings(inputs: ExitPacketBuildInputs) {
-  const { plan, report, approval, exportEvidence, managementDisposition, handoff } = inputs
-  if (report.status !== 'succeeded' || report.steps.some((step) => step.status !== 'succeeded')) {
+  const {
+    plan,
+    report,
+    approval,
+    exportEvidence,
+    managementDisposition,
+    handoff,
+  } = inputs
+  if (
+    report.status !== 'succeeded' ||
+    report.steps.some((step) => step.status !== 'succeeded')
+  ) {
     throw new Error('Exit packet requires a fully succeeded portable import')
   }
   for (const evidence of [report, approval, handoff]) {
-    if (evidence.operationId !== plan.operationId || evidence.instanceId !== plan.instanceId) {
-      throw new Error('Exit packet evidence does not share one operation and instance')
+    if (
+      evidence.operationId !== plan.operationId ||
+      evidence.instanceId !== plan.instanceId
+    ) {
+      throw new Error(
+        'Exit packet evidence does not share one operation and instance',
+      )
     }
   }
-  if (exportEvidence.instanceId !== plan.instanceId || managementDisposition.instanceId !== plan.instanceId) {
-    throw new Error('Exit packet evidence does not preserve the portable instance identity')
+  if (
+    exportEvidence.instanceId !== plan.instanceId ||
+    managementDisposition.instanceId !== plan.instanceId
+  ) {
+    throw new Error(
+      'Exit packet evidence does not preserve the portable instance identity',
+    )
   }
   for (const evidence of [report, approval]) {
     if (
       evidence.exportManifestSha256 !== plan.exportManifestSha256 ||
       evidence.destinationManifestSha256 !== plan.destinationManifestSha256
     ) {
-      throw new Error('Exit packet evidence does not bind to the import plan manifests')
+      throw new Error(
+        'Exit packet evidence does not bind to the import plan manifests',
+      )
     }
   }
   if (exportEvidence.exportManifestSha256 !== plan.exportManifestSha256) {
-    throw new Error('Export evidence does not bind to the imported export manifest')
+    throw new Error(
+      'Export evidence does not bind to the imported export manifest',
+    )
   }
   if (
-    exportEvidence.sourceApplicationVersion !== plan.sourceRelease.applicationVersion ||
+    exportEvidence.sourceApplicationVersion !==
+      plan.sourceRelease.applicationVersion ||
     exportEvidence.sourceSchemaVersion !== plan.sourceRelease.schemaVersion ||
-    exportEvidence.sourceManagementProtocolPackageVersion !== plan.sourceRelease.managementProtocolPackageVersion
+    exportEvidence.sourceManagementProtocolPackageVersion !==
+      plan.sourceRelease.managementProtocolPackageVersion
   ) {
-    throw new Error('Export evidence release does not match the portable import source')
+    throw new Error(
+      'Export evidence release does not match the portable import source',
+    )
   }
   if (approval.credentialDisposition.management !== 'disconnected') {
-    throw new Error('Hosted exit requires locally verified management disconnection')
+    throw new Error(
+      'Hosted exit requires locally verified management disconnection',
+    )
   }
   requireEqual(
     handoff.domains.map((domain) => domain.hostname),
     approval.domains,
     'Handoff domains do not match the approved cutover domains',
   )
-  if (Date.parse(handoff.credentialAttestation.attestedAt) < Date.parse(approval.approvedAt)) {
+  if (
+    Date.parse(handoff.credentialAttestation.attestedAt) <
+    Date.parse(approval.approvedAt)
+  ) {
     throw new Error('Credential attestation predates cutover approval')
   }
   const independentStep = report.steps[15]
@@ -68,11 +102,17 @@ function validateBindings(inputs: ExitPacketBuildInputs) {
     sourceRetirementStep?.kind !== 'retire-source-routing' ||
     sourceRetirementStep.completedAt !== handoff.sourceRoutingRetiredAt
   ) {
-    throw new Error('Handoff timestamps do not match the completed cutover report')
+    throw new Error(
+      'Handoff timestamps do not match the completed cutover report',
+    )
   }
 }
 
-export function buildExitPacket(options: { inputs: unknown; packetId?: string; generatedAt?: string }): ExitPacket {
+export function buildExitPacket(options: {
+  inputs: unknown
+  packetId?: string
+  generatedAt?: string
+}): ExitPacket {
   const inputs = exitPacketBuildInputsSchema.parse(options.inputs)
   validateBindings(inputs)
   const generatedAt = new Date(options.generatedAt ?? new Date().toISOString())
@@ -84,10 +124,20 @@ export function buildExitPacket(options: { inputs: unknown; packetId?: string; g
     Date.parse(inputs.handoff.credentialAttestation.attestedAt),
     Date.parse(inputs.handoff.sourceRoutingRetiredAt),
   )
-  if (Number.isNaN(generatedAt.valueOf()) || generatedAt.valueOf() < latestEvidenceTime) {
+  if (
+    Number.isNaN(generatedAt.valueOf()) ||
+    generatedAt.valueOf() < latestEvidenceTime
+  ) {
     throw new Error('Exit packet generation must follow all supplied evidence')
   }
-  const { plan, report, approval, exportEvidence, managementDisposition, handoff } = inputs
+  const {
+    plan,
+    report,
+    approval,
+    exportEvidence,
+    managementDisposition,
+    handoff,
+  } = inputs
   const checkCodes = [
     'portable-export-verified',
     'portable-restore-succeeded',
@@ -138,14 +188,21 @@ export function buildExitPacket(options: { inputs: unknown; packetId?: string; g
   })
 }
 
-export function verifyExitPacket(options: { packet: unknown; inputs: unknown }): ExitPacket {
+export function verifyExitPacket(options: {
+  packet: unknown
+  inputs: unknown
+}): ExitPacket {
   const packet = exitPacketSchema.parse(options.packet)
   const rebuilt = buildExitPacket({
     inputs: options.inputs,
     packetId: packet.packetId,
     generatedAt: packet.generatedAt,
   })
-  requireEqual(packet, rebuilt, 'Exit packet does not match its canonical source evidence')
+  requireEqual(
+    packet,
+    rebuilt,
+    'Exit packet does not match its canonical source evidence',
+  )
   return packet
 }
 
@@ -157,7 +214,10 @@ export function createExitPacketVerificationEvidence(options: {
 }): ExitPacketVerificationEvidence {
   const packet = verifyExitPacket(options)
   const verifiedAt = new Date(options.verifiedAt ?? new Date().toISOString())
-  if (Number.isNaN(verifiedAt.valueOf()) || verifiedAt.valueOf() < Date.parse(packet.generatedAt)) {
+  if (
+    Number.isNaN(verifiedAt.valueOf()) ||
+    verifiedAt.valueOf() < Date.parse(packet.generatedAt)
+  ) {
     throw new Error('Exit packet verification cannot predate packet generation')
   }
   return exitPacketVerificationEvidenceSchema.parse({

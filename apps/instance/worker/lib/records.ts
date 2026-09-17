@@ -13,7 +13,7 @@ import type {
   Person,
   PersonDetail,
   Sermon,
-} from '../../src/lib/api-types'
+} from '../../contracts/api'
 
 export interface ChurchRow {
   id: string
@@ -351,6 +351,7 @@ export function mapPersonDetail(row: PersonRow): PersonDetail {
 // ---------------------------------------------------------------------------
 
 export interface GroupMemberRow {
+  version: number
   id: string
   group_id: string
   person_id: string
@@ -364,6 +365,7 @@ export interface GroupMemberRow {
 
 export function mapGroupMember(row: GroupMemberRow): GroupMember {
   return {
+    version: row.version ?? 0,
     id: row.id,
     groupId: row.group_id,
     personId: row.person_id,
@@ -377,6 +379,7 @@ export function mapGroupMember(row: GroupMemberRow): GroupMember {
 }
 
 export interface GroupLeaderRow {
+  version: number
   group_id: string
   person_id: string
   first_name: string
@@ -387,6 +390,7 @@ export interface GroupLeaderRow {
 
 export function mapGroupLeader(row: GroupLeaderRow): GroupLeader {
   return {
+    version: row.version ?? 0,
     groupId: row.group_id,
     personId: row.person_id,
     firstName: row.first_name,
@@ -397,6 +401,7 @@ export function mapGroupLeader(row: GroupLeaderRow): GroupLeader {
 }
 
 export interface CourseEnrollmentRow {
+  version: number
   id: string
   course_id: string
   status: CourseEnrollment['status']
@@ -410,13 +415,16 @@ export interface CourseEnrollmentRow {
   notes: string | null
 }
 
-export function mapCourseEnrollment(row: CourseEnrollmentRow): CourseEnrollment {
+export function mapCourseEnrollment(
+  row: CourseEnrollmentRow,
+): CourseEnrollment {
   const subjectName = row.person_id
     ? `${row.person_first_name ?? ''} ${row.person_last_name ?? ''}`.trim()
     : (row.group_title ?? '')
   return {
     id: row.id,
     courseId: row.course_id,
+    version: row.version,
     status: row.status,
     personId: row.person_id ?? undefined,
     groupId: row.group_id ?? undefined,
@@ -428,6 +436,7 @@ export function mapCourseEnrollment(row: CourseEnrollmentRow): CourseEnrollment 
 }
 
 export interface GroupSessionRow {
+  version: number
   id: string
   group_id: string
   title: string
@@ -440,6 +449,7 @@ export interface GroupSessionRow {
 
 export function mapGroupSession(row: GroupSessionRow): GroupSession {
   return {
+    version: row.version ?? 0,
     id: row.id,
     groupId: row.group_id,
     title: row.title,
@@ -452,6 +462,7 @@ export function mapGroupSession(row: GroupSessionRow): GroupSession {
 }
 
 export interface AttendanceEntryRow {
+  version: number
   person_id: string
   first_name: string
   last_name: string
@@ -463,6 +474,7 @@ export interface AttendanceEntryRow {
 
 export function mapAttendanceEntry(row: AttendanceEntryRow): AttendanceEntry {
   return {
+    version: row.version ?? 0,
     personId: row.person_id,
     firstName: row.first_name,
     lastName: row.last_name,

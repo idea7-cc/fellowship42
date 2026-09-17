@@ -22,35 +22,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check repository boundaries
-        run: pnpm check:architecture
-
-      - name: Check generated Cloudflare bindings
-        run: pnpm cf-typegen:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Rehearse hosted-to-church-owned migration
-        run: pnpm test:migration-rehearsal
-
-      - name: Build
-        run: pnpm build
+      - name: Verify repository
+        run: pnpm verify
 
       - name: Assemble and verify release artifacts
         run: pnpm release:assemble
-
-      - name: Verify Worker deployment bundle
-        run: pnpm deploy:dry-run
-
-      - name: Verify project-site deployment bundle
-        run: pnpm deploy:site:dry-run

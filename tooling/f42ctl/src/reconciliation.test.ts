@@ -105,7 +105,10 @@ describe('provider-neutral deployment reconciliation', () => {
       verifyUpdateDeploymentAuthorization(
         {
           ...authorization,
-          target: { ...authorization.target, releaseManifestSha256: 'f'.repeat(64) },
+          target: {
+            ...authorization.target,
+            releaseManifestSha256: 'f'.repeat(64),
+          },
         },
         fixture.manifest,
         Date.parse('2026-07-20T03:32:00.000Z'),
@@ -119,7 +122,10 @@ describe('provider-neutral deployment reconciliation', () => {
     let calls = 0
     await expect(
       executeAuthorizedUpdateReconciliation({
-        authorization: { ...authorization, expiresAt: '2026-07-20T03:31:00.000Z' },
+        authorization: {
+          ...authorization,
+          expiresAt: '2026-07-20T03:31:00.000Z',
+        },
         manifest: fixture.manifest,
         preview,
         approval: await approval(preview),
@@ -158,9 +164,9 @@ describe('provider-neutral deployment reconciliation', () => {
       'update',
       'verify',
     ])
-    expect(preview.changes.every(({ destructive }) => destructive === false)).toBe(
-      true,
-    )
+    expect(
+      preview.changes.every(({ destructive }) => destructive === false),
+    ).toBe(true)
     expect(JSON.stringify(preview)).not.toContain('accountId')
     expect(JSON.stringify(preview)).not.toContain('resourceId')
 
@@ -305,7 +311,8 @@ describe('provider-neutral deployment reconciliation', () => {
     const adapter: Pick<DeploymentReconciliationAdapter, 'apply'> = {
       apply: async (input) => {
         calls += 1
-        if (input.step.stepId === 'step-03') throw new Error('raw provider payload')
+        if (input.step.stepId === 'step-03')
+          throw new Error('raw provider payload')
         return outcomeFor(input.step.action, input.step.desiredFingerprint)
       },
     }
@@ -399,12 +406,15 @@ describe('provider-neutral deployment reconciliation', () => {
       '../dist/plan-shape.js',
       '../dist/reconciliation.js',
     ]) {
-      const compiled = await readFile(new URL(compiledPath, import.meta.url), 'utf8')
+      const compiled = await readFile(
+        new URL(compiledPath, import.meta.url),
+        'utf8',
+      )
       expect(compiled).not.toContain('node:')
       expect(compiled).not.toContain('process.')
     }
-    expect(reconciliationObservationSetSchema.parse(fixture.observation)).toEqual(
-      fixture.observation,
-    )
+    expect(
+      reconciliationObservationSetSchema.parse(fixture.observation),
+    ).toEqual(fixture.observation)
   })
 })

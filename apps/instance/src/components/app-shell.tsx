@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   CalendarDays,
-  Church,
   GraduationCap,
   HandCoins,
   Image,
@@ -14,6 +13,7 @@ import {
   Moon,
   ShieldCheck,
   Sun,
+  UserCog,
   Users,
   UsersRound,
   X,
@@ -59,7 +59,19 @@ const nav: NavItem[] = [
   // Facilities is intentionally absent: the `facilities` and
   // `facility_bookings` tables exist but have no API routes or UI yet, so the
   // nav entry resolved to the 404 page. Restore it with the route.
-  { label: 'Contributions', path: '/contributions', icon: HandCoins, note: 'Finance' },
+  {
+    label: 'Contributions',
+    path: '/contributions',
+    icon: HandCoins,
+    note: 'Finance',
+  },
+  {
+    label: 'Team',
+    path: '/team',
+    icon: UserCog,
+    note: 'Owner',
+    permission: 'team.manage',
+  },
   {
     label: 'Management',
     path: '/management',
@@ -88,7 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useChurchRealtime(churchId)
 
   const permissions =
-    user?.memberships.find((entry) => entry.churchId === churchId)?.permissions ?? []
+    user?.memberships.find((entry) => entry.churchId === churchId)
+      ?.permissions ?? []
 
   // Close the drawer on navigation — leaving it open over the new page is the
   // most common mobile navigation bug in a shell like this.
@@ -123,7 +136,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Wordmark />
         <div className="flex-1" />
         {isSignedIn && user ? (
-          <Avatar name={`${user.firstName} ${user.lastName}`} src={user.avatarUrl} size="sm" />
+          <Avatar
+            name={`${user.firstName} ${user.lastName}`}
+            src={user.avatarUrl}
+            size="sm"
+          />
         ) : authLoading ? null : (
           <SignInButton />
         )}
@@ -220,7 +237,15 @@ function NavGroup({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-col gap-px py-1">{children}</div>
 }
 
-function NavLink({ active, item, to }: { active: boolean; item: NavItem; to: string }) {
+function NavLink({
+  active,
+  item,
+  to,
+}: {
+  active: boolean
+  item: NavItem
+  to: string
+}) {
   const Icon = item.icon
   return (
     <Link
@@ -236,7 +261,10 @@ function NavLink({ active, item, to }: { active: boolean; item: NavItem; to: str
     >
       <Icon
         aria-hidden
-        className={cn('size-4 shrink-0', active ? 'text-sidebar-primary' : 'text-muted-foreground')}
+        className={cn(
+          'size-4 shrink-0',
+          active ? 'text-sidebar-primary' : 'text-muted-foreground',
+        )}
       />
       <span className="truncate">{item.label}</span>
       {item.note ? (
@@ -291,14 +319,25 @@ function SidebarFooter() {
       <ThemeToggle />
       <div className="mt-2 flex items-center gap-2 rounded-md px-1 py-1">
         {isLoading ? (
-          <span className="text-xs text-muted-foreground">Checking session…</span>
+          <span className="text-xs text-muted-foreground">
+            Checking session…
+          </span>
         ) : isSignedIn && user ? (
           <>
-            <Avatar name={`${user.firstName} ${user.lastName}`} src={user.avatarUrl} size="sm" />
+            <Avatar
+              name={`${user.firstName} ${user.lastName}`}
+              src={user.avatarUrl}
+              size="sm"
+            />
             <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium">
               {user.firstName} {user.lastName}
             </span>
-            <Button aria-label="Sign out" asChild size="icon-xs" variant="ghost">
+            <Button
+              aria-label="Sign out"
+              asChild
+              size="icon-xs"
+              variant="ghost"
+            >
               <a href="/cdn-cgi/access/logout">
                 <LogOut />
               </a>
@@ -312,7 +351,11 @@ function SidebarFooter() {
   )
 }
 
-const themeOptions: Array<{ value: ThemeMode; label: string; icon: LucideIcon }> = [
+const themeOptions: Array<{
+  value: ThemeMode
+  label: string
+  icon: LucideIcon
+}> = [
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'system', label: 'System', icon: Monitor },

@@ -75,7 +75,10 @@ const destinationManifest = {
   ...sourceManifest,
   custody: { infrastructureOwner: 'church', operator: 'church' },
   target: { environment: 'production', accountAlias: 'church-owned' },
-  worker: { name: 'fellowship42-church', domains: sourceManifest.worker.domains },
+  worker: {
+    name: 'fellowship42-church',
+    domains: sourceManifest.worker.domains,
+  },
   resources: {
     ...sourceManifest.resources,
     d1: { binding: 'DB', name: 'fellowship42-church' },
@@ -93,7 +96,12 @@ function sha256(contents) {
 }
 
 class RehearsalAdapter {
-  constructor({ destinationD1, destinationR2, sourceD1Bytes, expectedObjects }) {
+  constructor({
+    destinationD1,
+    destinationR2,
+    sourceD1Bytes,
+    expectedObjects,
+  }) {
     this.destinationD1 = destinationD1
     this.destinationR2 = destinationR2
     this.sourceD1Bytes = sourceD1Bytes
@@ -117,9 +125,7 @@ class RehearsalAdapter {
       readdir(this.destinationR2),
     ])
     this.destinationWasNewAndEmpty =
-      d1Entries.length === 0 &&
-      r2Entries.length === 0 &&
-      !this.workerDeployed
+      d1Entries.length === 0 && r2Entries.length === 0 && !this.workerDeployed
     if (!this.destinationWasNewAndEmpty) {
       throw new Error('Destination account boundary is not new and empty.')
     }
@@ -140,9 +146,13 @@ class RehearsalAdapter {
 
   async restoreD1({ sqlPath }) {
     this.d1Bytes = await readFile(sqlPath)
-    await writeFile(path.join(this.destinationD1, 'database.sql'), this.d1Bytes, {
-      flag: 'wx',
-    })
+    await writeFile(
+      path.join(this.destinationD1, 'database.sql'),
+      this.d1Bytes,
+      {
+        flag: 'wx',
+      },
+    )
   }
 
   async restoreR2Object({ key, filePath, bytes, sha256: expectedSha256 }) {
@@ -163,14 +173,17 @@ class RehearsalAdapter {
   }
 
   async applyForwardMigrations({ plan }) {
-    if (plan.sourceRelease.schemaVersion !== plan.destinationRelease.schemaVersion) {
+    if (
+      plan.sourceRelease.schemaVersion !== plan.destinationRelease.schemaVersion
+    ) {
       throw new Error('Rehearsal unexpectedly requires a schema migration.')
     }
     this.forwardMigrationsApplied = true
   }
 
   async deployWithoutDomains() {
-    if (!this.forwardMigrationsApplied) throw new Error('Migrations were not applied.')
+    if (!this.forwardMigrationsApplied)
+      throw new Error('Migrations were not applied.')
     this.workerDeployed = true
   }
 
@@ -284,7 +297,9 @@ try {
     ['sermons/rehearsal.txt', Buffer.from('Synthetic rehearsal media.')],
   ])
   await Promise.all([
-    writeFile(sourceManifestPath, JSON.stringify(sourceManifest), { flag: 'wx' }),
+    writeFile(sourceManifestPath, JSON.stringify(sourceManifest), {
+      flag: 'wx',
+    }),
     writeFile(destinationManifestPath, JSON.stringify(destinationManifest), {
       flag: 'wx',
     }),

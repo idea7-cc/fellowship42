@@ -162,7 +162,9 @@ export const reconciliationPreviewSchema = z
       })),
       context,
     )
-    const blocked = preview.changes.some((change) => change.action === 'blocked')
+    const blocked = preview.changes.some(
+      (change) => change.action === 'blocked',
+    )
     if ((preview.status === 'blocked') !== blocked) {
       context.addIssue({
         code: 'custom',
@@ -190,7 +192,8 @@ export const reconciliationApprovalSchema = z
   })
   .strict()
   .superRefine((approval, context) => {
-    const lifetime = Date.parse(approval.expiresAt) - Date.parse(approval.approvedAt)
+    const lifetime =
+      Date.parse(approval.expiresAt) - Date.parse(approval.approvedAt)
     if (lifetime <= 0 || lifetime > 60 * 60_000) {
       context.addIssue({
         code: 'custom',
@@ -216,7 +219,8 @@ export const reconciliationAdapterResultSchema = z
   .strict()
   .superRefine((result, context) => {
     if (
-      (result.status === 'failed') !== (result.resultingFingerprint === null)
+      (result.status === 'failed') !==
+      (result.resultingFingerprint === null)
     ) {
       context.addIssue({
         code: 'custom',
@@ -309,7 +313,9 @@ export type ReconciliationObservationSet = z.output<
   typeof reconciliationObservationSetSchema
 >
 export type ReconciliationPreview = z.output<typeof reconciliationPreviewSchema>
-export type ReconciliationApproval = z.output<typeof reconciliationApprovalSchema>
+export type ReconciliationApproval = z.output<
+  typeof reconciliationApprovalSchema
+>
 export type ReconciliationAdapterResult = z.output<
   typeof reconciliationAdapterResultSchema
 >

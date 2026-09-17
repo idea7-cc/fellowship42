@@ -270,8 +270,12 @@ export function CourseDetailPage() {
             eyebrow={
               <>
                 Course ·{' '}
-                {lessons.length === 1 ? '1 lesson' : `${lessons.length} lessons`}
-                {churchQuery.data?.church ? ` · ${churchQuery.data.church.name}` : ''}
+                {lessons.length === 1
+                  ? '1 lesson'
+                  : `${lessons.length} lessons`}
+                {churchQuery.data?.church
+                  ? ` · ${churchQuery.data.church.name}`
+                  : ''}
               </>
             }
             title={course.title}

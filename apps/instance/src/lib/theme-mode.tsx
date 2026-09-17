@@ -17,7 +17,8 @@ const ThemeModeContext = React.createContext<ThemeModeState | null>(null)
 function readStoredMode(): ThemeMode {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+    if (stored === 'light' || stored === 'dark' || stored === 'system')
+      return stored
   } catch {
     // Storage can be unavailable (private mode, blocked cookies). Fall through.
   }
@@ -49,7 +50,9 @@ export function applyThemeMode(mode: ThemeMode): 'light' | 'dark' {
 export function ThemeModeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = React.useState<ThemeMode>(readStoredMode)
   const [resolved, setResolved] = React.useState<'light' | 'dark'>(() =>
-    typeof document === 'undefined' ? 'light' : applyThemeMode(readStoredMode()),
+    typeof document === 'undefined'
+      ? 'light'
+      : applyThemeMode(readStoredMode()),
   )
 
   const setMode = React.useCallback((next: ThemeMode) => {
@@ -76,11 +79,16 @@ export function ThemeModeProvider({ children }: { children: React.ReactNode }) {
     [mode, resolved, setMode],
   )
 
-  return <ThemeModeContext.Provider value={value}>{children}</ThemeModeContext.Provider>
+  return (
+    <ThemeModeContext.Provider value={value}>
+      {children}
+    </ThemeModeContext.Provider>
+  )
 }
 
 export function useThemeMode(): ThemeModeState {
   const state = React.useContext(ThemeModeContext)
-  if (!state) throw new Error('useThemeMode must be used inside ThemeModeProvider')
+  if (!state)
+    throw new Error('useThemeMode must be used inside ThemeModeProvider')
   return state
 }

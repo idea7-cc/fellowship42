@@ -40,7 +40,7 @@ The current source includes these features for development and evaluation:
 
 | Area | Implemented features |
 |---|---|
-| Setup and access | First-owner setup through Cloudflare Access, church roles, and server-side permission checks |
+| Setup and access | First-owner setup through Cloudflare Access, owner-managed team invitations and roles, and server-side permission checks |
 | People and households | Private directory, household relationships, search, pagination, and record editing |
 | Groups and learning | Group rosters, sessions and attendance, courses, lessons, and enrollment |
 | Publishing | Groups, courses, events, sermons, and authorized media storage with draft/public visibility controls |
@@ -58,8 +58,6 @@ Automated conformance tests do not establish a successful live restore or exit.
 Before a public beta, the project needs to close gaps in the everyday church
 experience and prove the operating procedures:
 
-- Staff invitations, role administration, and ownership handoff inside the
-  church application.
 - Church profile and service-time editing, plus a way to publish the church
   after initial setup.
 - Form submission and retry reliability, attendance history when rosters
@@ -81,7 +79,9 @@ contain changes that are not in a published release. See
 
 ## Run locally
 
-Use Node.js 22 and the pnpm version declared in `package.json`.
+Use the Node.js version in `.node-version` and the pnpm version declared in
+`package.json`. Run `pnpm verify` for the same gate used by CI; `pnpm lint`
+and `pnpm format:check` provide focused feedback.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -164,6 +164,7 @@ Additional documentation:
 
 - [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
+- [Team and roles](docs/team-and-roles.md)
 - [Contributions and delivery](docs/contributions-and-delivery.md)
 - [Optional management protocol](docs/management-protocol.md)
 - [Security and privacy boundaries](docs/security-and-privacy.md)
@@ -175,3 +176,6 @@ Additional documentation:
 ## License
 
 [Apache License 2.0](LICENSE).
+
+For implementation maturity and remaining work, read
+[Current state](docs/current-state.md).

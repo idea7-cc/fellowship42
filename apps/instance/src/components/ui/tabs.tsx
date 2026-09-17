@@ -42,7 +42,9 @@ function Tabs<T extends string>({
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
     const tabs = Array.from(
-      listRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)') ?? [],
+      listRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="tab"]:not(:disabled)',
+      ) ?? [],
     )
     const current = tabs.indexOf(document.activeElement as HTMLButtonElement)
     if (current === -1) return
@@ -69,7 +71,10 @@ function Tabs<T extends string>({
   )
 }
 
-export interface TabProps extends Omit<React.ComponentProps<'button'>, 'value'> {
+export interface TabProps extends Omit<
+  React.ComponentProps<'button'>,
+  'value'
+> {
   value: string
   count?: number
 }

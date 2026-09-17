@@ -33,7 +33,11 @@ const risks = [
   ...Array(5).fill('read-only'),
   ...Array(4).fill('writes-destination'),
   ...Array(3).fill('credential-change'),
-  'read-only', 'read-only', 'cutover', 'read-only', 'source-change',
+  'read-only',
+  'read-only',
+  'cutover',
+  'read-only',
+  'source-change',
 ]
 const plan = {
   formatVersion: 1,
@@ -51,7 +55,8 @@ const plan = {
     risk: risks[index],
     resourceName: null,
     dependsOn: index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
-    approvalRequired: kind === 'cutover-domains' || kind === 'retire-source-routing',
+    approvalRequired:
+      kind === 'cutover-domains' || kind === 'retire-source-routing',
   })),
 }
 const report = {
@@ -96,7 +101,8 @@ const exportEvidence = {
   instanceId,
   sourceApplicationVersion: release.applicationVersion,
   sourceSchemaVersion: release.schemaVersion,
-  sourceManagementProtocolPackageVersion: release.managementProtocolPackageVersion,
+  sourceManagementProtocolPackageVersion:
+    release.managementProtocolPackageVersion,
   exportManifestSha256: plan.exportManifestSha256,
   exportedAt: '2026-07-19T21:01:00.000Z',
   verifiedAt: '2026-07-19T22:00:00.000Z',
@@ -111,8 +117,7 @@ const managementDisposition = {
   operatorId: 'f42-cloud-test',
   disconnectedAt: '2026-07-19T22:29:00.000Z',
   observedAt: '2026-07-19T22:31:00.000Z',
-  auditEventId:
-    'management-disconnect:42424242-1234-4678-9abc-123456789a91',
+  auditEventId: 'management-disconnect:42424242-1234-4678-9abc-123456789a91',
   checks: {
     activeConnectionAbsent: true,
     activeGrantsRevoked: true,
@@ -123,8 +128,14 @@ const managementDisposition = {
   },
 }
 const resourceKinds = [
-  'd1-database', 'r2-bucket', 'worker', 'outbox-queue',
-  'dead-letter-queue', 'durable-object-namespace', 'access-policy', 'domains',
+  'd1-database',
+  'r2-bucket',
+  'worker',
+  'outbox-queue',
+  'dead-letter-queue',
+  'durable-object-namespace',
+  'access-policy',
+  'domains',
 ]
 const handoff = {
   formatVersion: 1,
@@ -145,16 +156,20 @@ const handoff = {
           ? 'retained-under-policy'
           : 'access-revoked',
   })),
-  domains: [{
-    hostname: 'new.example.org',
-    destinationRouting: 'active',
-    sourceRouting: 'retired',
-  }],
-  operators: [{
-    subject: 'organization:new-example-church',
-    role: 'infrastructure-owner',
-    disposition: 'church-controlled',
-  }],
+  domains: [
+    {
+      hostname: 'new.example.org',
+      destinationRouting: 'active',
+      sourceRouting: 'retired',
+    },
+  ],
+  operators: [
+    {
+      subject: 'organization:new-example-church',
+      role: 'infrastructure-owner',
+      disposition: 'church-controlled',
+    },
+  ],
   credentialAttestation: {
     deployment: 'rotated',
     applicationSecrets: 'rotated',
@@ -166,7 +181,14 @@ const handoff = {
   supportExpiresAt: '2026-08-19T22:31:00.000Z',
   unresolvedRisks: [],
 }
-const inputs = { plan, report, approval, exportEvidence, managementDisposition, handoff }
+const inputs = {
+  plan,
+  report,
+  approval,
+  exportEvidence,
+  managementDisposition,
+  handoff,
+}
 
 describe('hosted exit packets', () => {
   it('binds, verifies, and rejects drift in every public source record', () => {
@@ -184,11 +206,15 @@ describe('hosted exit packets', () => {
       evidenceId: '42424242-1234-4678-9abc-123456789a93',
       verifiedAt: '2026-07-19T22:33:00.000Z',
     })
-    expect(exitPacketVerificationEvidenceSchema.parse(evidence)).toEqual(evidence)
-    expect(() => verifyExitPacket({
-      packet: { ...packet, destinationManifestSha256: 'f'.repeat(64) },
-      inputs,
-    })).toThrow('canonical source evidence')
+    expect(exitPacketVerificationEvidenceSchema.parse(evidence)).toEqual(
+      evidence,
+    )
+    expect(() =>
+      verifyExitPacket({
+        packet: { ...packet, destinationManifestSha256: 'f'.repeat(64) },
+        inputs,
+      }),
+    ).toThrow('canonical source evidence')
   })
 
   it('exposes equivalent build and verification CLI commands', async () => {
@@ -202,26 +228,46 @@ describe('hosted exit packets', () => {
       const packetId = '42424242-1234-4678-9abc-123456789a92'
       const generatedAt = '2026-07-19T22:32:00.000Z'
       const common = [
-        '--plan', paths.plan!, '--report', paths.report!,
-        '--approval', paths.approval!, '--export-evidence', paths.exportEvidence!,
-        '--management-disposition', paths.managementDisposition!,
-        '--handoff', paths.handoff!,
+        '--plan',
+        paths.plan!,
+        '--report',
+        paths.report!,
+        '--approval',
+        paths.approval!,
+        '--export-evidence',
+        paths.exportEvidence!,
+        '--management-disposition',
+        paths.managementDisposition!,
+        '--handoff',
+        paths.handoff!,
       ]
       const built = await execFileAsync(process.execPath, [
-        path.resolve('dist/cli.js'), 'build-exit-packet', ...common,
-        '--packet-id', packetId, '--generated-at', generatedAt,
+        path.resolve('dist/cli.js'),
+        'build-exit-packet',
+        ...common,
+        '--packet-id',
+        packetId,
+        '--generated-at',
+        generatedAt,
       ])
       const packet = JSON.parse(built.stdout)
       expect(packet).toEqual(buildExitPacket({ inputs, packetId, generatedAt }))
       const packetPath = path.join(root, 'packet.json')
       await writeFile(packetPath, JSON.stringify(packet))
       const verified = await execFileAsync(process.execPath, [
-        path.resolve('dist/cli.js'), 'verify-exit-packet', '--packet', packetPath,
-        ...common, '--evidence-id', '42424242-1234-4678-9abc-123456789a93',
-        '--verified-at', '2026-07-19T22:33:00.000Z',
+        path.resolve('dist/cli.js'),
+        'verify-exit-packet',
+        '--packet',
+        packetPath,
+        ...common,
+        '--evidence-id',
+        '42424242-1234-4678-9abc-123456789a93',
+        '--verified-at',
+        '2026-07-19T22:33:00.000Z',
       ])
-      expect(exitPacketVerificationEvidenceSchema.parse(JSON.parse(verified.stdout)))
-        .toMatchObject({ packetId, verificationStatus: 'verified' })
+      expect(
+        exitPacketVerificationEvidenceSchema.parse(JSON.parse(verified.stdout)),
+      ).toMatchObject({ packetId, verificationStatus: 'verified' })
     } finally {
       await rm(root, { recursive: true, force: true })
     }

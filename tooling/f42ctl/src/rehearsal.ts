@@ -99,7 +99,9 @@ export function buildMigrationRehearsalEvidence(options: {
     observationValues.length !== 10 ||
     observationValues.some((value) => value !== true)
   ) {
-    throw new Error('Every hosted-to-church-owned rehearsal observation must pass.')
+    throw new Error(
+      'Every hosted-to-church-owned rehearsal observation must pass.',
+    )
   }
 
   return migrationRehearsalEvidenceSchema.parse({

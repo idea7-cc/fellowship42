@@ -23,4 +23,6 @@ if (second !== first) {
   )
 }
 
-console.log('Release assembly is byte-for-byte reproducible across consecutive builds.')
+console.log(
+  'Release assembly is byte-for-byte reproducible across consecutive builds.',
+)

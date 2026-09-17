@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { syncCurrentUser } from '../lib/auth'
-import type { SessionResponse } from '../../src/lib/api-types'
+import type { SessionResponse } from '../../contracts/api'
 
 type AppEnv = {
   Bindings: Env
@@ -19,8 +19,8 @@ sessionRoutes.get('/', async (c) => {
   }
 
   const user = await syncCurrentUser(c.env.DB, identity)
-  const rows = await c.env.DB
-    .prepare(`
+  const rows = await c.env.DB.prepare(
+    `
       SELECT
         cm.church_id,
         c.name AS church_name,
@@ -34,7 +34,8 @@ sessionRoutes.get('/', async (c) => {
       LEFT JOIN role_permissions rp ON rp.role_id = r.id
       WHERE cm.user_id = ? AND cm.status = 'active' AND c.deleted_at IS NULL
       ORDER BY c.name, r.key, rp.permission
-    `)
+    `,
+  )
     .bind(user.id)
     .all<{
       church_id: string
@@ -45,7 +46,12 @@ sessionRoutes.get('/', async (c) => {
 
   const byChurch = new Map<
     string,
-    { churchId: string; churchName: string; permissions: Set<string>; roles: Set<string> }
+    {
+      churchId: string
+      churchName: string
+      permissions: Set<string>
+      roles: Set<string>
+    }
   >()
   for (const row of rows.results) {
     const membership = byChurch.get(row.church_id) ?? {

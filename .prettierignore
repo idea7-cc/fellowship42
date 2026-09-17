@@ -1,0 +1,7 @@
+node_modules
+**/dist
+artifacts
+**/.wrangler
+**/worker-configuration.d.ts
+**/fixtures
+pnpm-lock.yaml

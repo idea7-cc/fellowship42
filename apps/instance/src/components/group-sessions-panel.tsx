@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { CalendarDays, CheckCheck, ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react'
+import {
+  CalendarDays,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { formatTimestamp } from '@/lib/format'
@@ -12,7 +20,12 @@ import type {
 } from '@/lib/api-types'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Field, FieldGrid } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -63,7 +76,9 @@ export function GroupSessionsPanel({
   const [creating, setCreating] = useState(false)
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
-  const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(`${base}/sessions`)
+  const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(
+    `${base}/sessions`,
+  )
   const sessions = sessionQuery.data?.sessions ?? []
 
   async function run(action: () => Promise<unknown>) {
@@ -72,10 +87,17 @@ export function GroupSessionsPanel({
     try {
       await action()
       await sessionQuery.refetch()
+      return true
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : 'The session could not be saved.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The session could not be saved.',
       )
+      if (caught instanceof ApiError && caught.status === 409) {
+        await sessionQuery.refetch()
+      }
+      return false
     } finally {
       setBusy(false)
     }
@@ -83,15 +105,14 @@ export function GroupSessionsPanel({
 
   async function createSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const startsAt = new Date(String(form.get('startsAt'))).getTime()
     if (Number.isNaN(startsAt)) return
     const endsRaw = String(form.get('endsAt') ?? '')
     const endsAt = endsRaw ? new Date(endsRaw).getTime() : null
     const location = String(form.get('location') ?? '').trim()
-    event.currentTarget.reset()
-    setCreating(false)
-    await run(() =>
+    const saved = await run(() =>
       apiRequest(`${base}/sessions`, {
         method: 'POST',
         body: JSON.stringify({
@@ -103,6 +124,10 @@ export function GroupSessionsPanel({
         }),
       }),
     )
+    if (saved) {
+      formElement.reset()
+      setCreating(false)
+    }
   }
 
   return (
@@ -118,11 +143,20 @@ export function GroupSessionsPanel({
             </CardDescription>
           </div>
           <div className="flex items-center gap-1">
-            <Button disabled={busy} onClick={() => setCreating((open) => !open)} size="sm">
+            <Button
+              disabled={busy}
+              onClick={() => setCreating((open) => !open)}
+              size="sm"
+            >
               <Plus />
               Add session
             </Button>
-            <Button aria-label="Close sessions" onClick={onClose} size="icon-xs" variant="ghost">
+            <Button
+              aria-label="Close sessions"
+              onClick={onClose}
+              size="icon-xs"
+              variant="ghost"
+            >
               <X />
             </Button>
           </div>
@@ -175,14 +209,18 @@ export function GroupSessionsPanel({
             <Button disabled={busy} size="sm" type="submit">
               Save session
             </Button>
-            <Button onClick={() => setCreating(false)} size="sm" variant="ghost">
+            <Button
+              onClick={() => setCreating(false)}
+              size="sm"
+              variant="ghost"
+            >
               Cancel
             </Button>
           </div>
         </form>
       ) : null}
 
-      {sessionQuery.isLoading ? (
+      {sessionQuery.isLoading && !sessionQuery.data ? (
         <div className="grid gap-2">
           <Skeleton className="h-10" />
           <Skeleton className="h-10" />
@@ -201,11 +239,19 @@ export function GroupSessionsPanel({
                     type="button"
                   >
                     {open ? (
-                      <ChevronDown aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                      <ChevronDown
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
                     ) : (
-                      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                      <ChevronRight
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground"
+                      />
                     )}
-                    <span className="truncate text-sm font-medium">{session.title}</span>
+                    <span className="truncate text-sm font-medium">
+                      {session.title}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       {formatTimestamp(session.startsAt)}
                     </span>
@@ -218,10 +264,16 @@ export function GroupSessionsPanel({
                     disabled={busy}
                     onChange={(event) =>
                       void run(() =>
-                        apiRequest(`${base}/sessions/${encodeURIComponent(session.id)}`, {
-                          method: 'PATCH',
-                          body: JSON.stringify({ status: event.target.value }),
-                        }),
+                        apiRequest(
+                          `${base}/sessions/${encodeURIComponent(session.id)}`,
+                          {
+                            method: 'PATCH',
+                            body: JSON.stringify({
+                              status: event.target.value,
+                              version: session.version,
+                            }),
+                          },
+                        ),
                       )
                     }
                     selectSize="sm"
@@ -238,9 +290,13 @@ export function GroupSessionsPanel({
                     disabled={busy}
                     onClick={() =>
                       void run(() =>
-                        apiRequest(`${base}/sessions/${encodeURIComponent(session.id)}`, {
-                          method: 'DELETE',
-                        }),
+                        apiRequest(
+                          `${base}/sessions/${encodeURIComponent(session.id)}`,
+                          {
+                            method: 'DELETE',
+                            body: JSON.stringify({ version: session.version }),
+                          },
+                        ),
                       )
                     }
                     size="icon-xs"
@@ -274,7 +330,13 @@ export function GroupSessionsPanel({
 }
 
 /** The register for one session: the whole roster, marked or not. */
-function SessionRegister({ base, sessionId }: { base: string; sessionId: string }) {
+function SessionRegister({
+  base,
+  sessionId,
+}: {
+  base: string
+  sessionId: string
+}) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const path = `${base}/sessions/${encodeURIComponent(sessionId)}/attendance`
@@ -287,13 +349,24 @@ function SessionRegister({ base, sessionId }: { base: string; sessionId: string 
     try {
       await apiRequest(`${path}/${encodeURIComponent(personId)}`, {
         method: 'PUT',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          version:
+            attendance?.entries.find((entry) => entry.personId === personId)
+              ?.version ?? 0,
+          notes:
+            attendance?.entries.find((entry) => entry.personId === personId)
+              ?.notes ?? null,
+        }),
       })
       await attendanceQuery.refetch()
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : 'Attendance could not be recorded.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'Attendance could not be recorded.',
       )
+      await attendanceQuery.refetch()
     } finally {
       setBusy(false)
     }
@@ -310,14 +383,21 @@ function SessionRegister({ base, sessionId }: { base: string; sessionId: string 
       for (const entry of unrecorded) {
         await apiRequest(`${path}/${encodeURIComponent(entry.personId)}`, {
           method: 'PUT',
-          body: JSON.stringify({ status: 'present' }),
+          body: JSON.stringify({
+            status: 'present',
+            version: entry.version,
+            notes: entry.notes ?? null,
+          }),
         })
       }
       await attendanceQuery.refetch()
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : 'Attendance could not be recorded.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'Attendance could not be recorded.',
       )
+      await attendanceQuery.refetch()
     } finally {
       setBusy(false)
     }
@@ -335,7 +415,8 @@ function SessionRegister({ base, sessionId }: { base: string; sessionId: string 
     return (
       <div className="border-t border-border p-3">
         <p className="text-sm text-muted-foreground">
-          No active members on this group's roster yet, so there is nobody to mark.
+          No active members on this group's roster yet, so there is nobody to
+          mark.
         </p>
       </div>
     )
@@ -350,7 +431,9 @@ function SessionRegister({ base, sessionId }: { base: string; sessionId: string 
         </span>
         <Button
           className="ml-auto"
-          disabled={busy || attendance.recordedCount === attendance.entries.length}
+          disabled={
+            busy || attendance.recordedCount === attendance.entries.length
+          }
           onClick={() => void markAllPresent()}
           size="xs"
           variant="secondary"
@@ -377,17 +460,24 @@ function SessionRegister({ base, sessionId }: { base: string; sessionId: string 
               <Avatar name={name} size="sm" />
               <span className="text-sm font-medium">{name}</span>
               {entry.status === undefined ? (
-                <span className="text-xs text-muted-foreground">Not recorded</span>
+                <span className="text-xs text-muted-foreground">
+                  Not recorded
+                </span>
               ) : null}
               {entry.notes ? (
-                <span className="text-xs text-muted-foreground">{entry.notes}</span>
+                <span className="text-xs text-muted-foreground">
+                  {entry.notes}
+                </span>
               ) : null}
               <Select
                 aria-label={`Attendance for ${name}`}
                 containerClassName="ml-auto w-32"
                 disabled={busy}
                 onChange={(event) =>
-                  void mark(entry.personId, event.target.value as AttendanceStatus)
+                  void mark(
+                    entry.personId,
+                    event.target.value as AttendanceStatus,
+                  )
                 }
                 selectSize="sm"
                 value={entry.status ?? ''}

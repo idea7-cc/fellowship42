@@ -23,5 +23,8 @@ directory names alone.
 - [0018 — Instance-owned support-session approval](0018-instance-owned-support-session-approval.md)
 - [0019 — Checksummed operator-reference catalog](0019-checksummed-operator-reference-catalog.md)
 
+- [0020 — Member authentication (proposed)](0020-instance-owned-member-identity.md)
+- [0021 — Authentication errors and private API caching](0021-instance-authentication-error-and-cache-policy.md)
+
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

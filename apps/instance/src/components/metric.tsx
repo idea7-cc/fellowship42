@@ -51,11 +51,17 @@ export function Metric({
       {...props}
     >
       <div className="flex items-center gap-1.5">
-        {Icon ? <Icon aria-hidden className="size-3.5 text-muted-foreground" /> : null}
-        <span className="text-[0.8125rem] font-medium text-muted-foreground">{label}</span>
+        {Icon ? (
+          <Icon aria-hidden className="size-3.5 text-muted-foreground" />
+        ) : null}
+        <span className="text-[0.8125rem] font-medium text-muted-foreground">
+          {label}
+        </span>
       </div>
       <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="text-2xl leading-none font-semibold tracking-tight">{value}</span>
+        <span className="text-2xl leading-none font-semibold tracking-tight">
+          {value}
+        </span>
         {delta && delta.value !== 0 ? (
           <span
             className={cn(
@@ -72,14 +78,19 @@ export function Metric({
         ) : null}
       </div>
       {(delta || hint) && (
-        <p className="mt-1 text-xs text-muted-foreground">{hint ?? delta?.period}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {hint ?? delta?.period}
+        </p>
       )}
     </div>
   )
 }
 
 /** A row of stat tiles. Keep it to four or fewer — past that it is a table. */
-export function MetricRow({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function MetricRow({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-4', className)}
@@ -88,7 +99,10 @@ export function MetricRow({ className, ...props }: React.HTMLAttributes<HTMLDivE
   )
 }
 
-function formatDelta(value: number, unit: 'percent' | 'count' = 'count'): string {
+function formatDelta(
+  value: number,
+  unit: 'percent' | 'count' = 'count',
+): string {
   const magnitude = Math.abs(value)
   return unit === 'percent' ? `${magnitude}%` : formatCompact(magnitude)
 }

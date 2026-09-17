@@ -23,7 +23,9 @@ const sourceManifest = deploymentManifestSchema.parse(
 
 describe('portable isolated-restore conformance', () => {
   it('proves integrity, empty-destination, restore, identity, and failure boundaries', async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-restore-conformance-'))
+    const root = await mkdtemp(
+      path.join(os.tmpdir(), 'f42-restore-conformance-'),
+    )
     try {
       const sourceManifestPath = path.join(root, 'source.json')
       const destinationManifestPath = path.join(root, 'destination.json')
@@ -87,14 +89,11 @@ describe('portable isolated-restore conformance', () => {
               formatVersion: 1,
               operationId: context.plan.operationId,
               instanceId: context.plan.instanceId,
-              destinationManifestSha256:
-                context.plan.destinationManifestSha256,
+              destinationManifestSha256: context.plan.destinationManifestSha256,
               observedAt: '2026-07-20T05:03:30.000Z',
               d1: {
                 state:
-                  scenario === 'nonempty-destination'
-                    ? 'occupied'
-                    : 'empty',
+                  scenario === 'nonempty-destination' ? 'occupied' : 'empty',
                 createdAt: '2026-07-20T05:03:15.000Z',
               },
               r2: {

@@ -43,6 +43,7 @@ export default defineConfig({
     }),
   ],
   test: {
+    include: ['test/*.spec.ts'],
     setupFiles: ['./test/setup.ts'],
   },
 })

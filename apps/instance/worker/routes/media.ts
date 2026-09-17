@@ -9,7 +9,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import type { MediaRecord } from '../../src/lib/api-types'
+import type { MediaRecord } from '../../contracts/api'
 
 type AppEnv = {
   Bindings: Env

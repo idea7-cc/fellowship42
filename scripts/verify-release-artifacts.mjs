@@ -42,13 +42,19 @@ const expectedChecksumFiles = [
 ].sort()
 const expectedChecksumLines = await Promise.all(
   expectedChecksumFiles.map(
-    async (file) => `${await sha256(path.join(outputDirectory, file))}  ${file}`,
+    async (file) =>
+      `${await sha256(path.join(outputDirectory, file))}  ${file}`,
   ),
 )
-const actualChecksums = await readFile(path.join(outputDirectory, 'SHA256SUMS'), 'utf8')
+const actualChecksums = await readFile(
+  path.join(outputDirectory, 'SHA256SUMS'),
+  'utf8',
+)
 
 if (actualChecksums !== `${expectedChecksumLines.join('\n')}\n`) {
-  throw new Error('SHA256SUMS does not match the release manifest and artifacts.')
+  throw new Error(
+    'SHA256SUMS does not match the release manifest and artifacts.',
+  )
 }
 
 console.log(

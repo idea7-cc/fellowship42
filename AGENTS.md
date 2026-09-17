@@ -83,13 +83,7 @@ database access or unpublished application internals.
 Run the following before handoff:
 
 ```bash
-pnpm check:architecture
-pnpm typecheck
-pnpm test
-pnpm test:migration-rehearsal
-pnpm build
-pnpm deploy:dry-run
-pnpm deploy:site:dry-run
+pnpm verify
 ```
 
 Tagged releases and management-protocol packages follow `docs/releases.md`.

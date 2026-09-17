@@ -10,14 +10,22 @@ import type {
 } from '@/lib/api-types'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tab, Tabs } from '@/components/ui/tabs'
 
-const enrollmentStatuses: Array<{ value: CourseEnrollmentStatus; label: string }> = [
+const enrollmentStatuses: Array<{
+  value: CourseEnrollmentStatus
+  label: string
+}> = [
   { value: 'invited', label: 'Invited' },
   { value: 'active', label: 'Active' },
   { value: 'completed', label: 'Completed' },
@@ -56,7 +64,9 @@ export function CourseEnrollmentPanel({
   )
 
   const enrollments = enrollmentQuery.data?.enrollments ?? []
-  const activeCount = enrollments.filter((entry) => entry.status === 'active').length
+  const activeCount = enrollments.filter(
+    (entry) => entry.status === 'active',
+  ).length
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true)
@@ -64,12 +74,17 @@ export function CourseEnrollmentPanel({
     try {
       await action()
       await enrollmentQuery.refetch()
+      return true
     } catch (caught) {
       setError(
         caught instanceof ApiError
           ? caught.message
           : 'The enrollment could not be updated.',
       )
+      if (caught instanceof ApiError && caught.status === 409) {
+        await enrollmentQuery.refetch()
+      }
+      return false
     } finally {
       setBusy(false)
     }
@@ -77,12 +92,12 @@ export function CourseEnrollmentPanel({
 
   async function enroll(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const subjectId = String(form.get('subjectId') ?? '')
     if (!subjectId) return
     const status = String(form.get('status') ?? 'invited')
-    event.currentTarget.reset()
-    await run(() =>
+    const saved = await run(() =>
       apiRequest(`${base}/enrollments`, {
         method: 'POST',
         body: JSON.stringify(
@@ -92,6 +107,7 @@ export function CourseEnrollmentPanel({
         ),
       }),
     )
+    if (saved) formElement.reset()
   }
 
   return (
@@ -114,7 +130,7 @@ export function CourseEnrollmentPanel({
         </p>
       ) : null}
 
-      {enrollmentQuery.isLoading ? (
+      {enrollmentQuery.isLoading && !enrollmentQuery.data ? (
         <div className="grid gap-2">
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
@@ -129,14 +145,25 @@ export function CourseEnrollmentPanel({
                   key={entry.id}
                 >
                   {entry.groupId ? (
-                    <UsersRound aria-hidden className="size-4 text-muted-foreground" />
+                    <UsersRound
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
                   ) : (
-                    <Users aria-hidden className="size-4 text-muted-foreground" />
+                    <Users
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
                   )}
-                  <span className="text-sm font-medium">{entry.subjectName}</span>
+                  <span className="text-sm font-medium">
+                    {entry.subjectName}
+                  </span>
                   <StatusBadge size="sm" status={entry.status} />
                   <div className="ml-auto flex items-center gap-1.5">
-                    <label className="sr-only" htmlFor={`enrollment-${entry.id}`}>
+                    <label
+                      className="sr-only"
+                      htmlFor={`enrollment-${entry.id}`}
+                    >
                       Status for {entry.subjectName}
                     </label>
                     <Select
@@ -145,10 +172,16 @@ export function CourseEnrollmentPanel({
                       id={`enrollment-${entry.id}`}
                       onChange={(event) =>
                         void run(() =>
-                          apiRequest(`${base}/enrollments/${encodeURIComponent(entry.id)}`, {
-                            method: 'PATCH',
-                            body: JSON.stringify({ status: event.target.value }),
-                          }),
+                          apiRequest(
+                            `${base}/enrollments/${encodeURIComponent(entry.id)}`,
+                            {
+                              method: 'PATCH',
+                              body: JSON.stringify({
+                                status: event.target.value,
+                                version: entry.version,
+                              }),
+                            },
+                          ),
                         )
                       }
                       selectSize="sm"
@@ -165,9 +198,13 @@ export function CourseEnrollmentPanel({
                       disabled={busy}
                       onClick={() =>
                         void run(() =>
-                          apiRequest(`${base}/enrollments/${encodeURIComponent(entry.id)}`, {
-                            method: 'DELETE',
-                          }),
+                          apiRequest(
+                            `${base}/enrollments/${encodeURIComponent(entry.id)}`,
+                            {
+                              method: 'DELETE',
+                              body: JSON.stringify({ version: entry.version }),
+                            },
+                          ),
                         )
                       }
                       size="icon-xs"
@@ -204,9 +241,17 @@ export function CourseEnrollmentPanel({
                 label={subject === 'person' ? 'Person' : 'Group'}
               >
                 {/* Remount on tab change so the previous selection cannot be submitted. */}
-                <Select defaultValue="" key={subject} name="subjectId" required selectSize="sm">
+                <Select
+                  defaultValue=""
+                  key={subject}
+                  name="subjectId"
+                  required
+                  selectSize="sm"
+                >
                   <option disabled value="">
-                    {subject === 'person' ? 'Select a person' : 'Select a group'}
+                    {subject === 'person'
+                      ? 'Select a person'
+                      : 'Select a group'}
                   </option>
                   {subject === 'person'
                     ? (peopleQuery.data?.people ?? []).map((person) => (

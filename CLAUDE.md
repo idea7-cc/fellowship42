@@ -12,5 +12,4 @@ Read it first, followed by:
 For UI work, also read `docs/ui-design-system.md`. For binding changes,
 regenerate `apps/instance/worker-configuration.d.ts` with `pnpm cf-typegen`.
 
-Required checks are `pnpm check:architecture`, `pnpm typecheck`, `pnpm test`,
-`pnpm build`, and the relevant deployment dry-run.
+Run `pnpm verify` before handoff. Its task list in `package.json` is authoritative.

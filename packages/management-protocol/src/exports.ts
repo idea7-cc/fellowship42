@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { deploymentReleaseSchema, portableInstanceIdSchema } from './lifecycle.js'
+import {
+  deploymentReleaseSchema,
+  portableInstanceIdSchema,
+} from './lifecycle.js'
 import { semanticVersionSchema, sha256DigestSchema } from './releases.js'
 
 export const PORTABLE_EXPORT_FORMAT_VERSION = 1 as const
@@ -12,7 +15,11 @@ const portablePathSchema = z
     (value) =>
       !value.startsWith('/') &&
       !value.includes('\\') &&
-      !value.split('/').some((segment) => segment === '' || segment === '.' || segment === '..'),
+      !value
+        .split('/')
+        .some(
+          (segment) => segment === '' || segment === '.' || segment === '..',
+        ),
     'Path must be a normalized relative POSIX path',
   )
 
@@ -54,7 +61,10 @@ export const r2ExportObjectSchema = z
       .string()
       .min(1)
       .max(1_024)
-      .refine((value) => !/[\u0000-\u001f\u007f]/.test(value), 'Object key contains control characters'),
+      .refine(
+        (value) => !/[\u0000-\u001f\u007f]/.test(value),
+        'Object key contains control characters',
+      ),
     file: portablePathSchema,
     bytes: z.number().int().nonnegative(),
     sha256: sha256DigestSchema,
@@ -106,7 +116,10 @@ export const portableExportManifestSchema = z
   })
   .strict()
   .superRefine((manifest, context) => {
-    if (Date.parse(manifest.exportedAt) < Date.parse(manifest.consistency.quiescedAt)) {
+    if (
+      Date.parse(manifest.exportedAt) <
+      Date.parse(manifest.consistency.quiescedAt)
+    ) {
       context.addIssue({
         code: 'custom',
         message: 'Export cannot precede the quiesce boundary',
@@ -130,7 +143,9 @@ export const portableExportManifestSchema = z
     }
   })
 
-export type PortableExportManifest = z.output<typeof portableExportManifestSchema>
+export type PortableExportManifest = z.output<
+  typeof portableExportManifestSchema
+>
 export type PortableConfiguration = z.output<typeof portableConfigurationSchema>
 export type R2ExportIndex = z.output<typeof r2ExportIndexSchema>
 

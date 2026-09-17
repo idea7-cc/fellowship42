@@ -26,7 +26,11 @@ function SkeletonTable({
   className?: string
 }) {
   return (
-    <div className={cn('divide-y divide-border', className)} role="status" aria-label="Loading">
+    <div
+      className={cn('divide-y divide-border', className)}
+      role="status"
+      aria-label="Loading"
+    >
       {Array.from({ length: rows }, (_, rowIndex) => (
         <div className="flex items-center gap-3 px-4 py-3" key={rowIndex}>
           {Array.from({ length: columns }, (_, columnIndex) => (
@@ -42,7 +46,13 @@ function SkeletonTable({
 }
 
 /** Placeholder cards for grid layouts. */
-function SkeletonCards({ count = 3, className }: { count?: number; className?: string }) {
+function SkeletonCards({
+  count = 3,
+  className,
+}: {
+  count?: number
+  className?: string
+}) {
   return (
     <div
       className={cn('grid gap-4 sm:grid-cols-2 lg:grid-cols-3', className)}
@@ -50,7 +60,10 @@ function SkeletonCards({ count = 3, className }: { count?: number; className?: s
       aria-label="Loading"
     >
       {Array.from({ length: count }, (_, index) => (
-        <div className="rounded-lg border border-border bg-card p-4" key={index}>
+        <div
+          className="rounded-lg border border-border bg-card p-4"
+          key={index}
+        >
           <Skeleton className="h-4 w-1/2" />
           <Skeleton className="mt-2.5 h-3 w-full" />
           <Skeleton className="mt-1.5 h-3 w-4/5" />

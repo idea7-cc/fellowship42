@@ -8,7 +8,6 @@ import {
   rename,
   rmdir,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises'
 import { createReadStream } from 'node:fs'
@@ -46,7 +45,9 @@ function safeRelativePath(value: unknown): value is string {
     value.length <= 1_024 &&
     !value.startsWith('/') &&
     !value.includes('\\') &&
-    !value.split('/').some((segment) => !segment || segment === '.' || segment === '..')
+    !value
+      .split('/')
+      .some((segment) => !segment || segment === '.' || segment === '..')
   )
 }
 
@@ -55,7 +56,8 @@ async function readBoundedJson(file: string): Promise<unknown> {
   if (!details.isFile() || details.isSymbolicLink()) {
     throw new Error(`Expected a regular JSON file: ${file}`)
   }
-  if (details.size > MAX_JSON_BYTES) throw new Error(`JSON file is too large: ${file}`)
+  if (details.size > MAX_JSON_BYTES)
+    throw new Error(`JSON file is too large: ${file}`)
   return JSON.parse(await readFile(file, 'utf8'))
 }
 
@@ -87,7 +89,8 @@ function sourceObjects(input: unknown): SourceObject[] {
     ) {
       throw new Error(`R2 source object ${position} is invalid`)
     }
-    if (keys.has(object.key)) throw new Error(`Duplicate R2 object key: ${object.key}`)
+    if (keys.has(object.key))
+      throw new Error(`Duplicate R2 object key: ${object.key}`)
     keys.add(object.key)
     return { key: object.key, file: object.file }
   })
@@ -114,7 +117,10 @@ async function regularFile(file: string) {
 function within(root: string, relative: string) {
   const resolvedRoot = path.resolve(root)
   const resolved = path.resolve(resolvedRoot, relative)
-  if (resolved !== resolvedRoot && !resolved.startsWith(`${resolvedRoot}${path.sep}`)) {
+  if (
+    resolved !== resolvedRoot &&
+    !resolved.startsWith(`${resolvedRoot}${path.sep}`)
+  ) {
     throw new Error(`Path leaves its source root: ${relative}`)
   }
   return resolved
@@ -154,16 +160,22 @@ export async function assemblePortableExport(
     Number.isNaN(exportedAt.valueOf()) ||
     exportedAt < quiescedAt
   ) {
-    throw new Error('Export timestamps must be valid and export must follow quiesce')
+    throw new Error(
+      'Export timestamps must be valid and export must follow quiesce',
+    )
   }
   await regularFile(options.d1ExportPath)
   if (
     !(await containsText(options.d1ExportPath, 'instance_metadata')) ||
     !(await containsText(options.d1ExportPath, deployment.instance.id))
   ) {
-    throw new Error('D1 export does not bind the declared portable instance identity')
+    throw new Error(
+      'D1 export does not bind the declared portable instance identity',
+    )
   }
-  const objects = sourceObjects(await readBoundedJson(options.r2SourceIndexPath))
+  const objects = sourceObjects(
+    await readBoundedJson(options.r2SourceIndexPath),
+  )
   const output = path.resolve(options.outputDirectory)
   try {
     await lstat(output)
@@ -174,7 +186,10 @@ export async function assemblePortableExport(
   const temporary = `${output}.partial-${randomUUID()}`
   await mkdir(temporary, { recursive: false })
   try {
-    const d1 = await copyArtifact(options.d1ExportPath, path.join(temporary, 'd1/database.sql'))
+    const d1 = await copyArtifact(
+      options.d1ExportPath,
+      path.join(temporary, 'd1/database.sql'),
+    )
     const config = portableConfigurationSchema.parse({
       formatVersion: 1,
       instanceId: deployment.instance.id,
@@ -184,7 +199,9 @@ export async function assemblePortableExport(
     })
     await mkdir(path.join(temporary, 'config'), { recursive: true })
     await writeJson(path.join(temporary, 'config/portable.json'), config)
-    const configuration = await digest(path.join(temporary, 'config/portable.json'))
+    const configuration = await digest(
+      path.join(temporary, 'config/portable.json'),
+    )
 
     const indexedObjects = []
     for (const object of objects.sort((left, right) =>
@@ -204,7 +221,10 @@ export async function assemblePortableExport(
       }
       indexedObjects.push({ key: object.key, file: relative, ...sourceDigest })
     }
-    const r2Index = r2ExportIndexSchema.parse({ formatVersion: 1, objects: indexedObjects })
+    const r2Index = r2ExportIndexSchema.parse({
+      formatVersion: 1,
+      objects: indexedObjects,
+    })
     await mkdir(path.join(temporary, 'r2'), { recursive: true })
     await writeJson(path.join(temporary, 'r2/index.json'), r2Index)
     const index = await digest(path.join(temporary, 'r2/index.json'))
@@ -214,10 +234,17 @@ export async function assemblePortableExport(
       instanceId: deployment.instance.id,
       sourceRelease: deployment.instance.release,
       exportedAt: exportedAt.toISOString(),
-      consistency: { mode: 'operator-quiesced', quiescedAt: quiescedAt.toISOString() },
+      consistency: {
+        mode: 'operator-quiesced',
+        quiescedAt: quiescedAt.toISOString(),
+      },
       artifacts: [
         { kind: 'd1-sql', file: 'd1/database.sql', ...d1 },
-        { kind: 'portable-configuration', file: 'config/portable.json', ...configuration },
+        {
+          kind: 'portable-configuration',
+          file: 'config/portable.json',
+          ...configuration,
+        },
         { kind: 'r2-index', file: 'r2/index.json', ...index },
       ],
     })
@@ -244,10 +271,12 @@ async function allFiles(root: string, relative = ''): Promise<string[]> {
   const files: string[] = []
   for (const entry of entries) {
     const child = relative ? `${relative}/${entry.name}` : entry.name
-    if (entry.isSymbolicLink()) throw new Error(`Export bundle contains a symbolic link: ${child}`)
+    if (entry.isSymbolicLink())
+      throw new Error(`Export bundle contains a symbolic link: ${child}`)
     if (entry.isDirectory()) files.push(...(await allFiles(root, child)))
     else if (entry.isFile()) files.push(child)
-    else throw new Error(`Export bundle contains an unsupported entry: ${child}`)
+    else
+      throw new Error(`Export bundle contains an unsupported entry: ${child}`)
   }
   return files.sort()
 }
@@ -263,7 +292,9 @@ export async function verifyPortableExport(options: {
     throw new Error('Export bundle root must be a regular directory')
   }
   const manifestPath = path.join(root, MANIFEST_FILE)
-  const manifest = portableExportManifestSchema.parse(await readBoundedJson(manifestPath))
+  const manifest = portableExportManifestSchema.parse(
+    await readBoundedJson(manifestPath),
+  )
   for (const artifact of manifest.artifacts) {
     const file = within(root, artifact.file)
     await regularFile(file)
@@ -276,11 +307,19 @@ export async function verifyPortableExport(options: {
     await readBoundedJson(path.join(root, 'config/portable.json')),
   )
   if (configuration.instanceId !== manifest.instanceId) {
-    throw new Error('Portable configuration instance identity does not match manifest')
+    throw new Error(
+      'Portable configuration instance identity does not match manifest',
+    )
   }
   if (
-    !(await containsText(path.join(root, 'd1/database.sql'), 'instance_metadata')) ||
-    !(await containsText(path.join(root, 'd1/database.sql'), manifest.instanceId))
+    !(await containsText(
+      path.join(root, 'd1/database.sql'),
+      'instance_metadata',
+    )) ||
+    !(await containsText(
+      path.join(root, 'd1/database.sql'),
+      manifest.instanceId,
+    ))
   ) {
     throw new Error('D1 artifact does not bind the manifest portable identity')
   }
@@ -299,11 +338,19 @@ export async function verifyPortableExport(options: {
     ...r2Index.objects.map((object) => object.file),
   ])
   const files = await allFiles(root)
-  if (files.length !== expected.size || files.some((file) => !expected.has(file))) {
-    throw new Error('Export bundle contains missing, unreferenced, or duplicate-path files')
+  if (
+    files.length !== expected.size ||
+    files.some((file) => !expected.has(file))
+  ) {
+    throw new Error(
+      'Export bundle contains missing, unreferenced, or duplicate-path files',
+    )
   }
   const verifiedAt = new Date(options.verifiedAt ?? new Date().toISOString())
-  if (Number.isNaN(verifiedAt.valueOf()) || verifiedAt < new Date(manifest.exportedAt)) {
+  if (
+    Number.isNaN(verifiedAt.valueOf()) ||
+    verifiedAt < new Date(manifest.exportedAt)
+  ) {
     throw new Error('Verification timestamp must be valid and follow export')
   }
   const manifestDigest = await digest(manifestPath)

@@ -12,13 +12,21 @@ import type {
 import { Avatar } from '@/components/ui/avatar'
 import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const membershipStatuses: Array<{ value: GroupMembershipStatus; label: string }> = [
+const membershipStatuses: Array<{
+  value: GroupMembershipStatus
+  label: string
+}> = [
   { value: 'interested', label: 'Interested' },
   { value: 'pending', label: 'Pending' },
   { value: 'active', label: 'Active' },
@@ -67,10 +75,17 @@ export function GroupRosterPanel({
     try {
       await action()
       await rosterQuery.refetch()
+      return true
     } catch (caught) {
       setError(
-        caught instanceof ApiError ? caught.message : 'The roster could not be updated.',
+        caught instanceof ApiError
+          ? caught.message
+          : 'The roster could not be updated.',
       )
+      if (caught instanceof ApiError && caught.status === 409) {
+        await rosterQuery.refetch()
+      }
+      return false
     } finally {
       setBusy(false)
     }
@@ -78,32 +93,44 @@ export function GroupRosterPanel({
 
   async function addMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const personId = String(form.get('personId') ?? '')
     if (!personId) return
     const status = String(form.get('status') ?? 'active')
-    event.currentTarget.reset()
-    await run(() =>
+    const saved = await run(() =>
       apiRequest(`${base}/members/${encodeURIComponent(personId)}`, {
         method: 'PUT',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          version:
+            roster?.members.find((member) => member.personId === personId)
+              ?.version ?? 0,
+        }),
       }),
     )
+    if (saved) formElement.reset()
   }
 
   async function addLeader(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const personId = String(form.get('personId') ?? '')
     if (!personId) return
     const role = String(form.get('role') ?? 'leader')
-    event.currentTarget.reset()
-    await run(() =>
+    const saved = await run(() =>
       apiRequest(`${base}/leaders/${encodeURIComponent(personId)}`, {
         method: 'PUT',
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({
+          role,
+          version:
+            roster?.leaders.find((leader) => leader.personId === personId)
+              ?.version ?? 0,
+        }),
       }),
     )
+    if (saved) formElement.reset()
   }
 
   const atCapacity =
@@ -126,14 +153,22 @@ export function GroupRosterPanel({
                 : null}
             </CardDescription>
           </div>
-          <Button aria-label="Close roster" onClick={onClose} size="icon-xs" variant="ghost">
+          <Button
+            aria-label="Close roster"
+            onClick={onClose}
+            size="icon-xs"
+            variant="ghost"
+          >
             <X />
           </Button>
         </div>
       </CardHeader>
 
       {error ? (
-        <p className="mb-3 rounded-md bg-danger-soft p-2.5 text-sm text-danger-soft-foreground" role="alert">
+        <p
+          className="mb-3 rounded-md bg-danger-soft p-2.5 text-sm text-danger-soft-foreground"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
@@ -145,7 +180,7 @@ export function GroupRosterPanel({
         </p>
       ) : null}
 
-      {rosterQuery.isLoading ? (
+      {rosterQuery.isLoading && !rosterQuery.data ? (
         <div className="grid gap-2">
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
@@ -170,8 +205,8 @@ export function GroupRosterPanel({
                       <Avatar name={name} size="sm" />
                       <span className="text-sm font-medium">{name}</span>
                       <Badge size="sm" variant="brand">
-                        {leaderRoles.find((role) => role.value === leader.role)?.label ??
-                          leader.role}
+                        {leaderRoles.find((role) => role.value === leader.role)
+                          ?.label ?? leader.role}
                       </Badge>
                       <Button
                         aria-label={`Remove ${name} as leader`}
@@ -181,7 +216,12 @@ export function GroupRosterPanel({
                           void run(() =>
                             apiRequest(
                               `${base}/leaders/${encodeURIComponent(leader.personId)}`,
-                              { method: 'DELETE' },
+                              {
+                                method: 'DELETE',
+                                body: JSON.stringify({
+                                  version: leader.version,
+                                }),
+                              },
                             ),
                           )
                         }
@@ -199,9 +239,17 @@ export function GroupRosterPanel({
                 No leaders assigned yet.
               </p>
             )}
-            <form className="flex flex-wrap items-end gap-2" onSubmit={addLeader}>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={addLeader}
+            >
               <Field className="min-w-48 flex-1" label="Add leader">
-                <Select defaultValue="" name="personId" required selectSize="sm">
+                <Select
+                  defaultValue=""
+                  name="personId"
+                  required
+                  selectSize="sm"
+                >
                   <option disabled value="">
                     Select a person
                   </option>
@@ -221,7 +269,12 @@ export function GroupRosterPanel({
                   ))}
                 </Select>
               </Field>
-              <Button disabled={busy} size="sm" type="submit" variant="secondary">
+              <Button
+                disabled={busy}
+                size="sm"
+                type="submit"
+                variant="secondary"
+              >
                 <Plus />
                 Add
               </Button>
@@ -246,10 +299,15 @@ export function GroupRosterPanel({
                       <span className="text-sm font-medium">{name}</span>
                       <StatusBadge size="sm" status={member.status} />
                       {member.notes ? (
-                        <span className="text-xs text-muted-foreground">{member.notes}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {member.notes}
+                        </span>
                       ) : null}
                       <div className="ml-auto flex items-center gap-1.5">
-                        <label className="sr-only" htmlFor={`status-${member.personId}`}>
+                        <label
+                          className="sr-only"
+                          htmlFor={`status-${member.personId}`}
+                        >
                           Status for {name}
                         </label>
                         <Select
@@ -264,6 +322,7 @@ export function GroupRosterPanel({
                                   method: 'PUT',
                                   body: JSON.stringify({
                                     status: event.target.value,
+                                    version: member.version,
                                     notes: member.notes ?? null,
                                   }),
                                 },
@@ -286,7 +345,12 @@ export function GroupRosterPanel({
                             void run(() =>
                               apiRequest(
                                 `${base}/members/${encodeURIComponent(member.personId)}`,
-                                { method: 'DELETE' },
+                                {
+                                  method: 'DELETE',
+                                  body: JSON.stringify({
+                                    version: member.version,
+                                  }),
+                                },
                               ),
                             )
                           }
@@ -307,9 +371,17 @@ export function GroupRosterPanel({
                 title="No members yet"
               />
             )}
-            <form className="flex flex-wrap items-end gap-2" onSubmit={addMember}>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={addMember}
+            >
               <Field className="min-w-48 flex-1" label="Add member">
-                <Select defaultValue="" name="personId" required selectSize="sm">
+                <Select
+                  defaultValue=""
+                  name="personId"
+                  required
+                  selectSize="sm"
+                >
                   <option disabled value="">
                     Select a person
                   </option>

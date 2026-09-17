@@ -246,9 +246,8 @@ const manifest = protocolModule.releaseManifestSchema.parse({
     commit,
     committedAt: commitTimestamp,
   },
-  upgrade: protocolModule.releaseUpgradeMetadataSchema.parse(
-    releaseUpgradePolicy,
-  ),
+  upgrade:
+    protocolModule.releaseUpgradeMetadataSchema.parse(releaseUpgradePolicy),
   artifacts,
 })
 

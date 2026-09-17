@@ -19,13 +19,7 @@
  */
 
 export type BrandPresetName =
-  | 'warm'
-  | 'calm'
-  | 'bold'
-  | 'classic'
-  | 'modern'
-  | 'forest'
-  | 'royal'
+  'warm' | 'calm' | 'bold' | 'classic' | 'modern' | 'forest' | 'royal'
 
 export interface ChurchThemeInput {
   accent?: string | null
@@ -121,9 +115,7 @@ function darken(hex: string, amount = 0.2): string {
       srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
     const scaled = linear * (1 - amount)
     const encoded =
-      scaled <= 0.0031308
-        ? scaled * 12.92
-        : 1.055 * scaled ** (1 / 2.4) - 0.055
+      scaled <= 0.0031308 ? scaled * 12.92 : 1.055 * scaled ** (1 / 2.4) - 0.055
     return encoded * 255
   }
   return toHex({ r: scale(rgb.r), g: scale(rgb.g), b: scale(rgb.b) })
@@ -277,7 +269,8 @@ export function resolveTheme(input?: ChurchThemeInput | null): ResolvedTheme {
 
   return {
     accent,
-    accentStrong: accent === base.accent ? base.accentStrong : darken(accent, 0.28),
+    accentStrong:
+      accent === base.accent ? base.accentStrong : darken(accent, 0.28),
     accentContrast: getAccentContrast(accent, ink),
     bodyFont: input?.bodyFont || base.bodyFont,
     headingFont: input?.headingFont || base.headingFont,
@@ -376,10 +369,4 @@ function mix(color: string, toward: string, amount: number): string {
   })
 }
 
-export {
-  contrastRatio,
-  darken,
-  fontFamilies,
-  getAccentContrast,
-  radiusValues,
-}
+export { contrastRatio, darken, fontFamilies, getAccentContrast, radiusValues }
