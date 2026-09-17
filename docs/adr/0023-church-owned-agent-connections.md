@@ -29,7 +29,8 @@ clients using registration. No custom token format or signing protocol is added.
 An authenticated local user with `church.write` explicitly consents in the
 church app. A ten-minute D1 request binds the verified client, redirect,
 challenge, requested scopes, church, and user. Consent needs a same-origin POST
-and consumes that request once. The token contains a reference to a local
+and consumes that request once. Static app headers block framing so consent
+cannot be embedded for clickjacking; referrers are suppressed. The token contains a reference to a local
 connection, never an Access credential. Access tokens last fifteen minutes;
 refresh credentials and local connections are bounded to thirty days.
 
