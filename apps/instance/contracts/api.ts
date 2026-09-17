@@ -29,6 +29,8 @@ export interface Church {
     email?: string
     website?: string
   }
+  logoUrl?: string
+  coverUrl?: string
   givingUrl?: string
   livestreamUrl?: string
   theme: ChurchThemeInput

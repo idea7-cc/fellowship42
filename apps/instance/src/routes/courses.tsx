@@ -345,7 +345,7 @@ export function CoursesPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button asChild size="sm" variant="outline">
-                      <Link to={`/courses/${course.slug}`}>
+                      <Link to={`/app/courses/${course.slug}`}>
                         {canWrite ? 'Manage lessons' : 'View course'}
                       </Link>
                     </Button>

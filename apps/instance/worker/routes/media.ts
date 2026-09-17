@@ -33,6 +33,12 @@ interface MediaRow {
   version: number
 }
 
+const noPublishedChurchReference = `NOT EXISTS (
+  SELECT 1 FROM church_profiles p JOIN churches c ON c.id = p.church_id
+  WHERE p.church_id = media.church_id AND (p.logo_media_id = media.id OR p.cover_media_id = media.id)
+    AND c.status = 'published' AND c.deleted_at IS NULL
+)`
+
 const MAX_MEDIA_BYTES = 20 * 1024 * 1024
 const supportedContentTypes = new Set([
   'image/png',
@@ -126,6 +132,9 @@ async function requireNotPublished(
   const reference = await db
     .prepare(
       `
+      SELECT 'church' AS kind FROM church_profiles p JOIN churches c ON c.id = p.church_id
+      WHERE p.church_id = ? AND (p.logo_media_id = ? OR p.cover_media_id = ?) AND c.status = 'published' AND c.deleted_at IS NULL
+      UNION ALL
       SELECT 'course' AS kind
       FROM lessons l
       JOIN courses c ON c.church_id = l.church_id AND c.id = l.course_id
@@ -139,7 +148,7 @@ async function requireNotPublished(
       LIMIT 1
     `,
     )
-    .bind(churchId, mediaId, churchId, mediaId)
+    .bind(churchId, mediaId, mediaId, churchId, mediaId, churchId, mediaId)
     .first<{ kind: string }>()
   if (reference) {
     throw new AppError(
@@ -389,6 +398,7 @@ mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {
         UPDATE media SET alt_text = ?, visibility = ?, version = version + 1,
           updated_at = ?, last_operation_id = ?
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
+          ${nextVisibility === 'public' ? '' : `AND ${noPublishedChurchReference}`}
       `,
     ).bind(
       parsed.data.altText ?? current.alt_text,
@@ -444,7 +454,7 @@ mediaManagementRoutes.delete('/:churchId/:mediaId', async (c) => {
     c.env.DB.prepare(
       `
         UPDATE media SET deleted_at = ?, updated_at = ?, version = version + 1, last_operation_id = ?
-        WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
+        WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ? AND ${noPublishedChurchReference}
       `,
     ).bind(now, now, operationId, churchId, mediaId, parsed.data.version),
     ...mutationEvidence(c.env.DB, {

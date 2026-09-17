@@ -1,5 +1,14 @@
 import { Routes, Route } from 'react-router-dom'
 
+import { AuthProvider } from './lib/auth-provider'
+import { StaffAccess } from './components/staff-access'
+import { BootstrapGate } from './components/bootstrap-gate'
+import { ChurchSettingsPage } from './routes/church-settings'
+import {
+  PublicSitePage,
+  PublicCoursePage,
+  SitePreviewPage,
+} from './routes/public-site'
 import { AppShell } from './components/app-shell'
 import { OverviewPage } from './routes/overview'
 import { PeoplePage } from './routes/people'
@@ -14,15 +23,7 @@ import { ManagementPage } from './routes/management'
 import { TeamPage } from './routes/team'
 import { NotFoundPage } from './routes/not-found'
 
-/**
- * One deployment is one church, so the church is not in the URL.
- *
- * Routes were `/churches/:churchId/...`, which made a single-church product
- * navigate like a tenant selector: "Church" opened a list of one, and opening
- * that led to another view of the same church. The church now comes from
- * context (see `lib/church-context.tsx`) and the paths are flat.
- */
-export function App() {
+function StaffRoutes() {
   return (
     <AppShell>
       <Routes>
@@ -35,11 +36,46 @@ export function App() {
         <Route path="/sermons" element={<SermonsPage />} />
         <Route path="/media" element={<MediaPage />} />
         <Route path="/contributions" element={<ContributionsPage />} />
+        <Route path="/settings" element={<ChurchSettingsPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/management" element={<ManagementPage />} />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>
+  )
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<PublicSitePage />} />
+      <Route path="/courses/:slug" element={<PublicCoursePage />} />
+      <Route
+        path="/app/preview"
+        element={
+          <AuthProvider>
+            <BootstrapGate>
+              <StaffAccess>
+                <SitePreviewPage />
+              </StaffAccess>
+            </BootstrapGate>
+          </AuthProvider>
+        }
+      />
+      <Route
+        path="/app/*"
+        element={
+          <AuthProvider>
+            <BootstrapGate>
+              <StaffAccess>
+                <StaffRoutes />
+              </StaffAccess>
+            </BootstrapGate>
+          </AuthProvider>
+        }
+      />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
   )
 }

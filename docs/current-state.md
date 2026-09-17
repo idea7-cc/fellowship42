@@ -1,10 +1,10 @@
 # Current implementation state
 
-Reviewed: 2026-09-05. This describes the working source, not a new release.
+Reviewed: 2026-09-16. This describes the working source, not a new release.
 
 | Surface | Implemented | Remaining |
 |---|---|---|
-| Staff workflows | Directory, households, groups/rosters, courses/enrollments, sessions/attendance, publishing, contributions, media, team invitations and roles | Church profile/service-time editing and publishing, church pilot feedback, wider browser workflow coverage |
+| Staff workflows | Directory, households, groups/rosters, courses/enrollments, sessions/attendance, church settings and website publishing, contributions, media, team invitations and roles | Church pilot feedback, wider browser workflow coverage |
 | Participation reliability | Atomic capacity admission, record-specific edit versions, guarded audit/outbox mutations | Live multi-user observation |
 | Authentication | Cloudflare Access staff identity, application roles, owner bootstrap, owner-managed team memberships with last-owner protection, normalized invalid-assertion responses | Instance-owned member identity and account claiming; ADR 0020 remains proposed |
 | Optional management | Enrollment, signed sync, grants, rotation, disconnect, owner-approved updates and diagnostic support | Independent security review and live operator exercises |
@@ -22,7 +22,9 @@ version.
 
 API shapes now live in `apps/instance/contracts/api.ts`. Group publishing,
 roster, and session/attendance routes live under `worker/features/groups`;
-team membership routes live under `worker/features/team`.
+team membership routes live under `worker/features/team`; church profile
+drafts, previews, and publishing live under `worker/features/church`.
+See [Church setup and website publishing](church-setup-and-publishing.md).
 The management protocol remains separate from ordinary application API types.
 
 Run `pnpm verify`. Release and live-readiness requirements are described in

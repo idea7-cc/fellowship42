@@ -16,6 +16,8 @@ import type {
 } from '../../contracts/api'
 
 export interface ChurchRow {
+  version: number
+  draft_json: string | null
   id: string
   slug: string
   name: string
@@ -33,6 +35,8 @@ export interface ChurchRow {
   website_url: string | null
   giving_url: string | null
   livestream_url: string | null
+  logo_media_id: string | null
+  cover_media_id: string | null
   theme_preset: string
   theme_accent: string | null
   theme_surface: string | null
@@ -52,10 +56,10 @@ export interface ServiceTimeRow {
 
 export const churchSelect = `
   SELECT
-    c.id, c.slug, c.name, c.status, c.timezone,
+    c.id, c.slug, c.name, c.status, c.timezone, c.version, p.draft_json,
     p.tagline, p.summary, p.street, p.city, p.region, p.postal_code,
     p.country_code, p.phone, p.email, p.website_url, p.giving_url,
-    p.livestream_url, p.theme_preset, p.theme_accent, p.theme_surface,
+    p.livestream_url, p.logo_media_id, p.cover_media_id, p.theme_preset, p.theme_accent, p.theme_surface,
     p.theme_ink, p.theme_hero_tone, p.theme_radius, p.theme_heading_font,
     p.theme_body_font
   FROM churches c
@@ -86,6 +90,12 @@ export function mapChurch(
       email: row.email ?? undefined,
       website: row.website_url ?? undefined,
     },
+    logoUrl: row.logo_media_id
+      ? `/media/${encodeURIComponent(row.logo_media_id)}`
+      : undefined,
+    coverUrl: row.cover_media_id
+      ? `/media/${encodeURIComponent(row.cover_media_id)}`
+      : undefined,
     givingUrl: row.giving_url ?? undefined,
     livestreamUrl: row.livestream_url ?? undefined,
     theme: {

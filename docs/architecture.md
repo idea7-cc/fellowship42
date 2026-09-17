@@ -120,6 +120,11 @@ Access is not the portable instance identity and must not become a requirement
 for management interoperability. A future authentication change should remain
 inside the instance boundary.
 
+The public church website is served at `/`, public course pages at
+`/courses/:slug`, and the staff workspace at `/app`. Private profile drafts,
+saved previews, and publication controls require `church.write`; see
+[ADR 0022](adr/0022-public-church-site-and-private-drafts.md).
+
 Public published content is readable without a session. Private people,
 finance, support, and realtime operations require explicit permissions. Member,
 donor, financial, and pastoral data must never be emitted as control-plane

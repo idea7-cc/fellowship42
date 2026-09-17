@@ -12,7 +12,7 @@ export function NotFoundPage() {
         <EmptyState
           action={
             <Button asChild size="sm">
-              <Link to="/">Back to dashboard</Link>
+              <Link to="/">Church website</Link>
             </Button>
           }
           className="border-0 bg-transparent"

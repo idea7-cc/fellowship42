@@ -18,6 +18,7 @@ CREATE TABLE churches (
   timezone TEXT NOT NULL DEFAULT 'America/New_York',
   locale TEXT NOT NULL DEFAULT 'en-US',
   version INTEGER NOT NULL DEFAULT 1,
+  last_operation_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER
@@ -27,6 +28,9 @@ CREATE INDEX idx_churches_status ON churches(status, name) WHERE deleted_at IS N
 
 CREATE TABLE church_profiles (
   church_id TEXT PRIMARY KEY REFERENCES churches(id) ON DELETE CASCADE,
+  draft_json TEXT,
+  logo_media_id TEXT,
+  cover_media_id TEXT,
   tagline TEXT NOT NULL DEFAULT '',
   summary TEXT NOT NULL DEFAULT '',
   street TEXT NOT NULL DEFAULT '',
@@ -47,7 +51,9 @@ CREATE TABLE church_profiles (
   theme_radius TEXT,
   theme_heading_font TEXT,
   theme_body_font TEXT,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(church_id, logo_media_id) REFERENCES media(church_id, id),
+  FOREIGN KEY(church_id, cover_media_id) REFERENCES media(church_id, id)
 );
 
 CREATE TABLE service_times (

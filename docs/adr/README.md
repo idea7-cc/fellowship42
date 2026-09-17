@@ -26,5 +26,7 @@ directory names alone.
 - [0020 — Member authentication (proposed)](0020-instance-owned-member-identity.md)
 - [0021 — Authentication errors and private API caching](0021-instance-authentication-error-and-cache-policy.md)
 
+- [0022 — Public church site and private drafts](0022-public-church-site-and-private-drafts.md)
+
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

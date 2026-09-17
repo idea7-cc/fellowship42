@@ -12,6 +12,7 @@ import {
   Monitor,
   Moon,
   ShieldCheck,
+  Settings,
   Sun,
   UserCog,
   Users,
@@ -49,32 +50,38 @@ interface NavItem {
  * A single-church instance has one set of destinations.
  */
 const nav: NavItem[] = [
-  { label: 'Overview', path: '/', icon: LayoutDashboard },
-  { label: 'People', path: '/people', icon: Users },
-  { label: 'Groups', path: '/groups', icon: UsersRound },
-  { label: 'Courses', path: '/courses', icon: GraduationCap },
-  { label: 'Events', path: '/events', icon: CalendarDays },
-  { label: 'Sermons', path: '/sermons', icon: Mic },
-  { label: 'Media', path: '/media', icon: Image },
+  { label: 'Overview', path: '/app', icon: LayoutDashboard },
+  { label: 'People', path: '/app/people', icon: Users },
+  { label: 'Groups', path: '/app/groups', icon: UsersRound },
+  { label: 'Courses', path: '/app/courses', icon: GraduationCap },
+  { label: 'Events', path: '/app/events', icon: CalendarDays },
+  { label: 'Sermons', path: '/app/sermons', icon: Mic },
+  { label: 'Media', path: '/app/media', icon: Image },
+  {
+    label: 'Settings',
+    path: '/app/settings',
+    icon: Settings,
+    permission: 'church.write',
+  },
   // Facilities is intentionally absent: the `facilities` and
   // `facility_bookings` tables exist but have no API routes or UI yet, so the
   // nav entry resolved to the 404 page. Restore it with the route.
   {
     label: 'Contributions',
-    path: '/contributions',
+    path: '/app/contributions',
     icon: HandCoins,
     note: 'Finance',
   },
   {
     label: 'Team',
-    path: '/team',
+    path: '/app/team',
     icon: UserCog,
     note: 'Owner',
     permission: 'team.manage',
   },
   {
     label: 'Management',
-    path: '/management',
+    path: '/app/management',
     icon: ShieldCheck,
     note: 'Owner',
     permission: 'management.admin',
@@ -220,7 +227,7 @@ function Wordmark() {
   return (
     <Link
       className="flex items-center gap-2 rounded-sm px-1 py-1 text-sm font-semibold tracking-tight"
-      to="/"
+      to="/app"
     >
       <span
         aria-hidden
@@ -411,5 +418,8 @@ function ThemeToggle() {
  * not by the top-level entry.
  */
 function isNavActive(currentPath: string, itemPath: string): boolean {
-  return currentPath === itemPath
+  return (
+    currentPath.replace(/\/$/, '') === itemPath ||
+    (itemPath !== '/app' && currentPath.startsWith(`${itemPath}/`))
+  )
 }
