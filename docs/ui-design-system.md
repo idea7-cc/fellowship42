@@ -285,8 +285,8 @@ requires the opposite — "the instance opens directly into the church it serves
 it does not feel like a generic multi-tenant selector."
 
 `church_id` stays in the data model and on every API path; only the browser's
-navigation collapsed. `/churches/...` URLs redirect to their flat equivalent,
-and the preview harness covers that with a `legacy-redirect` route.
+navigation collapsed. The old `/churches/...` URLs are not redirected; there
+are no deployed instances to keep links alive for.
 
 ## Styling rules
 

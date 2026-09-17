@@ -1,5 +1,11 @@
 PRAGMA foreign_keys = ON;
 
+-- The complete instance schema. Until a working alpha is declared this file is
+-- edited in place: there are no deployed instances to migrate, so structural
+-- changes go directly into the CREATE statements below and the schema version
+-- stays at 1. Reset local state with `rm -rf apps/instance/.wrangler/state`
+-- after changing it. See AGENTS.md, "Pre-alpha development policy".
+
 -- Tenancy and public church profile are deliberately separate. Operational
 -- lifecycle fields stay on churches; public presentation can evolve without
 -- widening every tenant query.
@@ -91,12 +97,13 @@ CREATE TABLE church_memberships (
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('invited', 'active', 'suspended', 'left')),
   joined_at INTEGER,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, user_id),
   UNIQUE(church_id, id)
 );
 
 CREATE INDEX idx_church_memberships_user ON church_memberships(user_id, status);
+
 CREATE INDEX idx_church_memberships_church ON church_memberships(church_id, status);
 
 CREATE TABLE roles (
@@ -144,7 +151,7 @@ CREATE TABLE households (
   country_code TEXT NOT NULL DEFAULT 'US',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, id)
 );
 
@@ -165,12 +172,14 @@ CREATE TABLE people (
   version INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, last_operation_id TEXT,
   UNIQUE(church_id, id)
 );
 
 CREATE INDEX idx_people_church_name ON people(church_id, sort_name) WHERE deleted_at IS NULL;
+
 CREATE INDEX idx_people_church_status ON people(church_id, membership_status) WHERE deleted_at IS NULL;
+
 CREATE UNIQUE INDEX idx_people_church_email ON people(church_id, email) WHERE email IS NOT NULL AND deleted_at IS NULL;
 
 CREATE TABLE household_people (
@@ -221,13 +230,14 @@ CREATE TABLE groups (
   summary TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, slug),
   UNIQUE(church_id, id),
   FOREIGN KEY(church_id, ministry_id) REFERENCES ministries(church_id, id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_groups_church_status ON groups(church_id, status, title) WHERE deleted_at IS NULL;
+
 CREATE INDEX idx_groups_ministry ON groups(church_id, ministry_id, status) WHERE deleted_at IS NULL;
 
 CREATE TABLE group_leaders (
@@ -235,7 +245,7 @@ CREATE TABLE group_leaders (
   group_id TEXT NOT NULL,
   person_id TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'leader' CHECK (role IN ('leader', 'apprentice', 'host')),
-  created_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY(group_id, person_id),
   FOREIGN KEY(church_id, group_id) REFERENCES groups(church_id, id) ON DELETE CASCADE,
   FOREIGN KEY(church_id, person_id) REFERENCES people(church_id, id) ON DELETE CASCADE
@@ -250,7 +260,7 @@ CREATE TABLE group_memberships (
   joined_at INTEGER,
   notes TEXT,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1,
   UNIQUE(group_id, person_id),
   FOREIGN KEY(church_id, group_id) REFERENCES groups(church_id, id) ON DELETE CASCADE,
   FOREIGN KEY(church_id, person_id) REFERENCES people(church_id, id) ON DELETE CASCADE
@@ -269,7 +279,7 @@ CREATE TABLE group_sessions (
   topic TEXT,
   status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'open', 'submitted', 'cancelled')),
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1,
   UNIQUE(church_id, id),
   FOREIGN KEY(church_id, group_id) REFERENCES groups(church_id, id) ON DELETE CASCADE
 );
@@ -285,7 +295,7 @@ CREATE TABLE attendance_records (
   checked_in_at INTEGER,
   notes TEXT,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1,
   UNIQUE(session_id, person_id),
   FOREIGN KEY(church_id, session_id) REFERENCES group_sessions(church_id, id) ON DELETE CASCADE,
   FOREIGN KEY(church_id, person_id) REFERENCES people(church_id, id) ON DELETE CASCADE
@@ -309,7 +319,7 @@ CREATE TABLE courses (
   summary TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, slug),
   UNIQUE(church_id, id),
   FOREIGN KEY(church_id, ministry_id) REFERENCES ministries(church_id, id) ON DELETE RESTRICT
@@ -329,7 +339,7 @@ CREATE TABLE lessons (
   required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0, 1)),
   sort_order INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(course_id, sort_order),
   UNIQUE(church_id, course_id, id),
   FOREIGN KEY(church_id, course_id) REFERENCES courses(church_id, id) ON DELETE CASCADE,
@@ -349,7 +359,7 @@ CREATE TABLE course_enrollments (
   completed_at INTEGER,
   notes TEXT,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1,
   UNIQUE(church_id, course_id, id),
   CHECK ((person_id IS NOT NULL AND group_id IS NULL) OR (person_id IS NULL AND group_id IS NOT NULL)),
   FOREIGN KEY(church_id, course_id) REFERENCES courses(church_id, id) ON DELETE CASCADE,
@@ -358,6 +368,7 @@ CREATE TABLE course_enrollments (
 );
 
 CREATE UNIQUE INDEX idx_course_enrollment_person ON course_enrollments(course_id, person_id) WHERE person_id IS NOT NULL;
+
 CREATE UNIQUE INDEX idx_course_enrollment_group ON course_enrollments(course_id, group_id) WHERE group_id IS NOT NULL;
 
 CREATE TABLE lesson_completions (
@@ -390,7 +401,7 @@ CREATE TABLE events (
   featured INTEGER NOT NULL DEFAULT 0 CHECK (featured IN (0, 1)),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, slug),
   UNIQUE(church_id, id)
 );
@@ -412,7 +423,7 @@ CREATE TABLE sermons (
   featured INTEGER NOT NULL DEFAULT 0 CHECK (featured IN (0, 1)),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
   UNIQUE(church_id, slug),
   UNIQUE(church_id, id),
   FOREIGN KEY(church_id, audio_media_id) REFERENCES media(church_id, id) ON DELETE RESTRICT
@@ -472,7 +483,7 @@ CREATE TABLE contributions (
   provider_payment_id TEXT,
   donated_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT, created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY(church_id, person_id) REFERENCES people(church_id, id) ON DELETE RESTRICT,
   UNIQUE(provider, provider_payment_id)
 );
@@ -491,7 +502,7 @@ CREATE TABLE media (
   visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
   created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   created_at INTEGER NOT NULL,
-  deleted_at INTEGER,
+  deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT, updated_at INTEGER NOT NULL DEFAULT 0,
   UNIQUE(church_id, id)
 );
 
@@ -541,7 +552,7 @@ CREATE TABLE webhook_events (
   attempts INTEGER NOT NULL DEFAULT 0,
   received_at INTEGER NOT NULL,
   processed_at INTEGER,
-  last_error TEXT,
+  last_error TEXT, church_id TEXT REFERENCES churches(id) ON DELETE CASCADE, request_hash TEXT, processing_started_at INTEGER,
   UNIQUE(provider, external_id)
 );
 
@@ -571,7 +582,7 @@ CREATE TABLE outbox_events (
   created_at INTEGER NOT NULL,
   delivered_at INTEGER,
   last_error TEXT
-);
+, processing_started_at INTEGER);
 
 CREATE INDEX idx_outbox_pending ON outbox_events(status, available_at, created_at);
 
@@ -590,4 +601,262 @@ CREATE TABLE audit_events (
 );
 
 CREATE INDEX idx_audit_church_time ON audit_events(church_id, occurred_at DESC);
+
 CREATE INDEX idx_audit_entity ON audit_events(entity_type, entity_id, occurred_at DESC);
+
+CREATE TABLE instance_metadata (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  instance_id TEXT NOT NULL UNIQUE,
+  topology TEXT NOT NULL CHECK (topology = 'single-church'),
+  primary_church_id TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (primary_church_id) REFERENCES churches(id)
+) STRICT;
+
+CREATE INDEX idx_webhook_recovery
+  ON webhook_events(status, processing_started_at, received_at);
+
+CREATE INDEX idx_outbox_recovery
+  ON outbox_events(status, processing_started_at, available_at, created_at);
+
+CREATE TABLE management_identities (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  instance_id TEXT NOT NULL UNIQUE,
+  key_id TEXT NOT NULL UNIQUE,
+  public_jwk_json TEXT NOT NULL,
+  private_jwk_ciphertext TEXT NOT NULL,
+  private_jwk_iv TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  rotated_at INTEGER,
+  FOREIGN KEY (instance_id) REFERENCES instance_metadata(instance_id) ON DELETE CASCADE
+) STRICT;
+
+CREATE TABLE management_enrollment_challenges (
+  challenge_id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  code_sha256 TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_by_user_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  consumed_at INTEGER,
+  proposal_jws_json TEXT,
+  operator_id TEXT,
+  operator_display_name TEXT,
+  operator_key_id TEXT,
+  operator_public_jwk_json TEXT,
+  sync_url TEXT,
+  requested_capabilities_json TEXT,
+  FOREIGN KEY (instance_id) REFERENCES instance_metadata(instance_id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE INDEX idx_management_challenges_active
+  ON management_enrollment_challenges(instance_id, expires_at)
+  WHERE consumed_at IS NULL;
+
+CREATE TABLE management_connections (
+  connection_id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  enrollment_challenge_id TEXT NOT NULL,
+  operator_id TEXT NOT NULL,
+  operator_display_name TEXT NOT NULL,
+  operator_key_id TEXT NOT NULL,
+  operator_public_jwk_json TEXT NOT NULL,
+  sync_url TEXT NOT NULL,
+  grant_version INTEGER NOT NULL CHECK (grant_version > 0),
+  grant_set_json TEXT NOT NULL,
+  grant_review_due_at INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active', 'disconnected')),
+  approved_by_user_id TEXT NOT NULL,
+  approved_at INTEGER NOT NULL,
+  enrollment_approval_jws_json TEXT NOT NULL,
+  approval_delivered_at INTEGER,
+  pending_control_jws_json TEXT,
+  pending_rotation_local_approval_id TEXT,
+  pending_replacement_key_id TEXT,
+  pending_replacement_public_jwk_json TEXT,
+  pending_replacement_private_jwk_ciphertext TEXT,
+  pending_replacement_private_jwk_iv TEXT,
+  disconnected_by_user_id TEXT,
+  disconnected_at INTEGER,
+  disconnect_reason TEXT,
+  last_sync_at INTEGER,
+  last_sync_status TEXT CHECK (last_sync_status IS NULL OR last_sync_status IN ('succeeded', 'failed')),
+  last_sync_code TEXT,
+  command_cursor TEXT,
+  CHECK (
+    (
+      pending_control_jws_json IS NULL AND
+      pending_rotation_local_approval_id IS NULL AND
+      pending_replacement_key_id IS NULL AND
+      pending_replacement_public_jwk_json IS NULL AND
+      pending_replacement_private_jwk_ciphertext IS NULL AND
+      pending_replacement_private_jwk_iv IS NULL
+    ) OR (
+      pending_control_jws_json IS NOT NULL AND
+      pending_rotation_local_approval_id IS NOT NULL AND
+      pending_replacement_key_id IS NOT NULL AND
+      pending_replacement_public_jwk_json IS NOT NULL AND
+      pending_replacement_private_jwk_ciphertext IS NOT NULL AND
+      pending_replacement_private_jwk_iv IS NOT NULL
+    )
+  ),
+  FOREIGN KEY (instance_id) REFERENCES instance_metadata(instance_id) ON DELETE CASCADE,
+  FOREIGN KEY (enrollment_challenge_id) REFERENCES management_enrollment_challenges(challenge_id) ON DELETE RESTRICT,
+  FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  FOREIGN KEY (disconnected_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) STRICT;
+
+CREATE UNIQUE INDEX idx_management_one_active_connection
+  ON management_connections(instance_id)
+  WHERE status = 'active';
+
+CREATE TABLE management_grants (
+  connection_id TEXT NOT NULL REFERENCES management_connections(connection_id) ON DELETE CASCADE,
+  capability TEXT NOT NULL,
+  granted_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  requires_local_approval INTEGER NOT NULL CHECK (requires_local_approval IN (0, 1)),
+  PRIMARY KEY (connection_id, capability)
+) STRICT;
+
+CREATE TABLE management_replay_records (
+  connection_id TEXT NOT NULL REFERENCES management_connections(connection_id) ON DELETE CASCADE,
+  sender_key_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  nonce TEXT NOT NULL,
+  payload_sha256 TEXT NOT NULL,
+  outcome_json TEXT,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (connection_id, sender_key_id, message_id, nonce)
+) STRICT;
+
+CREATE INDEX idx_management_replay_expiry
+  ON management_replay_records(expires_at);
+
+CREATE TABLE management_command_records (
+  connection_id TEXT NOT NULL REFERENCES management_connections(connection_id) ON DELETE CASCADE,
+  command_id TEXT NOT NULL,
+  nonce TEXT NOT NULL,
+  payload_sha256 TEXT NOT NULL,
+  capability TEXT NOT NULL,
+  command_type TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('accepted', 'succeeded', 'rejected', 'failed')),
+  result_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER,
+  PRIMARY KEY (connection_id, command_id),
+  UNIQUE (connection_id, nonce)
+) STRICT;
+
+CREATE INDEX idx_management_commands_time
+  ON management_command_records(connection_id, created_at DESC);
+
+CREATE TABLE management_update_preparations (
+  preparation_id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  connection_id TEXT NOT NULL,
+  source_release_tag TEXT NOT NULL,
+  source_manifest_sha256 TEXT NOT NULL,
+  source_application_version TEXT NOT NULL,
+  source_schema_version INTEGER NOT NULL CHECK (source_schema_version >= 0),
+  source_wire_version TEXT NOT NULL,
+  target_release_tag TEXT NOT NULL,
+  target_manifest_sha256 TEXT NOT NULL,
+  target_application_version TEXT NOT NULL,
+  target_schema_version INTEGER NOT NULL CHECK (target_schema_version >= 0),
+  target_wire_version TEXT NOT NULL,
+  target_manifest_json TEXT NOT NULL,
+  required_evidence_json TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN (
+    'awaiting-local-approval', 'approved', 'authorized', 'applied',
+    'expired', 'superseded'
+  )),
+  prepared_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  local_approval_id TEXT UNIQUE,
+  approved_by_user_id TEXT,
+  approved_at INTEGER,
+  approval_expires_at INTEGER,
+  approval_consumed_at INTEGER,
+  authorization_id TEXT UNIQUE,
+  authorized_at INTEGER,
+  authorization_expires_at INTEGER,
+  applied_at INTEGER,
+  CHECK (expires_at > prepared_at),
+  CHECK (
+    (local_approval_id IS NULL AND approved_by_user_id IS NULL AND
+     approved_at IS NULL AND approval_expires_at IS NULL AND
+     approval_consumed_at IS NULL) OR
+    (local_approval_id IS NOT NULL AND approved_by_user_id IS NOT NULL AND
+     approved_at IS NOT NULL AND approval_expires_at IS NOT NULL)
+  ),
+  CHECK (
+    (authorization_id IS NULL AND authorized_at IS NULL AND
+     authorization_expires_at IS NULL) OR
+    (authorization_id IS NOT NULL AND authorized_at IS NOT NULL AND
+     authorization_expires_at IS NOT NULL AND approval_consumed_at IS NOT NULL)
+  ),
+  CHECK ((state = 'applied') = (applied_at IS NOT NULL)),
+  FOREIGN KEY (instance_id) REFERENCES instance_metadata(instance_id) ON DELETE CASCADE,
+  FOREIGN KEY (connection_id) REFERENCES management_connections(connection_id) ON DELETE CASCADE,
+  FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE RESTRICT
+) STRICT;
+
+CREATE UNIQUE INDEX idx_management_update_active_target
+  ON management_update_preparations(
+    connection_id, target_release_tag, target_manifest_sha256
+  )
+  WHERE state IN ('awaiting-local-approval', 'approved', 'authorized');
+
+CREATE INDEX idx_management_update_recent
+  ON management_update_preparations(instance_id, prepared_at DESC);
+
+CREATE TABLE management_support_sessions (
+  request_id TEXT PRIMARY KEY,
+  instance_id TEXT NOT NULL,
+  connection_id TEXT NOT NULL,
+  source_command_id TEXT NOT NULL,
+  reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 500),
+  requested_minutes INTEGER NOT NULL CHECK (requested_minutes BETWEEN 5 AND 120),
+  scope TEXT NOT NULL CHECK (scope = 'operational-diagnostics'),
+  support_operator_id TEXT NOT NULL CHECK (length(support_operator_id) BETWEEN 1 AND 128),
+  support_operator_display_name TEXT NOT NULL CHECK (
+    length(support_operator_display_name) BETWEEN 1 AND 160
+  ),
+  state TEXT NOT NULL CHECK (
+    state IN ('awaiting-local-approval', 'approved', 'rejected', 'revoked', 'expired')
+  ),
+  requested_at INTEGER NOT NULL,
+  decision_due_at INTEGER NOT NULL,
+  decided_by_user_id TEXT,
+  decided_at INTEGER,
+  expires_at INTEGER,
+  revoked_by_user_id TEXT,
+  revoked_at INTEGER,
+  decision_reason TEXT,
+  CHECK (decision_due_at > requested_at),
+  CHECK (
+    (state = 'awaiting-local-approval' AND decided_by_user_id IS NULL AND
+     decided_at IS NULL AND expires_at IS NULL) OR
+    (state IN ('approved', 'revoked') AND decided_by_user_id IS NOT NULL AND
+     decided_at IS NOT NULL AND expires_at IS NOT NULL) OR
+    (state = 'rejected' AND decided_by_user_id IS NOT NULL AND
+     decided_at IS NOT NULL AND expires_at IS NULL) OR
+    state = 'expired'
+  ),
+  CHECK (
+    (state = 'revoked' AND revoked_by_user_id IS NOT NULL AND revoked_at IS NOT NULL)
+    OR (state <> 'revoked' AND revoked_by_user_id IS NULL AND revoked_at IS NULL)
+  ),
+  FOREIGN KEY (instance_id) REFERENCES instance_metadata(instance_id) ON DELETE CASCADE,
+  FOREIGN KEY (connection_id) REFERENCES management_connections(connection_id) ON DELETE CASCADE,
+  FOREIGN KEY (decided_by_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  FOREIGN KEY (revoked_by_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+  UNIQUE (connection_id, source_command_id)
+) STRICT;
+
+CREATE INDEX idx_management_support_sessions_current
+  ON management_support_sessions(instance_id, state, requested_at DESC);

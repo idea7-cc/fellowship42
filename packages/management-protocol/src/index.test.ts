@@ -453,7 +453,7 @@ describe('management protocol contracts', () => {
     expect(manifest.upgrade).toBeUndefined()
   })
 
-  it('publishes exact-source upgrade eligibility without weakening old manifests', async () => {
+  it('declares no eligible upgrade sources before alpha without weakening strict parsing', async () => {
     const fixture = JSON.parse(
       await readFile(
         new URL('../fixtures/release-manifest.v1.json', import.meta.url),
@@ -481,12 +481,20 @@ describe('management protocol contracts', () => {
       },
       upgrade,
     })
-    const source = upgrade.eligibleSources[0]
-
+    // Until a working alpha is declared, no earlier release is an eligible
+    // upgrade source. The policy still parses and every candidate is rejected.
+    expect(upgrade.eligibleSources).toEqual([])
+    const source = {
+      releaseTag: 'v0.26.0',
+      releaseManifestSha256: '2'.repeat(64),
+      applicationVersion: '0.26.0',
+      schemaVersion: 8,
+      managementProtocolWireVersion: '1',
+    }
     expect(assessReleaseUpgradeEligibility(target, source)).toEqual({
-      eligible: true,
-      code: 'eligible',
-      requiredEvidence: upgrade.requiredEvidence,
+      eligible: false,
+      code: 'source-not-eligible',
+      requiredEvidence: [],
     })
     expect(
       assessReleaseUpgradeEligibility(target, {

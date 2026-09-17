@@ -1,4 +1,4 @@
-import { Navigate, Routes, Route, useParams } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 
 import { AppShell } from './components/app-shell'
 import { OverviewPage } from './routes/overview'
@@ -38,25 +38,8 @@ export function App() {
         <Route path="/team" element={<TeamPage />} />
         <Route path="/management" element={<ManagementPage />} />
 
-        {/* Keep older church-scoped links working rather than 404ing them. */}
-        <Route path="/churches" element={<Navigate replace to="/" />} />
-        <Route
-          path="/churches/:churchId"
-          element={<Navigate replace to="/" />}
-        />
-        <Route
-          path="/churches/:churchId/*"
-          element={<LegacyChurchRedirect />}
-        />
-
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppShell>
   )
-}
-
-/** Maps `/churches/:churchId/people` to `/people`, preserving the tail. */
-function LegacyChurchRedirect() {
-  const params = useParams()
-  return <Navigate replace to={`/${params['*'] ?? ''}`} />
 }
