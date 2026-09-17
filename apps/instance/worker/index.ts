@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { churchSettingsRoutes, siteRoutes } from './features/church/routes'
 import { bodyLimit } from 'hono/body-limit'
 import { secureHeaders } from 'hono/secure-headers'
 import { HTTPException } from 'hono/http-exception'
@@ -131,6 +132,8 @@ app.get('/api/health', async (c) => {
   return c.json(await inspectInstanceRuntimeHealth(c.env))
 })
 
+app.route('/api/site', siteRoutes)
+app.route('/api/church-settings', churchSettingsRoutes)
 app.route('/api/session', sessionRoutes)
 app.route('/api/bootstrap', bootstrapRoutes)
 app.route('/api/churches', churchRoutes)

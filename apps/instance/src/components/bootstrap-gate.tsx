@@ -82,8 +82,8 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
         }),
       })
       await refetch()
-      // Routes are flat now; the instance root is the church.
-      window.location.assign('/')
+      // Continue with the church profile after creating the owner membership.
+      window.location.assign('/app/settings')
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -170,7 +170,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
   const { data, error, isLoading, refetch } =
     useApiQuery<BootstrapStatusResponse>('/api/bootstrap')
 
-  if (isLoading) {
+  if (isLoading && !data) {
     return (
       <Page>
         <Card>

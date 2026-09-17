@@ -376,7 +376,7 @@ export function SermonsPage() {
                       className="mt-4 w-full"
                       controls
                       preload="none"
-                      src={`/media/${encodeURIComponent(sermon.audioMediaId)}`}
+                      src={`/app/media/${encodeURIComponent(sermon.audioMediaId)}`}
                     />
                   ) : null}
                   {sermon.videoUrl ? (

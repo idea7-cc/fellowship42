@@ -352,7 +352,7 @@ export function CourseDetailPage() {
                       {lesson.mediaId ? (
                         <a
                           className="mt-3 block text-sm font-semibold text-accent-strong underline"
-                          href={`/media/${encodeURIComponent(lesson.mediaId)}`}
+                          href={`/app/media/${encodeURIComponent(lesson.mediaId)}`}
                         >
                           Open lesson media
                         </a>

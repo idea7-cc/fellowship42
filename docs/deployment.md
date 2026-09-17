@@ -96,9 +96,13 @@ Worker variables:
 - `ACCESS_TEAM_DOMAIN`: `https://<team>.cloudflareaccess.com`
 - `ACCESS_AUD`: the Access application audience tag
 
-The application route must be protected by the same Access application whose
-audience is configured in the Worker. Public routes can move to a separate
-hostname when public church-site delivery is implemented.
+Protect `/app` and `/app/*`, including `/app/preview`, with the Access
+application whose audience is configured in the Worker. Keep `/`,
+`/courses/*`, frontend assets, `/api/site`, published church read endpoints,
+and `/media/*` reachable without a login redirect. Use narrowly scoped path
+applications for the public/staff boundary on the instance domain. Protect
+private API paths, including `/api/church-settings/*`, session, directory,
+finance, and management; Worker permission checks still authorize each call.
 
 Published church/media routes and the exact payment-webhook path must reach the
 Worker without an Access login redirect. Prefer separate public and webhook
@@ -170,7 +174,7 @@ pnpm deploy
 pnpm --filter @fellowship42/instance exec wrangler secret put BOOTSTRAP_OWNER_EMAIL
 ```
 
-Open the deployed application as that Access identity and complete **Instance
+Open `/app` on the deployed instance as that Access identity and complete **Instance
 setup**. The Worker creates the church in `draft`, portable instance identity,
 initial owner membership, system roles, and audit event transactionally. It
 does not enroll the instance in any management service.
@@ -180,6 +184,9 @@ After setup succeeds, remove the one-time selector:
 ```bash
 pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER_EMAIL
 ```
+
+Setup continues at `/app/settings`: save the church profile, preview, and
+publish when ready. See [Church setup and website publishing](church-setup-and-publishing.md).
 
 The owner then adds every other staff member from the **Team** page. Each
 invited email must also be allowed by the Access policy; the instance sends no

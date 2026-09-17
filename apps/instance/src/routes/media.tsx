@@ -39,7 +39,8 @@ export function MediaPage() {
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     const file = form.get('file')
     if (!(file instanceof File) || file.size === 0) return
     setUploading(true)
@@ -58,14 +59,14 @@ export function MediaPage() {
         },
       )
       if (!response.ok) {
-        const body = await response
-          .json<{ error?: { message?: string } }>()
-          .catch((): { error?: { message?: string } } => ({}))
+        const body = (await response.json().catch(() => ({}))) as {
+          error?: { message?: string }
+        }
         throw new Error(
           body.error?.message ?? `Upload failed with status ${response.status}`,
         )
       }
-      event.currentTarget.reset()
+      formElement.reset()
       await mediaQuery.refetch()
     } catch (caught) {
       setError(

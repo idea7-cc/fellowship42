@@ -1,3 +1,4 @@
+import { ChurchSetupProgress } from '@/components/church-setup-progress'
 import {
   CalendarDays,
   Clock,
@@ -109,6 +110,7 @@ export function OverviewPage() {
         }
       />
 
+      <ChurchSetupProgress />
       {/*
         The one full-brand region on an operator screen: a preview of how the
         congregation presents itself. Everything outside it stays neutral.

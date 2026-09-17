@@ -43,7 +43,7 @@ The current source includes these features for development and evaluation:
 | Setup and access | First-owner setup through Cloudflare Access, owner-managed team invitations and roles, and server-side permission checks |
 | People and households | Private directory, household relationships, search, pagination, and record editing |
 | Groups and learning | Group rosters, sessions and attendance, courses, lessons, and enrollment |
-| Publishing | Groups, courses, events, sermons, and authorized media storage with draft/public visibility controls |
+| Publishing | Church settings, gatherings, style and images, private profile drafts and preview, public church website, and groups/courses/events/sermons with independent publish controls |
 | Contributions | Finance-scoped manual entry, a signed normalized payment-event API, and durable outbox delivery |
 | Optional management | Owner-approved enrollment, signed sync, grants, rotation, disconnect, update authorization, and diagnostic support approval |
 | Portability | Release verification, deployment planning, export assembly, staged import contracts, and deterministic migration rehearsals |
@@ -58,8 +58,6 @@ Automated conformance tests do not establish a successful live restore or exit.
 Before a public beta, the project needs to close gaps in the everyday church
 experience and prove the operating procedures:
 
-- Church profile and service-time editing, plus a way to publish the church
-  after initial setup.
 - Form submission and retry reliability, attendance history when rosters
   change, and access to records beyond the first page in every workflow.
 - Wider browser, mobile, accessibility, and multi-user testing with realistic
@@ -90,7 +88,8 @@ pnpm db:seed
 pnpm dev
 ```
 
-The instance UI and API run together at `http://localhost:5173`. Start the
+The church website runs at `http://localhost:5173`; the staff workspace is at
+`http://localhost:5173/app`. Start the
 separate public project site with `pnpm dev:site`.
 
 Public routes work without authentication. Protected workflows require a valid
@@ -162,6 +161,7 @@ through [SECURITY.md](SECURITY.md).
 
 Additional documentation:
 
+- [Church setup and website publishing](docs/church-setup-and-publishing.md)
 - [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Team and roles](docs/team-and-roles.md)
