@@ -9,6 +9,7 @@ import {
   versionInputSchema,
 } from '../../lib/content'
 import { AppError } from '../../lib/errors'
+import { mutateChurch } from './service'
 import { draftChurch, readSettings, readSite } from './read'
 
 type AppEnv = {
@@ -93,175 +94,18 @@ for (const action of ['save', 'publish', 'unpublish'] as const) {
         ? saveInput.safeParse(body)
         : versionInputSchema.safeParse(body)
     if (!parsed.success) throw validationError(parsed.error)
-    const settings = await readSettings(c.env.DB, churchId)
-    if (settings.version !== parsed.data.version)
-      throw new AppError(
-        409,
-        'version_conflict',
-        'Church settings changed. Reload the saved draft before trying again.',
-      )
-    const draft =
-      action === 'save' ? saveInput.parse(body).draft : settings.draft
-    if (action === 'publish' && !draft.summary)
-      throw new AppError(
-        422,
-        'profile_incomplete',
-        'Add a short description before publishing.',
-      )
-    const images =
-      action === 'unpublish'
-        ? []
-        : [
-            ...new Set(
-              [draft.logoMediaId, draft.coverMediaId].filter(
-                (id): id is string => Boolean(id),
-              ),
-            ),
-          ]
-    for (const id of images) {
-      const media = await c.env.DB.prepare(
-        `SELECT 1 AS found FROM media WHERE church_id = ? AND id = ? AND media_type = 'image' AND deleted_at IS NULL`,
-      )
-        .bind(churchId, id)
-        .first()
-      if (!media)
-        throw new AppError(
-          422,
-          'invalid_image',
-          'Choose an available image from this church.',
-        )
-    }
-    const operationId = crypto.randomUUID()
-    const now = Date.now()
-    const gate =
-      'EXISTS (SELECT 1 FROM churches WHERE id = ? AND last_operation_id = ?)'
-    const imageChecks = images.map(
-      () =>
-        `EXISTS (SELECT 1 FROM media WHERE church_id = ? AND id = ? AND media_type = 'image' AND deleted_at IS NULL)`,
+    const result = await mutateChurch(
+      c.env.DB,
+      churchId,
+      {
+        userId: actor.id,
+        requestId: c.get('requestId'),
+      },
+      action,
+      parsed.data.version,
+      action === 'save' ? saveInput.parse(body).draft : undefined,
     )
-    const statements = [
-      c.env.DB.prepare(
-        `UPDATE churches SET
-      name = CASE WHEN ? THEN ? ELSE name END,
-      timezone = CASE WHEN ? THEN ? ELSE timezone END,
-      status = CASE WHEN ? = 'publish' THEN 'published' WHEN ? = 'unpublish' THEN 'draft' ELSE status END,
-      version = version + 1, updated_at = ?, last_operation_id = ?
-      WHERE id = ? AND version = ? AND deleted_at IS NULL ${imageChecks.length ? `AND ${imageChecks.join(' AND ')}` : ''}`,
-      ).bind(
-        Number(action === 'publish'),
-        draft.name,
-        Number(action === 'publish'),
-        draft.timezone,
-        action,
-        action,
-        now,
-        operationId,
-        churchId,
-        parsed.data.version,
-        ...images.flatMap((id) => [churchId, id]),
-      ),
-    ]
-    if (action === 'save') {
-      statements.push(
-        c.env.DB.prepare(
-          `UPDATE church_profiles SET draft_json = ?, updated_at = ? WHERE church_id = ? AND ${gate}`,
-        ).bind(JSON.stringify(draft), now, churchId, churchId, operationId),
-      )
-    }
-    if (action === 'publish') {
-      statements.push(
-        c.env.DB.prepare(
-          `UPDATE church_profiles SET draft_json = NULL, tagline = ?, summary = ?, street = ?, city = ?, region = ?, postal_code = ?, country_code = ?, phone = ?, email = ?, website_url = ?, giving_url = ?, livestream_url = ?, theme_preset = ?, theme_accent = NULL, theme_surface = NULL, theme_ink = NULL, theme_hero_tone = NULL, theme_radius = NULL, theme_heading_font = NULL, theme_body_font = NULL, logo_media_id = ?, cover_media_id = ?, updated_at = ? WHERE church_id = ? AND ${gate}`,
-        ).bind(
-          draft.tagline,
-          draft.summary,
-          draft.street,
-          draft.city,
-          draft.region,
-          draft.postalCode,
-          draft.countryCode,
-          draft.phone || null,
-          draft.email || null,
-          draft.websiteUrl || null,
-          draft.givingUrl || null,
-          draft.livestreamUrl || null,
-          draft.themePreset,
-          draft.logoMediaId,
-          draft.coverMediaId,
-          now,
-          churchId,
-          churchId,
-          operationId,
-        ),
-      )
-      statements.push(
-        c.env.DB.prepare(
-          `DELETE FROM service_times WHERE church_id = ? AND ${gate}`,
-        ).bind(churchId, churchId, operationId),
-      )
-      draft.serviceTimes.forEach((time, index) =>
-        statements.push(
-          c.env.DB.prepare(
-            `INSERT INTO service_times (id, church_id, label, day_of_week, local_time, sort_order, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ${gate}`,
-          ).bind(
-            crypto.randomUUID(),
-            churchId,
-            time.label,
-            time.day,
-            time.time,
-            index,
-            now,
-            now,
-            churchId,
-            operationId,
-          ),
-        ),
-      )
-      for (const id of images)
-        statements.push(
-          c.env.DB.prepare(
-            `UPDATE media SET visibility = 'public', version = version + 1, updated_at = ? WHERE church_id = ? AND id = ? AND visibility = 'private' AND ${gate}`,
-          ).bind(now, churchId, id, churchId, operationId),
-        )
-    }
-    const eventName = `church.${action === 'save' ? 'draft_saved' : action === 'publish' ? 'published' : 'unpublished'}`
-    statements.push(
-      c.env.DB.prepare(
-        `INSERT INTO audit_events (id, church_id, actor_user_id, action, entity_type, entity_id, request_id, metadata_json, occurred_at) SELECT ?, ?, ?, ?, 'church', ?, ?, '{}', ? WHERE ${gate}`,
-      ).bind(
-        crypto.randomUUID(),
-        churchId,
-        actor.id,
-        eventName,
-        churchId,
-        c.get('requestId'),
-        now,
-        churchId,
-        operationId,
-      ),
-    )
-    statements.push(
-      c.env.DB.prepare(
-        `INSERT INTO outbox_events (id, church_id, topic, aggregate_type, aggregate_id, payload_json, status, available_at, created_at) SELECT ?, ?, ?, 'church', ?, '{}', 'pending', ?, ? WHERE ${gate}`,
-      ).bind(
-        crypto.randomUUID(),
-        churchId,
-        eventName,
-        churchId,
-        now,
-        now,
-        churchId,
-        operationId,
-      ),
-    )
-    const results = await c.env.DB.batch(statements)
-    if (results[0].meta.changes !== 1)
-      throw new AppError(
-        409,
-        'version_conflict',
-        'The church or selected images changed. Reload the saved draft before trying again.',
-      )
     broadcastContent(c, churchId, 'church', churchId, 'updated')
-    return c.json(await readSettings(c.env.DB, churchId))
+    return c.json(result)
   })
 }

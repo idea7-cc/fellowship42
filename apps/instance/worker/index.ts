@@ -1,3 +1,5 @@
+import { agentRoutes } from './features/agents/routes'
+import { agentFetch } from './features/agents/oauth'
 import { Hono } from 'hono'
 import { churchSettingsRoutes, siteRoutes } from './features/church/routes'
 import { bodyLimit } from 'hono/body-limit'
@@ -132,6 +134,10 @@ app.get('/api/health', async (c) => {
   return c.json(await inspectInstanceRuntimeHealth(c.env))
 })
 
+app.get('/oauth/authorize', (c) =>
+  c.redirect(`/app/agents/authorize${new URL(c.req.url).search}`),
+)
+app.route('/api/agents', agentRoutes)
 app.route('/api/site', siteRoutes)
 app.route('/api/church-settings', churchSettingsRoutes)
 app.route('/api/session', sessionRoutes)
@@ -155,7 +161,7 @@ app.all('/api/*', (_c) => {
 })
 
 const worker = {
-  fetch: app.fetch,
+  fetch: (request, env, ctx) => agentFetch(request, env, ctx, app.fetch),
   queue(batch: MessageBatch<OutboxQueueMessage>, env: Env) {
     return consumeOutbox(batch, env)
   },

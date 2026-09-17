@@ -75,6 +75,13 @@ contain changes that are not in a published release. See
 [release policy](docs/releases.md) and
 [readiness evidence](docs/ga-readiness.md) before evaluating a deployment.
 
+## Bring your own agent
+
+Administrators can connect an external agent to read church information and
+save private website drafts. The church grants and revokes access locally;
+publishing stays in the app. This early-alpha surface needs operator setup and
+a client supporting MCP 2026-07-28. See [agent connections](docs/agent-connections.md).
+
 ## Run locally
 
 Use the Node.js version in `.node-version` and the pnpm version declared in

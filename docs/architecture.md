@@ -49,6 +49,7 @@ Browser
         +-- React SPA assets (Workers Static Assets)
         +-- Hono application API
         +-- authentication adapter (Cloudflare Access initially)
+        +-- church-owned OAuth/MCP adapter and disposable OAuth KV
         +-- D1 relational system of record
         +-- R2 media objects
         +-- ChurchRoom Durable Object for realtime invalidation
@@ -277,3 +278,12 @@ Planned, not implied by the scaffolding:
 - Workers for Platforms hosted-fleet packaging;
 - any private Fellowship42 Cloud control-plane, dashboard, or MCP code, which
   remains in the separate private repository.
+
+## Church-owned agents
+
+The public instance exposes optional OAuth-granted church tools independently
+of the private fleet MCP adapter. D1 owns local consent and revocation; the
+OAuth provider stores disposable credentials in an instance-local KV namespace.
+The initial tools read church information and save private website drafts using
+the app's services and version checks. Publishing remains in the app. See
+[agent connections](agent-connections.md) and [ADR 0023](adr/0023-church-owned-agent-connections.md).

@@ -62,7 +62,7 @@ directly from an external primitive library.
 | Backend | Cloudflare D1 + R2 + Durable Objects | Relational data, media, realtime coordination |
 | Edge API | Hono on Cloudflare Workers | Public and protected APIs, webhooks, integrations |
 | App UI | React 19 SPA (Vite) | `apps/instance` — operator and member interface |
-| Project site | Astro 5 | `apps/project-site` — static HTML, React islands |
+| Project site | Astro 7 | `apps/project-site` — static HTML, React islands |
 | Styling | Tailwind CSS v4 | CSS-first config, no `tailwind.config.ts` |
 | Component primitives | shadcn/ui conventions | Owned source in `src/components/ui/` |
 | Utility | `cn()` from `@/lib/cn` | `clsx` + `tailwind-merge` |

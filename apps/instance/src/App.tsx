@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './lib/auth-provider'
 import { StaffAccess } from './components/staff-access'
 import { BootstrapGate } from './components/bootstrap-gate'
+import { AgentsPage, AgentConsentPage } from './routes/agents'
 import { ChurchSettingsPage } from './routes/church-settings'
 import {
   PublicSitePage,
@@ -36,6 +37,8 @@ function StaffRoutes() {
         <Route path="/sermons" element={<SermonsPage />} />
         <Route path="/media" element={<MediaPage />} />
         <Route path="/contributions" element={<ContributionsPage />} />
+        <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/agents/authorize" element={<AgentConsentPage />} />
         <Route path="/settings" element={<ChurchSettingsPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/management" element={<ManagementPage />} />

@@ -6,7 +6,11 @@ shared D1 database or R2 namespace.
 
 The committed configuration is a direct Wrangler template. The public `f42ctl`
 manifest, planner, doctor, and callable reconciliation library describe,
-inspect, diff, and apply this same shape through an injected provider adapter.
+inspect, diff, and apply the core application shape through an injected provider
+adapter. Optional church-agent OAuth credentials need their own instance-local
+KV namespace; configure that separately using [agent connections](agent-connections.md).
+When MCP is disabled, omit the `OAUTH_KV` namespace binding and leave
+`MCP_ORIGIN` blank.
 This manual runbook remains the supported CLI path until an operator-facing
 adapter command is shipped. The private Fellowship42 Cloud orchestrator must
 consume the public contract rather than inventing a second deployment shape.
