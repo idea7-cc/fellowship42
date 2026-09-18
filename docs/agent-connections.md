@@ -1,8 +1,8 @@
 # Connect your own agent
 
 Fellowship42's early-alpha church MCP endpoint lets a church administrator
-connect an external agent, read church information, and edit a saved website
-draft. Review and publish changes in the church app. No Cloud subscription or
+connect an external agent, edit a saved website draft, and prepare unpublished
+events. Review and publish changes in the church app. No Cloud subscription or
 management enrollment is needed.
 
 ## Use a connection
@@ -28,12 +28,29 @@ receives the authorized content and handles it under its own data policies.
 | `church:read` | `read_church` | Church profile and published ministry content |
 | `draft:read` | `read_website_draft` | Saved private draft, readiness, and version |
 | `draft:write` | `save_website_draft` | Save the complete draft at that observed version |
+| `events:read` | `list_events` | Filtered, paginated church events, including drafts |
+| `events:write` | `create_event_draft` | Duplicate-safe creation of an unpublished event |
 
 Request `draft:read` with `draft:write`. A stale version returns
 `version_conflict`; read again and reconcile rather than blindly retrying. The
 save result includes `previewUrl`, `reviewUrl`, and `publicationChanged: false`.
 Only approved tools appear in discovery. There is no publish, member, finance,
 media upload, fleet, shell, SQL, or arbitrary fetch tool.
+
+Event scopes require the current `events.write` role permission. Church and
+website scopes require `church.write`; a token requesting both requires both. Refresh may narrow an approved token.
+Request `events:read` with `events:write`. Follow `page.nextCursor` with the same
+filters; each page contains at most 100 events. Reduce `limit` after
+`result_too_large`; restart after `invalid_cursor`. Cursors belong to this church.
+
+For event creation, generate one UUID `requestKey` for the approved action and
+retain it with the exact event details. If the response is lost, retry that same
+key and input. An identical retry returns the existing event with `replayed:
+true`; changed input returns `idempotency_conflict`. Never use a new key to retry
+an uncertain create. The response contains `reviewUrl` and
+`publicationChanged: false`. Review and publish from **Events**. Deduplication is
+scoped to the connection, with at most 100 creations per connection. After reconnecting, read existing events and reconcile
+before creating again. See [ADR 0025](adr/0025-scoped-agent-event-drafts.md).
 
 ## Operator setup
 

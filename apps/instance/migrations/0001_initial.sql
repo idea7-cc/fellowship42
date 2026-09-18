@@ -934,3 +934,17 @@ CREATE TABLE agent_consent_requests (
   FOREIGN KEY (church_id, user_id) REFERENCES church_memberships(church_id, user_id) ON DELETE CASCADE
 );
 CREATE INDEX idx_agent_consent_expiry ON agent_consent_requests(expires_at);
+
+CREATE TABLE agent_event_creations (
+ church_id TEXT NOT NULL,
+ connection_id TEXT NOT NULL,
+ request_key TEXT NOT NULL,
+ input_hash TEXT NOT NULL,
+ event_id TEXT NOT NULL,
+ created_at INTEGER NOT NULL,
+ PRIMARY KEY (church_id, connection_id, request_key),
+ FOREIGN KEY (church_id, connection_id) REFERENCES agent_connections(church_id, id) ON DELETE CASCADE,
+ FOREIGN KEY (church_id, event_id) REFERENCES events(church_id, id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_agent_event_creation_event ON agent_event_creations(church_id, event_id);

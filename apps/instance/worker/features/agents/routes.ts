@@ -11,12 +11,16 @@ import {
 } from '../../../contracts/agents'
 import {
   requireCurrentUser,
-  requirePermission,
+  requireChurchMembership,
   type AccessIdentity,
 } from '../../lib/auth'
 import { AppError } from '../../lib/errors'
 import { jsonBody, validationError } from '../../lib/content'
-import { churchWriteGate } from '../church/service'
+import {
+  agentPermissions,
+  agentPermissionGate,
+  requireScopePermissions,
+} from './access'
 import { agentOAuth, agentOrigin } from './oauth'
 
 type AppEnv = {
@@ -24,7 +28,7 @@ type AppEnv = {
   Variables: { identity: AccessIdentity | null; requestId: string }
 }
 export const agentRoutes = new Hono<AppEnv>()
-const scopesSchema = z.array(agentScopeSchema).min(1).max(3)
+const scopesSchema = z.array(agentScopeSchema).min(1).max(5)
 
 async function parseRequest(env: Env, url: string) {
   try {
@@ -33,12 +37,14 @@ async function parseRequest(env: Env, url: string) {
     if (
       !scopes.success ||
       (request.scope.includes('draft:write') &&
-        !request.scope.includes('draft:read'))
+        !request.scope.includes('draft:read')) ||
+      (request.scope.includes('events:write') &&
+        !request.scope.includes('events:read'))
     )
       throw new AppError(
         400,
         'invalid_scope',
-        'Request valid scopes; saving drafts also requires reading drafts.',
+        'Request valid scopes; writing drafts also requires the matching read scope.',
       )
     if (
       request.codeChallengeMethod !== 'S256' ||
@@ -68,7 +74,6 @@ agentRoutes.get('/consent', async (c) => {
   ).first<{ id: string; name: string }>()
   if (!instance)
     throw new AppError(404, 'instance_not_found', 'Set up this church first.')
-  const user = await requirePermission(c, instance.id, 'church.write')
   const origin = agentOrigin(c.env)
   if (!origin)
     throw new AppError(
@@ -84,6 +89,7 @@ agentRoutes.get('/consent', async (c) => {
       'The agent request is too long.',
     )
   const { request, scopes } = await parseRequest(c.env, url)
+  const user = await requireScopePermissions(c, instance.id, scopes)
   const client = await agentOAuth(c.env).lookupClient(request.clientId)
   if (!client)
     throw new AppError(400, 'invalid_client', 'The agent is unavailable.')
@@ -150,8 +156,8 @@ agentRoutes.post('/consent', async (c) => {
       'consent_expired',
       'This request expired. Connect again from your agent.',
     )
-  await requirePermission(c, pending.church_id, 'church.write')
   const { request, scopes } = await parseRequest(c.env, pending.request_url)
+  await requireScopePermissions(c, pending.church_id, scopes)
   const consumed = await c.env.DB.prepare(
     'DELETE FROM agent_consent_requests WHERE id = ? AND user_id = ? AND expires_at > ? RETURNING id',
   )
@@ -175,7 +181,7 @@ agentRoutes.post('/consent', async (c) => {
   const created = await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT INTO agent_connections (id,church_id,user_id,client_id,client_name,scopes_json,created_at,expires_at)
-      SELECT ?,?,?,?,?,?,?,? WHERE ${churchWriteGate('?')}
+      SELECT ?,?,?,?,?,?,?,? WHERE ${agentPermissionGate('?', scopes)}
       AND (SELECT COUNT(*) FROM agent_connections WHERE church_id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ? AND client_id != ?) < 20`,
     ).bind(
       id,
@@ -186,8 +192,7 @@ agentRoutes.post('/consent', async (c) => {
       JSON.stringify(scopes),
       now,
       now + 30 * 24 * 60 * 60 * 1000,
-      pending.church_id,
-      user.id,
+      ...agentPermissions(scopes).flatMap(() => [pending.church_id, user.id]),
       pending.church_id,
       user.id,
       now,
@@ -224,7 +229,7 @@ agentRoutes.post('/consent', async (c) => {
     ).bind(now, pending.church_id, user.id, request.clientId, id, id),
   ])
   if (created[0].meta.changes !== 1) {
-    await requirePermission(c, pending.church_id, 'church.write')
+    await requireScopePermissions(c, pending.church_id, scopes)
     throw new AppError(
       422,
       'connection_limit',
@@ -258,11 +263,7 @@ agentRoutes.post('/consent', async (c) => {
 })
 
 agentRoutes.get('/:churchId', async (c) => {
-  const user = await requirePermission(
-    c,
-    c.req.param('churchId'),
-    'church.write',
-  )
+  const user = await requireChurchMembership(c, c.req.param('churchId'))
   const rows = await c.env.DB.prepare(
     `SELECT id,client_name,client_id,scopes_json,created_at,expires_at,revoked_at FROM agent_connections WHERE church_id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 20`,
   )

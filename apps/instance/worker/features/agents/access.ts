@@ -1,7 +1,39 @@
 import { z } from 'zod'
 import { agentScopeSchema, type AgentScope } from '../../../contracts/agents'
 import { AppError } from '../../lib/errors'
-import { churchWriteGate } from '../church/service'
+import { membershipPermissionGate } from '../../lib/permission-gate'
+import { requireCurrentUser, requirePermission } from '../../lib/auth'
+import type { ContentContext } from '../../lib/content'
+
+export function agentPermissions(scopes: AgentScope[]) {
+  return [
+    ...new Set(
+      scopes.map((s) =>
+        s.startsWith('events:')
+          ? ('events.write' as const)
+          : ('church.write' as const),
+      ),
+    ),
+  ]
+}
+export function agentPermissionGate(
+  churchColumn: string,
+  scopes: AgentScope[],
+) {
+  return agentPermissions(scopes)
+    .map((p) => membershipPermissionGate(churchColumn, p))
+    .join(' AND ')
+}
+export async function requireScopePermissions(
+  c: ContentContext,
+  churchId: string,
+  scopes: AgentScope[],
+) {
+  const user = await requireCurrentUser(c)
+  for (const permission of agentPermissions(scopes))
+    await requirePermission(c, churchId, permission)
+  return user
+}
 
 export const agentPropsSchema = z
   .object({
@@ -9,7 +41,7 @@ export const agentPropsSchema = z
     churchId: z.string().min(1).max(128),
     userId: z.string().min(1).max(128),
     clientId: z.string().min(1).max(2048),
-    scopes: z.array(agentScopeSchema).min(1).max(3),
+    scopes: z.array(agentScopeSchema).min(1).max(5),
   })
   .strict()
 export type AgentProps = z.infer<typeof agentPropsSchema>
@@ -32,7 +64,7 @@ export async function requireAgentAccess(
       AND ac.revoked_at IS NULL AND ac.expires_at > ?
       AND EXISTS (SELECT 1 FROM instance_metadata i JOIN churches c ON c.id = i.primary_church_id
         WHERE i.singleton = 1 AND c.id = ac.church_id AND c.deleted_at IS NULL)
-      AND ${churchWriteGate('ac.church_id')}`,
+      AND ${agentPermissionGate('ac.church_id', props.scopes)}`,
     )
     .bind(
       props.connectionId,
@@ -40,7 +72,7 @@ export async function requireAgentAccess(
       props.userId,
       props.clientId,
       Date.now(),
-      props.userId,
+      ...agentPermissions(props.scopes).map(() => props.userId),
     )
     .first<{ scopes_json: string }>()
   if (

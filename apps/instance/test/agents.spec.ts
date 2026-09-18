@@ -16,6 +16,7 @@ import {
   siteRoutes,
 } from '../worker/features/church/routes'
 import { readSettings } from '../worker/features/church/read'
+import { createEvent } from '../worker/features/events/service'
 import { mutateChurch } from '../worker/features/church/service'
 import type { AccessIdentity } from '../worker/lib/auth'
 import { AppError } from '../worker/lib/errors'
@@ -855,4 +856,275 @@ it('allows at most one live grant after competing same-client consents', async (
         .first()
     )?.total,
   ).toBe(1)
+})
+
+describe('scoped event drafting', () => {
+  const event = {
+    slug: 'agent-gathering',
+    title: 'Agent gathering',
+    startsAt: 1900000000000,
+    timezone: 'America/New_York',
+  }
+  async function leaderOnly() {
+    await env.DB.batch([
+      env.DB.prepare(
+        "DELETE FROM membership_roles WHERE membership_id='membership_demo_owner'",
+      ),
+      env.DB.prepare(
+        "INSERT INTO membership_roles(church_id,membership_id,role_id,assigned_at) VALUES('church_demo','membership_demo_owner','role_demo_leader',1)",
+      ),
+    ])
+  }
+  it('lets an events-only ministry leader consent only to their event permissions', async () => {
+    await leaderOnly()
+    const connected = await connect('events:read events:write'),
+      client = await sdkClient(connected.access_token)
+    expect((await client.listTools()).tools.map((t) => t.name).sort()).toEqual([
+      'create_event_draft',
+      'list_events',
+    ])
+    expect((await api('/api/agents/church_demo')).status).toBe(200)
+    const broad = await authorization('church:read events:read')
+    expect((await api(`/api/agents/consent?${broad.params}`)).status).toBe(403)
+    const missing = await authorization('events:write')
+    expect((await api(`/api/agents/consent?${missing.params}`)).status).toBe(
+      400,
+    )
+    await client.close()
+  })
+  it('creates one unpublished event and one audit/outbox pair across concurrent retries, and rejects changed reuse', async () => {
+    const connected = await connect('events:read events:write'),
+      client = await sdkClient(connected.access_token)
+    const args = { requestKey: crypto.randomUUID(), event }
+    const results = await Promise.all([
+      client.callTool({ name: 'create_event_draft', arguments: args }),
+      client.callTool({ name: 'create_event_draft', arguments: args }),
+    ])
+    for (const result of results) {
+      expect(result.isError).not.toBe(true)
+      expect(result.structuredContent).toMatchObject({
+        data: {
+          event: { status: 'draft', title: event.title },
+          publicationChanged: false,
+        },
+      })
+    }
+    const { data: first } = results[0].structuredContent as {
+      data: {
+        event: { id: string }
+      }
+    }
+    expect(results[1].structuredContent).toMatchObject({
+      data: { event: { id: first.event.id } },
+    })
+    const evidence = await env.DB.prepare(
+      "SELECT (SELECT count(*) FROM audit_events WHERE action='events.created' AND entity_id=?) AS audits,(SELECT count(*) FROM outbox_events WHERE topic='events.created' AND aggregate_id=?) AS outbox",
+    )
+      .bind(first.event.id, first.event.id)
+      .first()
+    expect(evidence).toMatchObject({ audits: 1, outbox: 1 })
+    await env.DB.prepare(
+      'UPDATE events SET title=?,version=version+1 WHERE church_id=? AND id=?',
+    )
+      .bind('Staff edited title', 'church_demo', first.event.id)
+      .run()
+    const editedRetry = await client.callTool({
+      name: 'create_event_draft',
+      arguments: args,
+    })
+    expect(editedRetry.structuredContent).toMatchObject({
+      data: { event: { title: 'Staff edited title' }, replayed: true },
+    })
+    const changed = await client.callTool({
+      name: 'create_event_draft',
+      arguments: { ...args, event: { ...event, title: 'Changed' } },
+    })
+    expect(changed.structuredContent).toMatchObject({
+      error: { code: 'idempotency_conflict' },
+    })
+    const publish = await client.callTool({
+      name: 'create_event_draft',
+      arguments: {
+        requestKey: crypto.randomUUID(),
+        event: { ...event, slug: 'publish-bypass', status: 'published' },
+      },
+    })
+    expect(publish.isError).toBe(true)
+    const site = await api('/api/site')
+    expect(JSON.stringify(await site.json())).not.toContain(event.title)
+    await env.DB.prepare(
+      'UPDATE events SET deleted_at=1 WHERE church_id=? AND id=?',
+    )
+      .bind('church_demo', first.event.id)
+      .run()
+    const removed = await client.callTool({
+      name: 'create_event_draft',
+      arguments: args,
+    })
+    expect(removed.structuredContent).toMatchObject({
+      error: { code: 'event_not_found' },
+    })
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM events WHERE church_id='church_demo' AND slug=?",
+        )
+          .bind(event.slug)
+          .first()
+      )?.total,
+    ).toBe(1)
+    await client.close()
+  })
+  it('paginates tied dates without leaking another church cursor and enforces read-only scope', async () => {
+    const connected = await connect('events:read'),
+      client = await sdkClient(connected.access_token)
+    for (const slug of ['page-one', 'page-two', 'page-three'])
+      await createEvent(
+        env.DB,
+        'church_demo',
+        { userId: 'user_demo_owner', requestId: 'pagination' },
+        { ...event, slug, title: slug },
+      )
+    const seen: string[] = []
+    let cursor: string | undefined
+    do {
+      const response = await client.callTool({
+        name: 'list_events',
+        arguments: { query: 'page-', limit: 1, ...(cursor ? { cursor } : {}) },
+      })
+      expect(response.isError).not.toBe(true)
+      const { data } = response.structuredContent as {
+        data: {
+          events: Array<{ id: string }>
+          page: { nextCursor: string | null }
+        }
+      }
+      seen.push(...data.events.map((e) => e.id))
+      cursor = data.page.nextCursor ?? undefined
+    } while (cursor && seen.length < 5)
+    expect(seen.length).toBe(3)
+    expect(new Set(seen).size).toBe(3)
+    await env.DB.prepare(
+      "INSERT INTO churches(id,slug,name,status,timezone,locale,created_at,updated_at) VALUES('church_cursor_other','cursor-other','Other','draft','UTC','en-US',1,1)",
+    ).run()
+    await env.DB.prepare(
+      "INSERT INTO events(id,church_id,slug,title,starts_at,timezone,created_at,updated_at) VALUES('event_other_cursor','church_cursor_other','other','Other',1,'UTC',1,1)",
+    ).run()
+    const cross = await client.callTool({
+      name: 'list_events',
+      arguments: { cursor: 'event_other_cursor' },
+    })
+    expect(cross.structuredContent).toMatchObject({
+      error: { code: 'invalid_cursor' },
+    })
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual([
+      'list_events',
+    ])
+    await client.close()
+  })
+  it('rechecks permission and revocation inside the conditional event write without success evidence', async () => {
+    const connected = await connect('events:read events:write')
+    const original = env.DB.batch.bind(env.DB)
+    const spy = vi
+      .spyOn(env.DB, 'batch')
+      .mockImplementationOnce(async (statements) => {
+        await env.DB.prepare(
+          'UPDATE agent_connections SET revoked_at=1 WHERE church_id=? AND id=?',
+        )
+          .bind('church_demo', connected.id)
+          .run()
+        return original(statements)
+      })
+    try {
+      await expect(
+        createEvent(
+          env.DB,
+          'church_demo',
+          {
+            userId: 'user_demo_owner',
+            requestId: 'race-events',
+            connectionId: connected.id,
+            clientId: connected.clientId,
+          },
+          { ...event, slug: 'event-race-test', status: 'draft' },
+          crypto.randomUUID(),
+        ),
+      ).rejects.toMatchObject({ code: 'permission_denied' })
+    } finally {
+      spy.mockRestore()
+    }
+    expect(
+      (
+        await env.DB.prepare(
+          'SELECT count(*) AS total FROM events WHERE slug=?',
+        )
+          .bind('event-race-test')
+          .first()
+      )?.total,
+    ).toBe(0)
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM audit_events WHERE request_id='race-events'",
+        ).first()
+      )?.total,
+    ).toBe(0)
+    const next = await connect('events:read events:write')
+    await leaderOnly()
+    await env.DB.prepare(
+      "DELETE FROM role_permissions WHERE role_id='role_demo_leader' AND permission='events.write'",
+    ).run()
+    expect((await send(mcpRequest(next.access_token), null)).status).toBe(403)
+  })
+})
+
+it('bounds agent event creations and rejects non-HTTP registration links', async () => {
+  const connected = await connect('events:read events:write'),
+    client = await sdkClient(connected.access_token)
+  const event = {
+    slug: 'bounded-event',
+    title: 'Bounded event',
+    startsAt: 1900000000000,
+    timezone: 'UTC',
+  }
+  expect(
+    (
+      await client.callTool({
+        name: 'create_event_draft',
+        arguments: {
+          requestKey: crypto.randomUUID(),
+          event: { ...event, registrationUrl: 'javascript:alert(1)' },
+        },
+      })
+    ).isError,
+  ).toBe(true)
+  const first = await createEvent(
+    env.DB,
+    'church_demo',
+    { userId: 'user_demo_owner', requestId: 'cap-fixture' },
+    event,
+  )
+  await env.DB.prepare(
+    `INSERT INTO agent_event_creations(church_id,connection_id,request_key,input_hash,event_id,created_at) WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<100) SELECT 'church_demo',?,printf('fixture-%d',i),'fixture-hash',?,1 FROM n`,
+  )
+    .bind(connected.id, first.event.id)
+    .run()
+  const capped = await client.callTool({
+    name: 'create_event_draft',
+    arguments: {
+      requestKey: crypto.randomUUID(),
+      event: { ...event, slug: 'over-cap' },
+    },
+  })
+  expect(capped.structuredContent).toMatchObject({
+    error: { code: 'draft_creation_limit' },
+  })
+  expect(
+    (
+      await env.DB.prepare(
+        "SELECT count(*) AS total FROM events WHERE slug='over-cap'",
+      ).first()
+    )?.total,
+  ).toBe(0)
+  await client.close()
 })

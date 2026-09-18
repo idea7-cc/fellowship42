@@ -126,7 +126,9 @@ export function AgentConnectionsPanel({ churchId }: { churchId: string }) {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {item.scopes.includes('draft:write')
                         ? 'Website draft editing'
-                        : 'Read only'}
+                        : item.scopes.includes('events:write')
+                          ? 'Event drafts'
+                          : 'Read only'}
                     </p>
                     <details className="mt-2 text-sm text-muted-foreground">
                       <summary className="cursor-pointer">
@@ -243,7 +245,7 @@ export function AgentConsentPanel({
               <ul className="space-y-3">
                 {consent.scopes.map((scope) => (
                   <li key={scope} className="flex gap-3 text-sm">
-                    {scope === 'draft:write' ? (
+                    {scope.endsWith(':write') ? (
                       <FilePenLine
                         className="size-4 shrink-0 text-muted-foreground"
                         aria-hidden

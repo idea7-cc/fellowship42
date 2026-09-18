@@ -42,6 +42,7 @@ interface NavItem {
   /** A note shown as a smaller label */
   note?: string
   permission?: string
+  anyPermission?: string[]
 }
 
 /**
@@ -61,7 +62,7 @@ const nav: NavItem[] = [
     label: 'Agents',
     path: '/app/agents',
     icon: Bot,
-    permission: 'church.write',
+    anyPermission: ['church.write', 'events.write'],
   },
   {
     label: 'Settings',
@@ -198,9 +199,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroup>
             {nav.map((item) => {
               if (
-                item.permission &&
                 !permissions.includes('*') &&
-                !permissions.includes(item.permission)
+                ((item.permission && !permissions.includes(item.permission)) ||
+                  (item.anyPermission &&
+                    !item.anyPermission.some((p) => permissions.includes(p))))
               ) {
                 return null
               }
