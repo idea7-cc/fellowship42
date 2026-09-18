@@ -11,8 +11,7 @@ the evidence.
 Configure the instance following [agent connections](agent-connections.md),
 including the canonical HTTPS origin, dedicated OAuth KV, and staff sign-in.
 Publish the synthetic website first and sign in as a user with `church.write`.
-The live exercise is pending the parallel instance-owned registration/sign-in
-work. Use that normal sign-in flow once available. On existing Access-backed
+Use the [instance-owned passkey flow](staff-sign-in.md). On existing Access-backed
 installations, keep discovery, token and MCP paths outside the staff redirect. Use
 namespaced development resources; do not reuse another application's resources.
 
@@ -67,15 +66,41 @@ without an explicit product decision.
 
 ## Evidence register
 
-No live deployment or independent client success is established by this PR.
+Observed on **2026-09-18**, using public source commit
+`c92ca6e` (the proof branch plus merged staff passkey and draft-review work),
+Node 26.9.0, a dedicated synthetic Cloudflare Worker, and a fresh D1 schema.
+The deployment used its own D1, R2, KV, queues, and rate-limit namespace.
+This source was deployed before operator-tooling PR #46; the live observation
+was not repeated after those CLI-only changes.
 
-| Client | Environment | Connect/read/save | Human publish | Revoke/refresh denied | Evidence |
-|---|---|---|---|---|---|
-| Reference SDK 2 | Automated HTTP fixture | Runner logic only (fixture) | Simulated | Runner logic only (fixture) | `scripts/agent-proof.test.mjs` |
-| Reference SDK 2 | Disposable deployment | Pending | Pending | Pending | Instance-owned sign-in pending |
-| Claude CLI | Disposable deployment | Pending | Pending | Pending | Instance-owned sign-in pending |
+| Client | Environment | Observed outcome |
+|---|---|---|
+| Reference SDK 2.0.0 | Automated HTTP fixture | Runner success/failure detection, including stale retries and revocation negative controls |
+| Reference SDK 2.0.0, protocol 2026-07-28 | Disposable deployment | All 11 stages passed: discovery, consent, exchange, refresh, read, save, retry, publication, fresh-token control, revocation, refresh denial |
+| Claude Code 2.1.276, Fable 5.1 high | Same disposable deployment | Native CIMD/OAuth connection; `read_church`, `read_website_draft`, `save_website_draft`, then verification read succeeded |
+| Claude Code 2.1.276 | After staff disconnect | Fresh client process reported the server as `needs-auth`; no church tools or church data were available, and it did not reauthenticate |
 
-For each live run append the date, exact public commit, client version, and
-pass/fail for each stage. Keep infrastructure coordinates and raw runtime
-output in the operator's private evidence store. This exercise is pre-alpha
+Login and the successful tool calls ran in separate Claude Code processes, so
+stored credentials worked before staff disconnected them.
+
+The independent client's save changed only the synthetic welcome line, advanced
+version 7 to 8, and returned `publicationChanged: false`. A separate public read
+confirmed that the saved draft was private. The staff app then published it and
+the public read matched. Staff disconnected the connection in Agents before the
+fresh independent-client check.
+
+Staff browser steps used isolated Chromium with a virtual WebAuthn authenticator
+and the real passkey, consent, publication, and disconnect UI. This verifies the
+browser/server flow; it is not a claim about a physical authenticator or a human
+usability study. Desktop draft-review screenshots were inspected. Bootstrap
+secrets were removed after owner setup.
+
+The reference runner directly observed the fresh-token revocation response and
+`invalid_grant` refresh denial. Claude Code's internal refresh exchange and a
+second stale-write attempt were not separately instrumented; the independent
+observation is its native connection, successful tool calls, private save, and
+loss of access after disconnect. Keep those evidence boundaries explicit.
+
+Infrastructure coordinates, synthetic browser credentials and raw client
+transcripts remain outside the repository. This is bounded pre-alpha
 interoperability evidence, not production, pilot, or recovery certification.
