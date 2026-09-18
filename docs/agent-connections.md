@@ -108,3 +108,10 @@ This resource operation is distinct from provider-only RFC 7009 token revocation
 Reconnecting the same client ID supersedes previous grants for the same local
 user and church, including connections from another device. Other clients are
 unaffected. See [ADR 0026](adr/0026-client-owned-agent-disconnect.md).
+
+## Verify a client
+
+Use the [interactive client proof](agent-client-proof.md) on a disposable
+instance. Reference SDK and independent external-client results are recorded
+separately; neither automated tests nor tool discovery alone proves the full
+workflow.
