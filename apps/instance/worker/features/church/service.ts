@@ -1,4 +1,7 @@
-import type { ChurchDraft } from '../../../contracts/church-settings'
+import {
+  churchDraftSchema,
+  type ChurchDraft,
+} from '../../../contracts/church-settings'
 import { AppError } from '../../lib/errors'
 import { readSettings } from './read'
 
@@ -25,7 +28,7 @@ export async function mutateChurch(
   db: D1Database,
   churchId: string,
   actor: ChurchActor,
-  action: 'save' | 'publish' | 'unpublish',
+  action: 'save' | 'publish' | 'unpublish' | 'restore',
   version: number,
   inputDraft?: ChurchDraft,
 ) {
@@ -42,7 +45,23 @@ export async function mutateChurch(
       'version_conflict',
       'Church settings changed. Reload the saved draft before trying again.',
     )
-  const draft = action === 'save' ? inputDraft! : settings.draft
+  let draft = action === 'save' ? inputDraft! : settings.draft
+  if (action === 'restore') {
+    // All snapshot writers bump churches.version; the conditional batch rejects intervening writes.
+    const previous = await db
+      .prepare(
+        'SELECT previous_draft_json FROM church_profiles WHERE church_id = ?',
+      )
+      .bind(churchId)
+      .first<{ previous_draft_json: string | null }>()
+    if (!previous?.previous_draft_json)
+      throw new AppError(
+        409,
+        'no_previous_draft',
+        'No previous draft is available.',
+      )
+    draft = churchDraftSchema.parse(JSON.parse(previous.previous_draft_json))
+  }
   if (action === 'publish' && !draft.summary)
     throw new AppError(
       422,
@@ -113,20 +132,38 @@ export async function mutateChurch(
         ...images.flatMap((id) => [churchId, id]),
       ),
   ]
-  if (action === 'save') {
+  if (action === 'save' || action === 'restore') {
     statements.push(
       db
         .prepare(
-          `UPDATE church_profiles SET draft_json = ?, updated_at = ? WHERE church_id = ? AND ${gate}`,
+          `UPDATE church_profiles SET draft_json = ?, previous_draft_json = CASE WHEN ? = 'agent' AND json_extract(draft_attribution_json, '$.kind') = 'agent' AND previous_draft_json IS NOT NULL THEN previous_draft_json ELSE ? END,
+          draft_attribution_json = json_object('kind', ?, 'name', COALESCE(
+            (SELECT client_name FROM agent_connections WHERE church_id = ? AND id = ? AND user_id = ?),
+            (SELECT NULLIF(trim(first_name || ' ' || last_name), '') FROM users WHERE id = ?), 'Church staff'), 'at', ?),
+          updated_at = ? WHERE church_id = ? AND ${gate}`,
         )
-        .bind(JSON.stringify(draft), now, churchId, churchId, operationId),
+        .bind(
+          JSON.stringify(draft),
+          actor.connectionId ? 'agent' : 'person',
+          JSON.stringify(settings.draft),
+          actor.connectionId ? 'agent' : 'person',
+          churchId,
+          actor.connectionId ?? null,
+          actor.userId,
+          actor.userId,
+          now,
+          now,
+          churchId,
+          churchId,
+          operationId,
+        ),
     )
   }
   if (action === 'publish') {
     statements.push(
       db
         .prepare(
-          `UPDATE church_profiles SET draft_json = NULL, tagline = ?, summary = ?, street = ?, city = ?, region = ?, postal_code = ?, country_code = ?, phone = ?, email = ?, website_url = ?, giving_url = ?, livestream_url = ?, theme_preset = ?, theme_accent = NULL, theme_surface = NULL, theme_ink = NULL, theme_hero_tone = NULL, theme_radius = NULL, theme_heading_font = NULL, theme_body_font = NULL, logo_media_id = ?, cover_media_id = ?, updated_at = ? WHERE church_id = ? AND ${gate}`,
+          `UPDATE church_profiles SET draft_json = NULL, draft_attribution_json = NULL, tagline = ?, summary = ?, street = ?, city = ?, region = ?, postal_code = ?, country_code = ?, phone = ?, email = ?, website_url = ?, giving_url = ?, livestream_url = ?, theme_preset = ?, theme_accent = NULL, theme_surface = NULL, theme_ink = NULL, theme_hero_tone = NULL, theme_radius = NULL, theme_heading_font = NULL, theme_body_font = NULL, logo_media_id = ?, cover_media_id = ?, updated_at = ? WHERE church_id = ? AND ${gate}`,
         )
         .bind(
           draft.tagline,
@@ -184,7 +221,7 @@ export async function mutateChurch(
           .bind(now, churchId, id, churchId, operationId),
       )
   }
-  const eventName = `church.${action === 'save' ? 'draft_saved' : action === 'publish' ? 'published' : 'unpublished'}`
+  const eventName = `church.${action === 'save' ? 'draft_saved' : action === 'restore' ? 'draft_restored' : action === 'publish' ? 'published' : 'unpublished'}`
   statements.push(
     db
       .prepare(

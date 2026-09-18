@@ -84,7 +84,7 @@ churchSettingsRoutes.get('/:churchId/images/:mediaId', async (c) => {
 const saveInput = z
   .object({ version: z.number().int().positive(), draft: churchDraftSchema })
   .strict()
-for (const action of ['save', 'publish', 'unpublish'] as const) {
+for (const action of ['save', 'publish', 'unpublish', 'restore'] as const) {
   churchSettingsRoutes.post(`/:churchId/${action}`, async (c) => {
     const churchId = c.req.param('churchId')
     const actor = await requirePermission(c, churchId, 'church.write')

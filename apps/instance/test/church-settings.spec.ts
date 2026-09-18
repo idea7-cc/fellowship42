@@ -11,6 +11,7 @@ import {
 } from '../worker/features/church/routes'
 import { mediaManagementRoutes, mediaRoutes } from '../worker/routes/media'
 import { churchRoutes } from '../worker/routes/churches'
+import { mutateChurch } from '../worker/features/church/service'
 import { bootstrapInstance } from '../worker/routes/bootstrap'
 
 const owner: AccessIdentity = {
@@ -303,4 +304,111 @@ describe('church settings and publication', () => {
       (await (await request(null, '/api/site')).json<ChurchSite>()).church.name,
     ).toBe('Fresh Church')
   })
+})
+
+it('restores a human draft replaced by an agent without changing publication or leaking review data', async () => {
+  const original = await settings()
+  const human = await (
+    await request(owner, `${base}/save`, {
+      version: original.version,
+      draft: { ...original.draft, tagline: 'Human draft' },
+    })
+  ).json<ChurchSettings>()
+  expect(human.review.changedBy).toMatchObject({
+    kind: 'person',
+    name: 'Demo Owner',
+  })
+  await env.DB.prepare(
+    `INSERT INTO agent_connections (id,church_id,user_id,client_id,client_name,scopes_json,created_at,expires_at)
+    VALUES ('restore-agent','church_demo','user_demo_owner','client','Writing assistant','["draft:read","draft:write"]',?,?)`,
+  )
+    .bind(Date.now(), Date.now() + 60_000)
+    .run()
+  const agent = {
+    userId: 'user_demo_owner',
+    connectionId: 'restore-agent',
+    clientId: 'client',
+    requestId: 'agent-review',
+  }
+  let saved = await mutateChurch(
+    env.DB,
+    'church_demo',
+    agent,
+    'save',
+    human.version,
+    { ...human.draft, tagline: 'Agent draft' },
+  )
+  saved = await mutateChurch(
+    env.DB,
+    'church_demo',
+    agent,
+    'save',
+    saved.version,
+    { ...saved.draft, tagline: 'Second agent draft' },
+  )
+  expect(saved.review.changedBy).toMatchObject({
+    kind: 'agent',
+    name: 'Writing assistant',
+  })
+  expect(saved.review.canRestore).toBe(true)
+  const liveBefore = await (await request(null, '/api/site')).text()
+  await expect(
+    mutateChurch(env.DB, 'church_demo', agent, 'restore', saved.version),
+  ).rejects.toMatchObject({ status: 403 })
+  const restoredResponse = await request(owner, `${base}/restore`, {
+    version: saved.version,
+  })
+  expect(restoredResponse.status).toBe(200)
+  const restored = await restoredResponse.json<ChurchSettings>()
+  expect(restored.draft.tagline).toBe('Human draft')
+  expect(restored.review.changedBy).toMatchObject({
+    kind: 'person',
+    name: 'Demo Owner',
+  })
+  expect(await (await request(null, '/api/site')).text()).toBe(liveBefore)
+  expect(liveBefore).not.toContain('Writing assistant')
+  expect(liveBefore).not.toContain('previous_draft')
+  expect(
+    await env.DB.prepare(
+      "SELECT COUNT(*) total FROM audit_events WHERE action='church.draft_restored'",
+    ).first(),
+  ).toMatchObject({ total: 1 })
+  const count = await evidence()
+  const outbox = await outboxEvidence()
+  expect(
+    (await request(owner, `${base}/restore`, { version: saved.version }))
+      .status,
+  ).toBe(409)
+  expect(
+    (await request(owner, `${base}/publish`, { version: saved.version }))
+      .status,
+  ).toBe(409)
+  expect(await evidence()).toBe(count)
+  expect(await outboxEvidence()).toBe(outbox)
+  expect((await settings()).draft).toEqual(restored.draft)
+})
+
+it('rejects restore without a snapshot or permission and never crosses church ownership', async () => {
+  await env.DB.prepare(
+    "UPDATE church_profiles SET previous_draft_json = NULL WHERE church_id = 'church_demo'",
+  ).run()
+  const current = await settings()
+  const count = await evidence()
+  expect(
+    (await request(owner, `${base}/restore`, { version: current.version }))
+      .status,
+  ).toBe(409)
+  for (const identity of [null, other])
+    expect([401, 403]).toContain(
+      (await request(identity, `${base}/restore`, { version: current.version }))
+        .status,
+    )
+  expect(
+    (
+      await request(owner, '/api/church-settings/other/restore', {
+        version: current.version,
+      })
+    ).status,
+  ).toBe(403)
+  expect(await evidence()).toBe(count)
 })

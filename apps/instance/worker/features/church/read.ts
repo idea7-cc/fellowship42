@@ -3,7 +3,10 @@ import type {
   ChurchSite,
   ChurchDraft,
 } from '../../../contracts/church-settings'
-import { churchDraftSchema } from '../../../contracts/church-settings'
+import {
+  churchDraftSchema,
+  draftAttributionSchema,
+} from '../../../contracts/church-settings'
 import { AppError } from '../../lib/errors'
 import {
   churchSelect,
@@ -45,32 +48,33 @@ export async function readSettings(
   churchId: string,
 ): Promise<ChurchSettings> {
   const { row, church } = await readChurch(db, churchId)
-  const draft: ChurchDraft = row.draft_json
+  const baseline = churchDraftSchema.parse({
+    name: row.name,
+    tagline: row.tagline,
+    summary: row.summary,
+    timezone: row.timezone,
+    street: row.street,
+    city: row.city,
+    region: row.region,
+    postalCode: row.postal_code,
+    countryCode: row.country_code,
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    websiteUrl: row.website_url ?? '',
+    givingUrl: row.giving_url ?? '',
+    livestreamUrl: row.livestream_url ?? '',
+    themePreset: row.theme_preset,
+    logoMediaId: row.logo_media_id,
+    coverMediaId: row.cover_media_id,
+    serviceTimes: church.serviceTimes.map(({ label, day, time }) => ({
+      label,
+      day,
+      time,
+    })),
+  })
+  const draft = row.draft_json
     ? churchDraftSchema.parse(JSON.parse(row.draft_json))
-    : churchDraftSchema.parse({
-        name: row.name,
-        tagline: row.tagline,
-        summary: row.summary,
-        timezone: row.timezone,
-        street: row.street,
-        city: row.city,
-        region: row.region,
-        postalCode: row.postal_code,
-        countryCode: row.country_code,
-        phone: row.phone ?? '',
-        email: row.email ?? '',
-        websiteUrl: row.website_url ?? '',
-        givingUrl: row.giving_url ?? '',
-        livestreamUrl: row.livestream_url ?? '',
-        themePreset: row.theme_preset,
-        logoMediaId: row.logo_media_id,
-        coverMediaId: row.cover_media_id,
-        serviceTimes: church.serviceTimes.map(({ label, day, time }) => ({
-          label,
-          day,
-          time,
-        })),
-      })
+    : baseline
   const content = await db
     .prepare(
       `SELECT (
@@ -84,6 +88,13 @@ export async function readSettings(
     .first<{ ready: number }>()
   return {
     draft,
+    review: {
+      baseline,
+      canRestore: row.previous_draft_json !== null,
+      changedBy: row.draft_attribution_json
+        ? draftAttributionSchema.parse(JSON.parse(row.draft_attribution_json))
+        : null,
+    },
     version: row.version,
     published: row.status === 'published',
     hasDraft: row.draft_json !== null,

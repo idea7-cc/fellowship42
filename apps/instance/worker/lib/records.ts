@@ -18,6 +18,8 @@ import type {
 export interface ChurchRow {
   version: number
   draft_json: string | null
+  previous_draft_json: string | null
+  draft_attribution_json: string | null
   id: string
   slug: string
   name: string
@@ -56,7 +58,7 @@ export interface ServiceTimeRow {
 
 export const churchSelect = `
   SELECT
-    c.id, c.slug, c.name, c.status, c.timezone, c.version, p.draft_json,
+    c.id, c.slug, c.name, c.status, c.timezone, c.version, p.draft_json, p.previous_draft_json, p.draft_attribution_json,
     p.tagline, p.summary, p.street, p.city, p.region, p.postal_code,
     p.country_code, p.phone, p.email, p.website_url, p.giving_url,
     p.livestream_url, p.logo_media_id, p.cover_media_id, p.theme_preset, p.theme_accent, p.theme_surface,
