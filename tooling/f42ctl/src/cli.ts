@@ -2,6 +2,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { deploymentManifestSchema } from '@fellowship42/management-protocol'
+import { agentOperatorCommand } from './agent-operator.js'
 import { doctorFromFiles } from './doctor.js'
 import { buildDeployPlan } from './plan.js'
 import {
@@ -19,7 +20,7 @@ import {
 
 function usage(): never {
   throw new Error(
-    'Usage: f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>] | f42ctl build-exit-packet --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--packet-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-exit-packet --packet <file> --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--evidence-id <uuid>] [--verified-at <iso-date>] [--output <file>]',
+    'Usage: f42ctl agents-doctor|agents-reset (see docs/agent-operator.md) | f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>] | f42ctl build-exit-packet --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--packet-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-exit-packet --packet <file> --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--evidence-id <uuid>] [--verified-at <iso-date>] [--output <file>]',
   )
 }
 
@@ -49,6 +50,8 @@ async function emit(value: unknown, output?: string) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2)
   if (!command) usage()
+  if (command === 'agents-doctor' || command === 'agents-reset')
+    return agentOperatorCommand(command, rest)
   const allowed =
     command === 'plan'
       ? new Set(['--manifest', '--output'])

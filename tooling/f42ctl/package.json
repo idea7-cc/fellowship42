@@ -45,14 +45,15 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "jsonc-parser": "^3.3.1"
+    "jsonc-parser": "^3.3.1",
+    "wrangler": "^4.133.0"
   },
   "peerDependencies": {
     "@fellowship42/management-protocol": "workspace:*"
   },
   "devDependencies": {
     "@fellowship42/management-protocol": "workspace:*",
-    "@types/node": "^22.20.3",
+    "@types/node": "^26.0.0",
     "typescript": "~6.0.3",
     "vitest": "~4.1.11"
   },
