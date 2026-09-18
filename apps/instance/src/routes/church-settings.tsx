@@ -32,6 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tab, Tabs } from '@/components/ui/tabs'
 import { ChurchImagePicker } from '@/components/church-image-picker'
 import { days } from '@/components/church-site'
+import { DraftReview } from '@/components/draft-review'
 
 export function ChurchSettingsPage() {
   const { churchId } = useChurch()
@@ -98,6 +99,16 @@ export function ChurchSettingsEditor({
     }
   }, [])
   useEffect(() => {
+    if (!busy && initial.version > saved.version) {
+      setConflict(true)
+      setError(
+        dirty
+          ? 'A newer draft is available. Your edits are still here.'
+          : 'Draft updated. Reload to review.',
+      )
+    }
+  }, [initial.version, saved.version, busy, dirty])
+  useEffect(() => {
     if (!dirty) return
     const leave = (event: BeforeUnloadEvent) => {
       event.preventDefault()
@@ -127,8 +138,15 @@ export function ChurchSettingsEditor({
     setDraft((previous) => ({ ...previous, [key]: value }))
     setNotice('')
   }
-  async function mutate(action: 'save' | 'publish' | 'unpublish') {
+  async function mutate(action: 'save' | 'publish' | 'unpublish' | 'restore') {
     if (busy || conflict) return
+    if (
+      action === 'restore' &&
+      !window.confirm(
+        'Restore the previous saved draft? The live website will stay unchanged.',
+      )
+    )
+      return
     if (
       action === 'publish' &&
       !window.confirm('Publish this page and its selected images?')
@@ -155,12 +173,15 @@ export function ChurchSettingsEditor({
       if (!active.current) return
       setSaved(next)
       setDraft(next.draft)
+      setConflict(false)
       setNotice(
         action === 'save'
           ? 'Draft saved'
-          : action === 'publish'
-            ? 'Website published'
-            : 'Website unpublished',
+          : action === 'restore'
+            ? 'Previous draft restored'
+            : action === 'publish'
+              ? 'Website published'
+              : 'Website unpublished',
       )
       window.dispatchEvent(new CustomEvent('f42:invalidate'))
     } catch (reason) {
@@ -176,7 +197,10 @@ export function ChurchSettingsEditor({
     }
   }
   async function reload() {
-    if (!window.confirm('Replace your changes with the latest saved draft?'))
+    if (
+      dirty &&
+      !window.confirm('Replace your changes with the latest saved draft?')
+    )
       return
     setBusy('reload')
     try {
@@ -277,6 +301,12 @@ export function ChurchSettingsEditor({
             )}
           </>
         }
+      />
+      <DraftReview
+        churchId={churchId}
+        settings={saved}
+        disabled={busy !== null || dirty || conflict}
+        restore={() => void mutate('restore')}
       />
       {!saved.published && (
         <div

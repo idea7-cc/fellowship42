@@ -1,6 +1,9 @@
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import { churchDraftSchema } from '../../../contracts/church-settings'
+import {
+  churchDraftSchema,
+  type ChurchSettings,
+} from '../../../contracts/church-settings'
 import type { AgentScope } from '../../../contracts/agents'
 import { flushOutbox } from '../../lib/outbox'
 import { AppError } from '../../lib/errors'
@@ -13,6 +16,17 @@ const readAnnotations = {
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: false,
+}
+
+// Agent scopes cover draft content, not staff attribution or recovery snapshots.
+function agentSettings(settings: ChurchSettings) {
+  return {
+    draft: settings.draft,
+    version: settings.version,
+    published: settings.published,
+    hasDraft: settings.hasDraft,
+    readiness: settings.readiness,
+  }
 }
 
 export function createChurchMcpServer(
@@ -96,7 +110,10 @@ export function createChurchMcpServer(
         inputSchema: z.object({}).strict(),
         annotations: readAnnotations,
       },
-      () => run('draft:read', () => readSettings(env.DB, props.churchId)),
+      () =>
+        run('draft:read', async () =>
+          agentSettings(await readSettings(env.DB, props.churchId)),
+        ),
     )
   if (props.scopes.includes('draft:write'))
     server.registerTool(
@@ -153,7 +170,7 @@ export function createChurchMcpServer(
             }),
           )
           return {
-            settings,
+            settings: agentSettings(settings),
             previewUrl: `${env.MCP_ORIGIN}/app/preview`,
             reviewUrl: `${env.MCP_ORIGIN}/app/settings`,
             publicationChanged: false,
