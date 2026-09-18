@@ -96,3 +96,10 @@ SET revoked_at = COALESCE(revoked_at, unixepoch() * 1000),
 Set the destination's canonical origin and reconnect agents with fresh consent.
 This is credential rotation, not a dependency on the previous operator. See
 [ADR 0023](adr/0023-church-owned-agent-connections.md).
+
+## Verify a client
+
+Use the [interactive client proof](agent-client-proof.md) on a disposable
+instance. Reference SDK and independent external-client results are recorded
+separately; neither automated tests nor tool discovery alone proves the full
+workflow.

@@ -16,7 +16,8 @@
     "db:seed": "wrangler d1 execute fellowship42 --local --file seed.sql --config wrangler.jsonc",
     "deploy:dry-run": "pnpm build && wrangler deploy --dry-run --config wrangler.jsonc",
     "deploy": "pnpm build && wrangler deploy --config wrangler.jsonc",
-    "test:ui": "vitest run --config vitest.ui.config.ts"
+    "test:ui": "vitest run --config vitest.ui.config.ts",
+    "agent:proof": "node scripts/agent-proof.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "0.10.3",
