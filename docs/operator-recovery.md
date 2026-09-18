@@ -106,3 +106,11 @@ If the instance began as a hosted service, request and independently verify its
 [exit packet](exit-packets.md). A compatible operator can perform this recovery
 with the Apache-2.0 public tools; Fellowship42 Cloud is optional convenience,
 not recovery authority.
+
+## Agent credentials after restore or transfer
+
+For instances using church-owned MCP, treat `OAUTH_KV` as disposable credentials.
+Use a fresh destination namespace, revoke restored local connections, discard
+pending consent requests, and reconnect with fresh consent. Never copy the old
+OAuth credential namespace. The exact D1 cleanup and origin setup are in
+[agent connections](agent-connections.md#restore-or-transfer).

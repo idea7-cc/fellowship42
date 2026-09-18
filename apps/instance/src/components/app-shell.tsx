@@ -13,6 +13,7 @@ import {
   Moon,
   ShieldCheck,
   Settings,
+  Bot,
   Sun,
   UserCog,
   Users,
@@ -57,6 +58,12 @@ const nav: NavItem[] = [
   { label: 'Events', path: '/app/events', icon: CalendarDays },
   { label: 'Sermons', path: '/app/sermons', icon: Mic },
   { label: 'Media', path: '/app/media', icon: Image },
+  {
+    label: 'Agents',
+    path: '/app/agents',
+    icon: Bot,
+    permission: 'church.write',
+  },
   {
     label: 'Settings',
     path: '/app/settings',

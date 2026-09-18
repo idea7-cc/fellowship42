@@ -866,3 +866,31 @@ CREATE TABLE management_support_sessions (
 
 CREATE INDEX idx_management_support_sessions_current
   ON management_support_sessions(instance_id, state, requested_at DESC);
+
+-- Local consent is authoritative even while OAuth credential KV replicas lag.
+CREATE TABLE agent_connections (
+  id TEXT PRIMARY KEY,
+  church_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_name TEXT NOT NULL,
+  scopes_json TEXT NOT NULL CHECK (json_valid(scopes_json)),
+  provider_grant_id TEXT,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER,
+  FOREIGN KEY (church_id, user_id) REFERENCES church_memberships(church_id, user_id) ON DELETE CASCADE,
+  UNIQUE (church_id, id)
+);
+CREATE INDEX idx_agent_connections_user ON agent_connections(church_id, user_id, created_at);
+
+CREATE TABLE agent_consent_requests (
+  id TEXT PRIMARY KEY,
+  church_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  request_url TEXT NOT NULL,
+  client_name TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  FOREIGN KEY (church_id, user_id) REFERENCES church_memberships(church_id, user_id) ON DELETE CASCADE
+);
+CREATE INDEX idx_agent_consent_expiry ON agent_consent_requests(expires_at);

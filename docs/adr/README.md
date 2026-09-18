@@ -28,5 +28,7 @@ directory names alone.
 
 - [0022 — Public church site and private drafts](0022-public-church-site-and-private-drafts.md)
 
+- [0023 — Church-owned agent connections](0023-church-owned-agent-connections.md)
+
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.

@@ -29,6 +29,7 @@ export default defineConfig({
               path.join(directory, 'migrations'),
             ),
             TEST_SEED_STATEMENTS: seedStatements,
+            MCP_ORIGIN: 'https://example.test',
             PAYMENT_WEBHOOK_PROVIDER: 'testpay',
             PAYMENT_WEBHOOK_SECRET: 'test-webhook-secret-at-least-32-bytes',
             MANAGEMENT_KEY_ENCRYPTION_KEY:
