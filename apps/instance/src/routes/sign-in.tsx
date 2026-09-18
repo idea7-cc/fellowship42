@@ -26,21 +26,28 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
   const [error, setError] = useState<string | null>(null)
   const active = useRef(true)
   useEffect(() => {
-    // Enrollment capabilities never remain in the visible URL or browser history.
-    if (window.location.hash)
-      window.history.replaceState(
-        null,
-        '',
-        window.location.pathname + window.location.search,
-      )
-  }, [navigation])
-  useEffect(() => {
+    const stripFragment = () => {
+      if (window.location.hash)
+        window.history.replaceState(
+          window.history.state,
+          '',
+          window.location.pathname + window.location.search,
+        )
+    }
+    stripFragment()
+    // Repeated native fragment navigation can be memoized by React Router.
+    // Its history listener reads the new location before these passive handlers.
+    window.addEventListener('popstate', stripFragment)
+    window.addEventListener('hashchange', stripFragment)
     active.current = true
     return () => {
+      window.removeEventListener('popstate', stripFragment)
+      window.removeEventListener('hashchange', stripFragment)
       active.current = false
       WebAuthnAbortService.cancelCeremony()
     }
   }, [])
+
   function destination() {
     const value =
       new URLSearchParams(window.location.search).get('returnTo') ?? '/app'
