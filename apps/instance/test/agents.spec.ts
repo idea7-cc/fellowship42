@@ -260,6 +260,13 @@ describe('church-owned agent connections', () => {
     expect(server.headers.get('cache-control')).toBe('private, no-store')
   })
 
+  it('keeps reusable client metadata beyond the lifetime of individual grants', async () => {
+    const { clientId } = await authorization()
+    const records = await env.OAUTH_KV.list({ prefix: `client:${clientId}` })
+    expect(records.keys).toHaveLength(1)
+    expect(records.keys[0].expiration).toBeUndefined()
+  })
+
   it('authorizes a client ID metadata document without dynamic registration', async () => {
     const { params } = await authorization('church:read')
     const clientId = 'https://metadata-agent.example.test/client.json'

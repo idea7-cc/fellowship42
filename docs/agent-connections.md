@@ -69,6 +69,10 @@ new Client({ name: 'church-agent', version: '1.0.0' }, {
 })
 ```
 
+Dynamically registered client metadata remains until the credential namespace is
+reset, so a reused client registration cannot expire underneath a new grant.
+This does not extend token or local connection lifetimes.
+
 CIMD and library-managed dynamic registration are supported; S256 PKCE is
 required. Tokens are bound to this instance's exact resource. Native/server
 clients may omit `Origin`; browser requests are restricted to the configured

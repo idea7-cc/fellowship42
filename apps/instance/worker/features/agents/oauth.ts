@@ -59,7 +59,9 @@ function providerOptions(
     // registration rather than publishing a metadata document.
     clientRegistrationEndpoint: `${origin}/oauth/register`,
     clientIdMetadataDocumentEnabled: true,
-    clientRegistrationTTL: 24 * 60 * 60,
+    // Client metadata must survive renewed grants; grants and tokens expire
+    // independently. Reset this disposable registry when restoring an instance.
+    clientRegistrationTTL: undefined,
     accessTokenTTL: 15 * 60,
     refreshTokenTTL: 30 * 24 * 60 * 60,
     allowPlainPKCE: false,
