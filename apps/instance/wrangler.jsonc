@@ -18,6 +18,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "ratelimits": [{ "name": "AUTH_RATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }],
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
   "r2_buckets": [
     {
@@ -62,6 +63,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "MCP_ORIGIN": "",
+    "SIGN_IN_ORIGIN": "",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     "PAYMENT_WEBHOOK_PROVIDER": "",

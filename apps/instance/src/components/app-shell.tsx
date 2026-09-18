@@ -6,7 +6,6 @@ import {
   HandCoins,
   Image,
   LayoutDashboard,
-  LogOut,
   Menu,
   Mic,
   Monitor,
@@ -23,7 +22,7 @@ import {
 } from 'lucide-react'
 
 import { useApiQuery, useChurchRealtime } from '@/lib/api'
-import { useAuthState, SignInButton } from '@/lib/auth-provider'
+import { useAuthState, SignInButton, SignOutButton } from '@/lib/auth-provider'
 import { useThemeMode, type ThemeMode } from '@/lib/theme-mode'
 import type { Church as ChurchRecord } from '@/lib/api-types'
 import { cn } from '@/lib/cn'
@@ -346,16 +345,7 @@ function SidebarFooter() {
             <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-medium">
               {user.firstName} {user.lastName}
             </span>
-            <Button
-              aria-label="Sign out"
-              asChild
-              size="icon-xs"
-              variant="ghost"
-            >
-              <a href="/cdn-cgi/access/logout">
-                <LogOut />
-              </a>
-            </Button>
+            <SignOutButton iconOnly />
           </>
         ) : (
           <SignInButton className="w-full" />

@@ -12,7 +12,7 @@ the API described here. Nothing else creates a membership.
 
 - `team.manage` lists the team and invites, changes, suspends, and removes
   members. The system owner role holds `*`, so owners always have it.
-- Every route resolves the signed-in Access identity to an active church
+- Every route resolves the signed-in local or Access identity to an active church
   membership and checks the permission in D1. Browser state only decides which
   controls to show.
 - Roles are the four system roles created at bootstrap (`owner`, `finance`,
@@ -21,19 +21,16 @@ the API described here. Nothing else creates a membership.
 
 ## Sign-in is separate from membership
 
-Cloudflare Access decides who may reach the instance at all. An invitation only
-tells the instance which roles that email receives once Access lets the person
-through. Both are required:
+An invitation assigns local church roles. With instance-owned passkeys, an owner
+then creates a private enrollment link using the invited row's link icon. The
+recipient creates a passkey and claims the invited account. Links are single-use
+and expire in 24 hours; no email is sent. See [staff sign-in](staff-sign-in.md).
 
-1. Add the person to the Access policy for the instance application.
-2. Invite the same email from **Team** and choose roles.
-
-The order does not matter. A person who signs in before being invited receives
-a sign-in account with no membership; inviting that email later links the
-existing account. A person invited first waits as `invited` until their first
-verified sign-in claims the account.
-
-The instance sends no email. Tell the person to sign in.
+With optional Access, allow the same email in its policy. A person who signed in
+through Access before being invited already has a local account; the invitation
+links its membership. Existing active identities cannot be replaced by a public
+enrollment link. Creating a credential requires an owner, even when another
+team manager may assign roles.
 
 ## API behavior
 

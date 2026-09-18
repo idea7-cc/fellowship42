@@ -1,3 +1,9 @@
+import { signInRoutes } from './features/sign-in/routes'
+import {
+  resolveLocalIdentity,
+  cleanSignInState,
+  signInOrigin,
+} from './features/sign-in/session'
 import { agentRoutes } from './features/agents/routes'
 import { agentFetch } from './features/agents/oauth'
 import { Hono } from 'hono'
@@ -44,9 +50,17 @@ type AppEnv = {
 
 const app = new Hono<AppEnv>()
 
-app.use('*', secureHeaders())
+const secureHttpHeaders = secureHeaders()
+const isWebSocket = (request: Request) =>
+  request.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
+  /^\/api\/churches\/[^/]+\/live$/.test(new URL(request.url).pathname)
+// Upgrade responses carry an immutable WebSocket handshake. HTTP header
+// middleware must not reconstruct or mutate it; authorization still runs.
+app.use('*', (c, next) =>
+  isWebSocket(c.req.raw) ? next() : secureHttpHeaders(c, next),
+)
 app.use('/api/*', async (c, next) => {
-  c.header('Cache-Control', 'private, no-store')
+  if (!isWebSocket(c.req.raw)) c.header('Cache-Control', 'private, no-store')
   await next()
 })
 const jsonBodyLimit = bodyLimit({ maxSize: 64 * 1024 })
@@ -62,8 +76,20 @@ app.use('*', async (c, next) => {
   const requestId = c.req.header('cf-ray') ?? crypto.randomUUID()
   const startedAt = Date.now()
   c.set('requestId', requestId)
-  c.header('X-Request-Id', requestId)
-  c.set('identity', await resolveAccessIdentity(c.req.raw, c.env))
+  if (!isWebSocket(c.req.raw)) c.header('X-Request-Id', requestId)
+  const identity =
+    (await resolveLocalIdentity(c.req.raw, c.env)) ??
+    (await resolveAccessIdentity(c.req.raw, c.env))
+  c.set('identity', identity)
+  if (
+    identity?.provider === 'passkey' &&
+    c.req.path.startsWith('/api/') &&
+    (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) ||
+      c.req.header('Upgrade')?.toLowerCase() === 'websocket') &&
+    c.req.header('Origin') !== signInOrigin(c.env).origin
+  ) {
+    throw new AppError(403, 'wrong_origin', 'Reload this page and try again.')
+  }
 
   await next()
 
@@ -137,6 +163,7 @@ app.get('/api/health', async (c) => {
 app.get('/oauth/authorize', (c) =>
   c.redirect(`/app/agents/authorize${new URL(c.req.url).search}`),
 )
+app.route('/api/auth', signInRoutes)
 app.route('/api/agents', agentRoutes)
 app.route('/api/site', siteRoutes)
 app.route('/api/church-settings', churchSettingsRoutes)
@@ -177,6 +204,13 @@ const worker = {
       }),
     )
     ctx.waitUntil(runScheduledManagementSync(env))
+    ctx.waitUntil(
+      cleanSignInState(env.DB).catch(() => {
+        console.error(
+          JSON.stringify({ level: 'error', message: 'auth.cleanup_failed' }),
+        )
+      }),
+    )
   },
 } satisfies ExportedHandler<Env, OutboxQueueMessage>
 

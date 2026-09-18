@@ -6,7 +6,7 @@ Reviewed: 2026-09-16. This describes the working source, not a new release.
 |---|---|---|
 | Staff workflows | Directory, households, groups/rosters, courses/enrollments, sessions/attendance, church settings and website publishing, contributions, media, team invitations and roles | Church pilot feedback, wider browser workflow coverage |
 | Participation reliability | Atomic capacity admission, record-specific edit versions, guarded audit/outbox mutations | Live multi-user observation |
-| Authentication | Cloudflare Access staff identity, application roles, owner bootstrap, owner-managed team memberships with last-owner protection, normalized invalid-assertion responses | Instance-owned member identity and account claiming; ADR 0020 remains proposed |
+| Authentication | Instance-owned staff passkeys and revocable sessions, optional Cloudflare Access, application roles, owner bootstrap, owner-managed team memberships with last-owner protection, normalized invalid-assertion responses | Instance-owned member identity and account claiming; ADR 0020 remains proposed |
 | Optional management | Enrollment, signed sync, grants, rotation, disconnect, owner-approved updates and diagnostic support | Independent security review and live operator exercises |
 | Portability | Public export/import primitives, verification, rehearsal, exit packet contracts | Dedicated-account restore/exit evidence |
 | Maintenance | Shared verification gate, formatting/linting, resolved import boundaries, DOM race tests | Continue feature extraction as code changes |
