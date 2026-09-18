@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Fingerprint, KeyRound } from 'lucide-react'
 import {
+  WebAuthnAbortService,
   startAuthentication,
   startRegistration,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -33,6 +34,7 @@ export function SignInPage() {
       )
     return () => {
       active.current = false
+      WebAuthnAbortService.cancelCeremony()
     }
   }, [])
   function destination() {

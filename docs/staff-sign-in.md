@@ -52,8 +52,9 @@ valid for ten minutes. Share it privately and delete the file afterward. A
 failure can leave credentials revoked; inspect the exact target before retrying.
 The script never prints the link, provider output, or SQL containing identifiers.
 
-Before activating a restored database, delete `local_auth_sessions`,
-`local_auth_challenges`, and `local_auth_enrollments` rows. Keep passkeys and
+Only after confirming `instance_metadata` identifies the restored church, delete `local_auth_sessions`,
+`local_auth_challenges`, and `local_auth_enrollments` rows. During initial setup,
+retain the consumed `bootstrap` enrollment marker to prevent reuse of its key. Keep passkeys and
 identities only when retaining the church domain. Reset agent OAuth credentials
 separately using the agent-connection recovery procedure. A changed hostname
 requires new passkeys and owner recovery. Cloud cannot recover authenticator

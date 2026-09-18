@@ -69,7 +69,7 @@ directly from an external primitive library.
 | Icons | Lucide React | Tree-shakeable |
 | Variants | `class-variance-authority` | Button, Card, Badge, Avatar |
 | Routing | React Router v7 | Client-side SPA routing |
-| Auth | Cloudflare Access | Verified Access JWT with D1 user and membership linking |
+| Auth | Instance-owned passkeys; optional Access | D1 sessions, identities and current membership permissions |
 
 **No webfont is loaded.** An instance must render identically offline and must
 not call a font CDN on every page view. `--font-sans` prefers Inter when the OS

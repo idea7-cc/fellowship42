@@ -64,7 +64,12 @@ export async function resolveLocalIdentity(
   env: SignInEnv,
 ): Promise<AccessIdentity | null> {
   if (!env.SIGN_IN_ORIGIN) return null
-  const origin = signInOrigin(env)
+  let origin: URL
+  try {
+    origin = signInOrigin(env)
+  } catch {
+    return null
+  }
   if (new URL(request.url).origin !== origin.origin) return null
   const session = readCookie(request, cookieName(origin, 'session'))
   if (!session || !/^[A-Za-z0-9_-]{43}$/.test(session)) return null

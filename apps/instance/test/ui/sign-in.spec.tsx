@@ -5,6 +5,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { SignInPage } from '../../src/routes/sign-in'
 import { EnrollmentLink } from '../../src/components/enrollment-link'
 vi.mock('@simplewebauthn/browser', () => ({
+  WebAuthnAbortService: { cancelCeremony: vi.fn() },
   startAuthentication: vi.fn(),
   startRegistration: vi.fn(),
 }))

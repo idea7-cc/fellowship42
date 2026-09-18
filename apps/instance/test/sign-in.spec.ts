@@ -100,6 +100,9 @@ beforeEach(async () => {
       "INSERT OR IGNORE INTO instance_metadata (singleton,instance_id,topology,primary_church_id,created_at,updated_at) VALUES (1,'instance_42424242-1234-5678-9abc-123456789abc','single-church','church_demo',1,1)",
     ),
     env.DB.prepare(
+      "UPDATE instance_metadata SET primary_church_id='church_demo' WHERE singleton=1",
+    ),
+    env.DB.prepare(
       "INSERT INTO users (id,email,status,created_at,updated_at) VALUES (?,?,'invited',1,1)",
     ).bind(userId, email),
     env.DB.prepare(
@@ -469,4 +472,69 @@ it('requires a setup secret before first-owner enrollment and consumes it once',
     cookies(enrolled.response),
   )
   expect(setup.status).toBe(201)
+})
+
+it('accepts a bounded operator recovery grant only for a current owner', async () => {
+  const value = token()
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM auth_identities WHERE user_id='user_demo_owner'",
+    ),
+    env.DB.prepare(
+      "UPDATE users SET status='invited' WHERE id='user_demo_owner'",
+    ),
+    env.DB.prepare(
+      "INSERT INTO local_auth_enrollments(id,kind,token_hash,user_id,church_id,expires_at) VALUES ('recovery','operator',?,'user_demo_owner','church_demo',?)",
+    ).bind(await digest(value), Date.now() + 60_000),
+  ])
+  const result = await enroll(value)
+  expect(result.response.status).toBe(200)
+  const session = (await (
+    await request('/api/session', undefined, cookies(result.response))
+  ).json()) as {
+    user: { id: string; memberships: Array<{ permissions: string[] }> }
+  }
+  expect(session.user.id).toBe('user_demo_owner')
+  expect(
+    session.user.memberships.some((m) => m.permissions.includes('*')),
+  ).toBe(true)
+  // Infrastructure recovery must not silently promote ordinary staff.
+  const other = token()
+  await env.DB.prepare(
+    "INSERT INTO local_auth_enrollments(id,kind,token_hash,user_id,church_id,expires_at) VALUES ('not-owner','operator',?,?,'church_demo',?)",
+  )
+    .bind(await digest(other), userId, Date.now() + 60_000)
+    .run()
+  expect(
+    (await request('/api/auth/enroll/start', { token: other })).status,
+  ).toBe(400)
+})
+
+it('rejects an old registration response after its enrollment link is replaced', async () => {
+  const value = await invite()
+  const start = await request('/api/auth/enroll/start', { token: value })
+  const options = (await start.json()) as PublicKeyCredentialCreationOptionsJSON
+  const device = await authenticator()
+  await invite()
+  expect(
+    (
+      await request(
+        '/api/auth/enroll/finish',
+        await device.register(options),
+        cookies(start),
+      )
+    ).status,
+  ).toBe(400)
+  expect(
+    await env.DB.prepare('SELECT 1 FROM local_auth_passkeys WHERE user_id=?')
+      .bind(userId)
+      .first(),
+  ).toBeNull()
+  expect(
+    await env.DB.prepare(
+      "SELECT 1 FROM audit_events WHERE action='auth.passkey_enrolled' AND entity_id=?",
+    )
+      .bind(userId)
+      .first(),
+  ).toBeNull()
 })

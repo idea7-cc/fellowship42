@@ -130,6 +130,7 @@ CREATE TABLE local_auth_challenges (
   challenge TEXT NOT NULL,
   kind TEXT NOT NULL CHECK(kind IN ('register','authenticate')),
   enrollment_id TEXT,
+  enrollment_hash TEXT,
   user_id TEXT,
   expires_at INTEGER NOT NULL
 );

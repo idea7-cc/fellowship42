@@ -78,17 +78,19 @@ async function makeChallenge(
   kind: 'register' | 'authenticate',
   enrollmentId: string | null = null,
   userId: string | null = null,
+  enrollmentHash: string | null = null,
 ) {
   const value = token()
   await db
     .prepare(
-      'INSERT INTO local_auth_challenges (token_hash,challenge,kind,enrollment_id,user_id,expires_at) VALUES (?,?,?,?,?,?)',
+      'INSERT INTO local_auth_challenges (token_hash,challenge,kind,enrollment_id,enrollment_hash,user_id,expires_at) VALUES (?,?,?,?,?,?,?)',
     )
     .bind(
       await digest(value),
       challenge,
       kind,
       enrollmentId,
+      enrollmentHash,
       userId,
       Date.now() + CHALLENGE_SECONDS * 1000,
     )
@@ -106,12 +108,13 @@ async function consumeChallenge(
   // Burn before verification, including failed attempts. A replay can never mint a session.
   const row = await db
     .prepare(
-      'DELETE FROM local_auth_challenges WHERE token_hash=? AND kind=? AND expires_at>? RETURNING challenge,enrollment_id,user_id',
+      'DELETE FROM local_auth_challenges WHERE token_hash=? AND kind=? AND expires_at>? RETURNING challenge,enrollment_id,enrollment_hash,user_id',
     )
     .bind(await digest(value), kind, Date.now())
     .first<{
       challenge: string
       enrollment_id: string | null
+      enrollment_hash: string | null
       user_id: string | null
     }>()
   if (!row) throw invalid()
@@ -171,6 +174,7 @@ signInRoutes.post('/enroll/start', async (c) => {
     'register',
     grant.id,
     grant.user_id,
+    hash,
   )
   c.header(
     'Set-Cookie',
@@ -187,7 +191,12 @@ signInRoutes.post('/enroll/finish', async (c) => {
     origin,
     'register',
   )
-  if (!challenge.enrollment_id || !challenge.user_id) throw invalid()
+  if (
+    !challenge.enrollment_id ||
+    !challenge.user_id ||
+    !challenge.enrollment_hash
+  )
+    throw invalid()
   let verification
   try {
     verification = await verifyRegistrationResponse({
@@ -210,8 +219,14 @@ signInRoutes.post('/enroll/finish', async (c) => {
     'EXISTS (SELECT 1 FROM local_auth_enrollments WHERE id=? AND consumed_by=?)'
   const result = await c.env.DB.batch([
     c.env.DB.prepare(
-      `UPDATE local_auth_enrollments SET consumed_by=? WHERE id=? AND user_id=? AND expires_at>? AND consumed_by IS NULL AND ${enrollmentEligibility}`,
-    ).bind(operation, challenge.enrollment_id, challenge.user_id, now),
+      `UPDATE local_auth_enrollments SET consumed_by=? WHERE id=? AND user_id=? AND token_hash=? AND expires_at>? AND consumed_by IS NULL AND ${enrollmentEligibility}`,
+    ).bind(
+      operation,
+      challenge.enrollment_id,
+      challenge.user_id,
+      challenge.enrollment_hash,
+      now,
+    ),
     c.env.DB.prepare(
       `INSERT INTO local_auth_passkeys (id,user_id,public_key,counter,created_at) SELECT ?,?,?,?,? WHERE ${gate}`,
     ).bind(
@@ -370,7 +385,7 @@ signInRoutes.post('/invitations/:churchId/:membershipId', async (c) => {
     now = Date.now()
   const result = await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO local_auth_enrollments (id,token_hash,user_id,church_id,issuer_user_id,expires_at) SELECT ?,?,u.id,cm.church_id,?,? FROM users u JOIN church_memberships cm ON cm.user_id=u.id JOIN instance_metadata im ON im.primary_church_id=cm.church_id WHERE cm.church_id=? AND cm.id=? AND cm.version=? AND cm.status='active' AND u.status='invited' AND NOT EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id) AND EXISTS (SELECT 1 FROM users iu JOIN church_memberships icm ON icm.user_id=iu.id JOIN membership_roles mr ON mr.church_id=icm.church_id AND mr.membership_id=icm.id JOIN role_permissions rp ON rp.role_id=mr.role_id WHERE iu.id=? AND iu.status='active' AND icm.church_id=cm.church_id AND icm.status='active' AND rp.permission='*') ON CONFLICT(user_id) DO UPDATE SET id=excluded.id,token_hash=excluded.token_hash,church_id=excluded.church_id,issuer_user_id=excluded.issuer_user_id,expires_at=excluded.expires_at,consumed_by=NULL`,
+      `INSERT INTO local_auth_enrollments (id,token_hash,user_id,church_id,issuer_user_id,expires_at) SELECT ?,?,u.id,cm.church_id,?,? FROM users u JOIN church_memberships cm ON cm.user_id=u.id JOIN instance_metadata im ON im.primary_church_id=cm.church_id WHERE cm.church_id=? AND cm.id=? AND cm.version=? AND cm.status='active' AND u.status='invited' AND NOT EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id=u.id) AND EXISTS (SELECT 1 FROM users iu JOIN church_memberships icm ON icm.user_id=iu.id JOIN membership_roles mr ON mr.church_id=icm.church_id AND mr.membership_id=icm.id JOIN role_permissions rp ON rp.role_id=mr.role_id WHERE iu.id=? AND iu.status='active' AND icm.church_id=cm.church_id AND icm.status='active' AND rp.permission='*') ON CONFLICT(user_id) DO UPDATE SET kind='invite',id=excluded.id,token_hash=excluded.token_hash,church_id=excluded.church_id,issuer_user_id=excluded.issuer_user_id,expires_at=excluded.expires_at,consumed_by=NULL`,
     ).bind(
       id,
       hash,

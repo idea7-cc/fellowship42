@@ -92,20 +92,29 @@ SELECT count(*) AS recovery_count FROM local_auth_enrollments WHERE id='${id}';
     .join('\n')
   const file = join(directory, 'recovery.sql')
   writeFileSync(file, guardedSql, { mode: 0o600 })
+  const targetArgs = [
+    'exec',
+    'wrangler',
+    'd1',
+    'execute',
+    value('--database'),
+    '--config',
+    resolve(value('--config')),
+    flags.has('--remote') ? '--remote' : '--local',
+  ]
+  // Remote --file returns import statistics, not SELECT rows. Verify separately
+  // with --command, whose read result shape is shared by both execution modes.
+  execFileSync('pnpm', [...targetArgs, '--file', file, '--json'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   const result = JSON.parse(
     execFileSync(
       'pnpm',
       [
-        'exec',
-        'wrangler',
-        'd1',
-        'execute',
-        value('--database'),
-        '--config',
-        resolve(value('--config')),
-        flags.has('--remote') ? '--remote' : '--local',
-        '--file',
-        file,
+        ...targetArgs,
+        '--command',
+        `SELECT count(*) AS recovery_count FROM local_auth_enrollments WHERE id='${id}'`,
         '--json',
       ],
       { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
