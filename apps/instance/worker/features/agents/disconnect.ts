@@ -1,5 +1,5 @@
 import { agentPropsSchema } from './access'
-import { agentOAuth } from './oauth'
+import type { OAuthHelpers } from '@cloudflare/workers-oauth-provider'
 import { AppError } from '../../lib/errors'
 
 // The provider validates/decrypts the opaque access token. Never infer authority
@@ -8,13 +8,14 @@ export async function disconnectAgent(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
+  api: OAuthHelpers,
 ) {
   if (request.method !== 'POST')
     return new Response(null, { status: 405, headers: { Allow: 'POST' } })
   const authorization = request.headers.get('Authorization')
   const bearer = /^Bearer ([^\s]+)$/i.exec(authorization ?? '')?.[1]
-  const api = agentOAuth(env)
-  const token = bearer ? await api.unwrapToken(bearer) : null
+  const token =
+    bearer && bearer.length <= 8192 ? await api.unwrapToken(bearer) : null
   const props = agentPropsSchema.safeParse(token?.grant.props)
   if (
     !token ||

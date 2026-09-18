@@ -99,8 +99,9 @@ This is credential rotation, not a dependency on the previous operator. See
 A client can `POST /oauth/disconnect` with its valid OAuth access token in the
 `Authorization: Bearer …` header. No body is needed. A `200 {"revoked":true}`
 confirms that the instance revoked the D1 connection and audited it; token-store
-cleanup follows. This works after role removal and never gives the client
-access to another connection. Refresh expired access credentials first. A failed
+cleanup follows. A still-valid access token can disconnect after role removal, and never gives
+the client access to another connection. Refresh expired access credentials
+first when permission remains; after role removal refresh will be denied. A failed
 or unauthorized response is inconclusive; clear local credentials and direct
 the person to **Agents** if remote disconnect cannot be confirmed.
 

@@ -783,3 +783,76 @@ describe('client-owned disconnect and supersession', () => {
     ).toBe(19)
   })
 })
+
+it('keeps immediate D1 denial and idempotent audit when provider deletion fails', async () => {
+  const connected = await connect()
+  const request = () =>
+    send(
+      new Request(`${origin}/oauth/disconnect`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${connected.access_token}` },
+      }),
+      null,
+    )
+  const deletion = vi
+    .spyOn(env.OAUTH_KV, 'delete')
+    .mockRejectedValue(new Error('synthetic provider failure'))
+  try {
+    expect((await request()).status).toBe(200)
+    expect((await send(mcpRequest(connected.access_token), null)).status).toBe(
+      403,
+    )
+    expect((await request()).status).toBe(200)
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM audit_events WHERE action='agent.revoked' AND entity_id=?",
+        )
+          .bind(connected.id)
+          .first()
+      )?.total,
+    ).toBe(1)
+  } finally {
+    deletion.mockRestore()
+  }
+  expect(
+    (await send(new Request(`${origin}/oauth/disconnect`), null)).status,
+  ).toBe(405)
+})
+it('allows at most one live grant after competing same-client consents', async () => {
+  const registration = await authorization(),
+    one = await consent(registration.params),
+    two = await consent(registration.params)
+  const approvals = await Promise.all(
+    [one, two].map((p) =>
+      api('/api/agents/consent', { requestId: p.requestId, decision: 'allow' }),
+    ),
+  )
+  const tokens = []
+  for (const response of approvals) {
+    expect(response.status).toBe(200)
+    const url = new URL(
+      (await response.json<{ redirectTo: string }>()).redirectTo,
+    )
+    const issued = await exchange(
+      registration.clientId,
+      url.searchParams.get('code')!,
+    )
+    if (issued.status === 200)
+      tokens.push(await issued.json<{ access_token: string }>())
+    else expect(issued.status).toBe(400)
+  }
+  const working = await Promise.all(
+    tokens.map((t) => send(mcpRequest(t.access_token), null)),
+  )
+  expect(working.filter((r) => r.status === 200).length).toBeLessThanOrEqual(1)
+  expect(
+    (
+      await env.DB.prepare(
+        'SELECT count(*) AS total FROM agent_connections WHERE client_id=? AND revoked_at IS NULL',
+      )
+        .bind(registration.clientId)
+        .first()
+    )?.total,
+  ).toBe(1)
+})

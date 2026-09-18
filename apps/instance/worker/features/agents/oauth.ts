@@ -175,7 +175,7 @@ export async function agentFetch(
       }
     }
     if (path === '/oauth/disconnect')
-      response = await disconnectAgent(request, env, ctx)
+      response = await disconnectAgent(request, env, ctx, agentOAuth(env))
     else {
       const provider = new OAuthProvider(providerOptions(env, defaultFetch))
       response = await provider.fetch(request, env, ctx)
