@@ -8,6 +8,7 @@ import { agentScopes } from '../../../contracts/agents'
 import { AppError } from '../../lib/errors'
 import { agentPropsSchema, requireAgentAccess } from './access'
 import { serveChurchMcp } from './mcp'
+import { disconnectAgent } from './disconnect'
 
 type FetchHandler = (
   request: Request,
@@ -173,8 +174,12 @@ export async function agentFetch(
         void reader.cancel().catch(() => {})
       }
     }
-    const provider = new OAuthProvider(providerOptions(env, defaultFetch))
-    response = await provider.fetch(request, env, ctx)
+    if (path === '/oauth/disconnect')
+      response = await disconnectAgent(request, env, ctx, agentOAuth(env))
+    else {
+      const provider = new OAuthProvider(providerOptions(env, defaultFetch))
+      response = await provider.fetch(request, env, ctx)
+    }
   } catch (error) {
     response = Response.json(
       {

@@ -182,7 +182,7 @@ agentRoutes.post('/consent', async (c) => {
     c.env.DB.prepare(
       `INSERT INTO agent_connections (id,church_id,user_id,client_id,client_name,scopes_json,created_at,expires_at)
       SELECT ?,?,?,?,?,?,?,? WHERE ${agentPermissionGate('?', scopes)}
-      AND (SELECT COUNT(*) FROM agent_connections WHERE church_id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?) < 20`,
+      AND (SELECT COUNT(*) FROM agent_connections WHERE church_id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ? AND client_id != ?) < 20`,
     ).bind(
       id,
       pending.church_id,
@@ -196,6 +196,7 @@ agentRoutes.post('/consent', async (c) => {
       pending.church_id,
       user.id,
       now,
+      request.clientId,
     ),
     c.env.DB.prepare(
       `INSERT INTO audit_events (id,church_id,actor_user_id,action,entity_type,entity_id,request_id,metadata_json,occurred_at)
@@ -210,6 +211,22 @@ agentRoutes.post('/consent', async (c) => {
       now,
       id,
     ),
+    c.env.DB.prepare(
+      `INSERT INTO audit_events(id,church_id,actor_user_id,action,entity_type,entity_id,request_id,metadata_json,occurred_at)
+      SELECT lower(hex(randomblob(16))),church_id,user_id,'agent.superseded','agent_connection',id,?,?,? FROM agent_connections WHERE church_id=? AND user_id=? AND client_id=? AND id!=? AND revoked_at IS NULL AND EXISTS(SELECT 1 FROM agent_connections WHERE id=?)`,
+    ).bind(
+      c.get('requestId'),
+      JSON.stringify({ replacementId: id }),
+      now,
+      pending.church_id,
+      user.id,
+      request.clientId,
+      id,
+      id,
+    ),
+    c.env.DB.prepare(
+      `UPDATE agent_connections SET revoked_at=? WHERE church_id=? AND user_id=? AND client_id=? AND id!=? AND revoked_at IS NULL AND EXISTS(SELECT 1 FROM agent_connections WHERE id=?)`,
+    ).bind(now, pending.church_id, user.id, request.clientId, id, id),
   ])
   if (created[0].meta.changes !== 1) {
     await requireScopePermissions(c, pending.church_id, scopes)
@@ -232,7 +249,7 @@ agentRoutes.post('/consent', async (c) => {
         clientId: request.clientId,
         scopes,
       },
-      revokeExistingGrants: false,
+      revokeExistingGrants: true,
     })
     return c.json(result)
   } catch (error) {
