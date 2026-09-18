@@ -29,6 +29,8 @@ CREATE INDEX idx_churches_status ON churches(status, name) WHERE deleted_at IS N
 CREATE TABLE church_profiles (
   church_id TEXT PRIMARY KEY REFERENCES churches(id) ON DELETE CASCADE,
   draft_json TEXT,
+  previous_draft_json TEXT,
+  draft_attribution_json TEXT,
   logo_media_id TEXT,
   cover_media_id TEXT,
   tagline TEXT NOT NULL DEFAULT '',

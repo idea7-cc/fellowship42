@@ -31,11 +31,17 @@ const initial: ChurchSettings = {
     coverMediaId: null,
     serviceTimes: [],
   },
+  review: {
+    baseline: {} as ChurchSettings['draft'],
+    canRestore: false,
+    changedBy: null,
+  },
   version: 1,
   published: false,
   hasDraft: false,
   readiness: { profile: true, services: false, content: false },
 }
+initial.review.baseline = structuredClone(initial.draft)
 const site: ChurchSite = {
   church: {
     id: 'church',
@@ -333,4 +339,90 @@ it('keeps staff navigation behind membership presentation checks', async () => {
   expect(container.textContent).toContain('Sign in to your church')
   expect(container.querySelector('[aria-label="Main navigation"]')).toBeNull()
   expect(paths.sort()).toEqual(['/api/bootstrap', '/api/session'])
+})
+
+it('shows agent attribution and reviewed fields and restores only the observed saved version', async () => {
+  const reviewed: ChurchSettings = {
+    ...initial,
+    version: 5,
+    hasDraft: true,
+    draft: { ...initial.draft, tagline: 'Agent welcome' },
+    review: {
+      baseline: initial.draft,
+      canRestore: true,
+      changedBy: { kind: 'agent', name: 'Writing assistant', at: 1 },
+    },
+  }
+  const fetch = vi.fn(async (_path: string, init?: RequestInit) => {
+    expect(JSON.parse(String(init?.body))).toEqual({ version: 5 })
+    return Response.json({ ...initial, version: 6, hasDraft: true })
+  })
+  vi.stubGlobal('fetch', fetch)
+  await act(async () =>
+    root.render(
+      <MemoryRouter>
+        <ChurchSettingsEditor churchId="church" initial={reviewed} />
+      </MemoryRouter>,
+    ),
+  )
+  expect(container.textContent).toContain('Edited by agent Writing assistant')
+  expect(container.textContent).toContain('Review changes (1)')
+  expect(container.querySelector('del')?.textContent).toBe('A place to belong')
+  expect(container.querySelector('ins')?.textContent).toBe('Agent welcome')
+  await click('Restore previous')
+  expect(fetch.mock.calls[0][0]).toBe('/api/church-settings/church/restore')
+  expect(container.querySelector('[role="status"]')?.textContent).toBe(
+    'Previous draft restored',
+  )
+})
+
+it('keeps unsaved human edits when a newer agent draft arrives and requires explicit reload', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ ...initial, version: 2 })),
+  )
+  await renderEditor()
+  await click('Appearance')
+  await click('forest')
+  await act(async () =>
+    root.render(
+      <MemoryRouter>
+        <ChurchSettingsEditor
+          churchId="church"
+          initial={{ ...initial, version: 2 }}
+        />
+      </MemoryRouter>,
+    ),
+  )
+  expect(button('forest').getAttribute('aria-pressed')).toBe('true')
+  expect(button('Publish').disabled).toBe(true)
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    'newer draft',
+  )
+  await click('Reload saved draft')
+  expect(button('warm').getAttribute('aria-pressed')).toBe('true')
+})
+
+it('requires deliberate review of a newer clean draft without claiming unsaved edits', async () => {
+  const confirm = vi.mocked(window.confirm)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ ...initial, version: 2 })),
+  )
+  await renderEditor()
+  await act(async () =>
+    root.render(
+      <MemoryRouter>
+        <ChurchSettingsEditor
+          churchId="church"
+          initial={{ ...initial, version: 2 }}
+        />
+      </MemoryRouter>,
+    ),
+  )
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    'Draft updated. Reload to review.',
+  )
+  await click('Reload saved draft')
+  expect(confirm).not.toHaveBeenCalled()
 })
