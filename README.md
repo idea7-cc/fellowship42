@@ -78,8 +78,10 @@ contain changes that are not in a published release. See
 ## Run locally
 
 Use the Node.js version in `.node-version` and the pnpm version declared in
-`package.json`. Run `pnpm verify` for the same gate used by CI; `pnpm lint`
-and `pnpm format:check` provide focused feedback.
+`package.json` (Node 26.9.0 and pnpm 12.4.2). TypeScript stays on 6.0
+until the Astro checker and ESLint integration support 7; Vitest stays on 4.1
+until Cloudflare's Worker test pool supports 5. Run `pnpm verify` for the same
+gate used by CI; `pnpm lint` and `pnpm format:check` provide focused feedback.
 
 ```bash
 pnpm install --frozen-lockfile
