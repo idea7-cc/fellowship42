@@ -29,6 +29,8 @@ CREATE INDEX idx_churches_status ON churches(status, name) WHERE deleted_at IS N
 CREATE TABLE church_profiles (
   church_id TEXT PRIMARY KEY REFERENCES churches(id) ON DELETE CASCADE,
   draft_json TEXT,
+  previous_draft_json TEXT,
+  draft_attribution_json TEXT,
   logo_media_id TEXT,
   cover_media_id TEXT,
   tagline TEXT NOT NULL DEFAULT '',
@@ -95,6 +97,44 @@ CREATE TABLE auth_identities (
 );
 
 CREATE INDEX idx_auth_identities_user ON auth_identities(user_id);
+
+-- Passkey public keys are portable identity data. Sessions, challenges and
+-- enrollment capabilities are disposable and must be reset after a restore.
+CREATE TABLE local_auth_passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_local_auth_passkeys_user ON local_auth_passkeys(user_id);
+CREATE TABLE local_auth_sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX idx_local_auth_sessions_expiry ON local_auth_sessions(expires_at);
+CREATE TABLE local_auth_enrollments (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'invite' CHECK(kind IN ('bootstrap','invite','operator')),
+  token_hash TEXT NOT NULL UNIQUE,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  church_id TEXT REFERENCES churches(id) ON DELETE CASCADE,
+  issuer_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  consumed_by TEXT,
+  CHECK ((id='bootstrap') = (kind='bootstrap'))
+);
+CREATE TABLE local_auth_challenges (
+  token_hash TEXT PRIMARY KEY,
+  challenge TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('register','authenticate')),
+  enrollment_id TEXT,
+  enrollment_hash TEXT,
+  user_id TEXT,
+  expires_at INTEGER NOT NULL
+);
+CREATE INDEX idx_local_auth_challenges_expiry ON local_auth_challenges(expires_at);
 
 CREATE TABLE church_memberships (
   id TEXT PRIMARY KEY,

@@ -46,9 +46,10 @@ media upload, fleet, shell, SQL, or arbitrary fetch tool.
    `OAUTH_KV` binding may be omitted when disabled. For local
    development use an exact loopback origin and a non-production `ENVIRONMENT`.
    Wrangler's local KV emulation is sufficient locally.
-3. Retain Access protection for staff sign-in, `/app/*`, and private app APIs.
-   Let `/mcp`, `/oauth/*`, and `/.well-known/oauth-*` reach the Worker without an
-   Access login redirect. The Worker enforces OAuth on `/mcp`, and the consent
+3. Configure [instance-owned staff sign-in](staff-sign-in.md), or retain the
+   optional Access adapter. Let `/mcp`, `/oauth/*`, and `/.well-known/oauth-*`
+   reach the Worker without an Access login redirect. With passkeys, `/sign-in`
+   and `/api/auth/*` must also reach the Worker. The Worker enforces OAuth on `/mcp`, and the consent
    API still requires verified staff identity, permission, and same-origin POST.
    Do not replace human identity with a shared service token.
 4. Regenerate bindings with `pnpm cf-typegen`, run `pnpm verify`, and deploy

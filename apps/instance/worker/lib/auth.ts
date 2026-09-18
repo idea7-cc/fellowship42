@@ -6,7 +6,7 @@ const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
 const LAST_SEEN_WRITE_INTERVAL_MS = 15 * 60 * 1000
 
 export interface AccessIdentity {
-  provider: 'cloudflare-access'
+  provider: 'cloudflare-access' | 'passkey'
   subject: string
   email: string
   firstName: string

@@ -18,3 +18,7 @@ PAYMENT_WEBHOOK_SECRET=replace-with-a-unique-random-local-secret
 # base64url secret. Leave unset when this instance is not managed.
 MANAGEMENT_KEY_ENCRYPTION_KEY=replace-with-32-random-base64url-bytes
 # MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS=old-key-during-rotation-only
+
+# Optional instance-owned staff sign-in (never commit real setup keys).
+SIGN_IN_ORIGIN=http://localhost:5173
+# BOOTSTRAP_ENROLLMENT_TOKEN=<random-32-byte-base64url-value>

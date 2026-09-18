@@ -71,7 +71,17 @@ export const churchDraftSchema = z
   })
   .strict()
 export type ChurchDraft = z.infer<typeof churchDraftSchema>
+export const draftAttributionSchema = z.object({
+  kind: z.enum(['person', 'agent']),
+  name: z.string(),
+  at: z.number(),
+})
 export interface ChurchSettings {
+  review: {
+    baseline: ChurchDraft
+    canRestore: boolean
+    changedBy: z.infer<typeof draftAttributionSchema> | null
+  }
   draft: ChurchDraft
   version: number
   published: boolean

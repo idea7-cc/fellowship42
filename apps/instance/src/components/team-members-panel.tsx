@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Pencil, Plus, UserCheck, UserMinus, UserX, X } from 'lucide-react'
 
+import { EnrollmentLink } from './enrollment-link'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import type { TeamMember, TeamResponse, TeamRole } from '@/lib/api-types'
 import { formatTimestamp } from '@/lib/format'
@@ -35,7 +36,7 @@ import {
 } from '@/components/ui/table'
 
 const accessHint =
-  'They must also be allowed by the Cloudflare Access policy protecting this instance before they can sign in.'
+  'An owner can create a private sign-in link from their team row.'
 
 function displayStatus(member: TeamMember) {
   if (member.membershipStatus === 'suspended') return 'suspended'
@@ -60,9 +61,11 @@ function selectedRoleKeys(form: FormData) {
 export function TeamMembersPanel({
   churchId,
   currentUserId,
+  canEnroll = false,
 }: {
   churchId: string
   currentUserId?: string
+  canEnroll?: boolean
 }) {
   const base = `/api/team/${encodeURIComponent(churchId)}`
   const teamQuery = useApiQuery<TeamResponse>(base)
@@ -324,6 +327,17 @@ export function TeamMembersPanel({
                     </TableCell>
                     <TableCell align="right">
                       <TableActions>
+                        {canEnroll &&
+                          !suspended &&
+                          member.accountStatus === 'invited' && (
+                            <EnrollmentLink
+                              key={`${churchId}:${member.membershipId}:${member.version}`}
+                              churchId={churchId}
+                              membershipId={member.membershipId}
+                              version={member.version}
+                              name={name}
+                            />
+                          )}
                         <Button
                           aria-label={`Edit roles for ${name}`}
                           disabled={busy}

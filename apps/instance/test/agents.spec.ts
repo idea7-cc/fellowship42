@@ -431,6 +431,29 @@ describe('church-owned agent connections', () => {
     }
   })
 
+  it('keeps human review attribution and recovery metadata outside agent responses', async () => {
+    const connected = await connect()
+    const client = await sdkClient(connected.access_token)
+    try {
+      const read = await client.callTool({
+        name: 'read_website_draft',
+        arguments: {},
+      })
+      const settings = (read.structuredContent as { data: ChurchSettings }).data
+      expect(settings).not.toHaveProperty('review')
+      const saved = await client.callTool({
+        name: 'save_website_draft',
+        arguments: { version: settings.version, draft: settings.draft },
+      })
+      expect(
+        (saved.structuredContent as { data: { settings: unknown } }).data
+          .settings,
+      ).not.toHaveProperty('review')
+    } finally {
+      await client.close()
+    }
+  })
+
   it('uses fresh stateless HTTP requests and bounds tools to the token scopes', async () => {
     const before = await readSettings(env.DB, 'church_demo')
     const connected = await connect('church:read')

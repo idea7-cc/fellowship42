@@ -48,7 +48,7 @@ Browser
   `-- Fellowship42 instance Worker
         +-- React SPA assets (Workers Static Assets)
         +-- Hono application API
-        +-- authentication adapter (Cloudflare Access initially)
+        +-- instance-owned passkeys/sessions and optional Access adapter
         +-- church-owned OAuth/MCP adapter and disposable OAuth KV
         +-- D1 relational system of record
         +-- R2 media objects
@@ -102,8 +102,9 @@ visibility, checksum, and authorization metadata.
 
 ## Application authentication and authorization
 
-Cloudflare Access is the current authentication adapter. The Worker verifies
-the Access JWT and maps its subject to an application user. Route authorization
+The instance verifies passkeys and owns staff sessions in D1. Optional Cloudflare
+Access verifies a JWT and maps its subject to an application user. See
+[staff sign-in](staff-sign-in.md) and [ADR 0024](adr/0024-instance-owned-staff-passkeys.md). Route authorization
 then comes from church membership roles; browser state is display information,
 not an authorization source.
 

@@ -229,8 +229,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
           <CardHeader>
             <CardTitle>Sign in as the first owner</CardTitle>
             <CardDescription>
-              Cloudflare Access verifies the identity selected during deployment
-              before setup can create any church records.
+              Use your setup key to create a passkey, then finish church setup.
             </CardDescription>
           </CardHeader>
           <CardContent className="mt-5">
@@ -250,7 +249,7 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
               This account is not the configured first owner
             </CardTitle>
             <CardDescription>
-              Sign out and use the exact Access identity selected for this
+              Sign out and use the first-owner account selected for this
               deployment. The expected email is never returned to the browser.
             </CardDescription>
           </CardHeader>

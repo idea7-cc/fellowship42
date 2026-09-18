@@ -93,7 +93,14 @@ disagree.
 
 ## 3. Configure application authentication
 
-The current adapter uses a Cloudflare Access self-hosted application. Configure
+Use instance-owned staff passkeys by following [staff sign-in](staff-sign-in.md).
+Set `SIGN_IN_ORIGIN`, configure the first-owner email and enrollment token as
+secrets, and leave Access variables empty. Keep the sign-in page and
+`/api/auth/*` reachable; the Worker enforces sessions and permissions. No Access
+organization or email sender is required. Each instance's authentication rate
+limiter needs a namespace ID unique within its Cloudflare account.
+
+Alternatively, configure a Cloudflare Access self-hosted application. Configure
 the instance domain and intended allow policies, then set these non-secret
 Worker variables:
 
@@ -135,7 +142,7 @@ local disconnect. During wrapping-key rotation, temporarily configure the old
 value as `MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS`, make the new value current,
 complete a local management identity rotation, and remove the previous secret.
 
-The local owner routes under `/api/management` remain protected by Access. The
+The local owner routes under `/api/management` require authenticated owner authority. The
 exact `POST /api/management/proposals` path must reach the Worker without an
 Access redirect because it authenticates the operator using the 256-bit one-use
 challenge and Ed25519 signature. Expose no other management path anonymously,
@@ -178,12 +185,13 @@ pnpm deploy
 pnpm --filter @fellowship42/instance exec wrangler secret put BOOTSTRAP_OWNER_EMAIL
 ```
 
-Open `/app` on the deployed instance as that Access identity and complete **Instance
-setup**. The Worker creates the church in `draft`, portable instance identity,
+Use `/sign-in` to enroll the first-owner passkey, or sign in through the configured
+Access adapter. Open `/app` and complete **Instance setup**. The Worker creates the church in `draft`, portable instance identity,
 initial owner membership, system roles, and audit event transactionally. It
 does not enroll the instance in any management service.
 
-After setup succeeds, remove the one-time selector:
+After setup succeeds, remove `BOOTSTRAP_ENROLLMENT_TOKEN` if configured and the
+one-time owner selector:
 
 ```bash
 pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER_EMAIL
@@ -192,9 +200,9 @@ pnpm --filter @fellowship42/instance exec wrangler secret delete BOOTSTRAP_OWNER
 Setup continues at `/app/settings`: save the church profile, preview, and
 publish when ready. See [Church setup and website publishing](church-setup-and-publishing.md).
 
-The owner then adds every other staff member from the **Team** page. Each
-invited email must also be allowed by the Access policy; the instance sends no
-email and cannot change the policy. See [Team and roles](team-and-roles.md).
+The owner then adds staff from **Team** and shares private passkey enrollment
+links. For Access sign-in, each invited email must also be allowed by its policy.
+The instance sends no email and cannot change Access policies. See [Team and roles](team-and-roles.md).
 
 Attach the instance custom domain and verify:
 

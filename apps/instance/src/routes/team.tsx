@@ -5,11 +5,13 @@ import { PageHeader } from '@/components/page-header'
 import { TeamMembersPanel } from '@/components/team-members-panel'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useAuthState } from '@/lib/auth-provider'
+import { useApiQuery } from '@/lib/api'
 import { useChurch } from '@/lib/church-context'
 
 export function TeamPage() {
   const { churchId } = useChurch()
   const { user } = useAuthState()
+  const signIn = useApiQuery<{ local: boolean }>('/api/auth/status')
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
@@ -23,7 +25,11 @@ export function TeamPage() {
         title="Team"
       />
       {canManage ? (
-        <TeamMembersPanel churchId={churchId} currentUserId={user?.id} />
+        <TeamMembersPanel
+          churchId={churchId}
+          currentUserId={user?.id}
+          canEnroll={permissions.includes('*') && Boolean(signIn.data?.local)}
+        />
       ) : (
         <EmptyState
           description="Ask an owner to manage the team, or for the team.manage permission."
