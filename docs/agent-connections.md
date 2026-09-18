@@ -83,16 +83,12 @@ official SDK and raw HTTP, not live hosted client accounts.
 
 ## Restore or transfer
 
-Keep the D1 history and church records, but create a fresh OAuth KV namespace at
-the destination. Do not copy OAuth credentials. Before reopening access, run in
-the restored D1 database:
-
-```sql
-DELETE FROM agent_consent_requests;
-UPDATE agent_connections
-SET revoked_at = COALESCE(revoked_at, unixepoch() * 1000),
-    provider_grant_id = NULL;
-```
+Keep D1 history and church records, but rotate disposable credentials before
+reopening access. Use the supported `f42ctl agents-reset` command in the
+[agent operator guide](agent-operator.md). It verifies the portable identity and
+empty replacement namespace, revokes connections, clears temporary sign-in
+state, and writes a new configuration for review and deployment. No manual SQL
+or copying OAuth credentials is required.
 
 Set the destination's canonical origin and reconnect agents with fresh consent.
 This is credential rotation, not a dependency on the previous operator. See
