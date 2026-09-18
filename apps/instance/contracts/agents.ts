@@ -4,6 +4,8 @@ export const agentScopeSchema = z.enum([
   'church:read',
   'draft:read',
   'draft:write',
+  'events:read',
+  'events:write',
 ])
 export const agentScopes = agentScopeSchema.options
 export type AgentScope = z.infer<typeof agentScopeSchema>
@@ -11,6 +13,8 @@ export const scopeLabels: Record<AgentScope, string> = {
   'church:read': 'Read church information',
   'draft:read': 'Read your website draft',
   'draft:write': 'Save changes to your draft',
+  'events:read': 'Read events, including drafts',
+  'events:write': 'Create unpublished event drafts',
 }
 export interface AgentConnection {
   id: string

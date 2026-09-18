@@ -174,3 +174,24 @@ it('shows an expired consent error without redirecting or claiming success', asy
   )
   expect(navigate).not.toHaveBeenCalled()
 })
+
+it('shows event-specific consent and connection wording without implying publication', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () =>
+      Response.json({ ...consent, scopes: ['events:read', 'events:write'] }),
+    ),
+  )
+  await act(async () =>
+    root.render(
+      <AgentConsentPanel
+        queryString="?client_id=event-agent"
+        navigate={vi.fn()}
+      />,
+    ),
+  )
+  expect(container.textContent).toContain('Read events, including drafts')
+  expect(container.textContent).toContain('Create unpublished event drafts')
+  expect(container.textContent).toContain('Publishing stays with you')
+  expect(container.textContent).not.toContain('Save changes to your draft')
+})
