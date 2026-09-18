@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 
+import { SignInPage } from './routes/sign-in'
 import { AuthProvider } from './lib/auth-provider'
 import { StaffAccess } from './components/staff-access'
 import { BootstrapGate } from './components/bootstrap-gate'
@@ -52,6 +53,7 @@ function StaffRoutes() {
 export function App() {
   return (
     <Routes>
+      <Route path="/sign-in" element={<SignInPage />} />
       <Route path="/" element={<PublicSitePage />} />
       <Route path="/courses/:slug" element={<PublicCoursePage />} />
       <Route

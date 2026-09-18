@@ -1,7 +1,14 @@
-import { type ReactNode, createContext, useContext, useMemo } from 'react'
+import {
+  type ReactNode,
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 
 import { Button } from '@/components/ui/button'
-import { useApiQuery } from './api'
+import { apiRequest, useApiQuery } from './api'
+import { useLocation } from 'react-router-dom'
 import type { SessionResponse, SessionUser } from './api-types'
 
 interface AuthState {
@@ -14,7 +21,7 @@ interface AuthState {
 const AuthStateContext = createContext<AuthState | null>(null)
 
 /**
- * Cloudflare Access authenticates the request before it reaches the Worker.
+ * An instance session or a configured Access adapter authenticates the request.
  * The session endpoint synchronizes that identity into D1 and returns scoped
  * church roles and permissions for the UI.
  */
@@ -33,10 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   if (error && error.status >= 500) {
-    console.error(
-      '[Fellowship42] Unable to load the Cloudflare Access session',
-      error,
-    )
+    console.error('[Fellowship42] Unable to load the session', error)
   }
 
   return (
@@ -52,20 +56,52 @@ export function useAuthState(): AuthState {
   return state
 }
 
-// Access sign-in and sign-out are plain navigations, not fetches, so these
-// stay anchors — styled as buttons rather than reimplementing the variants.
 export function SignInButton({ className }: { className?: string }) {
+  const location = useLocation()
+  const href = `/sign-in?returnTo=${encodeURIComponent(location.pathname + location.search)}`
   return (
     <Button asChild className={className} size="sm" variant="secondary">
-      <a href="/cdn-cgi/access/login">Sign in</a>
+      <a href={href}>Sign in</a>
     </Button>
   )
 }
 
 export function SignOutButton({ className }: { className?: string }) {
+  const [error, setError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  async function signOut() {
+    setBusy(true)
+    setError(false)
+    try {
+      const config = await apiRequest<{ local: boolean; access: boolean }>(
+        '/api/auth/status',
+      )
+      if (config.local)
+        await apiRequest('/api/auth/logout', { method: 'POST', body: '{}' })
+      window.location.assign(
+        config.access ? '/cdn-cgi/access/logout' : '/sign-in',
+      )
+    } catch {
+      setError(true)
+      setBusy(false)
+    }
+  }
   return (
-    <Button asChild className={className} size="sm" variant="ghost">
-      <a href="/cdn-cgi/access/logout">Sign out</a>
-    </Button>
+    <span>
+      <Button
+        className={className}
+        size="sm"
+        variant="ghost"
+        disabled={busy}
+        onClick={() => void signOut()}
+      >
+        Sign out
+      </Button>
+      {error && (
+        <span role="alert" className="text-sm text-destructive">
+          Unable to sign out. Try again.
+        </span>
+      )}
+    </span>
   )
 }

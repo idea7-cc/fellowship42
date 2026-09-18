@@ -23,7 +23,11 @@ export function TeamPage() {
         title="Team"
       />
       {canManage ? (
-        <TeamMembersPanel churchId={churchId} currentUserId={user?.id} />
+        <TeamMembersPanel
+          churchId={churchId}
+          currentUserId={user?.id}
+          canEnroll={permissions.includes('*')}
+        />
       ) : (
         <EmptyState
           description="Ask an owner to manage the team, or for the team.manage permission."

@@ -40,7 +40,7 @@ The current source includes these features for development and evaluation:
 
 | Area | Implemented features |
 |---|---|
-| Setup and access | First-owner setup through Cloudflare Access, owner-managed team invitations and roles, and server-side permission checks |
+| Setup and access | Instance-owned staff passkeys, first-owner setup, team invitations and roles; optional Cloudflare Access |
 | People and households | Private directory, household relationships, search, pagination, and record editing |
 | Groups and learning | Group rosters, sessions and attendance, courses, lessons, and enrollment |
 | Publishing | Church settings, gatherings, style and images, private profile drafts and preview, public church website, and groups/courses/events/sermons with independent publish controls |
@@ -65,8 +65,8 @@ experience and prove the operating procedures:
 - Live deployment, upgrade, backup, restore, and exit exercises, security/privacy
   review, and church pilot feedback.
 
-Member sign-in and account claiming remain proposed; Cloudflare Access is the
-current authentication adapter. A congregation-wide self-service portal is
+Member account claiming remains proposed. Staff can use instance-owned passkeys
+or optional Cloudflare Access; see [staff sign-in](docs/staff-sign-in.md). A congregation-wide self-service portal is
 not available yet. See the [member identity proposal](docs/adr/0020-instance-owned-member-identity.md).
 
 Tagged releases identify exact software artifacts. They do not imply beta,
@@ -101,13 +101,13 @@ The church website runs at `http://localhost:5173`; the staff workspace is at
 `http://localhost:5173/app`. Start the
 separate public project site with `pnpm dev:site`.
 
-Public routes work without authentication. Protected workflows require a valid
-Cloudflare Access JWT; local seed data does not provide a sign-in bypass. Use
+Public routes work without authentication. Protected workflows require a local
+staff session or valid Cloudflare Access JWT; seed data is not a sign-in bypass. Use
 `apps/instance/.dev.vars.example` as the configuration reference when testing
-Access through a forwarded request.
+the configured sign-in adapter.
 
 `seed.sql` contains local demo data only. For a fresh deployed installation,
-follow the Access-gated first-owner setup in the
+follow the passkey first-owner setup in [staff sign-in](docs/staff-sign-in.md) and the
 [deployment runbook](docs/deployment.md).
 
 ## Deployment and portability

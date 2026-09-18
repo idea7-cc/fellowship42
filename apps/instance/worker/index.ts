@@ -1,3 +1,9 @@
+import { signInRoutes } from './features/sign-in/routes'
+import {
+  resolveLocalIdentity,
+  cleanSignInState,
+  signInOrigin,
+} from './features/sign-in/session'
 import { agentRoutes } from './features/agents/routes'
 import { agentFetch } from './features/agents/oauth'
 import { Hono } from 'hono'
@@ -63,7 +69,19 @@ app.use('*', async (c, next) => {
   const startedAt = Date.now()
   c.set('requestId', requestId)
   c.header('X-Request-Id', requestId)
-  c.set('identity', await resolveAccessIdentity(c.req.raw, c.env))
+  const identity =
+    (await resolveLocalIdentity(c.req.raw, c.env)) ??
+    (await resolveAccessIdentity(c.req.raw, c.env))
+  c.set('identity', identity)
+  if (
+    identity?.provider === 'passkey' &&
+    c.req.path.startsWith('/api/') &&
+    (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) ||
+      c.req.header('Upgrade')?.toLowerCase() === 'websocket') &&
+    c.req.header('Origin') !== signInOrigin(c.env).origin
+  ) {
+    throw new AppError(403, 'wrong_origin', 'Reload this page and try again.')
+  }
 
   await next()
 
@@ -137,6 +155,7 @@ app.get('/api/health', async (c) => {
 app.get('/oauth/authorize', (c) =>
   c.redirect(`/app/agents/authorize${new URL(c.req.url).search}`),
 )
+app.route('/api/auth', signInRoutes)
 app.route('/api/agents', agentRoutes)
 app.route('/api/site', siteRoutes)
 app.route('/api/church-settings', churchSettingsRoutes)
@@ -177,6 +196,13 @@ const worker = {
       }),
     )
     ctx.waitUntil(runScheduledManagementSync(env))
+    ctx.waitUntil(
+      cleanSignInState(env.DB).catch(() => {
+        console.error(
+          JSON.stringify({ level: 'error', message: 'auth.cleanup_failed' }),
+        )
+      }),
+    )
   },
 } satisfies ExportedHandler<Env, OutboxQueueMessage>
 
