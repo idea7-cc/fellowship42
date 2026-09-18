@@ -159,8 +159,11 @@ async function exchange(
     null,
   )
 }
-async function connect(scopes?: string) {
-  const { clientId, params } = await authorization(scopes)
+async function connect(
+  scopes?: string,
+  existing?: Awaited<ReturnType<typeof authorization>>,
+) {
+  const { clientId, params } = existing ?? (await authorization(scopes))
   const request = await consent(params)
   const approval = await api('/api/agents/consent', {
     requestId: request.requestId,
@@ -668,5 +671,115 @@ describe('church-owned agent connections', () => {
     expect((await send(mcpRequest(connected.access_token), null)).status).toBe(
       403,
     )
+  })
+})
+
+describe('client-owned disconnect and supersession', () => {
+  const disconnect = (token?: string, originHeader?: string) =>
+    send(
+      new Request(`${origin}/oauth/disconnect`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(originHeader ? { Origin: originHeader } : {}),
+        },
+      }),
+      null,
+    )
+  const refresh = (clientId: string, token: string) =>
+    send(
+      new Request(`${origin}/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: clientId,
+          refresh_token: token,
+          resource: `${origin}/mcp`,
+        }),
+      }),
+      null,
+    )
+  it('lets a valid client revoke its own D1 authority even after role removal, with one audit and refresh denial', async () => {
+    const one = await connect(),
+      other = await connect()
+    expect((await disconnect()).status).toBe(401)
+    expect((await disconnect('invalid')).status).toBe(401)
+    expect((await disconnect(one.refresh_token)).status).toBe(401)
+    expect(
+      (await disconnect(one.access_token, 'https://attacker.example')).status,
+    ).toBe(403)
+    await env.DB.prepare(
+      "DELETE FROM membership_roles WHERE membership_id='membership_demo_owner'",
+    ).run()
+    const result = await disconnect(one.access_token)
+    expect(result.status).toBe(200)
+    expect(await result.json()).toEqual({ revoked: true })
+    expect(
+      (
+        await env.DB.prepare(
+          'SELECT revoked_at FROM agent_connections WHERE id=?',
+        )
+          .bind(one.id)
+          .first()
+      )?.revoked_at,
+    ).not.toBeNull()
+    expect(
+      (
+        await env.DB.prepare(
+          'SELECT revoked_at FROM agent_connections WHERE id=?',
+        )
+          .bind(other.id)
+          .first()
+      )?.revoked_at,
+    ).toBeNull()
+    expect((await refresh(one.clientId, one.refresh_token)).status).toBe(400)
+    expect(
+      (await send(mcpRequest(one.access_token), null)).status,
+    ).toBeGreaterThanOrEqual(400)
+    expect((await disconnect(one.access_token)).status).toBe(401)
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM audit_events WHERE action='agent.revoked' AND entity_id=?",
+        )
+          .bind(one.id)
+          .first()
+      )?.total,
+    ).toBe(1)
+  })
+  it('supersedes only the same client/user/church and frees abandoned grants at the connection cap', async () => {
+    const registration = await authorization(),
+      old = await connect(undefined, registration),
+      other = await connect()
+    for (let n = 0; n < 18; n++)
+      await env.DB.prepare(
+        `INSERT INTO agent_connections(id,church_id,user_id,client_id,client_name,scopes_json,created_at,expires_at) VALUES(?,'church_demo','user_demo_owner',?,'Abandoned','["church:read"]',1,?)`,
+      )
+        .bind(crypto.randomUUID(), registration.clientId, Date.now() + 60000)
+        .run()
+    const current = await connect(undefined, registration)
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM agent_connections WHERE church_id='church_demo' AND user_id='user_demo_owner' AND revoked_at IS NULL",
+        ).first()
+      )?.total,
+    ).toBe(2)
+    expect((await send(mcpRequest(current.access_token), null)).status).toBe(
+      200,
+    )
+    expect((await send(mcpRequest(other.access_token), null)).status).toBe(200)
+    expect(
+      (await send(mcpRequest(old.access_token), null)).status,
+    ).toBeGreaterThanOrEqual(400)
+    expect((await refresh(old.clientId, old.refresh_token)).status).toBe(400)
+    expect(
+      (
+        await env.DB.prepare(
+          "SELECT count(*) AS total FROM audit_events WHERE action='agent.superseded'",
+        ).first()
+      )?.total,
+    ).toBe(19)
   })
 })

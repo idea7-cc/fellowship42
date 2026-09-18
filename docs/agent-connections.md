@@ -93,3 +93,18 @@ or copying OAuth credentials is required.
 Set the destination's canonical origin and reconnect agents with fresh consent.
 This is credential rotation, not a dependency on the previous operator. See
 [ADR 0023](adr/0023-church-owned-agent-connections.md).
+
+## Client-controlled disconnect
+
+A client can `POST /oauth/disconnect` with its valid OAuth access token in the
+`Authorization: Bearer …` header. No body is needed. A `200 {"revoked":true}`
+confirms that the instance revoked the D1 connection and audited it; token-store
+cleanup follows. This works after role removal and never gives the client
+access to another connection. Refresh expired access credentials first. A failed
+or unauthorized response is inconclusive; clear local credentials and direct
+the person to **Agents** if remote disconnect cannot be confirmed.
+
+This resource operation is distinct from provider-only RFC 7009 token revocation.
+Reconnecting the same client ID supersedes previous grants for the same local
+user and church, including connections from another device. Other clients are
+unaffected. See [ADR 0026](adr/0026-client-owned-agent-disconnect.md).
