@@ -723,8 +723,10 @@ describe('scoped event drafting', () => {
         },
       })
     }
-    const first = results[0].structuredContent!.data as {
-      event: { id: string }
+    const { data: first } = results[0].structuredContent as {
+      data: {
+        event: { id: string }
+      }
     }
     expect(results[1].structuredContent).toMatchObject({
       data: { event: { id: first.event.id } },
