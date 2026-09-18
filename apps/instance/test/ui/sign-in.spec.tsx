@@ -1,4 +1,7 @@
 import { act } from 'react'
+import { BrowserRouter } from 'react-router-dom'
+import { App } from '../../src/App'
+import { SignOutButton } from '../../src/lib/auth-provider'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
@@ -138,4 +141,54 @@ it('does not show an enrollment link after the target row unmounts', async () =>
   )
   expect(container.textContent).toBe('Different team')
   expect(container.querySelector('input')).toBeNull()
+})
+
+it('switches an already-open sign-in route to enrollment when the fragment changes', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ local: true, access: false })),
+  )
+  await act(async () =>
+    root.render(
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>,
+    ),
+  )
+  expect(container.textContent).toContain('Use passkey')
+  await act(async () => {
+    window.history.pushState(null, '', '/sign-in#enroll=' + 'C'.repeat(43))
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  expect(container.textContent).toContain('Create passkey')
+  expect(window.location.hash).toBe('')
+  // The same token revisited in the same tab is stripped again, even when
+  // native history did not supply a new router location key.
+  await act(async () => {
+    window.history.pushState(null, '', '/sign-in#enroll=' + 'C'.repeat(43))
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  expect(window.location.hash).toBe('')
+  expect(container.textContent).toContain('Create passkey')
+})
+it('the icon sign-out action revokes the local session and reports failure without pretending to sign out', async () => {
+  const paths: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string) => {
+      paths.push(path)
+      return path.endsWith('/status')
+        ? Response.json({ local: true, access: false })
+        : Response.json(
+            { error: { code: 'failed', message: 'failed' } },
+            { status: 500 },
+          )
+    }),
+  )
+  await act(async () => root.render(<SignOutButton iconOnly />))
+  await click('Sign out')
+  expect(paths).toEqual(['/api/auth/status', '/api/auth/logout'])
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    'Unable to sign out',
+  )
 })

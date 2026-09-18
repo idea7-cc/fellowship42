@@ -50,9 +50,17 @@ type AppEnv = {
 
 const app = new Hono<AppEnv>()
 
-app.use('*', secureHeaders())
+const secureHttpHeaders = secureHeaders()
+const isWebSocket = (request: Request) =>
+  request.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
+  /^\/api\/churches\/[^/]+\/live$/.test(new URL(request.url).pathname)
+// Upgrade responses carry an immutable WebSocket handshake. HTTP header
+// middleware must not reconstruct or mutate it; authorization still runs.
+app.use('*', (c, next) =>
+  isWebSocket(c.req.raw) ? next() : secureHttpHeaders(c, next),
+)
 app.use('/api/*', async (c, next) => {
-  c.header('Cache-Control', 'private, no-store')
+  if (!isWebSocket(c.req.raw)) c.header('Cache-Control', 'private, no-store')
   await next()
 })
 const jsonBodyLimit = bodyLimit({ maxSize: 64 * 1024 })
@@ -68,7 +76,7 @@ app.use('*', async (c, next) => {
   const requestId = c.req.header('cf-ray') ?? crypto.randomUUID()
   const startedAt = Date.now()
   c.set('requestId', requestId)
-  c.header('X-Request-Id', requestId)
+  if (!isWebSocket(c.req.raw)) c.header('X-Request-Id', requestId)
   const identity =
     (await resolveLocalIdentity(c.req.raw, c.env)) ??
     (await resolveAccessIdentity(c.req.raw, c.env))

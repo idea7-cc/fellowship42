@@ -538,3 +538,27 @@ it('rejects an old registration response after its enrollment link is replaced',
       .first(),
   ).toBeNull()
 })
+
+it('preserves authorized WebSocket upgrades and rejects cross-origin session upgrades', async () => {
+  const ctx = createExecutionContext()
+  const send = (requestOrigin: string) =>
+    worker.fetch(
+      new Request(`${origin}/api/churches/church_demo/live`, {
+        headers: {
+          Upgrade: 'websocket',
+          Origin: requestOrigin,
+          Cookie: ownerCookie,
+        },
+      }) as Request<unknown, IncomingRequestCfProperties>,
+      bindings,
+      ctx,
+    )
+  const denied = await send('https://evil.test')
+  expect(denied.status).toBe(403)
+  const response = await send(origin)
+  expect(response.status).toBe(101)
+  expect(response.webSocket).not.toBeNull()
+  response.webSocket!.accept()
+  response.webSocket!.close(1000)
+  await waitOnExecutionContext(ctx)
+})

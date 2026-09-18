@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react'
 
+import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { apiRequest, useApiQuery } from './api'
 import { useLocation } from 'react-router-dom'
@@ -66,7 +67,13 @@ export function SignInButton({ className }: { className?: string }) {
   )
 }
 
-export function SignOutButton({ className }: { className?: string }) {
+export function SignOutButton({
+  className,
+  iconOnly = false,
+}: {
+  className?: string
+  iconOnly?: boolean
+}) {
   const [error, setError] = useState(false)
   const [busy, setBusy] = useState(false)
   async function signOut() {
@@ -90,12 +97,13 @@ export function SignOutButton({ className }: { className?: string }) {
     <span>
       <Button
         className={className}
-        size="sm"
+        aria-label="Sign out"
+        size={iconOnly ? 'icon-xs' : 'sm'}
         variant="ghost"
         disabled={busy}
         onClick={() => void signOut()}
       >
-        Sign out
+        {iconOnly ? <LogOut aria-hidden /> : 'Sign out'}
       </Button>
       {error && (
         <span role="alert" className="text-sm text-destructive">

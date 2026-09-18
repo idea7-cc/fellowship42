@@ -12,19 +12,20 @@ import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 
-export function SignInPage() {
+export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
   const config = useApiQuery<{ local: boolean; access: boolean }>(
     '/api/auth/status',
   )
   const [enrollment] = useState(() =>
-    new URLSearchParams(window.location.hash.slice(1)).get('enroll'),
+    new URLSearchParams(
+      (navigation?.hash ?? window.location.hash).slice(1),
+    ).get('enroll'),
   )
   const [setup, setSetup] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const active = useRef(true)
   useEffect(() => {
-    active.current = true
     // Enrollment capabilities never remain in the visible URL or browser history.
     if (window.location.hash)
       window.history.replaceState(
@@ -32,6 +33,9 @@ export function SignInPage() {
         '',
         window.location.pathname + window.location.search,
       )
+  }, [navigation])
+  useEffect(() => {
+    active.current = true
     return () => {
       active.current = false
       WebAuthnAbortService.cancelCeremony()

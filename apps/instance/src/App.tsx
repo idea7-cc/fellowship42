@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 
 import { SignInPage } from './routes/sign-in'
 import { AuthProvider } from './lib/auth-provider'
@@ -51,9 +51,13 @@ function StaffRoutes() {
 }
 
 export function App() {
+  const location = useLocation()
   return (
     <Routes>
-      <Route path="/sign-in" element={<SignInPage />} />
+      <Route
+        path="/sign-in"
+        element={<SignInPage key={location.hash} navigation={location} />}
+      />
       <Route path="/" element={<PublicSitePage />} />
       <Route path="/courses/:slug" element={<PublicCoursePage />} />
       <Route
