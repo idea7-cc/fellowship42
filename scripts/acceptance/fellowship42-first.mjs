@@ -1102,7 +1102,6 @@ try {
         await visitor.goto(`${WEBSITE}${route}`)
         await visitor.addScriptTag({ content: axe })
         const result = await visitor.evaluate(async () =>
-          // eslint-disable-next-line no-undef
           axe.run(document, {
             runOnly: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'],
           }),
