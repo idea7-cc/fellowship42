@@ -20,6 +20,7 @@ import type {
   SessionAttendance,
 } from '@/lib/api-types'
 import { Avatar } from '@/components/ui/avatar'
+import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -58,9 +59,10 @@ function toLocalInputValue(timestamp: number): string {
  * Meeting occurrences for one group, and the register for each.
  *
  * Attendance hangs off sessions in the schema, so there is no way to record
- * who came without first recording that the group met. The register lists the
- * whole roster rather than only marked people, which is what makes "not
- * recorded yet" visibly different from "absent".
+ * who came without first recording that the group met. The register lists
+ * current active and paused members as well as marked people, which is what
+ * makes "not recorded yet" visibly different from "absent". People keep their
+ * recorded marks after they complete or leave the group.
  */
 export function GroupSessionsPanel({
   churchId,
@@ -343,7 +345,10 @@ export function GroupSessionsPanel({
   )
 }
 
-/** The register for one session: the whole roster, marked or not. */
+/**
+ * The register for one session: everyone marked for it, whatever their roster
+ * state is now, plus current members who are not marked yet.
+ */
 function SessionRegister({
   base,
   sessionId,
@@ -429,8 +434,8 @@ function SessionRegister({
     return (
       <div className="border-t border-border p-3">
         <p className="text-sm text-muted-foreground">
-          No active members on this group's roster yet, so there is nobody to
-          mark.
+          Nobody is recorded for this session, and the group has no active or
+          paused members to mark.
         </p>
       </div>
     )
@@ -473,6 +478,13 @@ function SessionRegister({
             >
               <Avatar name={name} size="sm" />
               <span className="text-sm font-medium">{name}</span>
+              {entry.rosterStatus === undefined ? (
+                <Badge size="sm" variant="neutral">
+                  No longer in group
+                </Badge>
+              ) : entry.rosterStatus !== 'active' ? (
+                <StatusBadge size="sm" status={entry.rosterStatus} />
+              ) : null}
               {entry.status === undefined ? (
                 <span className="text-xs text-muted-foreground">
                   Not recorded

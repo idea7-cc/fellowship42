@@ -58,8 +58,9 @@ Automated conformance tests do not establish a successful live restore or exit.
 Before a public beta, the project needs to close gaps in the everyday church
 experience and prove the operating procedures:
 
-- Form submission and retry reliability, attendance history when rosters
-  change, and access to records beyond the first page in every workflow.
+- Access to records beyond the first page in every workflow, and clearer
+  messages when a retried edit or slug-keyed create meets its own earlier
+  success.
 - Wider browser, mobile, accessibility, and multi-user testing with realistic
   synthetic datasets.
 - Live deployment, upgrade, backup, restore, and exit exercises, security/privacy

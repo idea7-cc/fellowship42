@@ -125,13 +125,19 @@ export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'serving'
 /**
  * One person's attendance at one session. `status` is undefined until someone
  * marks them, which is what distinguishes "not recorded" from "absent".
+ *
+ * A register lists everyone marked for the session, whatever their roster
+ * state is now, plus current active or paused members who are not marked yet.
  */
 export interface AttendanceEntry {
   version: number
   personId: string
   firstName: string
   lastName: string
+  /** Church-wide directory status (guest, member, ...), not the group roster. */
   membershipStatus: string
+  /** Current roster status in this group; undefined once removed from it. */
+  rosterStatus?: GroupMembershipStatus
   status?: AttendanceStatus
   checkedInAt?: number
   notes?: string

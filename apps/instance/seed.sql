@@ -345,7 +345,9 @@ INSERT OR IGNORE INTO course_enrollments (
   -- A whole group enrolled together, which is how most studies actually run.
   ('enrollment_demo_04','church_demo','course_demo_finance',NULL,'group_demo_midtown','active',unixepoch()*1000,NULL,'Running as the autumn study',unixepoch()*1000,unixepoch()*1000),
   ('enrollment_demo_05','church_demo','course_demo_baptism','person_demo_21',NULL,'active',unixepoch()*1000,NULL,NULL,unixepoch()*1000,unixepoch()*1000),
-  ('enrollment_demo_06','church_demo','course_demo_marriage',NULL,'group_demo_young_adults','invited',NULL,NULL,NULL,unixepoch()*1000,unixepoch()*1000);
+  ('enrollment_demo_06','church_demo','course_demo_marriage',NULL,'group_demo_young_adults','invited',NULL,NULL,NULL,unixepoch()*1000,unixepoch()*1000),
+  -- Archived after completion: the completion date stays on the record.
+  ('enrollment_demo_07','church_demo','course_demo_baptism','person_demo_16',NULL,'archived',(unixepoch()-7776000)*1000,(unixepoch()-5184000)*1000,'Baptised in the spring',unixepoch()*1000,unixepoch()*1000);
 
 -- ---------------------------------------------------------------------------
 -- SESSIONS AND ATTENDANCE
@@ -353,6 +355,9 @@ INSERT OR IGNORE INTO course_enrollments (
 -- Three weeks of one group's meetings: a fully recorded past week, a partly
 -- recorded one, and an upcoming session with nothing recorded yet. That spread
 -- is what makes "not recorded" visibly different from "absent" in the register.
+-- Recorded marks outlive roster changes: Jordan Ellis came to Midtown's first
+-- week but is no longer on its roster, and Tabitha Okoro's mark in the women's
+-- study remains after she completed the cohort.
 -- ---------------------------------------------------------------------------
 
 INSERT OR IGNORE INTO group_sessions (
@@ -372,7 +377,10 @@ INSERT OR IGNORE INTO attendance_records (
   ('attendance_demo_03','church_demo','groupsession_demo_01','person_demo_04','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_04','church_demo','groupsession_demo_01','person_demo_11','serving',(unixepoch()-1209600)*1000,'Hosting',unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_05','church_demo','groupsession_demo_01','person_demo_14','excused',NULL,'Travelling',unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_09','church_demo','groupsession_demo_01','person_demo_19','present',(unixepoch()-1209600)*1000,'Visited before joining another group',unixepoch()*1000,unixepoch()*1000),
   -- Week 2: partly recorded, so the register shows a real mid-entry state.
   ('attendance_demo_06','church_demo','groupsession_demo_02','person_demo_01','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_07','church_demo','groupsession_demo_02','person_demo_02','absent',NULL,NULL,unixepoch()*1000,unixepoch()*1000),
-  ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000);
+  ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  -- The women's study: a mark for a member who has since completed the cohort.
+  ('attendance_demo_10','church_demo','groupsession_demo_04','person_demo_16','present',(unixepoch()-259200)*1000,'Final session before completing',unixepoch()*1000,unixepoch()*1000);

@@ -887,6 +887,9 @@ async function readEnrollments(
         LEFT JOIN people p ON p.church_id = e.church_id AND p.id = e.person_id
         LEFT JOIN groups g ON g.church_id = e.church_id AND g.id = e.group_id
         WHERE e.church_id = ? AND e.course_id = ?
+          -- Deleted people and groups leave participation reads; rows remain.
+          AND (e.person_id IS NULL OR p.deleted_at IS NULL)
+          AND (e.group_id IS NULL OR g.deleted_at IS NULL)
         ORDER BY COALESCE(p.sort_name, g.title)
       `,
     )
@@ -1059,7 +1062,11 @@ courseRoutes.patch(
             notes = CASE WHEN ? THEN ? ELSE notes END,
             version = version + 1,
             started_at = CASE WHEN ? = 'active' AND started_at IS NULL THEN ? ELSE started_at END,
-            completed_at = CASE WHEN ? = 'completed' THEN ? ELSE NULL END,
+            completed_at = CASE
+              WHEN ? = 'completed' THEN COALESCE(completed_at, ?)
+              WHEN ? = 'archived' THEN completed_at
+              ELSE NULL
+            END,
             updated_at = ?
           WHERE church_id = ? AND course_id = ? AND id = ?
             AND EXISTS (SELECT 1 FROM courses WHERE church_id = ? AND id = ? AND last_operation_id = ?)
@@ -1072,6 +1079,7 @@ courseRoutes.patch(
         now,
         parsed.data.status,
         now,
+        parsed.data.status,
         now,
         churchId,
         courseId,

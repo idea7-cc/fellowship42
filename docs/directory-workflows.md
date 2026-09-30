@@ -37,7 +37,25 @@ so a losing concurrent request cannot write an audit event, outbox event, or
 household link after another editor wins.
 
 Deletes are soft deletes. They disappear from directory reads while preserving
-referential and audit history for later retention policy.
+referential and audit history for later retention policy. A deleted person
+also leaves participation reads: group session registers, their present and
+recorded counts, and course enrollment lists no longer include them, and their
+recorded marks cannot be changed. The attendance and enrollment rows remain in
+D1.
+
+## Participation history
+
+A session register lists everyone with a recorded mark for that session,
+whatever their roster status is now, plus current active or paused members who
+are not marked yet. Completing, pausing, or removing a membership therefore
+never hides a recorded mark or changes the session's counts. Each row carries
+`rosterStatus`, the person's current status in the group, which is undefined
+once they are removed; the register labels those rows "No longer in group". A
+recorded mark stays correctable after the person leaves the roster, using its
+own version. New marks still require a roster membership.
+
+A course enrollment keeps its completion date when staff edit its notes or
+archive it. Reopening it as invited or active clears the date.
 
 ## Audit and realtime behavior
 

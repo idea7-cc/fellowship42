@@ -115,9 +115,12 @@ async function readSessions(db: D1Database, churchId: string, groupId: string) {
 }
 
 /**
- * The register for one session: every current group member, with their mark if
- * one exists. Returning the roster rather than only the marked rows is what
- * lets the UI show "not recorded" as distinct from "absent".
+ * The register for one session: everyone with a recorded mark, whatever their
+ * roster state is now, plus current active or paused members who are not
+ * marked yet. Recorded history and its counts never depend on the current
+ * roster, and listing unmarked members is what lets the UI show "not
+ * recorded" as distinct from "absent". Deleted people are left out, as in
+ * every other directory read; their rows stay in D1.
  */
 async function readAttendance(
   db: D1Database,
@@ -129,18 +132,33 @@ async function readAttendance(
     .prepare(
       `
         SELECT p.id AS person_id, p.first_name, p.last_name, p.membership_status,
+               m.status AS roster_status,
                a.status, a.checked_in_at, a.notes, COALESCE(a.version, 0) AS version
-        FROM group_memberships m
-        JOIN people p ON p.church_id = m.church_id AND p.id = m.person_id
+        FROM people p
+        LEFT JOIN group_memberships m
+          ON m.church_id = p.church_id AND m.group_id = ? AND m.person_id = p.id
         LEFT JOIN attendance_records a
-          ON a.church_id = m.church_id AND a.session_id = ? AND a.person_id = p.id
-        WHERE m.church_id = ? AND m.group_id = ?
-          AND m.status IN ('active', 'paused')
-          AND p.deleted_at IS NULL
-        ORDER BY p.sort_name
+          ON a.church_id = p.church_id AND a.session_id = ? AND a.person_id = p.id
+        WHERE p.church_id = ? AND p.deleted_at IS NULL
+          AND p.id IN (
+            SELECT person_id FROM attendance_records
+            WHERE church_id = ? AND session_id = ?
+            UNION
+            SELECT person_id FROM group_memberships
+            WHERE church_id = ? AND group_id = ? AND status IN ('active', 'paused')
+          )
+        ORDER BY p.sort_name, p.id
       `,
     )
-    .bind(session.id, churchId, groupId)
+    .bind(
+      groupId,
+      session.id,
+      churchId,
+      churchId,
+      session.id,
+      churchId,
+      groupId,
+    )
     .all<AttendanceEntryRow>()
 
   const entries = (rows.results ?? []).map(mapAttendanceEntry)
@@ -433,17 +451,30 @@ groupSessionRoutes.put(
     await findGroup(c.env.DB, churchId, groupId)
     const session = await findSession(c.env.DB, churchId, groupId, sessionId)
 
-    // Only people on the group's roster can be marked. Attendance for someone
-    // who was never in the group is a data-entry mistake, not a record.
-    const membership = await c.env.DB.prepare(
+    // New marks are for people on the group's roster; attendance for someone
+    // who was never in the group is a data-entry mistake, not a record. A
+    // recorded mark stays correctable after the person leaves the roster.
+    const subject = await c.env.DB.prepare(
       `
-          SELECT 1 AS present FROM group_memberships
-          WHERE church_id = ? AND group_id = ? AND person_id = ?
+          SELECT
+            EXISTS (
+              SELECT 1 FROM group_memberships
+              WHERE church_id = p.church_id AND group_id = ? AND person_id = p.id
+            ) AS on_roster,
+            EXISTS (
+              SELECT 1 FROM attendance_records
+              WHERE church_id = p.church_id AND session_id = ? AND person_id = p.id
+            ) AS marked
+          FROM people p
+          WHERE p.church_id = ? AND p.id = ? AND p.deleted_at IS NULL
         `,
     )
-      .bind(churchId, groupId, personId)
-      .first<{ present: number }>()
-    if (!membership) {
+      .bind(groupId, sessionId, churchId, personId)
+      .first<{ on_roster: number; marked: number }>()
+    if (!subject) {
+      throw new AppError(404, 'person_not_found', 'Person not found')
+    }
+    if (!subject.on_roster && !subject.marked) {
       throw new AppError(
         422,
         'not_a_group_member',
@@ -463,8 +494,9 @@ groupSessionRoutes.put(
         operationId,
         `COALESCE((SELECT version FROM attendance_records WHERE church_id = ? AND session_id = ? AND person_id = ?), 0) = ?
          AND EXISTS (SELECT 1 FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?)
-         AND EXISTS (SELECT 1 FROM group_memberships m JOIN people p ON p.church_id = m.church_id AND p.id = m.person_id
-           WHERE m.church_id = ? AND m.group_id = ? AND m.person_id = ? AND p.deleted_at IS NULL)`,
+         AND EXISTS (SELECT 1 FROM people p WHERE p.church_id = ? AND p.id = ? AND p.deleted_at IS NULL
+           AND (EXISTS (SELECT 1 FROM group_memberships m WHERE m.church_id = p.church_id AND m.group_id = ? AND m.person_id = p.id)
+             OR EXISTS (SELECT 1 FROM attendance_records r WHERE r.church_id = p.church_id AND r.session_id = ? AND r.person_id = p.id)))`,
         [
           churchId,
           sessionId,
@@ -474,8 +506,9 @@ groupSessionRoutes.put(
           groupId,
           sessionId,
           churchId,
-          groupId,
           personId,
+          groupId,
+          sessionId,
         ],
       ),
       c.env.DB.prepare(
