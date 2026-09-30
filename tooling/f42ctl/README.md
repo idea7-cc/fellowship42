@@ -74,7 +74,11 @@ offline doctor example reports `attention` (release, identity, and runtime
 evidence not yet checked) rather than `failed`. Update it with the Worker's
 release coordinates when cutting a release; the test suite enforces the match.
 `examples/deployment-manifest.website.json` is the same installation with its
-optional EmDash website component.
+optional EmDash website component as deployed to staging. Against the
+committed templates, whose routes, origins, identity pin, and service binding
+are left for a deployment to fill in, doctor reports `failed` on those checks
+only; see
+[`docs/lifecycle-manifests-and-doctor.md`](../../docs/lifecycle-manifests-and-doctor.md#examples).
 
 When a manifest declares `website`, `plan` appends six website steps, `doctor`
 also inspects the website Worker's Wrangler file (default
@@ -113,8 +117,11 @@ emits only the strict public payload-free report in
 provider identifiers.
 `buildMigrationRehearsalEvidence` verifies the complete plan, restore report,
 church-owner approval, completion report, credential disposition, and adapter
-observations. Run `pnpm test:migration-rehearsal` at repository root to execute
-the public hosted-to-church-owned compatibility fixture.
+observations. Cutover, rehearsal evidence, and exit packets accept an
+execution report only when its ordered step IDs and kinds equal the plan's
+(`importReportBindsToPlan`). Run `pnpm test:migration-rehearsal` at
+repository root to execute the public hosted-to-church-owned compatibility
+fixtures, with and without the website.
 
 The CLI is expected to add:
 
