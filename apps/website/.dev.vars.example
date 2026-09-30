@@ -1,5 +1,5 @@
 # Copy to .dev.vars for local development. Never commit real values.
-EMDASH_SITE_URL=http://localhost:4322
+EMDASH_SITE_URL=http://www.localhost:4322
 FELLOWSHIP42_URL=http://localhost:5173
 # Optional: pin the church identity reported by the instance's /api/health.
 # FELLOWSHIP42_INSTANCE_SHA256=

@@ -155,16 +155,26 @@ node apps/instance/scripts/recover-owner.mjs --config apps/instance/wrangler.jso
   --email owner@example.test --output /tmp/owner-link.txt --local \
   --confirm-reset-owner
 pnpm dev            # instance: http://localhost:5173
-pnpm dev:website    # website:  http://localhost:4322
+pnpm dev:website    # website:  http://www.localhost:4322
 ```
 
+The website uses `www.localhost` so that, as in production, the two apps have
+different hostnames and therefore separate passkeys. On a shared `localhost`
+both passkeys would be offered, and choosing the wrong one fails sign-in.
 Open the link in `/tmp/owner-link.txt`, create a passkey, and follow the owner
 journey above. The website reaches the local instance directly because the
 trusted plugin uses the runtime's `fetch`. Publish, edit, withdraw, and delete
 events or sermons in `/app`, and reload the website to see each change.
-`pnpm --filter @fellowship42/website build && pnpm --filter
-@fellowship42/website preview` serves the production build, in which EmDash's
-development shortcuts are disabled.
+`astro dev` keeps EmDash's development sign-in shortcut
+(`/_emdash/api/auth/dev-bypass`) available; production builds refuse it. To
+evaluate exactly what deploys, run the automated journey, which uses production
+builds of both Workers on isolated synthetic state:
+
+```bash
+pnpm acceptance:fellowship42-first   # Chromium with virtual passkeys
+```
+
+It writes `evidence.json` and screenshots to `/tmp/f42-acceptance/fellowship42-first`.
 
 ## Ownership, backup, and exit
 

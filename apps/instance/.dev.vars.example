@@ -27,5 +27,5 @@ SIGN_IN_ORIGIN=http://localhost:5173
 # WEBSITE_ORIGIN, and owners can claim the website's first EmDash
 # administrator with WEBSITE_SETUP_SECRET (the same value in both Workers, at
 # least 32 characters; delete it from both after setup).
-WEBSITE_ORIGIN=http://localhost:4322
+WEBSITE_ORIGIN=http://www.localhost:4322
 # WEBSITE_SETUP_SECRET=<same random value as apps/website/.dev.vars>
