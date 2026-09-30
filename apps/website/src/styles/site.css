@@ -151,6 +151,7 @@ img {
 }
 
 .preview-banner {
+  margin: 0;
   background: var(--f42-accent);
   color: var(--church-accent-contrast, #ffffff);
   font-weight: 600;
