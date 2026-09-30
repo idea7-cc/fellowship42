@@ -36,6 +36,15 @@ event reads remain limited to upcoming published events. Sermons accept public
 video URLs and may reference an audio media record owned by the same church. A
 published sermon cannot reference private audio.
 
+Event times are stored as instants with the event's IANA timezone. The staff
+editor reads and shows its start and end fields as wall-clock times in that
+timezone, not the timezone of the device doing the editing, and a new event
+starts in the church's timezone. Changing the timezone field keeps the typed
+wall-clock time and reinterprets it in the new zone. Staff lists show event
+times in each event's timezone, as the public site does. A sermon date is a
+calendar date stored at noon UTC of the chosen day and shown as that date in
+every timezone.
+
 ## R2 media lifecycle
 
 Uploads are limited to 20 MiB and an allowlist of common image, audio, video,

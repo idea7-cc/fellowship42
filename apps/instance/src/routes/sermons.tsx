@@ -19,15 +19,16 @@ import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, MediaRecord, Sermon } from '@/lib/api-types'
-import { formatTimestamp } from '@/lib/format'
+import {
+  calendarDateToEpoch,
+  epochToCalendarDate,
+  formatCalendarDate,
+} from '@/lib/time-zone'
 
 // Selects and textareas in this route share the one control treatment.
 const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
-}
-function localDate(value?: number) {
-  return value ? new Date(value).toISOString().slice(0, 10) : ''
 }
 
 function SermonForm({
@@ -66,9 +67,9 @@ function SermonForm({
       summary: String(form.get('summary') ?? ''),
       videoUrl: String(form.get('videoUrl') ?? '') || null,
       audioMediaId: String(form.get('audioMediaId') ?? '') || null,
-      preachedAt: new Date(
-        `${String(form.get('preachedAt'))}T12:00:00`,
-      ).getTime(),
+      // A calendar date, stored at noon UTC so every timezone reads it back
+      // as the same day.
+      preachedAt: calendarDateToEpoch(String(form.get('preachedAt') ?? '')),
       featured: form.get('featured') === 'on',
     }
     try {
@@ -147,7 +148,9 @@ function SermonForm({
                 name="preachedAt"
                 type="date"
                 required
-                defaultValue={localDate(sermon?.preachedAt)}
+                defaultValue={
+                  sermon ? epochToCalendarDate(sermon.preachedAt) : ''
+                }
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -373,7 +376,7 @@ export function SermonsPage() {
                 <CardHeader>
                   <CardTitle>{sermon.title}</CardTitle>
                   <CardDescription>
-                    {sermon.speaker} · {formatTimestamp(sermon.preachedAt)}
+                    {sermon.speaker} · {formatCalendarDate(sermon.preachedAt)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

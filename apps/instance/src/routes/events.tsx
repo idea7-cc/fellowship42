@@ -19,19 +19,22 @@ import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
-import { formatTimestamp } from '@/lib/format'
+import {
+  formatInTimeZone,
+  fromZonedInputValue,
+  isValidTimeZone,
+  toZonedInputValue,
+} from '@/lib/time-zone'
 
 // Selects and textareas in this route share the one control treatment.
 const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
-function localDateTime(value?: number) {
-  if (!value) return ''
-  const date = new Date(value)
-  return new Date(value - date.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16)
+/** An event's stored time as a `datetime-local` value in the event's zone. */
+function eventInputValue(value: number | undefined, timeZone: string) {
+  if (value === undefined) return ''
+  return toZonedInputValue(value, isValidTimeZone(timeZone) ? timeZone : 'UTC')
 }
 
 function EventForm({
@@ -61,16 +64,25 @@ function EventForm({
     setSaving(true)
     setError(null)
     const form = new FormData(formEvent.currentTarget)
+    // Times are wall-clock values in the event's own zone, never the zone of
+    // the browser that happens to be editing.
+    const zone = String(form.get('timezone') ?? '').trim()
+    if (!isValidTimeZone(zone)) {
+      setError(
+        'Enter a valid IANA timezone, such as America/Chicago or Europe/London.',
+      )
+      setSaving(false)
+      return
+    }
+    const endsRaw = String(form.get('endsAt') ?? '')
     const value = {
       slug: String(form.get('slug') ?? ''),
       title: String(form.get('title') ?? ''),
       status: String(form.get('status') ?? 'draft'),
       summary: String(form.get('summary') ?? ''),
-      startsAt: new Date(String(form.get('startsAt'))).getTime(),
-      endsAt: form.get('endsAt')
-        ? new Date(String(form.get('endsAt'))).getTime()
-        : null,
-      timezone: String(form.get('timezone') ?? timezone),
+      startsAt: fromZonedInputValue(String(form.get('startsAt') ?? ''), zone),
+      endsAt: endsRaw ? fromZonedInputValue(endsRaw, zone) : null,
+      timezone: zone,
       location: String(form.get('location') ?? ''),
       registrationUrl: String(form.get('registrationUrl') ?? '') || null,
       capacity: form.get('capacity') ? Number(form.get('capacity')) : null,
@@ -133,7 +145,10 @@ function EventForm({
                 name="startsAt"
                 type="datetime-local"
                 required
-                defaultValue={localDateTime(event?.startDate)}
+                defaultValue={eventInputValue(
+                  event?.startDate,
+                  event?.timezone ?? '',
+                )}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -141,7 +156,10 @@ function EventForm({
               <Input
                 name="endsAt"
                 type="datetime-local"
-                defaultValue={localDateTime(event?.endDate)}
+                defaultValue={eventInputValue(
+                  event?.endDate,
+                  event?.timezone ?? '',
+                )}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -154,6 +172,11 @@ function EventForm({
                 onChange={(change) => setTypedTimezone(change.target.value)}
               />
             </label>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {timezone
+                ? `Start and end times are in ${timezone}, the event's timezone, whatever timezone this device uses.`
+                : "Start and end times are in the event's timezone."}
+            </p>
             <label className="grid gap-1 text-sm font-semibold">
               Location
               <Input
@@ -365,7 +388,8 @@ export function EventsPage() {
                 <CardHeader>
                   <CardTitle>{event.title}</CardTitle>
                   <CardDescription>
-                    {formatTimestamp(event.startDate)} · {event.timezone}
+                    {formatInTimeZone(event.startDate, event.timezone)} ·{' '}
+                    {event.timezone}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
