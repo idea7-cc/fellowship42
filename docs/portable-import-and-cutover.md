@@ -101,7 +101,8 @@ A cutover approval binds all of these fields:
 - operation, portable instance, export-manifest, and destination-manifest IDs;
 - source and destination runtime verification times;
 - intended domains: the instance domains followed by the website domains,
-  exactly as in the destination manifest (up to 16);
+  exactly as in the destination manifest (at most eight, or sixteen with a
+  website);
 - confirmation that deployment credentials and application secrets were
   rotated and management credentials were rotated or disconnected;
 - with a website, the website credential disposition described below; and
@@ -146,7 +147,10 @@ pnpm f42ctl verify-cutover \
   --approval ./cutover-approval.json
 ```
 
-`executePortableCutover` then calls the adapter to attach the exact domains
+`executePortableCutover` first requires the execution report to carry exactly
+the plan's ordered step IDs and kinds, so a report that skipped the website
+cannot complete a website plan, nor the reverse; rehearsal evidence and exit
+packets apply the same check. It then calls the adapter to attach the exact domains
 (instance routes to the instance Worker, website routes to the website
 Worker), verify independent operation, and retire only the source routing. It does not
 delete source D1/R2 data. Source disposal is a later retention-controlled,

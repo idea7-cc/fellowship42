@@ -42,11 +42,13 @@ installation has a website, four classes precede `domains`:
 
 `disposed` is valid only for the website session store; source data is never
 disposed by an exit. `domains` stays last and lists every instance and website
-hostname, which must equal the approved cutover domains (up to 16). With a
+hostname, which must equal the approved cutover domains (at most eight, or
+sixteen with a website). With a
 website, the handoff's `credentialAttestation.website` must repeat the
 approval's website disposition exactly (`EMDASH_ENCRYPTION_KEY` preserved,
 `WEBSITE_SETUP_SECRET` removed or rotated, session store recreated). A website
-plan without website resources or attestation, or the reverse, is rejected.
+plan without website resources or attestation, or the reverse, is rejected,
+as is an execution report whose steps differ from the plan's.
 The twelve packet checks are unchanged; `destination-restored` covers every
 restored component.
 
