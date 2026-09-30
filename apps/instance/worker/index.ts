@@ -204,9 +204,12 @@ app.route('/media', mediaRoutes)
 app.route('/webhooks/payments', paymentWebhookRoutes)
 
 // The church's website is the public front door when one is configured.
-app.get('/', (c) => {
+app.get('/', async (c) => {
   const website = websiteOrigin(c.env)
-  return website ? c.redirect(website, 302) : c.env.ASSETS.fetch(c.req.raw)
+  if (website) return c.redirect(website, 302)
+  // Asset responses have immutable headers; security headers are added later.
+  const asset = await c.env.ASSETS.fetch(c.req.raw)
+  return new Response(asset.body, asset)
 })
 
 app.all('/api/*', (_c) => {

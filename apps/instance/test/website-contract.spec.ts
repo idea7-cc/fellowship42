@@ -342,6 +342,14 @@ describe('public media for other origins', () => {
 })
 
 describe('instance front door and website setup', () => {
+  it('serves its own homepage, with security headers, when no website is configured', async () => {
+    const response = await call('/', {}, { WEBSITE_ORIGIN: '' })
+    expect(response.status).toBeLessThan(500)
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Location')).toBeNull()
+    await response.arrayBuffer()
+  })
+
   it('redirects the homepage to the configured website', async () => {
     const response = await call(
       '/',
