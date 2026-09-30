@@ -18,7 +18,7 @@ const setupSecret = 'website-setup-secret-that-is-long-enough'
 async function call(
   path: string,
   init: RequestInit = {},
-  bindings: Partial<Env> & Record<string, unknown> = {},
+  bindings: Record<string, unknown> = {},
 ) {
   const ctx = createExecutionContext()
   const response = await worker.fetch(
@@ -26,7 +26,7 @@ async function call(
       unknown,
       IncomingRequestCfProperties
     >,
-    { ...env, ...bindings } as Env,
+    { ...env, ...bindings } as unknown as Env,
     ctx,
   )
   await waitOnExecutionContext(ctx)
@@ -183,7 +183,8 @@ describe('public website contract v1', () => {
     let cursor: string | null = null
     let pages = 0
     do {
-      const page = await source.list('sermons', { cursor, limit: 100 })
+      const page: Awaited<ReturnType<typeof source.list<'sermons'>>> =
+        await source.list('sermons', { cursor, limit: 100 })
       if (!page.ok) throw new Error(page.state)
       seen.push(...page.data.items.map((item) => item.id))
       cursor = page.data.nextCursor
