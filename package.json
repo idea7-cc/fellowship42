@@ -37,7 +37,8 @@
     "format": "prettier --write \"{apps,packages,tooling,scripts}/**/*.{ts,tsx,mjs}\" \"*.mjs\" \"*.json\"",
     "format:check": "prettier --check \"{apps,packages,tooling,scripts}/**/*.{ts,tsx,mjs}\" \"*.mjs\" \"*.json\"",
     "test:tooling": "node --test scripts/*.test.mjs",
-    "verify": "pnpm check:architecture && pnpm format:check && pnpm lint && pnpm cf-typegen:check && pnpm typecheck && pnpm test && pnpm test:migration-rehearsal && pnpm build && pnpm deploy:dry-run && pnpm deploy:site:dry-run && pnpm deploy:website:dry-run"
+    "verify": "pnpm check:architecture && pnpm format:check && pnpm lint && pnpm cf-typegen:check && pnpm typecheck && pnpm test && pnpm test:migration-rehearsal && pnpm build && pnpm deploy:dry-run && pnpm deploy:site:dry-run && pnpm deploy:website:dry-run",
+    "acceptance:fellowship42-first": "node scripts/acceptance/fellowship42-first.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
