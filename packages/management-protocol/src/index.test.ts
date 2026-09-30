@@ -31,15 +31,21 @@ import {
   operatorReferenceDefinitionsSchema,
   operatorReferenceCatalogSchema,
   deployPlanSchema,
+  deployPlanStepKindSchema,
   deployPlanStepKindsFor,
   destinationImportPreflightSchema,
+  doctorCheckIdSchema,
   doctorCheckIdsFor,
+  exitResourceKindSchema,
   exitResourceKindsFor,
   importExecutionReportSchema,
+  importStepKindSchema,
   importStepKindsFor,
   importStepRisks,
   instanceDoctorCheckIds,
+  migrationRehearsalAssertionIdSchema,
   migrationRehearsalAssertionIdsFor,
+  portableRestoreConformanceScenarioIdSchema,
   portableRestoreConformanceScenarioIdsFor,
   reconciliationObservationSetSchema,
   reconciliationReportSchema,
@@ -108,6 +114,44 @@ const websiteDisposition = {
 } as const
 
 describe('optional website component', () => {
+  it('exports website-inclusive enum options and instance-only shapes only through the For helpers', () => {
+    // Consumers that need instance-only lengths or order must call the
+    // `...For(false)` helpers; an enum's `.options` is the full vocabulary.
+    const vocabularies = [
+      [deployPlanStepKindSchema.options, deployPlanStepKindsFor, 11, 17],
+      [doctorCheckIdSchema.options, doctorCheckIdsFor, 14, 23],
+      [importStepKindSchema.options, importStepKindsFor, 17, 23],
+      [exitResourceKindSchema.options, exitResourceKindsFor, 8, 12],
+      [
+        migrationRehearsalAssertionIdSchema.options,
+        migrationRehearsalAssertionIdsFor,
+        10,
+        13,
+      ],
+      [
+        portableRestoreConformanceScenarioIdSchema.options,
+        portableRestoreConformanceScenarioIdsFor,
+        9,
+        10,
+      ],
+    ] as const
+    for (const [
+      options,
+      shapeFor,
+      instanceCount,
+      websiteCount,
+    ] of vocabularies) {
+      const instanceOnly: readonly string[] = shapeFor(false)
+      const withWebsite: readonly string[] = shapeFor(true)
+      expect(withWebsite).toEqual(options)
+      expect(withWebsite).toHaveLength(websiteCount)
+      expect(instanceOnly).toHaveLength(instanceCount)
+      expect(instanceOnly).toEqual(
+        withWebsite.filter((id) => !id.includes('website')),
+      )
+    }
+  })
+
   it('keeps an instance-only manifest free of any website key', () => {
     const parsed = deploymentManifestSchema.parse(deploymentManifest)
     expect('website' in parsed).toBe(false)
@@ -140,6 +184,16 @@ describe('optional website component', () => {
       {
         ...websiteManifest,
         website: { ...website, worker: { ...website.worker, domains: [] } },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          worker: {
+            ...website.worker,
+            domains: ['www.example.org', 'www.example.org'],
+          },
+        },
       },
       {
         ...websiteManifest,
@@ -503,6 +557,29 @@ describe('optional website component', () => {
       rollbackDeadline: '2026-07-20T22:30:00.000Z',
     }
     expect(cutoverApprovalSchema.parse(approval)).toEqual(approval)
+    // Eight instance domains plus up to eight website domains; an
+    // instance-only approval keeps the eight-domain cap.
+    const domains = (count: number) =>
+      Array.from({ length: count }, (_, index) => `host-${index}.example.org`)
+    expect(
+      cutoverApprovalSchema.safeParse({ ...approval, domains: domains(16) })
+        .success,
+    ).toBe(true)
+    const { website: _website, ...instanceDisposition } =
+      approval.credentialDisposition
+    for (const [count, success] of [
+      [8, true],
+      [9, false],
+    ] as const) {
+      expect(
+        cutoverApprovalSchema.safeParse({
+          ...approval,
+          credentialDisposition: instanceDisposition,
+          domains: domains(count),
+        }).success,
+        `${count} instance-only domains`,
+      ).toBe(success)
+    }
     for (const website of [
       { ...websiteDisposition, encryptionKey: 'rotated' },
       { ...websiteDisposition, setupSecret: 'retained' },
@@ -573,6 +650,35 @@ describe('optional website component', () => {
       applicationSecrets: 'rotated',
       management: 'disconnected',
       attestedAt: handoff.credentialAttestation.attestedAt,
+    }
+    const exitDomains = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        hostname: `host-${index}.example.org`,
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      }))
+    expect(
+      exitHandoffSchema.safeParse({ ...handoff, domains: exitDomains(16) })
+        .success,
+    ).toBe(true)
+    const instanceHandoff = {
+      ...handoff,
+      resources: handoff.resources.filter(
+        (resource) => !resource.kind.startsWith('website-'),
+      ),
+      credentialAttestation: instanceAttestation,
+    }
+    for (const [count, success] of [
+      [8, true],
+      [9, false],
+    ] as const) {
+      expect(
+        exitHandoffSchema.safeParse({
+          ...instanceHandoff,
+          domains: exitDomains(count),
+        }).success,
+        `${count} instance-only exit domains`,
+      ).toBe(success)
     }
     for (const invalid of [
       { ...handoff, credentialAttestation: instanceAttestation },

@@ -278,6 +278,18 @@ export const cutoverApprovalSchema = z
         path: ['domains'],
       })
     }
+    // A manifest declares at most eight instance domains and, with a website,
+    // at most eight more.
+    if (
+      !approval.credentialDisposition.website &&
+      approval.domains.length > 8
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'An instance-only cutover approves at most eight domains',
+        path: ['domains'],
+      })
+    }
   })
 
 export type CutoverApproval = z.output<typeof cutoverApprovalSchema>

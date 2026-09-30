@@ -273,6 +273,20 @@ describe('hosted exit packets', () => {
         inputs,
       }),
     ).toThrow('canonical source evidence')
+
+    // An instance-only packet keeps the eight-domain cap.
+    const domains = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        hostname: `host-${index}.example.org`,
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      }))
+    expect(
+      exitPacketSchema.safeParse({ ...packet, domains: domains(8) }).success,
+    ).toBe(true)
+    expect(
+      exitPacketSchema.safeParse({ ...packet, domains: domains(9) }).success,
+    ).toBe(false)
   })
 
   it('covers website resources, domains, and credential disposition when present', () => {

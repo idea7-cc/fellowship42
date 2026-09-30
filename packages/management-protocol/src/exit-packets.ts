@@ -231,6 +231,22 @@ function orderedExitResources(
   }
 }
 
+/** Eight instance domains at most; a website adds at most eight more. */
+function boundedExitDomains(
+  domainCount: number,
+  hasWebsiteAttestation: boolean,
+  subject: string,
+  context: z.RefinementCtx,
+) {
+  if (!hasWebsiteAttestation && domainCount > 8) {
+    context.addIssue({
+      code: 'custom',
+      message: `${subject} for an instance-only installation covers at most eight domains`,
+      path: ['domains'],
+    })
+  }
+}
+
 const unresolvedExitRiskSchema = z
   .object({
     code: boundedCodeSchema,
@@ -259,6 +275,12 @@ export const exitHandoffSchema = z
   .superRefine((handoff, context) => {
     orderedExitResources(
       handoff.resources,
+      handoff.credentialAttestation.website !== undefined,
+      'Exit handoff',
+      context,
+    )
+    boundedExitDomains(
+      handoff.domains.length,
       handoff.credentialAttestation.website !== undefined,
       'Exit handoff',
       context,
@@ -373,6 +395,12 @@ export const exitPacketSchema = z
     }
     orderedExitResources(
       packet.resources,
+      packet.credentialAttestation.website !== undefined,
+      'Exit packet',
+      context,
+    )
+    boundedExitDomains(
+      packet.domains.length,
       packet.credentialAttestation.website !== undefined,
       'Exit packet',
       context,
