@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -19,6 +20,7 @@ import {
   type DeploymentManifest,
 } from '@fellowship42/management-protocol'
 import {
+  doctorFromFiles,
   healthObservationFromDoctorReport,
   inspectDeployment,
   verifyPublishedRelease,
@@ -1355,6 +1357,53 @@ describe('f42ctl website component', () => {
       { id: 'runtime-health', status: 'unknown', code: 'runtime-not-checked' },
     ])
   })
+
+  // The website template ships with the website app. Where it is present, the
+  // website example must match its structure; only the values a deployment
+  // fills in may differ: routes, the derived origins, the identity pin, and
+  // the optional same-account service binding.
+  const websiteTemplate = path.resolve('../../apps/website/wrangler.jsonc')
+  it.skipIf(!existsSync(websiteTemplate))(
+    'keeps the checked-in website example consistent with the committed Worker templates',
+    async () => {
+      const report = await doctorFromFiles({
+        manifestPath: path.resolve('examples/deployment-manifest.website.json'),
+        wranglerPath: path.resolve('../../apps/instance/wrangler.jsonc'),
+        migrationsPath: path.resolve('../../apps/instance/migrations'),
+        websiteWranglerPath: websiteTemplate,
+        offline: true,
+      })
+      const deploymentValues = new Set([
+        'domains',
+        'website-domains',
+        'website-origins',
+        'website-instance-pin',
+        'website-instance-service',
+      ])
+      expect(
+        report.checks.filter(
+          ({ id, status }) => status !== 'pass' && !deploymentValues.has(id),
+        ),
+        'update examples/deployment-manifest.website.json to match the committed Worker templates',
+      ).toEqual([
+        {
+          id: 'release-manifest',
+          status: 'unknown',
+          code: 'release-not-checked',
+        },
+        {
+          id: 'portable-identity',
+          status: 'unknown',
+          code: 'identity-runtime-check-required',
+        },
+        {
+          id: 'runtime-health',
+          status: 'unknown',
+          code: 'runtime-not-checked',
+        },
+      ])
+    },
+  )
 })
 
 async function websiteExport(root: string) {

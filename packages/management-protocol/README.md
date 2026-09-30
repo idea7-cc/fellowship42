@@ -59,8 +59,11 @@ metadata and eligibility assessment without changing management wire v1.
 Package 1.9 adds update preparation and deployment-authorization evidence
 without changing management wire v1. Package 1.10 adds compatible-operator
 test inputs without changing management wire v1. Package 1.14 adds the optional
-website lifecycle component without changing management wire v1; contracts for
-an instance-only installation are unchanged. The
+website lifecycle component without changing management wire v1. Instance-only
+documents are unchanged, but the lifecycle enums' `.options` now list the
+website members too: use the `...For(false)` helpers, such as
+`deployPlanStepKindsFor(false)` and `importStepKindsFor(false)`, for
+instance-only lengths and order. The
 instance adapter is
 implemented as local-owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before

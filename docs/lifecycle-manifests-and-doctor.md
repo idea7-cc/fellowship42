@@ -92,7 +92,21 @@ placeholders (release `v0.26.0`, schema 1, an all-zero manifest digest), so
 `doctor --offline` against the repository reports `attention` rather than
 `failed`. The f42ctl tests enforce that match. Update the example with the
 Worker's release coordinates when a release changes them.
-`deployment-manifest.website.json` is the same installation with a website:
+`deployment-manifest.website.json` describes the same installation with a
+website as deployed to staging. It declares instance and website domains and
+the same-account `FELLOWSHIP42` service binding, from which the Wrangler
+routes, origins, and identity pin derive. The committed Worker templates leave
+those deployment values empty: the instance and website templates declare no
+routes, the website template's `EMDASH_SITE_URL`, `FELLOWSHIP42_URL`, and
+`FELLOWSHIP42_INSTANCE_SHA256` are empty, and its service binding is
+commented out. Against the committed templates, `doctor --offline` with this
+example therefore reports `failed` on `domains`, `website-domains`,
+`website-origins`, `website-instance-pin`, and `website-instance-service`
+until a deployment fills them in (or sets `instanceService` to `null` when the
+Workers are in different accounts). Every other check must still pass or be
+`unknown`; the f42ctl tests enforce that whenever `apps/website/wrangler.jsonc`
+is present, and they also expect `attention` for this example against a
+filled-in configuration.
 
 ```bash
 pnpm f42ctl plan \
