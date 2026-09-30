@@ -88,7 +88,10 @@ function isolatedDestination(source: DeploymentManifest): DeploymentManifest {
   })
 }
 
-async function runConformance(sourceManifest: DeploymentManifest) {
+async function runConformance(
+  sourceManifest: DeploymentManifest,
+  { emptyWebsiteBucket = false } = {},
+) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'f42-restore-conformance-'))
   try {
     const sourceManifestPath = path.join(root, 'source.json')
@@ -129,7 +132,9 @@ async function runConformance(sourceManifest: DeploymentManifest) {
         websiteR2IndexPath,
         JSON.stringify({
           formatVersion: 1,
-          objects: [{ key: 'uploads/hero.bin', file: 'website.bin' }],
+          objects: emptyWebsiteBucket
+            ? []
+            : [{ key: 'uploads/hero.bin', file: 'website.bin' }],
         }),
       )
     }
@@ -305,6 +310,12 @@ describe('portable isolated-restore conformance', () => {
     ]) {
       expect(JSON.stringify(report)).not.toContain(privateValue)
     }
+  })
+
+  it('refuses a website capture whose bucket would leave website R2 restore unexercised', async () => {
+    await expect(
+      runConformance(websiteManifest, { emptyWebsiteBucket: true }),
+    ).rejects.toThrow('at least one website R2 object')
   })
 
   it('reports the instance-only profile without the website scenario', async () => {

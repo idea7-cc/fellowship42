@@ -9,7 +9,9 @@ through an injected adapter.
 ## Required harness inputs
 
 - a deployment manifest and operator-quiesced D1/R2 collector capture, plus
-  the website D1/R2 capture when the manifest declares a website;
+  the website D1/R2 capture when the manifest declares a website; each
+  captured bucket must hold at least one object, so every R2 restore path is
+  exercised;
 - a distinct destination manifest preserving the portable instance ID and
   exact format-v1 release;
 - a new output directory; and

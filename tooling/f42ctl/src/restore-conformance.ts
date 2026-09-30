@@ -106,18 +106,21 @@ export async function runPortableRestoreConformance(
     quiescedAt: iso(startedAt),
     exportedAt: iso(startedAt + 60_000),
   })
-  const exportedIndex = r2ExportIndexSchema.parse(
-    JSON.parse(
-      await readFile(
-        path.join(options.outputDirectory, 'r2/index.json'),
-        'utf8',
+  // Each bucket restore must be exercised with at least one object.
+  for (const [indexFile, bucket] of [
+    ['r2/index.json', 'R2'],
+    ...(options.website ? [['website/r2/index.json', 'website R2']] : []),
+  ] as const) {
+    const exportedIndex = r2ExportIndexSchema.parse(
+      JSON.parse(
+        await readFile(path.join(options.outputDirectory, indexFile), 'utf8'),
       ),
-    ),
-  )
-  assertion(
-    exportedIndex.objects.length > 0,
-    'the conformance capture must contain at least one R2 object',
-  )
+    )
+    assertion(
+      exportedIndex.objects.length > 0,
+      `the conformance capture must contain at least one ${bucket} object`,
+    )
+  }
   await verifyPortableExport({
     directory: options.outputDirectory,
     verifiedAt: iso(startedAt + 120_000),
