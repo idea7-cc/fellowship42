@@ -1,4 +1,16 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterAll, afterEach, expect, it, vi } from 'vitest'
+
+/*
+ * Completion dates are instants shown as a calendar day in the viewer's
+ * timezone, like other staff activity times. Pin the viewer's zone before any
+ * module that captures it loads, so the expected day holds on every machine.
+ */
+const viewerZone = vi.hoisted(() => {
+  const previous = process.env.TZ
+  process.env.TZ = 'America/Chicago'
+  return { previous }
+})
+
 import { CourseEnrollmentPanel } from '../../src/components/course-enrollment-panel'
 import { GroupRosterPanel } from '../../src/components/group-roster-panel'
 import { GroupSessionsPanel } from '../../src/components/group-sessions-panel'
@@ -15,6 +27,10 @@ let ui: Ui | null = null
 afterEach(async () => {
   await ui?.unmount()
   ui = null
+})
+afterAll(() => {
+  if (viewerZone.previous === undefined) delete process.env.TZ
+  else process.env.TZ = viewerZone.previous
 })
 
 const group = { id: 'group', title: 'Midtown', location: 'Hall' } as Group

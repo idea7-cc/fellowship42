@@ -356,8 +356,9 @@ INSERT OR IGNORE INTO course_enrollments (
 -- recorded one, and an upcoming session with nothing recorded yet. That spread
 -- is what makes "not recorded" visibly different from "absent" in the register.
 -- Recorded marks outlive roster changes: Jordan Ellis came to Midtown's first
--- week but is no longer on its roster, and Tabitha Okoro's mark in the women's
--- study remains after she completed the cohort.
+-- week and has since left the group, so is no longer on its roster, and
+-- Tabitha Okoro's mark in the women's study remains after she completed the
+-- cohort.
 -- ---------------------------------------------------------------------------
 
 INSERT OR IGNORE INTO group_sessions (
@@ -377,7 +378,7 @@ INSERT OR IGNORE INTO attendance_records (
   ('attendance_demo_03','church_demo','groupsession_demo_01','person_demo_04','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_04','church_demo','groupsession_demo_01','person_demo_11','serving',(unixepoch()-1209600)*1000,'Hosting',unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_05','church_demo','groupsession_demo_01','person_demo_14','excused',NULL,'Travelling',unixepoch()*1000,unixepoch()*1000),
-  ('attendance_demo_09','church_demo','groupsession_demo_01','person_demo_19','present',(unixepoch()-1209600)*1000,'Visited before joining another group',unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_09','church_demo','groupsession_demo_01','person_demo_19','present',(unixepoch()-1209600)*1000,'Came once before leaving the group',unixepoch()*1000,unixepoch()*1000),
   -- Week 2: partly recorded, so the register shows a real mid-entry state.
   ('attendance_demo_06','church_demo','groupsession_demo_02','person_demo_01','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_07','church_demo','groupsession_demo_02','person_demo_02','absent',NULL,NULL,unixepoch()*1000,unixepoch()*1000),

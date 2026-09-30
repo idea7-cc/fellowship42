@@ -317,9 +317,50 @@ describe('attendance history after roster changes', () => {
   })
 })
 
-describe('deleted people in participation history', () => {
+describe('seeded demo history', () => {
+  it('shows the retained marks the seed describes', async () => {
+    const midtown = await readRegister(
+      '/api/groups/church_demo/group_demo_midtown/sessions/groupsession_demo_01/attendance',
+    )
+    const jordan = midtown.entries.find(
+      (entry) => entry.personId === 'person_demo_19',
+    )
+    expect(jordan).toMatchObject({
+      firstName: 'Jordan',
+      status: 'present',
+      notes: 'Came once before leaving the group',
+    })
+    expect(jordan?.rosterStatus).toBeUndefined()
+
+    const womens = await readRegister(
+      '/api/groups/church_demo/group_demo_womens/sessions/groupsession_demo_04/attendance',
+    )
+    expect(
+      womens.entries.find((entry) => entry.personId === 'person_demo_16'),
+    ).toMatchObject({
+      firstName: 'Tabitha',
+      rosterStatus: 'completed',
+      status: 'present',
+    })
+
+    const baptism = await (
+      await request(
+        'GET',
+        '/api/courses/church_demo/course_demo_baptism/enrollments',
+      )
+    ).json<{ enrollments: CourseEnrollment[] }>()
+    const archived = baptism.enrollments.find(
+      (entry) => entry.personId === 'person_demo_16',
+    )
+    expect(archived?.status).toBe('archived')
+    expect(archived?.completedAt).toBeTypeOf('number')
+  })
+})
+
+describe('deleted people and groups in participation history', () => {
   // Deleting a person removes them from directory and participation reads,
-  // including recorded registers and course enrollments. The D1 rows are kept
+  // including recorded registers and course enrollments. Deleting a group
+  // likewise removes its whole-group course enrollments. The D1 rows are kept
   // for referential and audit history, and past counts no longer include them.
   it('hides a deleted person from registers and enrollments while keeping the rows', async () => {
     const { groupId, leaves, register } = await markedSession(
@@ -378,6 +419,48 @@ describe('deleted people in participation history', () => {
     expect(stored).toEqual({ marks: 1, enrollments: 1 })
     expect(groupId).toBeTruthy()
   })
+
+  it('hides the course enrollment of a deleted group while keeping the row', async () => {
+    const courseResponse = await request('POST', '/api/courses/church_demo', {
+      slug: 'hist-deleted-group-course',
+      title: 'Deleted group course',
+      courseType: 'formation',
+      deliveryMode: 'cohort',
+    })
+    const courseId = (await courseResponse.json<{ course: { id: string } }>())
+      .course.id
+    const kept = await createGroup('hist-group-kept')
+    const removed = await createGroup('hist-group-removed')
+    const base = `/api/courses/church_demo/${courseId}/enrollments`
+    for (const groupId of [kept, removed]) {
+      expect(
+        (await request('POST', base, { groupId, status: 'active' })).status,
+      ).toBe(201)
+    }
+    const group = await request('GET', `/api/groups/church_demo/${removed}`)
+    const { version } = (await group.json<{ group: { version: number } }>())
+      .group
+    expect(
+      (
+        await request('DELETE', `/api/groups/church_demo/${removed}`, {
+          version,
+        })
+      ).status,
+    ).toBe(204)
+
+    const listed = await (
+      await request('GET', base)
+    ).json<{
+      enrollments: CourseEnrollment[]
+    }>()
+    expect(listed.enrollments.map((entry) => entry.groupId)).toEqual([kept])
+    const stored = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM course_enrollments WHERE group_id = ?',
+    )
+      .bind(removed)
+      .first<{ total: number }>()
+    expect(stored?.total).toBe(1)
+  })
 })
 
 describe('course completion history', () => {
@@ -419,5 +502,71 @@ describe('course completion history', () => {
     expect(archived.completedAt).toBe(completed.completedAt)
     const reopened = await update(archived.version, { status: 'active' })
     expect(reopened.completedAt).toBeUndefined()
+  })
+
+  it('dates an enrollment created as completed and keeps that date through a notes-only edit', async () => {
+    const courseResponse = await request('POST', '/api/courses/church_demo', {
+      slug: 'hist-created-completed',
+      title: 'Created completed course',
+      courseType: 'formation',
+      deliveryMode: 'cohort',
+    })
+    const courseId = (await courseResponse.json<{ course: { id: string } }>())
+      .course.id
+    const graduate = await createPerson('Earlier', 'Graduate')
+    const base = `/api/courses/church_demo/${courseId}/enrollments`
+    const before = Date.now()
+    const createdResponse = await request('POST', base, {
+      personId: graduate.id,
+      status: 'completed',
+    })
+    expect(createdResponse.status).toBe(201)
+    const created = (
+      await createdResponse.json<{ enrollments: CourseEnrollment[] }>()
+    ).enrollments[0]!
+    expect(created.completedAt).toBeGreaterThanOrEqual(before)
+    expect(created.startedAt).toBe(created.completedAt)
+
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    const noted = await request('PATCH', `${base}/${created.id}`, {
+      version: created.version,
+      status: 'completed',
+      notes: 'Certificate sent',
+    })
+    expect(noted.status).toBe(200)
+    const after = (await noted.json<{ enrollments: CourseEnrollment[] }>())
+      .enrollments[0]!
+    expect(after.notes).toBe('Certificate sent')
+    expect(after.completedAt).toBe(created.completedAt)
+    expect(after.startedAt).toBe(created.startedAt)
+  })
+
+  it('records a start date when an invited enrollment is completed directly', async () => {
+    const courseResponse = await request('POST', '/api/courses/church_demo', {
+      slug: 'hist-invited-completed',
+      title: 'Invited to completed course',
+      courseType: 'formation',
+      deliveryMode: 'cohort',
+    })
+    const courseId = (await courseResponse.json<{ course: { id: string } }>())
+      .course.id
+    const person = await createPerson('Invited', 'Finisher')
+    const base = `/api/courses/church_demo/${courseId}/enrollments`
+    const invited = (
+      await (
+        await request('POST', base, { personId: person.id })
+      ).json<{ enrollments: CourseEnrollment[] }>()
+    ).enrollments[0]!
+    expect(invited.startedAt).toBeUndefined()
+    const response = await request('PATCH', `${base}/${invited.id}`, {
+      version: invited.version,
+      status: 'completed',
+    })
+    expect(response.status).toBe(200)
+    const completed = (
+      await response.json<{ enrollments: CourseEnrollment[] }>()
+    ).enrollments[0]!
+    expect(completed.completedAt).toBeTypeOf('number')
+    expect(completed.startedAt).toBe(completed.completedAt)
   })
 })

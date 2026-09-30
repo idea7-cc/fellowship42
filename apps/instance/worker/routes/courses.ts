@@ -963,9 +963,9 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
         `
             INSERT INTO course_enrollments (
               id, church_id, course_id, person_id, group_id, status,
-              started_at, notes, created_at, updated_at
+              started_at, completed_at, notes, created_at, updated_at
             )
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE EXISTS (
               SELECT 1 FROM courses WHERE church_id = ? AND id = ? AND last_operation_id = ?
             )
@@ -977,7 +977,12 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
         parsed.data.personId ?? null,
         parsed.data.groupId ?? null,
         parsed.data.status,
-        parsed.data.status === 'active' ? now : null,
+        // Enrolling someone as already completed records that they started
+        // and finished now; later notes-only edits keep this date.
+        parsed.data.status === 'active' || parsed.data.status === 'completed'
+          ? now
+          : null,
+        parsed.data.status === 'completed' ? now : null,
         parsed.data.notes,
         now,
         now,
@@ -1061,7 +1066,10 @@ courseRoutes.patch(
             status = ?,
             notes = CASE WHEN ? THEN ? ELSE notes END,
             version = version + 1,
-            started_at = CASE WHEN ? = 'active' AND started_at IS NULL THEN ? ELSE started_at END,
+            started_at = CASE
+              WHEN ? IN ('active', 'completed') AND started_at IS NULL THEN ?
+              ELSE started_at
+            END,
             completed_at = CASE
               WHEN ? = 'completed' THEN COALESCE(completed_at, ?)
               WHEN ? = 'archived' THEN completed_at
