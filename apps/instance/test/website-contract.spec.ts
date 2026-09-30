@@ -366,7 +366,12 @@ describe('instance front door and website setup', () => {
         method: 'POST',
         headers: { Origin: origin, cookie: `__Host-f42-session=${token}` },
       },
-      { SIGN_IN_ORIGIN: origin, WEBSITE_ORIGIN: website },
+      // Blank the secret explicitly: a local .dev.vars may define it.
+      {
+        SIGN_IN_ORIGIN: origin,
+        WEBSITE_ORIGIN: website,
+        WEBSITE_SETUP_SECRET: '',
+      },
     )
     expect(unconfigured.status).toBe(409)
     const issued = await call(
