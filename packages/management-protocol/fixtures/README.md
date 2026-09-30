@@ -11,8 +11,12 @@ meaningful compatibility case changes.
 `migration-rehearsal.v1.json` is privacy-bounded evidence produced by the
 deterministic hosted-to-church-owned compatibility rehearsal. CI reruns the
 public export/import/cutover code and requires byte-equivalent canonical
-evidence. The fixture contains digests and assertions, never synthetic D1/R2
-payloads, resource names, domains, or credentials.
+evidence. The rehearsed installation includes the optional EmDash website
+component, so the evidence has thirteen assertions, three of them for the
+website. The fixture contains digests and assertions, never synthetic D1/R2
+payloads, resource names, domains, or credentials. Before the alpha, synthetic
+lifecycle fixtures such as this one are regenerated in place when the contract
+changes (`node scripts/rehearse-hosted-to-church-owned.mjs --print-fixture`).
 
 `management-jws.v1.json` is the protocol-v1 Ed25519 flattened-JWS
 interoperability vector. It contains only a public test key, a privacy-bounded
@@ -25,10 +29,12 @@ the real adapter and requires exact equality; the fixture contains no portable
 instance ID, key, challenge, endpoint, command/result body, or church data.
 
 `portable-restore-conformance.v1.json` is the exact payload-free report emitted
-by the public `f42ctl` isolated-restore conformance suite. It proves export
-integrity and tamper rejection, new/empty destination enforcement, D1/R2
-restore, credential rotation, portable identity and runtime verification,
-cutover isolation, and fail-closed partial restore for the exact release tuple.
+by the public `f42ctl` isolated-restore conformance suite for an installation
+with a website. It proves export integrity and tamper rejection, new/empty
+destination enforcement, D1/R2 restore, website restore, credential rotation,
+portable identity and runtime verification, cutover isolation, and fail-closed
+partial restore for the exact release tuple. An instance-only run reports the
+same scenarios without `website-restored`.
 It is not evidence that a particular provider account has passed a live drill.
 
 `partner-compatibility-profile.v1.json` is the ordered, public input profile

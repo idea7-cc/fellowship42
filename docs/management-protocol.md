@@ -204,7 +204,9 @@ Protocol package `1.5.0` adds the strict `f42-portable-restore-v1` report
 schema. The executable runner lives in public `f42ctl` because it needs the
 Node filesystem and injected provider restore adapters. It drives real export
 assembly, verification, planning, and pre-cutover restore, then emits only
-exact release/format versions and nine ordered passing scenario IDs.
+exact release/format versions and nine ordered passing scenario IDs, or ten
+with `website-restored` when the capture includes a website (package
+`1.14.0`).
 
 The report never carries a portable instance ID, export digest, D1/R2 payload,
 object key, domain, provider identifier, credential, or storage location. See
