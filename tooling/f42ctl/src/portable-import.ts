@@ -52,6 +52,30 @@ function planHasWebsite(plan: ImportPlan) {
   return plan.steps.some((step) => step.kind === 'restore-website-d1')
 }
 
+function stepShape(steps: ReadonlyArray<{ id: string; kind: ImportStepKind }>) {
+  return canonicalJson(steps.map(({ id, kind }) => ({ id, kind })))
+}
+
+/**
+ * True only when an execution report belongs to the plan: the same operation,
+ * portable identity, and manifests, and exactly the plan's ordered step IDs
+ * and kinds. The report schema alone accepts either the instance-only or the
+ * website step list, so a report that skipped the website would otherwise
+ * bind to a website plan.
+ */
+export function importReportBindsToPlan(
+  plan: ImportPlan,
+  report: ImportExecutionReport,
+): boolean {
+  return (
+    report.operationId === plan.operationId &&
+    report.instanceId === plan.instanceId &&
+    report.exportManifestSha256 === plan.exportManifestSha256 &&
+    report.destinationManifestSha256 === plan.destinationManifestSha256 &&
+    stepShape(report.steps) === stepShape(plan.steps)
+  )
+}
+
 export async function buildPortableImportPlan(options: {
   exportDirectory: string
   destinationManifestPath: string
@@ -641,12 +665,7 @@ export async function executePortableCutover(options: {
   const destination = deploymentManifestSchema.parse(
     options.destinationManifest,
   )
-  if (
-    report.operationId !== plan.operationId ||
-    report.instanceId !== plan.instanceId ||
-    report.exportManifestSha256 !== plan.exportManifestSha256 ||
-    report.destinationManifestSha256 !== plan.destinationManifestSha256
-  ) {
+  if (!importReportBindsToPlan(plan, report)) {
     throw new Error(
       'Execution report does not bind to the supplied import plan',
     )

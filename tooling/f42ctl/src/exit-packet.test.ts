@@ -321,6 +321,40 @@ describe('hosted exit packets', () => {
         }),
       ).toThrow()
     }
+
+    // A report must carry exactly its plan's steps: a website plan cannot be
+    // completed by an instance-only report, nor the reverse.
+    for (const [invalid, message] of [
+      [
+        { ...websiteInputs, report: inputs.report },
+        'does not bind to the import plan and its steps',
+      ],
+      [
+        { ...inputs, report: websiteInputs.report },
+        'does not bind to the import plan and its steps',
+      ],
+      [
+        {
+          ...websiteInputs,
+          approval: inputs.approval,
+          handoff: inputs.handoff,
+        },
+        'Handoff website resources and credentials do not match',
+      ],
+    ] as const) {
+      expect(() =>
+        buildExitPacket({
+          inputs: invalid,
+          generatedAt: '2026-07-19T22:32:00.000Z',
+        }),
+      ).toThrow(message)
+    }
+    expect(() =>
+      verifyExitPacket({
+        packet,
+        inputs: { ...websiteInputs, report: inputs.report },
+      }),
+    ).toThrow('does not bind to the import plan and its steps')
   })
 
   it('exposes equivalent build and verification CLI commands', async () => {

@@ -11,6 +11,7 @@ import {
   doctorReportSchema,
   instanceDoctorCheckIds,
   importStepKindsFor,
+  isWebsiteImportStepKind,
   migrationRehearsalEvidenceSchema,
   portableConfigurationSchema,
   websiteDoctorCheckIds,
@@ -1353,6 +1354,25 @@ async function websiteExport(root: string) {
   }
 }
 
+/**
+ * Drops the website steps from an import plan or execution report and
+ * renumbers the rest, yielding a schema-valid instance-only document.
+ */
+function withoutWebsiteSteps<
+  T extends { steps: ReadonlyArray<{ id: string; kind: string }> },
+>(value: T): T {
+  return {
+    ...value,
+    steps: value.steps
+      .filter((step) => !isWebsiteImportStepKind(step.kind))
+      .map((step, index) => ({
+        ...step,
+        id: `import-${String(index + 1).padStart(2, '0')}`,
+        ...('dependsOn' in step ? { dependsOn: [] } : {}),
+      })),
+  }
+}
+
 function websiteDestination(
   overrides: Partial<DeploymentManifest> = {},
 ): DeploymentManifest {
@@ -1739,6 +1759,32 @@ describe('f42ctl website portability', () => {
         'retire-source-routing',
       ])
 
+      // A report that skipped the website, renumbered as a valid
+      // instance-only report, never binds to the website plan; nor does the
+      // website report bind to an instance-only plan.
+      const skippedWebsite = withoutWebsiteSteps(restored)
+      const instancePlan = withoutWebsiteSteps(plan)
+      expect(() =>
+        verifyCutoverApproval(instancePlan, destination, approval),
+      ).toThrow('exactly when the destination has a website')
+      for (const [forgedPlan, forgedReport] of [
+        [plan, skippedWebsite],
+        [instancePlan, restored],
+      ] as const) {
+        const before = events.length
+        await expect(
+          executePortableCutover({
+            plan: forgedPlan,
+            report: forgedReport,
+            destinationManifest: destination,
+            approval,
+            adapter,
+            now: () => '2026-07-19T22:31:00.000Z',
+          }),
+        ).rejects.toThrow('does not bind to the supplied import plan')
+        expect(events).toHaveLength(before)
+      }
+
       const observations = {
         exportVerified: true,
         destinationWasNewAndEmpty: true,
@@ -1794,6 +1840,18 @@ describe('f42ctl website portability', () => {
             observations: invalid,
           }),
         ).toThrow('Every hosted-to-church-owned rehearsal observation')
+      }
+      for (const forged of [
+        { restoreReport: skippedWebsite },
+        { completionReport: withoutWebsiteSteps(completed) },
+      ]) {
+        expect(() =>
+          buildMigrationRehearsalEvidence({
+            ...rehearsal,
+            ...forged,
+            observations,
+          }),
+        ).toThrow('bound awaiting-cutover and succeeded execution reports')
       }
 
       const failures: Array<[PortableImportAdapter, string, string, string[]]> =
@@ -1881,10 +1939,10 @@ describe('f42ctl website portability', () => {
         ).toBe(true)
         for (const event of reached) expect(events, code).toContain(event)
         if (reached.length === 0) {
-          expect(
-            events.filter((event) => event !== 'preflight'),
-            code,
-          ).toEqual([])
+          // The replaced preflights record nothing, and an adapter without
+          // website support is refused before any provider call, preflight
+          // included.
+          expect(events, code).toEqual([])
         }
       }
     } finally {

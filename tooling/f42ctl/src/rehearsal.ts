@@ -8,7 +8,10 @@ import {
   type MigrationRehearsalEvidence,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './canonical.js'
-import { verifyCutoverApproval } from './portable-import.js'
+import {
+  importReportBindsToPlan,
+  verifyCutoverApproval,
+} from './portable-import.js'
 
 export interface MigrationRehearsalObservations {
   exportVerified: boolean
@@ -36,18 +39,6 @@ const WEBSITE_OBSERVATIONS = [
 
 function digestJson(value: unknown) {
   return createHash('sha256').update(canonicalJson(value)).digest('hex')
-}
-
-function reportBindsToPlan(
-  plan: ReturnType<typeof importPlanSchema.parse>,
-  report: ReturnType<typeof importExecutionReportSchema.parse>,
-) {
-  return (
-    report.operationId === plan.operationId &&
-    report.instanceId === plan.instanceId &&
-    report.exportManifestSha256 === plan.exportManifestSha256 &&
-    report.destinationManifestSha256 === plan.destinationManifestSha256
-  )
 }
 
 export function buildMigrationRehearsalEvidence(options: {
@@ -79,8 +70,8 @@ export function buildMigrationRehearsalEvidence(options: {
     )
   }
   if (
-    !reportBindsToPlan(plan, restoreReport) ||
-    !reportBindsToPlan(plan, completionReport) ||
+    !importReportBindsToPlan(plan, restoreReport) ||
+    !importReportBindsToPlan(plan, completionReport) ||
     restoreReport.status !== 'awaiting-cutover' ||
     completionReport.status !== 'succeeded'
   ) {
