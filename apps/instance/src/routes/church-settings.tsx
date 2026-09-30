@@ -33,6 +33,7 @@ import { Tab, Tabs } from '@/components/ui/tabs'
 import { ChurchImagePicker } from '@/components/church-image-picker'
 import { days } from '@/components/church-site'
 import { DraftReview } from '@/components/draft-review'
+import { WebsiteCard } from '@/components/website-card'
 
 export function ChurchSettingsPage() {
   const { churchId } = useChurch()
@@ -71,6 +72,7 @@ export function ChurchSettingsPage() {
       key={churchId}
       churchId={churchId}
       initial={query.data}
+      owner={permissions.includes('*')}
     />
   )
 }
@@ -78,9 +80,11 @@ export function ChurchSettingsPage() {
 export function ChurchSettingsEditor({
   churchId,
   initial,
+  owner = false,
 }: {
   churchId: string
   initial: ChurchSettings
+  owner?: boolean
 }) {
   const [saved, setSaved] = useState(initial)
   const [draft, setDraft] = useState(initial.draft)
@@ -308,6 +312,7 @@ export function ChurchSettingsEditor({
         disabled={busy !== null || dirty || conflict}
         restore={() => void mutate('restore')}
       />
+      <WebsiteCard churchId={churchId} owner={owner} />
       {!saved.published && (
         <div
           className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border p-4 text-sm"
