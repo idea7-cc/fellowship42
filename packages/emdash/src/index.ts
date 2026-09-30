@@ -69,7 +69,7 @@ export function createPlugin(): ResolvedPlugin {
             'The instance identity digest shown on the Fellowship42 page. When set, the website refuses any other church.',
         },
       },
-      pages: [{ path: '/', label: 'Fellowship42' }],
+      pages: [{ path: '/status', label: 'Fellowship42' }],
       portableTextBlocks,
     },
     routes: {

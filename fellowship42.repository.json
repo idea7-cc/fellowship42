@@ -8,7 +8,11 @@
     "packages/management-protocol",
     "packages/website-contract"
   ],
-  "publicSharedPackages": ["packages/brand", "packages/emdash"],
+  "publicSharedPackages": [
+    "packages/brand",
+    "packages/emdash",
+    "packages/emdash-connect"
+  ],
   "publicPortableTooling": ["tooling/f42ctl"],
   "releaseContract": {
     "documentation": "docs/releases.md",

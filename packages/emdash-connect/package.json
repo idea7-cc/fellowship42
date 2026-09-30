@@ -1,0 +1,49 @@
+{
+  "name": "@fellowship42/emdash-connect",
+  "version": "0.1.0",
+  "description": "Sandboxed EmDash registry connector for a Fellowship42 church: connection, status, public data routes, and structured data",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./sandbox": "./dist/plugin.mjs"
+  },
+  "files": [
+    "dist",
+    "emdash-plugin.jsonc",
+    "README.md"
+  ],
+  "scripts": {
+    "validate": "emdash-plugin validate",
+    "build": "emdash-plugin build",
+    "bundle": "emdash-plugin bundle",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "emdash-plugin validate && vitest run && node scripts/verify-bundle.mjs"
+  },
+  "peerDependencies": {
+    "emdash": ">=1.0.1 <2"
+  },
+  "devDependencies": {
+    "@emdash-cms/blocks": "1.0.1",
+    "@emdash-cms/plugin-cli": "0.13.1",
+    "@emdash-cms/plugin-test": "0.2.6",
+    "@emdash-cms/registry-verification": "0.3.3",
+    "@fellowship42/emdash": "workspace:*",
+    "@fellowship42/website-contract": "workspace:*",
+    "emdash": "1.0.1",
+    "typescript": "~6.0.3",
+    "vitest": "~4.1.11"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idea7-cc/fellowship42.git",
+    "directory": "packages/emdash-connect"
+  },
+  "license": "Apache-2.0"
+}
