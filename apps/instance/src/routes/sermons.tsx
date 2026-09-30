@@ -17,6 +17,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, MediaRecord, Sermon } from '@/lib/api-types'
 import { formatTimestamp } from '@/lib/format'
 
@@ -30,7 +31,7 @@ function localDate(value?: number) {
 }
 
 function SermonForm({
-  sermon,
+  sermon: record,
   media,
   onCancel,
   onSaved,
@@ -43,6 +44,13 @@ function SermonForm({
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The sermon as shown when this editor opened; the save is checked against it.
+  const [sermon] = useState(record)
+  // Controlled, so the saved choice survives a media list that loads later.
+  const [audioMediaId, setAudioMediaId] = useState(sermon?.audioMediaId ?? '')
+  const audioOptions = media.filter(
+    (item) => item.visibility === 'public' && item.mediaType === 'audio',
+  )
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -155,20 +163,23 @@ function SermonForm({
               <select
                 name="audioMediaId"
                 className={fieldClass}
-                defaultValue={sermon?.audioMediaId ?? ''}
+                value={audioMediaId}
+                onChange={(event) => setAudioMediaId(event.target.value)}
               >
                 <option value="">No audio</option>
-                {media
-                  .filter(
-                    (item) =>
-                      item.visibility === 'public' &&
-                      item.mediaType === 'audio',
-                  )
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.altText || item.id}
-                    </option>
-                  ))}
+                {sermon?.audioMediaId &&
+                !audioOptions.some(
+                  (item) => item.id === sermon.audioMediaId,
+                ) ? (
+                  <option value={sermon.audioMediaId}>
+                    Current audio ({sermon.audioMediaId})
+                  </option>
+                ) : null}
+                {audioOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.altText || item.id}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -236,7 +247,8 @@ export function SermonsPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [editor, setEditor] = useState<Sermon | 'new' | null>(null)
+  const editor = useRecordEditor<Sermon>()
+  const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -323,7 +335,7 @@ export function SermonsPage() {
             <Button size="sm" type="submit">
               Search
             </Button>
-            <Button size="sm" type="button" onClick={() => setEditor('new')}>
+            <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add sermon
             </Button>
           </form>
@@ -335,13 +347,14 @@ export function SermonsPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
-        {editor ? (
+        {editorSession ? (
           <SermonForm
-            sermon={editor === 'new' ? null : editor}
+            key={editorSession.key}
+            sermon={editorSession.value === 'new' ? null : editorSession.value}
             media={mediaQuery.data?.media ?? []}
-            onCancel={() => setEditor(null)}
+            onCancel={editor.close}
             onSaved={async () => {
-              setEditor(null)
+              editor.closeIf(editorSession.key)
               await sermonQuery.refetch()
             }}
           />
@@ -392,7 +405,7 @@ export function SermonsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditor(sermon)}
+                        onClick={() => editor.open(sermon)}
                       >
                         Edit
                       </Button>

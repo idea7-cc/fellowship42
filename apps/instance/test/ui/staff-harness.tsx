@@ -222,6 +222,13 @@ export async function mountStaff(
       if (!form) throw new Error(`No form ${index}`)
       return form
     },
+    /** The form that contains a field with this name. */
+    formWith(name: string) {
+      const field = container.querySelector(`form [name="${name}"]`)
+      const form = field?.closest('form')
+      if (!form) throw new Error(`No form with field ${name}`)
+      return form
+    },
     /** Types like a user: works for controlled and uncontrolled fields. */
     async type(
       element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,

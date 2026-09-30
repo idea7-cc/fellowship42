@@ -18,6 +18,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { useRecordEditor } from '@/lib/record-editor'
 import type { Church, Course, CursorPage } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -27,7 +28,7 @@ function can(permissions: string[], permission: string) {
 }
 
 function CourseForm({
-  course,
+  course: record,
   onCancel,
   onSaved,
 }: {
@@ -38,6 +39,8 @@ function CourseForm({
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The course as shown when this editor opened; the save is checked against it.
+  const [course] = useState(record)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -216,7 +219,8 @@ export function CoursesPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [editor, setEditor] = useState<Course | 'new' | null>(null)
+  const editor = useRecordEditor<Course>()
+  const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -298,7 +302,7 @@ export function CoursesPage() {
             <Button type="submit" size="sm">
               Search
             </Button>
-            <Button type="button" size="sm" onClick={() => setEditor('new')}>
+            <Button type="button" size="sm" onClick={() => editor.open('new')}>
               Add course
             </Button>
           </form>
@@ -310,12 +314,13 @@ export function CoursesPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
-        {editor ? (
+        {editorSession ? (
           <CourseForm
-            course={editor === 'new' ? null : editor}
-            onCancel={() => setEditor(null)}
+            key={editorSession.key}
+            course={editorSession.value === 'new' ? null : editorSession.value}
+            onCancel={editor.close}
             onSaved={async () => {
-              setEditor(null)
+              editor.closeIf(editorSession.key)
               await courseQuery.refetch()
             }}
           />
@@ -354,7 +359,7 @@ export function CoursesPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setEditor(course)}
+                          onClick={() => editor.open(course)}
                         >
                           Edit
                         </Button>

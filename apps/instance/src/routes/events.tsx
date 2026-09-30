@@ -17,6 +17,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
 import { formatTimestamp } from '@/lib/format'
 
@@ -34,19 +35,26 @@ function localDateTime(value?: number) {
 }
 
 function EventForm({
-  event,
-  timezone,
+  event: record,
+  churchTimezone,
   onCancel,
   onSaved,
 }: {
   event: EventRecord | null
-  timezone: string
+  /** Undefined until the church loads; a new event defaults to it. */
+  churchTimezone: string | undefined
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The event as shown when this editor opened; the save is checked against it.
+  const [event] = useState(record)
+  // Null until staff type a zone, so a new event follows the church's zone
+  // even when the church loads after the editor opened.
+  const [typedTimezone, setTypedTimezone] = useState<string | null>(null)
+  const timezone = typedTimezone ?? event?.timezone ?? churchTimezone ?? ''
   async function submit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault()
     if (!churchId) return
@@ -142,7 +150,8 @@ function EventForm({
                 name="timezone"
                 required
                 maxLength={64}
-                defaultValue={event?.timezone ?? timezone}
+                value={timezone}
+                onChange={(change) => setTypedTimezone(change.target.value)}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -235,7 +244,8 @@ export function EventsPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [editor, setEditor] = useState<EventRecord | 'new' | null>(null)
+  const editor = useRecordEditor<EventRecord>()
+  const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -317,7 +327,7 @@ export function EventsPage() {
             <Button size="sm" type="submit">
               Search
             </Button>
-            <Button size="sm" type="button" onClick={() => setEditor('new')}>
+            <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add event
             </Button>
           </form>
@@ -329,13 +339,14 @@ export function EventsPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
-        {editor ? (
+        {editorSession ? (
           <EventForm
-            event={editor === 'new' ? null : editor}
-            timezone={churchQuery.data?.church.timezone ?? 'America/New_York'}
-            onCancel={() => setEditor(null)}
+            key={editorSession.key}
+            event={editorSession.value === 'new' ? null : editorSession.value}
+            churchTimezone={churchQuery.data?.church.timezone}
+            onCancel={editor.close}
             onSaved={async () => {
-              setEditor(null)
+              editor.closeIf(editorSession.key)
               await eventQuery.refetch()
             }}
           />
@@ -381,7 +392,7 @@ export function EventsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditor(event)}
+                        onClick={() => editor.open(event)}
                       >
                         Edit
                       </Button>
