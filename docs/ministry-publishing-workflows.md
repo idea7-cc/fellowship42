@@ -43,7 +43,9 @@ starts in the church's timezone. Changing the timezone field keeps the typed
 wall-clock time and reinterprets it in the new zone. Staff lists show event
 times in each event's timezone, as the public site does. A sermon date is a
 calendar date stored at noon UTC of the chosen day and shown as that date in
-every timezone.
+every timezone. The Worker moves any written `preachedAt` instant to noon UTC
+of its UTC day, and renderers must format it in UTC, as `Sermon.preachedAt` in
+`apps/instance/contracts/api.ts` documents.
 
 ## R2 media lifecycle
 

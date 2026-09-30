@@ -209,8 +209,11 @@ export interface EventRecord {
   title: string
   status: PublishStatus
   summary: string
+  /** An instant in epoch milliseconds; show its wall-clock time in `timezone`. */
   startDate: number
+  /** An instant in epoch milliseconds; show its wall-clock time in `timezone`. */
   endDate?: number
+  /** The IANA timezone the event takes place in. */
   timezone: string
   location: string
   registrationUrl?: string
@@ -230,6 +233,13 @@ export interface Sermon {
   summary: string
   videoUrl?: string
   audioMediaId?: string
+  /**
+   * The calendar date the sermon was preached, as epoch milliseconds at 12:00
+   * UTC of that day. Display it with `timeZone: 'UTC'` (see
+   * `formatCalendarDate` in `src/lib/time-zone.ts`), never in the church's or
+   * viewer's zone: at UTC+12 or later that shows the next day. The Worker
+   * stores every written value at noon UTC of its UTC calendar day.
+   */
   preachedAt: number
   featured: boolean
   version: number

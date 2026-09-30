@@ -122,7 +122,7 @@ INSERT OR IGNORE INTO sermons (
 ) VALUES (
   'sermon_demo_hope', 'church_demo', 'a-living-hope', 'A Living Hope', 'published',
   'Jordan Lee', 'Rooted', 'Hope that changes how a community lives.',
-  (unixepoch() - 259200) * 1000, 1, unixepoch() * 1000, unixepoch() * 1000
+  ((unixepoch() / 86400 - 3) * 86400 + 43200) * 1000, 1, unixepoch() * 1000, unixepoch() * 1000
 );
 
 -- ---------------------------------------------------------------------------
@@ -266,15 +266,16 @@ INSERT OR IGNORE INTO events (
   -- Past event: exercises date formatting for elapsed dates
   ('event_demo_christmas','church_demo','christmas-eve','Christmas Eve Services','archived','Candlelight services at 4:00 and 6:00 PM.',(unixepoch()-5184000)*1000,(unixepoch()-5173200)*1000,'America/New_York','Sanctuary',NULL,NULL,0,unixepoch()*1000,unixepoch()*1000);
 
+-- Sermon dates are calendar dates, stored at noon UTC of the day.
 INSERT OR IGNORE INTO sermons (
   id, church_id, slug, title, status, speaker, series, summary, video_url, preached_at,
   featured, created_at, updated_at
 ) VALUES
-  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.','https://example.test/watch/cornerstone',(unixepoch()-864000)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_household','church_demo','a-household-of-faith','A Household of Faith','published','Amara Osei','Rooted','Belonging as the shape of Christian life.',NULL,(unixepoch()-1468800)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.','https://example.test/watch/welcome-table',(unixepoch()-2073600)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_lament','church_demo','learning-to-lament','Learning to Lament','published','Ruth Delacroix',NULL,'Grief that stays honest and still prays.',NULL,(unixepoch()-2678400)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_draft','church_demo','the-long-obedience','The Long Obedience','draft','Jordan Lee','Table Manners','Faithfulness measured in decades, not moments.',NULL,(unixepoch()+259200)*1000,0,unixepoch()*1000,unixepoch()*1000);
+  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.','https://example.test/watch/cornerstone',((unixepoch()/86400-10)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_household','church_demo','a-household-of-faith','A Household of Faith','published','Amara Osei','Rooted','Belonging as the shape of Christian life.',NULL,((unixepoch()/86400-17)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.','https://example.test/watch/welcome-table',((unixepoch()/86400-24)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_lament','church_demo','learning-to-lament','Learning to Lament','published','Ruth Delacroix',NULL,'Grief that stays honest and still prays.',NULL,((unixepoch()/86400-31)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_draft','church_demo','the-long-obedience','The Long Obedience','draft','Jordan Lee','Table Manners','Faithfulness measured in decades, not moments.',NULL,((unixepoch()/86400+3)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000);
 
 -- Contributions cover every status the schema allows, a recurring gift, and a
 -- wide range of magnitudes so column alignment and tabular figures are visible.
