@@ -367,11 +367,27 @@ try {
         home.text.includes('Fellowship Demo Church'),
         'pinned connection changed by settings',
       )
-      const nav = await page.goto(`${WEBSITE}/_emdash/admin`)
-      lib.assert(nav.status() === 200, 'admin')
-      const link = page.getByRole('link', { name: 'Fellowship42' }).first()
-      await link.click({ timeout: 15_000 }).catch(() => {})
-      await page.waitForTimeout(2000)
+      await page.goto(`${WEBSITE}/_emdash/admin/plugins/fellowship42/status`)
+      // EmDash greets a first-time administrator with a dismissible dialog.
+      const welcome = page.getByRole('dialog')
+      if (
+        await welcome
+          .waitFor({ state: 'visible', timeout: 5_000 })
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        await welcome.getByRole('button', { name: 'Get Started' }).click()
+        await welcome.waitFor({ state: 'hidden', timeout: 5_000 })
+      }
+      await page
+        .getByText('Connected to Fellowship42')
+        .first()
+        .waitFor({ timeout: 15_000 })
+      const rendered = await page.locator('body').innerText()
+      lib.assert(
+        rendered.includes('Where content is edited'),
+        'admin page lacks the editing guide',
+      )
       await shot(page, '05-emdash-fellowship42-page')
       return { settingsWriteByAdmin: settings.status, pinned: true }
     },

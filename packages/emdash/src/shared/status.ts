@@ -84,24 +84,16 @@ export function connectionStatusBlocks(
     { type: 'divider' },
     { type: 'header', text: 'Where content is edited' },
     {
-      type: 'fields',
-      fields: [
-        {
-          label: 'Pages, articles, menus, and design',
-          value:
-            'Edited here. Publishing a page or article makes that page public; drafts and previews stay private.',
-        },
-        {
-          label: 'Church profile and service times',
-          value:
-            'Edited in Fellowship42 Settings. Publishing there updates every page that shows them on the next visit.',
-        },
-        {
-          label: 'Events, sermons, groups, and courses',
-          value:
-            'Edited in Fellowship42. Each item appears here only while it is published there, and disappears on the next visit after it is withdrawn or deleted.',
-        },
-      ],
+      type: 'section',
+      text: 'Pages, articles, menus, and design are edited here. Publishing a page or article makes that page public; drafts and previews stay private.',
+    },
+    {
+      type: 'section',
+      text: 'The church profile and service times are edited in Fellowship42 Settings. Publishing there updates every page that shows them on the next visit.',
+    },
+    {
+      type: 'section',
+      text: 'Events, sermons, groups, and courses are edited in Fellowship42. Each item appears here only while it is published there, and disappears on the next visit after it is withdrawn or deleted.',
     },
     {
       type: 'context',
