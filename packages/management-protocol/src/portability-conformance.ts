@@ -11,6 +11,7 @@ export const portableRestoreConformanceScenarioIdSchema = z.enum([
   'tampered-export-rejected',
   'new-empty-destination-required',
   'd1-and-r2-restored',
+  'website-restored',
   'credentials-rotated',
   'portable-identity-preserved',
   'runtime-healthy-before-cutover',
@@ -18,7 +19,23 @@ export const portableRestoreConformanceScenarioIdSchema = z.enum([
   'partial-restore-fails-closed',
 ])
 
-const orderedScenarioIds = portableRestoreConformanceScenarioIdSchema.options
+export type PortableRestoreConformanceScenarioId = z.output<
+  typeof portableRestoreConformanceScenarioIdSchema
+>
+
+/**
+ * `website-restored` is present only when the conformance capture includes
+ * the installation's website D1 and R2 artifacts.
+ */
+export function portableRestoreConformanceScenarioIdsFor(
+  website: boolean,
+): readonly PortableRestoreConformanceScenarioId[] {
+  return website
+    ? portableRestoreConformanceScenarioIdSchema.options
+    : portableRestoreConformanceScenarioIdSchema.options.filter(
+        (id) => id !== 'website-restored',
+      )
+}
 
 export const portableRestoreConformanceReportSchema = z
   .object({
@@ -34,19 +51,27 @@ export const portableRestoreConformanceReportSchema = z
         importFormatVersion: z.literal(PORTABLE_IMPORT_FORMAT_VERSION),
       })
       .strict(),
-    scenarios: z
-      .array(
-        z
-          .object({
-            id: portableRestoreConformanceScenarioIdSchema,
-            status: z.literal('passed'),
-          })
-          .strict(),
-      )
-      .length(orderedScenarioIds.length),
+    scenarios: z.array(
+      z
+        .object({
+          id: portableRestoreConformanceScenarioIdSchema,
+          status: z.literal('passed'),
+        })
+        .strict(),
+    ),
   })
   .strict()
   .superRefine((report, context) => {
+    const orderedScenarioIds = portableRestoreConformanceScenarioIdsFor(
+      report.scenarios.some((scenario) => scenario.id === 'website-restored'),
+    )
+    if (report.scenarios.length !== orderedScenarioIds.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Restore conformance must report every scenario exactly once',
+        path: ['scenarios'],
+      })
+    }
     for (const [index, id] of orderedScenarioIds.entries()) {
       if (report.scenarios[index]?.id !== id) {
         context.addIssue({

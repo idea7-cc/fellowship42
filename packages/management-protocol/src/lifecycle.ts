@@ -58,6 +58,52 @@ export const deploymentReleaseSchema = z
     }
   })
 
+export const WEBSITE_CMS_NAME = 'emdash' as const
+export const WEBSITE_SCHEDULE = '* * * * *' as const
+
+/**
+ * The optional EmDash website component of one generated installation. It
+ * shares the instance's portable identity, custody, deployment authority, and
+ * `single-church` topology; it is not a second installation. The session KV
+ * namespace is disposable and is never exported.
+ */
+export const deploymentWebsiteSchema = z
+  .object({
+    cms: z
+      .object({
+        name: z.literal(WEBSITE_CMS_NAME),
+        version: semanticVersionSchema,
+      })
+      .strict(),
+    worker: z
+      .object({
+        name: resourceNameSchema,
+        domains: z.array(hostnameSchema).min(1).max(8),
+      })
+      .strict(),
+    resources: z
+      .object({
+        d1: z
+          .object({ binding: z.literal('DB'), name: resourceNameSchema })
+          .strict(),
+        r2: z
+          .object({ binding: z.literal('MEDIA'), name: resourceNameSchema })
+          .strict(),
+        sessionKv: z
+          .object({ binding: z.literal('SESSION'), name: resourceNameSchema })
+          .strict(),
+        instanceService: z
+          .object({ binding: z.literal('FELLOWSHIP42') })
+          .strict()
+          .nullable(),
+        schedules: z.tuple([z.literal(WEBSITE_SCHEDULE)]),
+      })
+      .strict(),
+  })
+  .strict()
+
+export type DeploymentWebsite = z.output<typeof deploymentWebsiteSchema>
+
 export const deploymentManifestSchema = z
   .object({
     formatVersion: z.literal(LIFECYCLE_CONTRACT_VERSION),
@@ -126,6 +172,7 @@ export const deploymentManifestSchema = z
           .nullable(),
       })
       .strict(),
+    website: deploymentWebsiteSchema.optional(),
   })
   .strict()
   .superRefine((manifest, context) => {
@@ -159,11 +206,62 @@ export const deploymentManifestSchema = z
         path: ['resources', 'outboxQueue'],
       })
     }
+    const website = manifest.website
+    if (!website) return
+    if (website.worker.name === manifest.worker.name) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The website and instance must be separate Workers',
+        path: ['website', 'worker', 'name'],
+      })
+    }
+    if (
+      new Set(website.worker.domains).size !== website.worker.domains.length
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Website domains must be unique',
+        path: ['website', 'worker', 'domains'],
+      })
+    }
+    if (
+      website.worker.domains.some((domain) =>
+        manifest.worker.domains.includes(domain),
+      )
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The website and instance must use separate hostnames',
+        path: ['website', 'worker', 'domains'],
+      })
+    }
+    if (manifest.worker.domains.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        message:
+          'A website requires an instance domain for its Fellowship42 connection',
+        path: ['worker', 'domains'],
+      })
+    }
+    if (website.resources.d1.name === manifest.resources.d1.name) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The website requires its own D1 database',
+        path: ['website', 'resources', 'd1', 'name'],
+      })
+    }
+    if (website.resources.r2.name === manifest.resources.r2.name) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The website requires its own R2 bucket',
+        path: ['website', 'resources', 'r2', 'name'],
+      })
+    }
   })
 
 export type DeploymentManifest = z.output<typeof deploymentManifestSchema>
 
-export const deployPlanStepKindSchema = z.enum([
+export const instanceDeployPlanStepKinds = [
   'verify-release',
   'ensure-d1',
   'ensure-r2',
@@ -175,7 +273,37 @@ export const deployPlanStepKindSchema = z.enum([
   'configure-domains',
   'configure-access',
   'verify-runtime',
+] as const
+
+/** Appended, in order, only when the manifest declares a website. */
+export const websiteDeployPlanStepKinds = [
+  'ensure-website-d1',
+  'ensure-website-r2',
+  'ensure-website-session-kv',
+  'deploy-website-worker',
+  'configure-website-domains',
+  'verify-website',
+] as const
+
+export const deployPlanStepKindSchema = z.enum([
+  ...instanceDeployPlanStepKinds,
+  ...websiteDeployPlanStepKinds,
 ])
+
+export type DeployPlanStepKind = z.output<typeof deployPlanStepKindSchema>
+
+export function isWebsiteDeployPlanStepKind(kind: string): boolean {
+  return (websiteDeployPlanStepKinds as readonly string[]).includes(kind)
+}
+
+/** The exact ordered step kinds for an installation with or without a website. */
+export function deployPlanStepKindsFor(
+  website: boolean,
+): readonly DeployPlanStepKind[] {
+  return website
+    ? deployPlanStepKindSchema.options
+    : instanceDeployPlanStepKinds
+}
 
 export const deployPlanSchema = z
   .object({
@@ -197,7 +325,10 @@ export const deployPlanSchema = z
   })
   .strict()
   .superRefine((plan, context) => {
-    if (plan.steps.length !== deployPlanStepKindSchema.options.length) {
+    const expectedKinds = deployPlanStepKindsFor(
+      plan.steps.some((step) => isWebsiteDeployPlanStepKind(step.kind)),
+    )
+    if (plan.steps.length !== expectedKinds.length) {
       context.addIssue({
         code: 'custom',
         message: 'Deploy plan must contain every lifecycle step exactly once',
@@ -214,7 +345,7 @@ export const deployPlanSchema = z
           path: ['steps', index, 'id'],
         })
       }
-      if (step.kind !== deployPlanStepKindSchema.options[index]) {
+      if (step.kind !== expectedKinds[index]) {
         context.addIssue({
           code: 'custom',
           message: 'Deploy plan step kind is out of order',
@@ -243,7 +374,7 @@ export const deployPlanSchema = z
 
 export type DeployPlan = z.output<typeof deployPlanSchema>
 
-export const doctorCheckIdSchema = z.enum([
+export const instanceDoctorCheckIds = [
   'release-manifest',
   'portable-identity',
   'release-coordinate',
@@ -258,7 +389,31 @@ export const doctorCheckIdSchema = z.enum([
   'domains',
   'access',
   'runtime-health',
+] as const
+
+/** Present, in order, only when the manifest declares a website. */
+export const websiteDoctorCheckIds = [
+  'website-worker-name',
+  'website-d1-binding',
+  'website-r2-binding',
+  'website-session-kv',
+  'website-instance-service',
+  'website-schedule',
+  'website-domains',
+  'website-instance-pin',
+  'website-origins',
+] as const
+
+export const doctorCheckIdSchema = z.enum([
+  ...instanceDoctorCheckIds,
+  ...websiteDoctorCheckIds,
 ])
+
+export type DoctorCheckId = z.output<typeof doctorCheckIdSchema>
+
+export function doctorCheckIdsFor(website: boolean): readonly DoctorCheckId[] {
+  return website ? doctorCheckIdSchema.options : instanceDoctorCheckIds
+}
 
 export const doctorReportSchema = z
   .object({
@@ -284,7 +439,12 @@ export const doctorReportSchema = z
   })
   .strict()
   .superRefine((report, context) => {
-    if (report.checks.length !== doctorCheckIdSchema.options.length) {
+    const expectedIds = doctorCheckIdsFor(
+      report.checks.some((check) =>
+        (websiteDoctorCheckIds as readonly string[]).includes(check.id),
+      ),
+    )
+    if (report.checks.length !== expectedIds.length) {
       context.addIssue({
         code: 'custom',
         message: 'Doctor report must contain every defined check exactly once',
@@ -302,7 +462,7 @@ export const doctorReportSchema = z
       }
       ids.add(check.id)
     }
-    for (const requiredId of doctorCheckIdSchema.options) {
+    for (const requiredId of expectedIds) {
       if (!ids.has(requiredId)) {
         context.addIssue({
           code: 'custom',

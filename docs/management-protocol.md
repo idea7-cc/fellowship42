@@ -262,6 +262,15 @@ See [Stable operator references](operator-references.md).
 
 Protocol package `1.13.0` lets release upgrade metadata declare no eligible
 sources, which is how pre-alpha releases state that no direct upgrade exists.
+
+Protocol package `1.14.0` adds the optional EmDash website component of one
+installation to the lifecycle contracts without changing wire major 1. When a
+deployment manifest declares `website`, the deploy plan, doctor report,
+portable export, import plan, cutover approval, exit handoff, rehearsal
+evidence, and restore-conformance report carry exact, ordered website entries;
+an instance-only installation produces the same contract shapes as `1.13.0`.
+See [Lifecycle manifests and doctor](lifecycle-manifests-and-doctor.md) and
+[ADR 0027](adr/0027-emdash-church-websites.md).
 ## Compatible operator inputs
 
 Protocol package `1.10.0` adds the strict

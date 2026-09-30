@@ -12,13 +12,40 @@ export const migrationRehearsalAssertionIdSchema = z.enum([
   'new-empty-destination',
   'd1-restored',
   'r2-restored',
+  'website-d1-restored',
+  'website-r2-restored',
   'credentials-rotated',
   'portable-identity-preserved',
   'runtime-healthy',
+  'website-runtime-healthy',
   'cutover-approved',
   'independent-operation-verified',
   'source-routing-retired',
 ])
+
+export type MigrationRehearsalAssertionId = z.output<
+  typeof migrationRehearsalAssertionIdSchema
+>
+
+/** Present, in order, only when the rehearsed installation has a website. */
+export const websiteMigrationRehearsalAssertionIds = [
+  'website-d1-restored',
+  'website-r2-restored',
+  'website-runtime-healthy',
+] as const satisfies readonly MigrationRehearsalAssertionId[]
+
+export function migrationRehearsalAssertionIdsFor(
+  website: boolean,
+): readonly MigrationRehearsalAssertionId[] {
+  return website
+    ? migrationRehearsalAssertionIdSchema.options
+    : migrationRehearsalAssertionIdSchema.options.filter(
+        (id) =>
+          !(
+            websiteMigrationRehearsalAssertionIds as readonly string[]
+          ).includes(id),
+      )
+}
 
 export const migrationRehearsalEvidenceSchema = z
   .object({
@@ -85,10 +112,14 @@ export const migrationRehearsalEvidenceSchema = z
         path: ['completedAt'],
       })
     }
-    if (
-      evidence.assertions.length !==
-      migrationRehearsalAssertionIdSchema.options.length
-    ) {
+    const expectedIds = migrationRehearsalAssertionIdsFor(
+      evidence.assertions.some((assertion) =>
+        (websiteMigrationRehearsalAssertionIds as readonly string[]).includes(
+          assertion.id,
+        ),
+      ),
+    )
+    if (evidence.assertions.length !== expectedIds.length) {
       context.addIssue({
         code: 'custom',
         message: 'Rehearsal evidence must contain every assertion',
@@ -97,7 +128,7 @@ export const migrationRehearsalEvidenceSchema = z
       return
     }
     for (const [index, assertion] of evidence.assertions.entries()) {
-      const expected = migrationRehearsalAssertionIdSchema.options[index]
+      const expected = expectedIds[index]
       if (
         assertion.id !== expected ||
         assertion.code !== `${expected}-passed`

@@ -41,7 +41,10 @@ Current contracts establish:
 - an ordered, payload-free compatible-operator input profile that keeps public
   software compatibility distinct from private partner certification; and
 - strict local management-disposition, hosted-exit handoff, exit-packet, and
-  packet-verification evidence contracts.
+  packet-verification evidence contracts; and
+- an optional EmDash website component of the same installation, carried
+  through the manifest, plan, doctor, export, import, exit, rehearsal, and
+  restore-conformance contracts only when it is declared.
 
 Wire protocol v1 and its `f42-jws-eddsa-v1` security profile are stable. Package
 1.1 added empty heartbeat results and duplicate-capability rejection. Package
@@ -55,7 +58,9 @@ changing management wire v1. Package 1.8 adds exact-source release upgrade
 metadata and eligibility assessment without changing management wire v1.
 Package 1.9 adds update preparation and deployment-authorization evidence
 without changing management wire v1. Package 1.10 adds compatible-operator
-test inputs without changing management wire v1. The
+test inputs without changing management wire v1. Package 1.14 adds the optional
+website lifecycle component without changing management wire v1; contracts for
+an instance-only installation are unchanged. The
 instance adapter is
 implemented as local-owner enrollment plus outbound-only operator sync. See
 `../../docs/management-protocol.md`, ADR 0010, ADR 0011, and ADR 0012 before
