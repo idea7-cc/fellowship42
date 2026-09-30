@@ -14,6 +14,7 @@
     { "id": "tampered-export-rejected", "status": "passed" },
     { "id": "new-empty-destination-required", "status": "passed" },
     { "id": "d1-and-r2-restored", "status": "passed" },
+    { "id": "website-restored", "status": "passed" },
     { "id": "credentials-rotated", "status": "passed" },
     { "id": "portable-identity-preserved", "status": "passed" },
     { "id": "runtime-healthy-before-cutover", "status": "passed" },

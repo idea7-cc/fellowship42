@@ -7,13 +7,16 @@ import {
   destinationImportPreflightSchema,
   importExecutionReportSchema,
   importPlanSchema,
-  importStepKindSchema,
+  importStepKindsFor,
+  importStepRisks,
+  portableConfigurationSchema,
   portableExportManifestSchema,
   r2ExportIndexSchema,
   type CutoverApproval,
   type DeploymentManifest,
   type ImportPlan,
   type ImportExecutionReport,
+  type ImportStepKind,
   type DestinationImportPreflight,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './canonical.js'
@@ -35,6 +38,18 @@ async function readJson(file: string): Promise<unknown> {
 
 function digestManifest(manifest: DeploymentManifest) {
   return createHash('sha256').update(canonicalJson(manifest)).digest('hex')
+}
+
+/** Every hostname the cutover attaches: instance domains, then website domains. */
+export function installationDomains(manifest: DeploymentManifest): string[] {
+  return [
+    ...manifest.worker.domains,
+    ...(manifest.website?.worker.domains ?? []),
+  ]
+}
+
+function planHasWebsite(plan: ImportPlan) {
+  return plan.steps.some((step) => step.kind === 'restore-website-d1')
 }
 
 export async function buildPortableImportPlan(options: {
@@ -73,23 +88,82 @@ export async function buildPortableImportPlan(options: {
   ) {
     throw new Error('Production import requires an explicit destination domain')
   }
-  const step = (
-    position: number,
-    kind: ImportPlan['steps'][number]['kind'],
-    risk: ImportPlan['steps'][number]['risk'],
-    resourceName: string | null,
-    dependencies: number[],
-    approvalRequired = false,
-  ) => ({
-    id: `import-${String(position).padStart(2, '0')}`,
-    kind,
-    risk,
-    resourceName,
-    dependsOn: dependencies.map(
-      (dependency) => `import-${String(dependency).padStart(2, '0')}`,
-    ),
-    approvalRequired,
-  })
+  const configuration = portableConfigurationSchema.parse(
+    await readJson(path.join(options.exportDirectory, 'config/portable.json')),
+  )
+  const website = destination.website
+  if (Boolean(website) !== Boolean(configuration.website)) {
+    throw new Error(
+      'Destination must declare the same installation components as the export',
+    )
+  }
+  if (
+    website &&
+    canonicalJson(website.cms) !== canonicalJson(configuration.website?.cms)
+  ) {
+    throw new Error(
+      'Import format v1 requires the exported website CMS name and version',
+    )
+  }
+  const kinds = importStepKindsFor(Boolean(website))
+  const idOf = (kind: ImportStepKind) =>
+    `import-${String(kinds.indexOf(kind) + 1).padStart(2, '0')}`
+  const resourceNames: Partial<Record<ImportStepKind, string>> = {
+    'verify-destination-manifest': destination.worker.name,
+    'verify-new-empty-d1': destination.resources.d1.name,
+    'verify-new-empty-r2': destination.resources.r2.name,
+    'restore-d1': destination.resources.d1.name,
+    'restore-r2': destination.resources.r2.name,
+    'apply-forward-migrations': destination.resources.d1.name,
+    'deploy-without-domains': destination.worker.name,
+    'verify-restored-identity': destination.resources.d1.name,
+    'verify-runtime': destination.worker.name,
+    'cutover-domains': destination.worker.domains[0] ?? destination.worker.name,
+    'verify-independent-operation': destination.worker.name,
+    ...(website
+      ? {
+          'verify-new-empty-website-d1': website.resources.d1.name,
+          'verify-new-empty-website-r2': website.resources.r2.name,
+          'restore-website-d1': website.resources.d1.name,
+          'restore-website-r2': website.resources.r2.name,
+          'deploy-website-without-domains': website.worker.name,
+          'verify-website-runtime': website.worker.name,
+        }
+      : {}),
+  }
+  const lastDeploy = website
+    ? 'deploy-website-without-domains'
+    : 'deploy-without-domains'
+  const lastVerification = website ? 'verify-website-runtime' : 'verify-runtime'
+  const dependencies: Record<ImportStepKind, ImportStepKind[]> = {
+    'verify-export': [],
+    'verify-release-compatibility': ['verify-export'],
+    'verify-destination-manifest': ['verify-release-compatibility'],
+    'verify-new-empty-d1': ['verify-destination-manifest'],
+    'verify-new-empty-r2': ['verify-destination-manifest'],
+    'verify-new-empty-website-d1': ['verify-destination-manifest'],
+    'verify-new-empty-website-r2': ['verify-destination-manifest'],
+    'restore-d1': ['verify-new-empty-d1'],
+    'restore-r2': ['verify-new-empty-r2'],
+    'restore-website-d1': ['verify-new-empty-website-d1'],
+    'restore-website-r2': ['verify-new-empty-website-r2'],
+    'apply-forward-migrations': ['restore-d1'],
+    'deploy-without-domains': ['restore-r2', 'apply-forward-migrations'],
+    'deploy-website-without-domains': [
+      'restore-website-d1',
+      'restore-website-r2',
+      'deploy-without-domains',
+    ],
+    'rotate-deployment-credentials': [lastDeploy],
+    'rotate-application-secrets': ['rotate-deployment-credentials'],
+    'rotate-management-credentials': ['rotate-application-secrets'],
+    'verify-restored-identity': ['rotate-management-credentials'],
+    'verify-runtime': ['verify-restored-identity'],
+    'verify-website-runtime': ['verify-runtime'],
+    'cutover-domains': [lastVerification],
+    'verify-independent-operation': ['cutover-domains'],
+    'retire-source-routing': ['verify-independent-operation'],
+  }
 
   return importPlanSchema.parse({
     formatVersion: 1,
@@ -101,92 +175,15 @@ export async function buildPortableImportPlan(options: {
     sourceRelease: exportManifest.sourceRelease,
     destinationRelease: destination.instance.release,
     destinationEnvironment: destination.target.environment,
-    steps: [
-      step(1, 'verify-export', 'read-only', null, []),
-      step(2, 'verify-release-compatibility', 'read-only', null, [1]),
-      step(
-        3,
-        'verify-destination-manifest',
-        'read-only',
-        destination.worker.name,
-        [2],
-      ),
-      step(
-        4,
-        'verify-new-empty-d1',
-        'read-only',
-        destination.resources.d1.name,
-        [3],
-      ),
-      step(
-        5,
-        'verify-new-empty-r2',
-        'read-only',
-        destination.resources.r2.name,
-        [3],
-      ),
-      step(
-        6,
-        'restore-d1',
-        'writes-destination',
-        destination.resources.d1.name,
-        [4],
-      ),
-      step(
-        7,
-        'restore-r2',
-        'writes-destination',
-        destination.resources.r2.name,
-        [5],
-      ),
-      step(
-        8,
-        'apply-forward-migrations',
-        'writes-destination',
-        destination.resources.d1.name,
-        [6],
-      ),
-      step(
-        9,
-        'deploy-without-domains',
-        'writes-destination',
-        destination.worker.name,
-        [7, 8],
-      ),
-      step(10, 'rotate-deployment-credentials', 'credential-change', null, [9]),
-      step(11, 'rotate-application-secrets', 'credential-change', null, [10]),
-      step(
-        12,
-        'rotate-management-credentials',
-        'credential-change',
-        null,
-        [11],
-      ),
-      step(
-        13,
-        'verify-restored-identity',
-        'read-only',
-        destination.resources.d1.name,
-        [12],
-      ),
-      step(14, 'verify-runtime', 'read-only', destination.worker.name, [13]),
-      step(
-        15,
-        'cutover-domains',
-        'cutover',
-        destination.worker.domains[0] ?? destination.worker.name,
-        [14],
-        true,
-      ),
-      step(
-        16,
-        'verify-independent-operation',
-        'read-only',
-        destination.worker.name,
-        [15],
-      ),
-      step(17, 'retire-source-routing', 'source-change', null, [16], true),
-    ],
+    steps: kinds.map((kind) => ({
+      id: idOf(kind),
+      kind,
+      risk: importStepRisks[kind],
+      resourceName: resourceNames[kind] ?? null,
+      dependsOn: dependencies[kind].map(idOf),
+      approvalRequired:
+        kind === 'cutover-domains' || kind === 'retire-source-routing',
+    })),
   })
 }
 
@@ -210,10 +207,19 @@ export function verifyCutoverApproval(
   }
   if (
     JSON.stringify(approval.domains) !==
-    JSON.stringify(destination.worker.domains)
+    JSON.stringify(installationDomains(destination))
   ) {
     throw new Error(
       'Cutover approval domains do not match the destination manifest',
+    )
+  }
+  if (
+    Boolean(destination.website) !==
+      Boolean(approval.credentialDisposition.website) ||
+    Boolean(destination.website) !== planHasWebsite(plan)
+  ) {
+    throw new Error(
+      'Cutover approval must dispose website credentials exactly when the destination has a website',
     )
   }
   return approval
@@ -224,17 +230,34 @@ export interface ImportContext {
   destination: DeploymentManifest
 }
 
-export interface PortableImportAdapter {
+export type R2ObjectRestore = ImportContext & {
+  key: string
+  filePath: string
+  bytes: number
+  sha256: string
+}
+
+/**
+ * Website restore effects. Required when the destination declares a website;
+ * an instance-only adapter may omit them.
+ */
+export interface PortableWebsiteImportAdapter {
+  restoreWebsiteD1(context: ImportContext & { sqlPath: string }): Promise<void>
+  restoreWebsiteR2Object(context: R2ObjectRestore): Promise<void>
+  /**
+   * Deploys the website Worker without domains, bound to a newly created empty
+   * session KV namespace, the preserved `EMDASH_ENCRYPTION_KEY`, and the
+   * restored portable identity digest.
+   */
+  deployWebsiteWithoutDomains(context: ImportContext): Promise<void>
+  /** True only when the website runs and pins the restored instance identity. */
+  verifyWebsiteRuntime(context: ImportContext): Promise<boolean>
+}
+
+export interface PortableImportAdapter extends Partial<PortableWebsiteImportAdapter> {
   preflight(context: ImportContext): Promise<DestinationImportPreflight>
   restoreD1(context: ImportContext & { sqlPath: string }): Promise<void>
-  restoreR2Object(
-    context: ImportContext & {
-      key: string
-      filePath: string
-      bytes: number
-      sha256: string
-    },
-  ): Promise<void>
+  restoreR2Object(context: R2ObjectRestore): Promise<void>
   applyForwardMigrations(context: ImportContext): Promise<void>
   deployWithoutDomains(context: ImportContext): Promise<void>
   rotateDeploymentCredentials(context: ImportContext): Promise<void>
@@ -253,14 +276,36 @@ export interface PortableImportAdapter {
   ): Promise<void>
 }
 
-function pendingSteps(): ImportExecutionReport['steps'] {
-  return importStepKindSchema.options.map((kind, position) => ({
-    id: `import-${String(position + 1).padStart(2, '0')}`,
-    kind,
+function pendingSteps(plan: ImportPlan): ImportExecutionReport['steps'] {
+  return plan.steps.map((step) => ({
+    id: step.id,
+    kind: step.kind,
     status: 'pending' as const,
     code: 'not-run',
     completedAt: null,
   }))
+}
+
+function websiteAdapter(
+  adapter: PortableImportAdapter,
+): PortableWebsiteImportAdapter | null {
+  const {
+    restoreWebsiteD1,
+    restoreWebsiteR2Object,
+    deployWebsiteWithoutDomains,
+    verifyWebsiteRuntime,
+  } = adapter
+  return restoreWebsiteD1 &&
+    restoreWebsiteR2Object &&
+    deployWebsiteWithoutDomains &&
+    verifyWebsiteRuntime
+    ? {
+        restoreWebsiteD1: restoreWebsiteD1.bind(adapter),
+        restoreWebsiteR2Object: restoreWebsiteR2Object.bind(adapter),
+        deployWebsiteWithoutDomains: deployWebsiteWithoutDomains.bind(adapter),
+        verifyWebsiteRuntime: verifyWebsiteRuntime.bind(adapter),
+      }
+    : null
 }
 
 function executionReport(
@@ -287,6 +332,82 @@ function executionReport(
   })
 }
 
+function stepRecorder(
+  plan: ImportPlan,
+  steps: ImportExecutionReport['steps'],
+  startedAt: string,
+  now: () => string,
+) {
+  const position = (kind: ImportStepKind) => {
+    const index = steps.findIndex((step) => step.kind === kind)
+    if (index < 0) throw new Error(`Import plan has no ${kind} step`)
+    return index
+  }
+  return {
+    fail(kind: ImportStepKind, code: string) {
+      const index = position(kind)
+      steps[index] = {
+        ...steps[index]!,
+        status: 'failed',
+        code,
+        completedAt: now(),
+      }
+      return executionReport(plan, startedAt, now(), steps)
+    },
+    succeed(kind: ImportStepKind) {
+      const index = position(kind)
+      steps[index] = {
+        ...steps[index]!,
+        status: 'succeeded',
+        code: `${kind}-succeeded`,
+        completedAt: now(),
+      }
+    },
+  }
+}
+
+async function restoreR2Index(
+  exportDirectory: string,
+  indexFile: string,
+  restore: (
+    object: Omit<R2ObjectRestore, keyof ImportContext>,
+  ) => Promise<void>,
+) {
+  const index = r2ExportIndexSchema.parse(
+    await readJson(path.join(exportDirectory, indexFile)),
+  )
+  for (const object of index.objects) {
+    await restore({
+      key: object.key,
+      filePath: path.join(exportDirectory, object.file),
+      bytes: object.bytes,
+      sha256: object.sha256,
+    })
+  }
+}
+
+function preflightTimeValid(
+  preflight: DestinationImportPreflight,
+  plan: ImportPlan,
+  startedAt: string,
+) {
+  const created = [
+    preflight.d1.createdAt,
+    preflight.r2.createdAt,
+    ...(preflight.website
+      ? [preflight.website.d1.createdAt, preflight.website.r2.createdAt]
+      : []),
+  ].map(Date.parse)
+  const observedAt = Date.parse(preflight.observedAt)
+  return (
+    observedAt >= Date.parse(plan.generatedAt) &&
+    observedAt <= Date.parse(startedAt) + 5 * 60 * 1_000 &&
+    created.every(
+      (time) => time >= Date.parse(plan.generatedAt) && time <= observedAt,
+    )
+  )
+}
+
 export async function executePortableImportRestore(options: {
   plan: unknown
   exportDirectory: string
@@ -297,27 +418,12 @@ export async function executePortableImportRestore(options: {
   const plan = importPlanSchema.parse(options.plan)
   const now = options.now ?? (() => new Date().toISOString())
   const startedAt = now()
-  const steps = pendingSteps()
-  const fail = (position: number, code: string) => {
-    steps[position] = {
-      ...steps[position]!,
-      status: 'failed',
-      code,
-      completedAt: now(),
-    }
-    return executionReport(plan, startedAt, now(), steps)
-  }
-  const succeed = (position: number) => {
-    steps[position] = {
-      ...steps[position]!,
-      status: 'succeeded',
-      code: `${steps[position]!.kind}-succeeded`,
-      completedAt: now(),
-    }
-  }
+  const steps = pendingSteps(plan)
+  const { fail, succeed } = stepRecorder(plan, steps, startedAt, now)
+  const hasWebsite = planHasWebsite(plan)
 
   let destination: DeploymentManifest
-  let localFailurePosition = 0
+  let failure: ImportStepKind = 'verify-export'
   try {
     const rebuilt = await buildPortableImportPlan({
       exportDirectory: options.exportDirectory,
@@ -326,22 +432,26 @@ export async function executePortableImportRestore(options: {
       generatedAt: plan.generatedAt,
     })
     if (canonicalJson(rebuilt) !== canonicalJson(plan))
-      return fail(0, 'plan-binding-mismatch')
-    succeed(0)
-    succeed(1)
-    localFailurePosition = 2
+      return fail('verify-export', 'plan-binding-mismatch')
+    succeed('verify-export')
+    succeed('verify-release-compatibility')
+    failure = 'verify-destination-manifest'
     destination = deploymentManifestSchema.parse(
       await readJson(options.destinationManifestPath),
     )
-    succeed(2)
   } catch {
     return fail(
-      localFailurePosition,
-      localFailurePosition === 0
+      failure,
+      failure === 'verify-export'
         ? 'export-or-plan-verification-failed'
         : 'destination-manifest-verification-failed',
     )
   }
+  const website = hasWebsite ? websiteAdapter(options.adapter) : null
+  if (hasWebsite && !website) {
+    return fail('verify-destination-manifest', 'website-adapter-unsupported')
+  }
+  succeed('verify-destination-manifest')
   const context = { plan, destination }
   let preflight: DestinationImportPreflight
   try {
@@ -353,87 +463,126 @@ export async function executePortableImportRestore(options: {
       preflight.instanceId !== plan.instanceId ||
       preflight.destinationManifestSha256 !== plan.destinationManifestSha256
     )
-      return fail(3, 'destination-preflight-binding-mismatch')
-    if (
-      Date.parse(preflight.observedAt) < Date.parse(plan.generatedAt) ||
-      Date.parse(preflight.observedAt) >
-        Date.parse(startedAt) + 5 * 60 * 1_000 ||
-      Date.parse(preflight.d1.createdAt) < Date.parse(plan.generatedAt) ||
-      Date.parse(preflight.r2.createdAt) < Date.parse(plan.generatedAt) ||
-      Date.parse(preflight.d1.createdAt) > Date.parse(preflight.observedAt) ||
-      Date.parse(preflight.r2.createdAt) > Date.parse(preflight.observedAt)
-    ) {
-      return fail(3, 'destination-preflight-time-invalid')
+      return fail(
+        'verify-new-empty-d1',
+        'destination-preflight-binding-mismatch',
+      )
+    if (Boolean(preflight.website) !== hasWebsite) {
+      return fail(
+        'verify-new-empty-d1',
+        'destination-preflight-component-mismatch',
+      )
+    }
+    if (!preflightTimeValid(preflight, plan, startedAt)) {
+      return fail('verify-new-empty-d1', 'destination-preflight-time-invalid')
     }
   } catch {
-    return fail(3, 'destination-not-new-and-empty')
+    return fail('verify-new-empty-d1', 'destination-not-new-and-empty')
   }
   if (preflight.d1.state !== 'empty') {
-    return fail(3, 'destination-d1-not-empty')
+    return fail('verify-new-empty-d1', 'destination-d1-not-empty')
   }
-  succeed(3)
+  succeed('verify-new-empty-d1')
   if (preflight.r2.state !== 'empty') {
-    return fail(4, 'destination-r2-not-empty')
+    return fail('verify-new-empty-r2', 'destination-r2-not-empty')
   }
-  succeed(4)
+  succeed('verify-new-empty-r2')
+  if (preflight.website) {
+    if (preflight.website.d1.state !== 'empty') {
+      return fail(
+        'verify-new-empty-website-d1',
+        'destination-website-d1-not-empty',
+      )
+    }
+    succeed('verify-new-empty-website-d1')
+    if (preflight.website.r2.state !== 'empty') {
+      return fail(
+        'verify-new-empty-website-r2',
+        'destination-website-r2-not-empty',
+      )
+    }
+    succeed('verify-new-empty-website-r2')
+  }
   try {
     await options.adapter.restoreD1({
       ...context,
       sqlPath: path.join(options.exportDirectory, 'd1/database.sql'),
     })
-    succeed(5)
+    succeed('restore-d1')
   } catch {
-    return fail(5, 'd1-restore-failed')
+    return fail('restore-d1', 'd1-restore-failed')
   }
   try {
-    const index = r2ExportIndexSchema.parse(
-      await readJson(path.join(options.exportDirectory, 'r2/index.json')),
+    await restoreR2Index(options.exportDirectory, 'r2/index.json', (object) =>
+      options.adapter.restoreR2Object({ ...context, ...object }),
     )
-    for (const object of index.objects) {
-      await options.adapter.restoreR2Object({
-        ...context,
-        key: object.key,
-        filePath: path.join(options.exportDirectory, object.file),
-        bytes: object.bytes,
-        sha256: object.sha256,
-      })
-    }
-    succeed(6)
+    succeed('restore-r2')
   } catch {
-    return fail(6, 'r2-restore-failed')
+    return fail('restore-r2', 'r2-restore-failed')
   }
-  for (const [position, operation, failureCode] of [
+  if (website) {
+    try {
+      await website.restoreWebsiteD1({
+        ...context,
+        sqlPath: path.join(options.exportDirectory, 'website/d1/database.sql'),
+      })
+      succeed('restore-website-d1')
+    } catch {
+      return fail('restore-website-d1', 'website-d1-restore-failed')
+    }
+    try {
+      await restoreR2Index(
+        options.exportDirectory,
+        'website/r2/index.json',
+        (object) => website.restoreWebsiteR2Object({ ...context, ...object }),
+      )
+      succeed('restore-website-r2')
+    } catch {
+      return fail('restore-website-r2', 'website-r2-restore-failed')
+    }
+  }
+  const effects: Array<[ImportStepKind, () => Promise<void>, string]> = [
     [
-      7,
+      'apply-forward-migrations',
       () => options.adapter.applyForwardMigrations(context),
       'migration-apply-failed',
     ],
     [
-      8,
+      'deploy-without-domains',
       () => options.adapter.deployWithoutDomains(context),
       'domainless-deploy-failed',
     ],
+    ...(website
+      ? [
+          [
+            'deploy-website-without-domains',
+            () => website.deployWebsiteWithoutDomains(context),
+            'website-domainless-deploy-failed',
+          ] as [ImportStepKind, () => Promise<void>, string],
+        ]
+      : []),
     [
-      9,
+      'rotate-deployment-credentials',
       () => options.adapter.rotateDeploymentCredentials(context),
       'deployment-credential-rotation-failed',
     ],
     [
-      10,
+      'rotate-application-secrets',
       () => options.adapter.rotateApplicationSecrets(context),
       'application-secret-rotation-failed',
     ],
     [
-      11,
+      'rotate-management-credentials',
       () => options.adapter.rotateManagementCredentials(context),
       'management-credential-rotation-failed',
     ],
-  ] as const) {
+  ]
+  for (const [kind, operation, failureCode] of effects) {
     try {
       await operation()
-      succeed(position)
+      succeed(kind)
     } catch {
-      return fail(position, failureCode)
+      return fail(kind, failureCode)
     }
   }
   try {
@@ -441,19 +590,35 @@ export async function executePortableImportRestore(options: {
       (await options.adapter.verifyRestoredIdentity(context)) !==
       plan.instanceId
     ) {
-      return fail(12, 'restored-identity-mismatch')
+      return fail('verify-restored-identity', 'restored-identity-mismatch')
     }
-    succeed(12)
+    succeed('verify-restored-identity')
   } catch {
-    return fail(12, 'restored-identity-verification-failed')
+    return fail(
+      'verify-restored-identity',
+      'restored-identity-verification-failed',
+    )
   }
   try {
     if (!(await options.adapter.verifyRuntime(context))) {
-      return fail(13, 'destination-runtime-unhealthy')
+      return fail('verify-runtime', 'destination-runtime-unhealthy')
     }
-    succeed(13)
+    succeed('verify-runtime')
   } catch {
-    return fail(13, 'destination-runtime-verification-failed')
+    return fail('verify-runtime', 'destination-runtime-verification-failed')
+  }
+  if (website) {
+    try {
+      if (!(await website.verifyWebsiteRuntime(context))) {
+        return fail('verify-website-runtime', 'destination-website-unhealthy')
+      }
+      succeed('verify-website-runtime')
+    } catch {
+      return fail(
+        'verify-website-runtime',
+        'destination-website-verification-failed',
+      )
+    }
   }
   return executionReport(plan, startedAt, now(), steps)
 }
@@ -500,28 +665,12 @@ export async function executePortableCutover(options: {
   }
   const steps = report.steps.map((step) => ({ ...step }))
   const context = { plan, destination }
-  const fail = (position: number, code: string) => {
-    steps[position] = {
-      ...steps[position]!,
-      status: 'failed',
-      code,
-      completedAt: now(),
-    }
-    return executionReport(plan, report.startedAt, now(), steps)
-  }
-  const succeed = (position: number) => {
-    steps[position] = {
-      ...steps[position]!,
-      status: 'succeeded',
-      code: `${steps[position]!.kind}-succeeded`,
-      completedAt: now(),
-    }
-  }
+  const { fail, succeed } = stepRecorder(plan, steps, report.startedAt, now)
   try {
     await options.adapter.cutoverDomains({ ...context, approval })
-    succeed(14)
+    succeed('cutover-domains')
   } catch {
-    return fail(14, 'domain-cutover-failed')
+    return fail('cutover-domains', 'domain-cutover-failed')
   }
   try {
     if (
@@ -530,17 +679,23 @@ export async function executePortableCutover(options: {
         approval,
       }))
     ) {
-      return fail(15, 'independent-operation-unhealthy')
+      return fail(
+        'verify-independent-operation',
+        'independent-operation-unhealthy',
+      )
     }
-    succeed(15)
+    succeed('verify-independent-operation')
   } catch {
-    return fail(15, 'independent-operation-verification-failed')
+    return fail(
+      'verify-independent-operation',
+      'independent-operation-verification-failed',
+    )
   }
   try {
     await options.adapter.retireSourceRouting({ ...context, approval })
-    succeed(16)
+    succeed('retire-source-routing')
   } catch {
-    return fail(16, 'source-routing-retirement-failed')
+    return fail('retire-source-routing', 'source-routing-retirement-failed')
   }
   return executionReport(plan, report.startedAt, now(), steps)
 }

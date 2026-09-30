@@ -1,0 +1,65 @@
+{
+  "formatVersion": 1,
+  "instance": {
+    "id": "instance_42424242-1234-5678-9abc-123456789abc",
+    "topology": "single-church",
+    "release": {
+      "tag": "v0.26.0",
+      "applicationVersion": "0.26.0",
+      "schemaVersion": 1,
+      "managementProtocolPackageVersion": "1.12.0",
+      "managementProtocolWireVersion": "1",
+      "sourceCommit": "25d3cdfd8a43070fea1ddd640221444e11c0e866",
+      "manifestUrl": "https://github.com/idea7-cc/fellowship42/releases/download/v0.26.0/release-manifest.json",
+      "manifestSha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "custody": {
+    "infrastructureOwner": "church",
+    "operator": "church"
+  },
+  "target": {
+    "environment": "staging",
+    "accountAlias": "church-staging"
+  },
+  "worker": {
+    "name": "fellowship42",
+    "domains": ["app.church.example.test"]
+  },
+  "resources": {
+    "d1": { "binding": "DB", "name": "fellowship42" },
+    "r2": { "binding": "MEDIA", "name": "fellowship42-media" },
+    "outboxQueue": {
+      "binding": "OUTBOX_QUEUE",
+      "name": "fellowship42-outbox",
+      "deadLetterName": "fellowship42-outbox-dlq"
+    },
+    "durableObject": {
+      "binding": "CHURCH_ROOMS",
+      "className": "ChurchRoom"
+    },
+    "schedules": ["*/1 * * * *"]
+  },
+  "configuration": {
+    "accessTeamDomain": null,
+    "accessAudienceConfigured": false,
+    "paymentWebhookProvider": null
+  },
+  "website": {
+    "cms": { "name": "emdash", "version": "1.0.1" },
+    "worker": {
+      "name": "fellowship42-website",
+      "domains": ["www.church.example.test"]
+    },
+    "resources": {
+      "d1": { "binding": "DB", "name": "fellowship42-website" },
+      "r2": { "binding": "MEDIA", "name": "fellowship42-website-media" },
+      "sessionKv": {
+        "binding": "SESSION",
+        "name": "fellowship42-website-session"
+      },
+      "instanceService": { "binding": "FELLOWSHIP42" },
+      "schedules": ["* * * * *"]
+    }
+  }
+}

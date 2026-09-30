@@ -3,7 +3,7 @@ import {
   deploymentManifestSchema,
   importExecutionReportSchema,
   importPlanSchema,
-  migrationRehearsalAssertionIdSchema,
+  migrationRehearsalAssertionIdsFor,
   migrationRehearsalEvidenceSchema,
   type MigrationRehearsalEvidence,
 } from '@fellowship42/management-protocol'
@@ -21,7 +21,18 @@ export interface MigrationRehearsalObservations {
   cutoverApplied: boolean
   independentOperationVerified: boolean
   sourceRoutingRetired: boolean
+  /** Required exactly when the rehearsed installation has a website. */
+  websiteD1RestoredExactly?: boolean
+  websiteR2RestoredExactly?: boolean
+  /** The restored website runs and pins the preserved portable identity. */
+  websiteRuntimeHealthy?: boolean
 }
+
+const WEBSITE_OBSERVATIONS = [
+  'websiteD1RestoredExactly',
+  'websiteR2RestoredExactly',
+  'websiteRuntimeHealthy',
+] as const
 
 function digestJson(value: unknown) {
   return createHash('sha256').update(canonicalJson(value)).digest('hex')
@@ -94,10 +105,16 @@ export function buildMigrationRehearsalEvidence(options: {
       'Church-owned rehearsal requires rotated deployment/application credentials and disconnected management.',
     )
   }
-  const observationValues = Object.values(options.observations)
+  const website = Boolean(destination.website)
+  const observationEntries = Object.entries(options.observations).filter(
+    ([, value]) => value !== undefined,
+  )
   if (
-    observationValues.length !== 10 ||
-    observationValues.some((value) => value !== true)
+    observationEntries.length !== (website ? 13 : 10) ||
+    WEBSITE_OBSERVATIONS.some(
+      (key) => (options.observations[key] !== undefined) !== website,
+    ) ||
+    observationEntries.some(([, value]) => value !== true)
   ) {
     throw new Error(
       'Every hosted-to-church-owned rehearsal observation must pass.',
@@ -125,7 +142,7 @@ export function buildMigrationRehearsalEvidence(options: {
     cutoverApprovedAt: approval.approvedAt,
     completedAt: completionReport.updatedAt,
     status: 'verified',
-    assertions: migrationRehearsalAssertionIdSchema.options.map((id) => ({
+    assertions: migrationRehearsalAssertionIdsFor(website).map((id) => ({
       id,
       status: 'pass',
       code: `${id}-passed`,

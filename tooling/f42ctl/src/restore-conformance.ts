@@ -2,13 +2,15 @@ import { appendFile, cp, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import {
   portableRestoreConformanceReportSchema,
-  portableRestoreConformanceScenarioIdSchema,
+  portableRestoreConformanceScenarioIdsFor,
   r2ExportIndexSchema,
+  type ImportStepKind,
   type PortableRestoreConformanceReport,
 } from '@fellowship42/management-protocol'
 import {
   assemblePortableExport,
   verifyPortableExport,
+  type WebsiteExportSources,
 } from './portable-export.js'
 import {
   buildPortableImportPlan,
@@ -30,6 +32,11 @@ export interface PortableRestoreConformanceOptions {
   d1ExportPath: string
   r2SourceIndexPath: string
   r2SourceRoot: string
+  /**
+   * The website capture. Required exactly when the source and destination
+   * manifests declare a website; adds the `website-restored` scenario.
+   */
+  website?: WebsiteExportSources
   destinationManifestPath: string
   outputDirectory: string
   harness: PortableRestoreConformanceHarness
@@ -45,10 +52,41 @@ function iso(time: number) {
   return new Date(time).toISOString()
 }
 
-function failingStep(
-  report: Awaited<ReturnType<typeof executePortableImportRestore>>,
-) {
+type ImportReport = Awaited<ReturnType<typeof executePortableImportRestore>>
+
+function failingStep(report: ImportReport) {
   return report.steps.find((step) => step.status === 'failed')
+}
+
+function positionOf(report: ImportReport, kind: ImportStepKind) {
+  const position = report.steps.findIndex((step) => step.kind === kind)
+  assertion(position >= 0, `the import plan has no ${kind} step`)
+  return position
+}
+
+async function tamperRejected(
+  directory: string,
+  artifact: string,
+  verifiedAt: string,
+) {
+  const tamperedDirectory = `${directory}.tampered`
+  await cp(directory, tamperedDirectory, {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+  })
+  try {
+    await appendFile(
+      path.join(tamperedDirectory, artifact),
+      '\n-- tampered by public conformance harness\n',
+    )
+    await verifyPortableExport({ directory: tamperedDirectory, verifiedAt })
+    return false
+  } catch {
+    return true
+  } finally {
+    await rm(tamperedDirectory, { recursive: true, force: true })
+  }
 }
 
 export async function runPortableRestoreConformance(
@@ -63,6 +101,7 @@ export async function runPortableRestoreConformance(
     d1ExportPath: options.d1ExportPath,
     r2SourceIndexPath: options.r2SourceIndexPath,
     r2SourceRoot: options.r2SourceRoot,
+    ...(options.website ? { website: options.website } : {}),
     outputDirectory: options.outputDirectory,
     quiescedAt: iso(startedAt),
     exportedAt: iso(startedAt + 60_000),
@@ -84,28 +123,19 @@ export async function runPortableRestoreConformance(
     verifiedAt: iso(startedAt + 120_000),
   })
 
-  const tamperedDirectory = `${options.outputDirectory}.tampered`
-  await cp(options.outputDirectory, tamperedDirectory, {
-    recursive: true,
-    errorOnExist: true,
-    force: false,
-  })
-  let tamperRejected = false
-  try {
-    await appendFile(
-      path.join(tamperedDirectory, 'd1/database.sql'),
-      '\n-- tampered by public conformance harness\n',
+  for (const artifact of [
+    'd1/database.sql',
+    ...(options.website ? ['website/d1/database.sql'] : []),
+  ]) {
+    assertion(
+      await tamperRejected(
+        options.outputDirectory,
+        artifact,
+        iso(startedAt + 120_000),
+      ),
+      `a modified ${artifact} artifact was accepted`,
     )
-    await verifyPortableExport({
-      directory: tamperedDirectory,
-      verifiedAt: iso(startedAt + 120_000),
-    })
-  } catch {
-    tamperRejected = true
-  } finally {
-    await rm(tamperedDirectory, { recursive: true, force: true })
   }
-  assertion(tamperRejected, 'a modified D1 artifact was accepted')
 
   const operationId = crypto.randomUUID()
   const plan = await buildPortableImportPlan({
@@ -121,17 +151,27 @@ export async function runPortableRestoreConformance(
     adapter: options.harness.createAdapter('isolated-restore'),
     now: () => iso(startedAt + 240_000),
   })
+  const cutover = positionOf(successful, 'cutover-domains')
   assertion(
     successful.status === 'awaiting-cutover',
     'isolated restore did not stop at the cutover boundary',
   )
   assertion(
-    successful.steps.slice(0, 14).every((step) => step.status === 'succeeded'),
+    successful.steps
+      .slice(0, cutover)
+      .every((step) => step.status === 'succeeded'),
     'an isolated restore step did not succeed',
   )
   assertion(
-    successful.steps.slice(14).every((step) => step.status === 'pending'),
+    successful.steps.slice(cutover).every((step) => step.status === 'pending'),
     'cutover or source mutation ran during isolated restore',
+  )
+  const website = successful.steps.some(
+    (step) => step.kind === 'restore-website-d1',
+  )
+  assertion(
+    website === Boolean(options.website),
+    'the website capture and destination manifest disagree',
   )
 
   const nonempty = await executePortableImportRestore({
@@ -145,7 +185,9 @@ export async function runPortableRestoreConformance(
     nonempty.status === 'failed' &&
       failingStep(nonempty)?.kind === 'verify-new-empty-d1' &&
       failingStep(nonempty)?.code === 'destination-d1-not-empty' &&
-      nonempty.steps.slice(4).every((step) => step.status === 'pending'),
+      nonempty.steps
+        .slice(positionOf(nonempty, 'verify-new-empty-r2'))
+        .every((step) => step.status === 'pending'),
     'a nonempty or unproven destination reached a write step',
   )
 
@@ -156,12 +198,16 @@ export async function runPortableRestoreConformance(
     adapter: options.harness.createAdapter('partial-restore'),
     now: () => iso(startedAt + 240_000),
   })
+  const restoreR2 = positionOf(partial, 'restore-r2')
   assertion(
     partial.status === 'failed' &&
-      partial.steps[5]?.status === 'succeeded' &&
-      partial.steps[6]?.status === 'failed' &&
-      partial.steps[6]?.code === 'r2-restore-failed' &&
-      partial.steps.slice(7).every((step) => step.status === 'pending'),
+      partial.steps[positionOf(partial, 'restore-d1')]?.status ===
+        'succeeded' &&
+      partial.steps[restoreR2]?.status === 'failed' &&
+      partial.steps[restoreR2]?.code === 'r2-restore-failed' &&
+      partial.steps
+        .slice(restoreR2 + 1)
+        .every((step) => step.status === 'pending'),
     'a partial restore did not fail closed before later effects',
   )
 
@@ -169,7 +215,7 @@ export async function runPortableRestoreConformance(
     formatVersion: 1,
     profile: 'f42-portable-restore-v1',
     release: options.release,
-    scenarios: portableRestoreConformanceScenarioIdSchema.options.map((id) => ({
+    scenarios: portableRestoreConformanceScenarioIdsFor(website).map((id) => ({
       id,
       status: 'passed' as const,
     })),

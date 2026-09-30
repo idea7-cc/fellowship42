@@ -52,6 +52,16 @@ export function sha256Canonical(value: unknown): Promise<string> {
   return sha256Bytes(new TextEncoder().encode(canonicalJson(value)))
 }
 
+function websiteOf(manifest: DeploymentManifest) {
+  if (!manifest.website) {
+    throw new ReconciliationError(
+      'website_not_declared',
+      'The deployment manifest declares no website.',
+    )
+  }
+  return manifest.website
+}
+
 function desiredStepState(
   manifest: DeploymentManifest,
   kind: DeployPlan['steps'][number]['kind'],
@@ -115,8 +125,56 @@ function desiredStepState(
         topology: manifest.instance.topology,
         release: manifest.instance.release,
       }
+    case 'ensure-website-d1':
+      return websiteOf(manifest).resources.d1
+    case 'ensure-website-r2':
+      return websiteOf(manifest).resources.r2
+    case 'ensure-website-session-kv':
+      return websiteOf(manifest).resources.sessionKv
+    case 'deploy-website-worker': {
+      const website = websiteOf(manifest)
+      return {
+        workerName: website.worker.name,
+        cms: website.cms,
+        portableInstanceId: manifest.instance.id,
+        instanceWorkerName: manifest.worker.name,
+        bindings: {
+          d1: website.resources.d1.binding,
+          r2: website.resources.r2.binding,
+          sessionKv: website.resources.sessionKv.binding,
+          instanceService: website.resources.instanceService?.binding ?? null,
+        },
+        schedules: website.resources.schedules,
+        release: {
+          tag: manifest.instance.release.tag,
+          manifestSha256: manifest.instance.release.manifestSha256,
+        },
+      }
+    }
+    case 'configure-website-domains': {
+      const website = websiteOf(manifest)
+      return {
+        workerName: website.worker.name,
+        domains: website.worker.domains,
+      }
+    }
+    case 'verify-website': {
+      const website = websiteOf(manifest)
+      return {
+        instanceId: manifest.instance.id,
+        workerName: website.worker.name,
+        cms: website.cms,
+        release: manifest.instance.release,
+      }
+    }
   }
 }
+
+const verificationKinds: ReadonlyArray<DeployPlan['steps'][number]['kind']> = [
+  'verify-release',
+  'verify-runtime',
+  'verify-website',
+]
 
 function actionFor(
   kind: DeployPlan['steps'][number]['kind'],
@@ -124,7 +182,7 @@ function actionFor(
 ) {
   if (state === 'matching') return 'none' as const
   if (state === 'unknown') return 'blocked' as const
-  if (kind === 'verify-release' || kind === 'verify-runtime') {
+  if (verificationKinds.includes(kind)) {
     return 'verify' as const
   }
   if (
@@ -135,11 +193,18 @@ function actionFor(
       'ensure-outbox-queue',
       'ensure-dead-letter-queue',
       'configure-worker',
+      'ensure-website-d1',
+      'ensure-website-r2',
+      'ensure-website-session-kv',
     ].includes(kind)
   ) {
     return 'create' as const
   }
-  if (kind === 'apply-migrations' || kind === 'deploy-worker') {
+  if (
+    kind === 'apply-migrations' ||
+    kind === 'deploy-worker' ||
+    kind === 'deploy-website-worker'
+  ) {
     return 'execute' as const
   }
   return 'update' as const
@@ -148,13 +213,15 @@ function actionFor(
 function assertObservationBinding(
   manifest: DeploymentManifest,
   manifestSha256: string,
+  plan: DeployPlan,
   observation: ReconciliationObservationSet,
 ) {
   if (
     observation.manifestSha256 !== manifestSha256 ||
     observation.instanceId !== manifest.instance.id ||
     observation.environment !== manifest.target.environment ||
-    observation.accountAlias !== manifest.target.accountAlias
+    observation.accountAlias !== manifest.target.accountAlias ||
+    observation.steps.length !== plan.steps.length
   ) {
     throw new ReconciliationError(
       'observation_binding_mismatch',
@@ -171,7 +238,7 @@ export async function buildReconciliationPreview(
   const manifestSha256 = await sha256Canonical(manifest)
   const plan = buildDeployPlanWithDigest(manifest, manifestSha256)
   const observation = reconciliationObservationSetSchema.parse(observationInput)
-  assertObservationBinding(manifest, manifestSha256, observation)
+  assertObservationBinding(manifest, manifestSha256, plan, observation)
 
   const changes = await Promise.all(
     plan.steps.map(async (step, index) => {
@@ -182,9 +249,7 @@ export async function buildReconciliationPreview(
       const ownershipBlocked =
         ['unverified', 'foreign'].includes(observed.ownership) ||
         (observed.state !== 'absent' &&
-          !['verify-release', 'apply-migrations', 'verify-runtime'].includes(
-            step.kind,
-          ) &&
+          ![...verificationKinds, 'apply-migrations'].includes(step.kind) &&
           observed.ownership !== 'verified')
       const inconsistentMatch =
         observed.state === 'matching' &&
@@ -323,6 +388,12 @@ export async function executeDeploymentReconciliation(options: {
       'The approval, preview, and desired deployment do not match.',
     )
   }
+  if (preview.changes.length !== plan.steps.length) {
+    throw new ReconciliationError(
+      'preview_plan_mismatch',
+      'The approved preview does not match the deterministic lifecycle plan.',
+    )
+  }
   for (const [index, change] of preview.changes.entries()) {
     const planStep = plan.steps[index]!
     const desiredFingerprint = await sha256Canonical(
@@ -343,6 +414,12 @@ export async function executeDeploymentReconciliation(options: {
       'configure-domains': ['none', 'update'],
       'configure-access': ['none', 'update'],
       'verify-runtime': ['none', 'verify'],
+      'ensure-website-d1': ['none', 'create', 'update'],
+      'ensure-website-r2': ['none', 'create', 'update'],
+      'ensure-website-session-kv': ['none', 'create', 'update'],
+      'deploy-website-worker': ['none', 'execute'],
+      'configure-website-domains': ['none', 'update'],
+      'verify-website': ['none', 'verify'],
     }
     if (
       change.kind !== planStep.kind ||

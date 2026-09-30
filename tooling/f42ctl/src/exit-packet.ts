@@ -88,14 +88,33 @@ function validateBindings(inputs: ExitPacketBuildInputs) {
     approval.domains,
     'Handoff domains do not match the approved cutover domains',
   )
+  const planHasWebsite = plan.steps.some(
+    (step) => step.kind === 'restore-website-d1',
+  )
+  if (
+    planHasWebsite !==
+      handoff.resources.some(
+        (resource) => resource.kind === 'website-worker',
+      ) ||
+    canonicalJson(handoff.credentialAttestation.website ?? null) !==
+      canonicalJson(approval.credentialDisposition.website ?? null)
+  ) {
+    throw new Error(
+      'Handoff website resources and credentials do not match the imported installation',
+    )
+  }
   if (
     Date.parse(handoff.credentialAttestation.attestedAt) <
     Date.parse(approval.approvedAt)
   ) {
     throw new Error('Credential attestation predates cutover approval')
   }
-  const independentStep = report.steps[15]
-  const sourceRetirementStep = report.steps[16]
+  const independentStep = report.steps.find(
+    (step) => step.kind === 'verify-independent-operation',
+  )
+  const sourceRetirementStep = report.steps.find(
+    (step) => step.kind === 'retire-source-routing',
+  )
   if (
     independentStep?.kind !== 'verify-independent-operation' ||
     independentStep.completedAt !== handoff.independentOperationVerifiedAt ||

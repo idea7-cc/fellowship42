@@ -27,6 +27,29 @@ const fixture = JSON.parse(
   ),
 )
 
+const { website: _website, ...instanceOnlyManifest } = fixture.manifest
+const instanceOnly = {
+  manifest: instanceOnlyManifest,
+  observation: {
+    ...fixture.observation,
+    manifestSha256: await sha256Canonical(instanceOnlyManifest),
+    steps: fixture.observation.steps.slice(0, 11),
+  },
+}
+const instanceActions = [
+  'verify',
+  'create',
+  'create',
+  'create',
+  'create',
+  'create',
+  'execute',
+  'execute',
+  'update',
+  'update',
+  'verify',
+]
+
 const operationId = '42424242-1234-4678-9abc-123456789abc'
 const approvedAt = '2026-07-20T03:31:00.000Z'
 const expiresAt = '2026-07-20T04:31:00.000Z'
@@ -152,17 +175,21 @@ describe('provider-neutral deployment reconciliation', () => {
     expect(reconciliationPreviewSchema.parse(preview)).toEqual(preview)
     expect(preview.status).toBe('ready')
     expect(preview.changes.map(({ action }) => action)).toEqual([
-      'verify',
-      'create',
-      'create',
+      ...instanceActions,
       'create',
       'create',
       'create',
       'execute',
-      'execute',
-      'update',
       'update',
       'verify',
+    ])
+    expect(preview.changes.slice(11).map(({ kind }) => kind)).toEqual([
+      'ensure-website-d1',
+      'ensure-website-r2',
+      'ensure-website-session-kv',
+      'deploy-website-worker',
+      'configure-website-domains',
+      'verify-website',
     ])
     expect(
       preview.changes.every(({ destructive }) => destructive === false),
@@ -172,6 +199,7 @@ describe('provider-neutral deployment reconciliation', () => {
 
     const reordered = await buildReconciliationPreview(
       {
+        website: fixture.manifest.website,
         configuration: fixture.manifest.configuration,
         resources: fixture.manifest.resources,
         worker: fixture.manifest.worker,
@@ -183,6 +211,35 @@ describe('provider-neutral deployment reconciliation', () => {
       fixture.observation,
     )
     expect(reordered).toEqual(preview)
+  })
+
+  it('previews an instance-only installation exactly as before', async () => {
+    expect(instanceOnly.observation.manifestSha256).toBe(
+      '8231895696c43cd61cb6b0d79da48f9923e7c02135be410dedaceef0a9df5144',
+    )
+    const preview = await buildReconciliationPreview(
+      instanceOnly.manifest,
+      instanceOnly.observation,
+    )
+    const website = await buildReconciliationPreview(
+      fixture.manifest,
+      fixture.observation,
+    )
+    expect(preview.changes.map(({ action }) => action)).toEqual(instanceActions)
+    expect(preview.changes).toEqual(website.changes.slice(0, 11))
+
+    await expect(
+      buildReconciliationPreview(fixture.manifest, {
+        ...fixture.observation,
+        steps: fixture.observation.steps.slice(0, 11),
+      }),
+    ).rejects.toMatchObject({ code: 'observation_binding_mismatch' })
+    await expect(
+      buildReconciliationPreview(instanceOnly.manifest, {
+        ...instanceOnly.observation,
+        steps: fixture.observation.steps,
+      }),
+    ).rejects.toMatchObject({ code: 'observation_binding_mismatch' })
   })
 
   it('blocks unknown, foreign, unverified, and contradictory observations', async () => {
@@ -296,9 +353,60 @@ describe('provider-neutral deployment reconciliation', () => {
     expect(reconciliationReportSchema.parse(first)).toEqual(first)
     expect(first).toEqual(replay)
     expect(first.status).toBe('succeeded')
-    expect(first.steps).toHaveLength(11)
-    expect(applied).toHaveLength(11)
+    expect(first.steps).toHaveLength(17)
+    expect(applied).toHaveLength(17)
     expect(JSON.stringify(first)).not.toContain('staging-reconciliation-1')
+
+    const instancePreview = await buildReconciliationPreview(
+      instanceOnly.manifest,
+      instanceOnly.observation,
+    )
+    const instanceReport = await executeDeploymentReconciliation({
+      manifest: instanceOnly.manifest,
+      preview: instancePreview,
+      approval: {
+        ...(await approval(instancePreview)),
+        manifestSha256: instanceOnly.observation.manifestSha256,
+      },
+      adapter,
+      operationId,
+      idempotencyKey: 'staging-reconciliation-instance',
+      now: Date.parse('2026-07-20T03:32:00.000Z'),
+      clock: () => '2026-07-20T03:32:00.000Z',
+    })
+    expect(instanceReport.status).toBe('succeeded')
+    expect(instanceReport.steps.map(({ kind }) => kind)).toEqual(
+      first.steps.slice(0, 11).map(({ kind }) => kind),
+    )
+  })
+
+  it('refuses an approved preview that omits the website steps', async () => {
+    const preview = await buildReconciliationPreview(
+      fixture.manifest,
+      fixture.observation,
+    )
+    const truncated = {
+      ...preview,
+      changes: preview.changes.slice(0, 11),
+    }
+    let calls = 0
+    await expect(
+      executeDeploymentReconciliation({
+        manifest: fixture.manifest,
+        preview: truncated,
+        approval: await approval(truncated),
+        adapter: {
+          apply: async () => {
+            calls += 1
+            throw new Error('must not run')
+          },
+        },
+        operationId,
+        idempotencyKey: 'truncated-preview',
+        now: Date.parse('2026-07-20T03:32:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'preview_plan_mismatch' })
+    expect(calls).toBe(0)
   })
 
   it('fails closed before or during provider effects with bounded evidence', async () => {
