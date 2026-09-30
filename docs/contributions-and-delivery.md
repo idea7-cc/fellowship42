@@ -12,10 +12,25 @@ neither. The Worker checks the current D1 membership and permission on every
 request. Browser navigation is not authorization.
 
 Finance users can record reconciled offline contributions with an
-`Idempotency-Key`. Repeating the same request returns the original record;
-reusing the key with different content fails. Amounts are integer minor units
-and currencies are uppercase ISO-style three-letter codes. Financial records
-are not deleted through the beta API.
+`Idempotency-Key`. Repeating the same request returns the original record with
+`replayed: true`; reusing the key with different content fails with
+`idempotency_key_conflict`. Amounts are integer minor units and currencies are
+uppercase ISO-style three-letter codes. Financial records are not deleted
+through the beta API.
+
+The staff form keeps one key per entry. It mints the key on the first submit,
+keeps it after a lost response, a server error, or a rejected request, and
+forgets it only after a confirmed save or when staff choose **Start a new
+entry**. A retry after an uncertain failure therefore records the gift once,
+while two identical cash gifts entered separately remain two contributions.
+The request hash covers a fixed-order list of normalized fields, so an omitted
+`personId`, an explicit `null`, or the same instant written with another UTC
+offset is still the same request.
+
+People, households, group sessions, and media uploads use the same
+`Idempotency-Key` handling through `worker/lib/idempotency.ts`; the header is
+optional on those routes. Media uploads check the key before storing bytes in
+R2, so a retried upload stores one object.
 
 ## Normalized payment webhook
 

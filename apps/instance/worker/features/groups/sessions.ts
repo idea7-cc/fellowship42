@@ -1,7 +1,8 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../../lib/auth'
 import { AppError } from '../../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../../lib/idempotency'
 import {
   broadcastContent,
   jsonBody,
@@ -21,6 +22,7 @@ import {
   type GroupSessionRow,
   type AttendanceEntryRow,
 } from '../../lib/records'
+import type { CreateOutcome, GroupSession } from '../../../contracts/api'
 
 export const groupSessionRoutes = new Hono<AppEnv>()
 
@@ -158,6 +160,23 @@ groupSessionRoutes.get('/:churchId/:groupId/sessions', async (c) => {
   return c.json({ sessions: await readSessions(c.env.DB, churchId, groupId) })
 })
 
+const createdSession = z.object({ sessionId: z.string() })
+
+async function respondWithSessions(
+  c: Context<AppEnv>,
+  churchId: string,
+  groupId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      sessions: await readSessions(c.env.DB, churchId, groupId),
+      replayed,
+    } satisfies { sessions: GroupSession[] } & CreateOutcome,
+    201,
+  )
+}
+
 groupSessionRoutes.post('/:churchId/:groupId/sessions', async (c) => {
   const churchId = c.req.param('churchId')
   const groupId = c.req.param('groupId')
@@ -165,14 +184,36 @@ groupSessionRoutes.post('/:churchId/:groupId/sessions', async (c) => {
   const parsed = sessionCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
   await findGroup(c.env.DB, churchId, groupId)
+  const claim = await idempotencyClaim(c, {
+    operation: 'groups:session:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      groupId,
+      parsed.data.title,
+      parsed.data.startsAt,
+      parsed.data.endsAt,
+      parsed.data.location,
+      parsed.data.topic,
+      parsed.data.status,
+    ],
+  })
+  if (claim && (await findReplay(c.env.DB, claim, createdSession))) {
+    return respondWithSessions(c, churchId, groupId, true)
+  }
 
   const sessionId = `groupsession_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
-  const results = await c.env.DB.batch([
-    touchGroup(c.env.DB, churchId, groupId, now, operationId),
-    c.env.DB.prepare(
-      `
+  const committed = await commitOnce(c.env.DB, claim, {
+    outcome: { sessionId },
+    outcomeSchema: createdSession,
+    proof: { table: 'group_sessions', churchId, id: sessionId },
+    now,
+    statements: [
+      touchGroup(c.env.DB, churchId, groupId, now, operationId),
+      c.env.DB.prepare(
+        `
           INSERT INTO group_sessions (
             id, church_id, group_id, title, starts_at, ends_at, location, topic,
             status, created_at, updated_at
@@ -182,41 +223,42 @@ groupSessionRoutes.post('/:churchId/:groupId/sessions', async (c) => {
             SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
         `,
-    ).bind(
-      sessionId,
-      churchId,
-      groupId,
-      parsed.data.title,
-      parsed.data.startsAt,
-      parsed.data.endsAt,
-      parsed.data.location,
-      parsed.data.topic,
-      parsed.data.status,
-      now,
-      now,
-      churchId,
-      groupId,
-      operationId,
-    ),
-    ...mutationEvidence(c.env.DB, {
-      churchId,
-      actorId: actor.id,
-      requestId: c.get('requestId'),
-      entityType: 'group',
-      entityId: groupId,
-      eventName: 'groups.session.created',
-      operationId,
-      table: 'groups',
-      now,
-      metadata: { sessionId, status: parsed.data.status },
-    }),
-  ])
-  requireParticipationChange(results)
+      ).bind(
+        sessionId,
+        churchId,
+        groupId,
+        parsed.data.title,
+        parsed.data.startsAt,
+        parsed.data.endsAt,
+        parsed.data.location,
+        parsed.data.topic,
+        parsed.data.status,
+        now,
+        now,
+        churchId,
+        groupId,
+        operationId,
+      ),
+      ...mutationEvidence(c.env.DB, {
+        churchId,
+        actorId: actor.id,
+        requestId: c.get('requestId'),
+        entityType: 'group',
+        entityId: groupId,
+        eventName: 'groups.session.created',
+        operationId,
+        table: 'groups',
+        now,
+        metadata: { sessionId, status: parsed.data.status },
+      }),
+    ],
+  })
+  if (committed.replayed) {
+    return respondWithSessions(c, churchId, groupId, true)
+  }
+  requireParticipationChange(committed.results)
   broadcastContent(c, churchId, 'group', groupId, 'updated')
-  return c.json(
-    { sessions: await readSessions(c.env.DB, churchId, groupId) },
-    201,
-  )
+  return respondWithSessions(c, churchId, groupId, false)
 })
 
 groupSessionRoutes.patch(

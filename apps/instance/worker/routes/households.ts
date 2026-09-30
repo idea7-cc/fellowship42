@@ -1,8 +1,13 @@
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
-import type { Household, HouseholdMember } from '../../contracts/api'
+import type {
+  CreateOutcome,
+  Household,
+  HouseholdMember,
+} from '../../contracts/api'
 import { requirePermission } from '../lib/auth'
 import { AppError } from '../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import type { ChurchChangeEvent } from '../realtime'
 
 type AppEnv = {
@@ -350,11 +355,52 @@ householdRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdOutcome = z.object({ householdId: z.string() })
+
+async function respondWithHousehold(
+  c: AppContext,
+  churchId: string,
+  householdId: string,
+  replayed: boolean,
+) {
+  const row = await findHousehold(c.env.DB, churchId, householdId)
+  const members = await membersFor(c.env.DB, churchId, [householdId])
+  return c.json(
+    {
+      household: mapHousehold(row, members.get(householdId) ?? []),
+      replayed,
+    } satisfies { household: Household } & CreateOutcome,
+    201,
+  )
+}
+
 householdRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'households.write')
   const parsed = householdCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'households:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.name,
+      parsed.data.street ?? null,
+      parsed.data.city ?? null,
+      parsed.data.state ?? null,
+      parsed.data.postalCode ?? null,
+      parsed.data.countryCode,
+      parsed.data.members
+        .map((member) => [
+          member.personId,
+          member.relationship,
+          member.isPrimary,
+        ])
+        .sort(([left], [right]) => String(left).localeCompare(String(right))),
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdOutcome))
+  if (replay) return respondWithHousehold(c, churchId, replay.householdId, true)
   await requirePeople(
     c.env.DB,
     churchId,
@@ -436,14 +482,23 @@ householdRoutes.post('/:churchId', async (c) => {
       now,
     ),
   ]
-  await c.env.DB.batch(statements)
-  const row = await findHousehold(c.env.DB, churchId, householdId)
-  const members = await membersFor(c.env.DB, churchId, [householdId])
+  const committed = await commitOnce(c.env.DB, claim, {
+    statements,
+    outcome: { householdId },
+    outcomeSchema: createdOutcome,
+    proof: { table: 'households', churchId, id: householdId },
+    now,
+  })
+  if (committed.replayed) {
+    return respondWithHousehold(
+      c,
+      churchId,
+      committed.outcome.householdId,
+      true,
+    )
+  }
   broadcast(c, churchId, householdId, 'created')
-  return c.json(
-    { household: mapHousehold(row, members.get(householdId) ?? []) },
-    201,
-  )
+  return respondWithHousehold(c, churchId, householdId, false)
 })
 
 householdRoutes.get('/:churchId/:householdId', async (c) => {

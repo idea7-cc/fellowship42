@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import { formatTimestamp } from '@/lib/format'
 import type {
   AttendanceStatus,
@@ -74,6 +75,7 @@ export function GroupSessionsPanel({
   const [busy, setBusy] = useState(false)
   const [openSessionId, setOpenSessionId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const sessionEntry = useEntryKey('session')
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
   const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(
@@ -81,7 +83,13 @@ export function GroupSessionsPanel({
   )
   const sessions = sessionQuery.data?.sessions ?? []
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    describe: (caught: unknown) => string = (caught) =>
+      caught instanceof ApiError
+        ? caught.message
+        : 'The session could not be saved.',
+  ) {
     setBusy(true)
     setError(null)
     try {
@@ -89,11 +97,7 @@ export function GroupSessionsPanel({
       await sessionQuery.refetch()
       return true
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The session could not be saved.',
-      )
+      setError(describe(caught))
       if (caught instanceof ApiError && caught.status === 409) {
         await sessionQuery.refetch()
       }
@@ -112,22 +116,32 @@ export function GroupSessionsPanel({
     const endsRaw = String(form.get('endsAt') ?? '')
     const endsAt = endsRaw ? new Date(endsRaw).getTime() : null
     const location = String(form.get('location') ?? '').trim()
-    const saved = await run(() =>
-      apiRequest(`${base}/sessions`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: String(form.get('title') ?? ''),
-          startsAt,
-          endsAt,
-          location: location || null,
-          status: String(form.get('status') ?? 'planned'),
+    const saved = await run(
+      () =>
+        apiRequest(`${base}/sessions`, {
+          method: 'POST',
+          headers: { 'Idempotency-Key': sessionEntry.current() },
+          body: JSON.stringify({
+            title: String(form.get('title') ?? ''),
+            startsAt,
+            endsAt,
+            location: location || null,
+            status: String(form.get('status') ?? 'planned'),
+          }),
         }),
-      }),
+      (caught) => describeEntryFailure(caught, 'session').message,
     )
     if (saved) {
+      sessionEntry.reset()
       formElement.reset()
       setCreating(false)
     }
+  }
+
+  function toggleCreating(open: boolean) {
+    // Closing the form abandons the entry; reopening starts a new one.
+    sessionEntry.reset()
+    setCreating(open)
   }
 
   return (
@@ -145,7 +159,7 @@ export function GroupSessionsPanel({
           <div className="flex items-center gap-1">
             <Button
               disabled={busy}
-              onClick={() => setCreating((open) => !open)}
+              onClick={() => toggleCreating(!creating)}
               size="sm"
             >
               <Plus />
@@ -210,7 +224,7 @@ export function GroupSessionsPanel({
               Save session
             </Button>
             <Button
-              onClick={() => setCreating(false)}
+              onClick={() => toggleCreating(false)}
               size="sm"
               variant="ghost"
             >
@@ -315,7 +329,7 @@ export function GroupSessionsPanel({
       ) : (
         <EmptyState
           action={
-            <Button onClick={() => setCreating(true)} size="sm">
+            <Button onClick={() => toggleCreating(true)} size="sm">
               <Plus />
               Add session
             </Button>

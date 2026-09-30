@@ -243,6 +243,17 @@ export interface MediaRecord {
   url?: string
 }
 
+/**
+ * Staff creates that accept an `Idempotency-Key` header (contributions,
+ * people, households, group sessions, and media uploads) answer a retry of
+ * the same entry with the original record and `replayed: true` instead of
+ * creating another one. Reusing a key for different details returns 409
+ * `idempotency_key_conflict`.
+ */
+export interface CreateOutcome {
+  replayed: boolean
+}
+
 export interface Contribution {
   id: string
   churchId: string

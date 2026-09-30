@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import {
@@ -8,7 +8,8 @@ import {
   validationError,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import type { Contribution } from '../../contracts/api'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
+import type { Contribution, CreateOutcome } from '../../contracts/api'
 
 type PaymentEnv = Env & { PAYMENT_WEBHOOK_SECRET?: string }
 
@@ -209,6 +210,30 @@ async function requireKnownPerson(
     )
 }
 
+const createdOutcome = z.object({ contributionId: z.string() })
+
+async function respondWithContribution(
+  c: Context<AppEnv>,
+  churchId: string,
+  contributionId: string,
+  replayed: boolean,
+) {
+  const contribution = await c.env.DB.prepare(
+    `${contributionSelect} WHERE church_id = ? AND id = ?`,
+  )
+    .bind(churchId, contributionId)
+    .first<ContributionRow>()
+  if (!contribution)
+    throw new AppError(500, 'contribution_missing', 'Contribution not found')
+  return c.json(
+    {
+      contribution: mapContribution(contribution),
+      replayed,
+    } satisfies { contribution: Contribution } & CreateOutcome,
+    201,
+  )
+}
+
 export const contributionRoutes = new Hono<AppEnv>()
 
 contributionRoutes.get('/:churchId', async (c) => {
@@ -275,170 +300,122 @@ contributionRoutes.post('/:churchId', async (c) => {
   const actor = await requirePermission(c, churchId, 'contributions.write')
   const parsed = manualContributionInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
-  await requireKnownPerson(c.env.DB, churchId, parsed.data.personId)
-
-  const idempotencyKey = c.req.header('idempotency-key')?.trim()
-  if (
-    !idempotencyKey ||
-    idempotencyKey.length < 8 ||
-    idempotencyKey.length > 128
-  ) {
-    throw new AppError(
-      422,
-      'idempotency_key_required',
-      'A unique Idempotency-Key header between 8 and 128 characters is required',
-    )
-  }
-  const scope = `contributions:create:${churchId}:${actor.id}`
-  const requestHash = await digestHex(JSON.stringify(parsed.data))
-  const contributionId = `contribution_${crypto.randomUUID()}`
-  const operationId = crypto.randomUUID()
-  const now = Date.now()
   const donatedAt = Date.parse(parsed.data.donatedAt)
-  const responseJson = JSON.stringify({ contributionId })
-  const results = await c.env.DB.batch([
-    c.env.DB.prepare(
-      `
-        INSERT OR IGNORE INTO idempotency_keys (
-          scope, key, request_hash, created_at, expires_at
-        ) VALUES (?, ?, ?, ?, ?)
-      `,
-    ).bind(
-      scope,
-      idempotencyKey,
-      requestHash,
-      now,
-      now + 7 * 24 * 60 * 60 * 1000,
-    ),
-    c.env.DB.prepare(
-      `
-        INSERT INTO contributions (
-          id, church_id, person_id, donor_name, amount_minor, currency, fund,
-          payment_method, status, recurring, donated_at, created_at, updated_at,
-          version, last_operation_id, created_by_user_id
-        )
-        SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', ?, ?, ?, ?, 1, ?, ?
-        WHERE EXISTS (
-          SELECT 1 FROM idempotency_keys
-          WHERE scope = ? AND key = ? AND request_hash = ? AND response_json IS NULL
-        )
-      `,
-    ).bind(
-      contributionId,
-      churchId,
-      parsed.data.personId ?? null,
+  const claim = await idempotencyClaim(c, {
+    operation: 'contributions:create',
+    churchId,
+    actorId: actor.id,
+    required: true,
+    fields: [
       parsed.data.donorName,
+      parsed.data.personId ?? null,
       parsed.data.amountMinor,
       parsed.data.currency,
       parsed.data.fund,
       parsed.data.paymentMethod,
-      parsed.data.recurring ? 1 : 0,
+      parsed.data.recurring,
       donatedAt,
-      now,
-      now,
-      operationId,
-      actor.id,
-      scope,
-      idempotencyKey,
-      requestHash,
-    ),
-    c.env.DB.prepare(
-      `
-        INSERT INTO audit_events (
-          id, church_id, actor_user_id, action, entity_type, entity_id,
-          request_id, metadata_json, occurred_at
-        )
-        SELECT ?, ?, ?, 'contributions.created', 'contribution', ?, ?, ?, ?
-        WHERE EXISTS (
-          SELECT 1 FROM contributions
-          WHERE church_id = ? AND id = ? AND last_operation_id = ?
-        )
-      `,
-    ).bind(
-      crypto.randomUUID(),
-      churchId,
-      actor.id,
-      contributionId,
-      c.get('requestId'),
-      JSON.stringify({ source: 'manual', status: 'succeeded' }),
-      now,
-      churchId,
-      contributionId,
-      operationId,
-    ),
-    c.env.DB.prepare(
-      `
-        INSERT INTO outbox_events (
-          id, church_id, topic, aggregate_type, aggregate_id, payload_json,
-          status, available_at, created_at
-        )
-        SELECT ?, ?, 'contributions.created', 'contribution', ?, ?, 'pending', ?, ?
-        WHERE EXISTS (
-          SELECT 1 FROM contributions
-          WHERE church_id = ? AND id = ? AND last_operation_id = ?
-        )
-      `,
-    ).bind(
-      crypto.randomUUID(),
-      churchId,
-      contributionId,
-      JSON.stringify({ contributionId }),
-      now,
-      now,
-      churchId,
-      contributionId,
-      operationId,
-    ),
-    c.env.DB.prepare(
-      `
-        UPDATE idempotency_keys
-        SET response_status = 201, response_json = ?
-        WHERE scope = ? AND key = ? AND request_hash = ? AND response_json IS NULL
-          AND EXISTS (
+    ],
+  })
+  // A completed entry replays even if its donor person changed since.
+  const replay = claim && (await findReplay(c.env.DB, claim, createdOutcome))
+  if (replay) {
+    return respondWithContribution(c, churchId, replay.contributionId, true)
+  }
+  await requireKnownPerson(c.env.DB, churchId, parsed.data.personId)
+
+  const contributionId = `contribution_${crypto.randomUUID()}`
+  const operationId = crypto.randomUUID()
+  const now = Date.now()
+  const committed = await commitOnce(c.env.DB, claim, {
+    outcome: { contributionId },
+    outcomeSchema: createdOutcome,
+    proof: { table: 'contributions', churchId, id: contributionId },
+    now,
+    statements: [
+      c.env.DB.prepare(
+        `
+          INSERT INTO contributions (
+            id, church_id, person_id, donor_name, amount_minor, currency, fund,
+            payment_method, status, recurring, donated_at, created_at, updated_at,
+            version, last_operation_id, created_by_user_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'succeeded', ?, ?, ?, ?, 1, ?, ?)
+        `,
+      ).bind(
+        contributionId,
+        churchId,
+        parsed.data.personId ?? null,
+        parsed.data.donorName,
+        parsed.data.amountMinor,
+        parsed.data.currency,
+        parsed.data.fund,
+        parsed.data.paymentMethod,
+        parsed.data.recurring ? 1 : 0,
+        donatedAt,
+        now,
+        now,
+        operationId,
+        actor.id,
+      ),
+      c.env.DB.prepare(
+        `
+          INSERT INTO audit_events (
+            id, church_id, actor_user_id, action, entity_type, entity_id,
+            request_id, metadata_json, occurred_at
+          )
+          SELECT ?, ?, ?, 'contributions.created', 'contribution', ?, ?, ?, ?
+          WHERE EXISTS (
             SELECT 1 FROM contributions
             WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
-      `,
-    ).bind(
-      responseJson,
-      scope,
-      idempotencyKey,
-      requestHash,
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        actor.id,
+        contributionId,
+        c.get('requestId'),
+        JSON.stringify({ source: 'manual', status: 'succeeded' }),
+        now,
+        churchId,
+        contributionId,
+        operationId,
+      ),
+      c.env.DB.prepare(
+        `
+          INSERT INTO outbox_events (
+            id, church_id, topic, aggregate_type, aggregate_id, payload_json,
+            status, available_at, created_at
+          )
+          SELECT ?, ?, 'contributions.created', 'contribution', ?, ?, 'pending', ?, ?
+          WHERE EXISTS (
+            SELECT 1 FROM contributions
+            WHERE church_id = ? AND id = ? AND last_operation_id = ?
+          )
+        `,
+      ).bind(
+        crypto.randomUUID(),
+        churchId,
+        contributionId,
+        JSON.stringify({ contributionId }),
+        now,
+        now,
+        churchId,
+        contributionId,
+        operationId,
+      ),
+    ],
+  })
+  if (committed.replayed) {
+    return respondWithContribution(
+      c,
       churchId,
-      contributionId,
-      operationId,
-    ),
-  ])
-
-  let canonicalId = contributionId
-  if ((results[1]?.meta.changes ?? 0) !== 1) {
-    const stored = await c.env.DB.prepare(
-      'SELECT request_hash, response_json FROM idempotency_keys WHERE scope = ? AND key = ?',
+      committed.outcome.contributionId,
+      true,
     )
-      .bind(scope, idempotencyKey)
-      .first<{ request_hash: string; response_json: string | null }>()
-    if (!stored || stored.request_hash !== requestHash) {
-      throw new AppError(
-        409,
-        'idempotency_key_conflict',
-        'This idempotency key was already used for a different contribution',
-      )
-    }
-    canonicalId = z
-      .object({ contributionId: z.string() })
-      .parse(JSON.parse(stored.response_json ?? '{}')).contributionId
-  } else {
-    broadcastContent(c, churchId, 'contribution', contributionId, 'created')
   }
-
-  const contribution = await c.env.DB.prepare(
-    `${contributionSelect} WHERE church_id = ? AND id = ?`,
-  )
-    .bind(churchId, canonicalId)
-    .first<ContributionRow>()
-  if (!contribution)
-    throw new AppError(500, 'contribution_missing', 'Contribution not found')
-  return c.json({ contribution: mapContribution(contribution) }, 201)
+  broadcastContent(c, churchId, 'contribution', contributionId, 'created')
+  return respondWithContribution(c, churchId, contributionId, false)
 })
 
 export const paymentWebhookRoutes = new Hono<AppEnv>()

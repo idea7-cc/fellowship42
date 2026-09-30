@@ -14,6 +14,7 @@ import {
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type {
   Church,
   CursorPage,
@@ -140,6 +141,7 @@ function PersonForm({
   const person = editor === 'new' ? null : editor
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const entryKey = useEntryKey('person')
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -168,15 +170,19 @@ function PersonForm({
       } else {
         await apiRequest(`/api/people/${encodeURIComponent(churchId)}`, {
           method: 'POST',
+          headers: { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(common),
         })
+        entryKey.reset()
       }
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The person could not be saved.',
+        person
+          ? caught instanceof ApiError
+            ? caught.message
+            : 'The person could not be saved.'
+          : describeEntryFailure(caught, 'person').message,
       )
       setSaving(false)
     }
@@ -292,6 +298,7 @@ function HouseholdForm({
   const household = editor === 'new' ? null : editor
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const entryKey = useEntryKey('household')
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -321,15 +328,19 @@ function HouseholdForm({
       } else {
         await apiRequest(`/api/households/${encodeURIComponent(churchId)}`, {
           method: 'POST',
+          headers: { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(value),
         })
+        entryKey.reset()
       }
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The household could not be saved.',
+        household
+          ? caught instanceof ApiError
+            ? caught.message
+            : 'The household could not be saved.'
+          : describeEntryFailure(caught, 'household').message,
       )
       setSaving(false)
     }
