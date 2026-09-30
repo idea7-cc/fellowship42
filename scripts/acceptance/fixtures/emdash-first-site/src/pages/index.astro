@@ -1,0 +1,36 @@
+---
+import { getEmDashCollection, getEmDashEntry, getSiteSettings } from 'emdash'
+import { PortableText } from 'emdash/ui'
+import Base from '../layouts/Base.astro'
+
+// The home page renders the page with slug "home" when the site has one,
+// otherwise a list of published pages.
+const settings = await getSiteSettings()
+const siteTitle = settings?.title ?? 'My Site'
+const { entry: home } = await getEmDashEntry('pages', 'home')
+const { entries: pages } = home
+  ? { entries: [] }
+  : await getEmDashCollection('pages', { limit: 20 })
+---
+
+<Base title={siteTitle}>
+  {
+    home ? (
+      <article>
+        <h1>{home.data.title}</h1>
+        <PortableText value={home.data.content} />
+      </article>
+    ) : (
+      <>
+        <h1>{siteTitle}</h1>
+        <ul>
+          {pages.map((page) => (
+            <li>
+              <a href={`/${page.id}`}>{page.data.title}</a>
+            </li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+</Base>

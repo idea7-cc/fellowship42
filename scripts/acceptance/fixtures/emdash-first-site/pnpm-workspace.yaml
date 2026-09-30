@@ -1,0 +1,10 @@
+# The acceptance run fills in the placeholders when it copies this site.
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: false
+# The packed @fellowship42/emdash depends on @fellowship42/website-contract by
+# version; resolve it to the tarball packed in the same run.
+overrides:
+  '@fellowship42/website-contract': 'file:__F42_WEBSITE_CONTRACT_TARBALL__'
+storeDir: __PNPM_STORE_DIR__

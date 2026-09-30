@@ -1,0 +1,51 @@
+---
+import { getMenu, getSiteSettings } from 'emdash'
+import { EmDashBodyEnd, EmDashBodyStart, EmDashHead } from 'emdash/ui'
+import { createPublicPageContext } from 'emdash/page'
+
+interface Props {
+  title: string
+  description?: string | null
+  canonical?: string | null
+  content?: { collection: string; id: string; slug?: string | null }
+}
+
+const { title, description, canonical, content } = Astro.props
+const [settings, menu] = await Promise.all([getSiteSettings(), getMenu('primary')])
+const siteTitle = settings?.title ?? 'My Site'
+const fullTitle = title === siteTitle ? title : `${title} — ${siteTitle}`
+const page = createPublicPageContext({
+  Astro,
+  kind: content ? 'content' : 'custom',
+  pageType: 'website',
+  title: fullTitle,
+  pageTitle: title,
+  description: description ?? settings?.tagline ?? null,
+  canonical,
+  content,
+  siteName: siteTitle,
+})
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{fullTitle}</title>
+    <EmDashHead page={page} />
+  </head>
+  <body>
+    <EmDashBodyStart page={page} />
+    <header>
+      <nav aria-label="Primary">
+        <a href="/">{siteTitle}</a>
+        {menu?.items.map((item) => <a href={item.url}>{item.label}</a>)}
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <EmDashBodyEnd page={page} />
+  </body>
+</html>
