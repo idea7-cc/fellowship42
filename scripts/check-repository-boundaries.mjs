@@ -50,6 +50,7 @@ const requiredPaths = [
   'scripts/rehearse-hosted-to-church-owned.mjs',
   'packages/management-protocol/src/rehearsals.ts',
   'packages/management-protocol/fixtures/migration-rehearsal.v1.json',
+  'packages/management-protocol/fixtures/migration-rehearsal.instance-only.v1.json',
   'packages/management-protocol/src/conformance.ts',
   'packages/management-protocol/fixtures/management-adapter-conformance.v1.json',
   'packages/management-protocol/src/reconciliation.ts',

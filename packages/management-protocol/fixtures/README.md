@@ -1,8 +1,21 @@
 # Published contract fixtures
 
-Fixtures in this directory are immutable examples captured from published
-Fellowship42 releases. They exercise compatibility without importing an
-application checkout or relying on unpublished implementation details.
+Fixtures in this directory are public compatibility examples. They exercise
+compatibility without importing an application checkout or relying on
+unpublished implementation details.
+
+Two kinds of fixture live here. `release-manifest.v1.json` is a capture from a
+published release and is never rewritten. The deterministic lifecycle
+fixtures, `migration-rehearsal.v1.json`,
+`migration-rehearsal.instance-only.v1.json`, and
+`portable-restore-conformance.v1.json`, are synthetic: CI regenerates them
+through the public code and requires exact equality. Before the alpha is
+declared they are regenerated in place when a lifecycle contract changes (see
+`AGENTS.md`); since the unreleased website component was added,
+`migration-rehearsal.v1.json` and `portable-restore-conformance.v1.json` carry
+website entries that no published protocol package can parse. After the
+alpha, each is immutable for its compatibility case and a change adds a new
+versioned fixture.
 
 `release-manifest.v1.json` is the manifest published with `v0.1.0`. Do not edit
 it to describe a newer release; add a new fixture when the manifest format or a
@@ -13,10 +26,14 @@ deterministic hosted-to-church-owned compatibility rehearsal. CI reruns the
 public export/import/cutover code and requires byte-equivalent canonical
 evidence. The rehearsed installation includes the optional EmDash website
 component, so the evidence has thirteen assertions, three of them for the
-website. The fixture contains digests and assertions, never synthetic D1/R2
-payloads, resource names, domains, or credentials. Before the alpha, synthetic
-lifecycle fixtures such as this one are regenerated in place when the contract
-changes (`node scripts/rehearse-hosted-to-church-owned.mjs --print-fixture`).
+website. `migration-rehearsal.instance-only.v1.json` is the same rehearsal
+without the website: ten assertions, byte-identical to the evidence produced
+before the website component existed. CI checks both, so a regression in
+either path fails verification. The fixtures contain digests and assertions,
+never synthetic D1/R2 payloads, resource names, domains, or credentials.
+Regenerate a candidate with
+`node scripts/rehearse-hosted-to-church-owned.mjs --print-fixture` or
+`--print-fixture=instance-only`.
 
 `management-jws.v1.json` is the protocol-v1 Ed25519 flattened-JWS
 interoperability vector. It contains only a public test key, a privacy-bounded

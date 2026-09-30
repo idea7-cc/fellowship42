@@ -1009,7 +1009,7 @@ describe('management protocol contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts the immutable portable restore conformance fixture', async () => {
+  it('accepts the synthetic portable restore conformance fixture', async () => {
     const fixture = JSON.parse(
       await readFile(
         new URL(
@@ -1353,7 +1353,25 @@ describe('management protocol contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts the immutable hosted-to-church-owned rehearsal fixture', async () => {
+  it('accepts the instance-only hosted-to-church-owned rehearsal fixture', async () => {
+    const evidence = migrationRehearsalEvidenceSchema.parse(
+      JSON.parse(
+        await readFile(
+          new URL(
+            '../fixtures/migration-rehearsal.instance-only.v1.json',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      ),
+    )
+    expect(evidence.assertions.map(({ id }) => id)).toEqual(
+      migrationRehearsalAssertionIdsFor(false),
+    )
+    expect(JSON.stringify(evidence)).not.toContain('rehearsal.example.org')
+  })
+
+  it('accepts the synthetic hosted-to-church-owned rehearsal fixture', async () => {
     const fixture = JSON.parse(
       await readFile(
         new URL('../fixtures/migration-rehearsal.v1.json', import.meta.url),
