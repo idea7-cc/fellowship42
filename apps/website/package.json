@@ -13,8 +13,8 @@
     "preview": "astro preview --host localhost --port 4322",
     "typecheck": "astro check",
     "test": "vitest run",
-    "cf-typegen": "wrangler types --config wrangler.jsonc",
-    "cf-typegen:check": "wrangler types --check --config wrangler.jsonc",
+    "cf-typegen": "wrangler types --config wrangler.jsonc --env-file /dev/null",
+    "cf-typegen:check": "wrangler types --check --config wrangler.jsonc --env-file /dev/null",
     "deploy:dry-run": "pnpm build && wrangler deploy --dry-run",
     "deploy": "pnpm build && wrangler deploy"
   },
