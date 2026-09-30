@@ -95,18 +95,26 @@ digests.
 
 ## Contract fixtures
 
-The management-protocol package publishes immutable release-manifest fixtures
-under `@fellowship42/management-protocol/fixtures/*`. A fixture captured from a
-published release is never rewritten to resemble a newer release. Consumers
-use it to test schema compatibility, while deployment systems still download
-and verify the actual release manifest and artifacts they intend to deploy.
+The management-protocol package publishes contract fixtures under
+`@fellowship42/management-protocol/fixtures/*`. The release-manifest fixture
+is captured from a published release and is never rewritten to resemble a
+newer release. Consumers use it to test schema compatibility, while deployment
+systems still download and verify the actual release manifest and artifacts
+they intend to deploy.
 
-`migration-rehearsal.v1.json` is an immutable compatibility fixture containing
-privacy-bounded evidence from the public hosted-to-church-owned rehearsal
-against released `v0.9.0` lifecycle inputs. CI regenerates it through the real
-public export/import/cutover code. Consumers validate it with
-`migrationRehearsalEvidenceSchema` without receiving synthetic D1/R2 payloads
-or provider-specific state.
+The deterministic lifecycle fixtures are synthetic rather than release
+captures. `migration-rehearsal.v1.json` (an installation with the EmDash
+website) and `migration-rehearsal.instance-only.v1.json` contain
+privacy-bounded evidence from the public hosted-to-church-owned rehearsal,
+using `v0.9.0` release coordinates as synthetic inputs, and
+`portable-restore-conformance.v1.json` is the isolated-restore report. CI
+regenerates each through the real public code and requires exact equality.
+Before the alpha is declared they are regenerated in place when a lifecycle
+contract changes (see `AGENTS.md`); the website entries are unreleased, so no
+published protocol package parses the website fixtures. After the alpha, each
+is immutable for its compatibility case. Consumers validate the rehearsal
+fixtures with `migrationRehearsalEvidenceSchema` without receiving synthetic
+D1/R2 payloads or provider-specific state.
 
 `management-jws.v1.json` is the mandatory wire-v1 interoperability vector. It
 contains a public Ed25519 JWK, a privacy-bounded sync request, and its flattened

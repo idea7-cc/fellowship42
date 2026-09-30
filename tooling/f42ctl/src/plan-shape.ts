@@ -57,6 +57,44 @@ export function buildDeployPlanWithDigest(
       step('step-09', 'configure-domains', manifest.worker.name, ['step-08']),
       step('step-10', 'configure-access', manifest.worker.name, ['step-09']),
       step('step-11', 'verify-runtime', manifest.worker.name, ['step-10']),
+      ...(manifest.website
+        ? [
+            step(
+              'step-12',
+              'ensure-website-d1',
+              manifest.website.resources.d1.name,
+              ['step-01'],
+            ),
+            step(
+              'step-13',
+              'ensure-website-r2',
+              manifest.website.resources.r2.name,
+              ['step-01'],
+            ),
+            step(
+              'step-14',
+              'ensure-website-session-kv',
+              manifest.website.resources.sessionKv.name,
+              ['step-01'],
+            ),
+            step(
+              'step-15',
+              'deploy-website-worker',
+              manifest.website.worker.name,
+              ['step-08', 'step-12', 'step-13', 'step-14'],
+            ),
+            step(
+              'step-16',
+              'configure-website-domains',
+              manifest.website.worker.name,
+              ['step-15'],
+            ),
+            step('step-17', 'verify-website', manifest.website.worker.name, [
+              'step-11',
+              'step-16',
+            ]),
+          ]
+        : []),
     ],
   })
 }

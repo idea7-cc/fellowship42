@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest'
 import {
   exitPacketSchema,
   exitPacketVerificationEvidenceSchema,
-  importStepKindSchema,
+  exitResourceKindsFor,
+  importStepKindsFor,
+  importStepRisks,
 } from '@fellowship42/management-protocol'
 import {
   buildExitPacket,
@@ -29,16 +31,7 @@ const release = {
     'https://github.com/idea7-cc/fellowship42/releases/download/v0.6.0/release-manifest.json',
   manifestSha256: '3'.repeat(64),
 }
-const risks = [
-  ...Array(5).fill('read-only'),
-  ...Array(4).fill('writes-destination'),
-  ...Array(3).fill('credential-change'),
-  'read-only',
-  'read-only',
-  'cutover',
-  'read-only',
-  'source-change',
-]
+const instanceKinds = importStepKindsFor(false)
 const plan = {
   formatVersion: 1,
   operationId,
@@ -49,10 +42,10 @@ const plan = {
   sourceRelease: release,
   destinationRelease: release,
   destinationEnvironment: 'production',
-  steps: importStepKindSchema.options.map((kind, index) => ({
+  steps: instanceKinds.map((kind, index) => ({
     id: `import-${String(index + 1).padStart(2, '0')}`,
     kind,
-    risk: risks[index],
+    risk: importStepRisks[kind],
     resourceName: null,
     dependsOn: index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
     approvalRequired:
@@ -68,13 +61,15 @@ const report = {
   startedAt: '2026-07-19T22:01:00.000Z',
   updatedAt: '2026-07-19T22:31:00.000Z',
   status: 'succeeded',
-  steps: importStepKindSchema.options.map((kind, index) => ({
+  steps: instanceKinds.map((kind, index) => ({
     id: `import-${String(index + 1).padStart(2, '0')}`,
     kind,
     status: 'succeeded',
     code: `${kind}-succeeded`,
     completedAt:
-      index < 14 ? '2026-07-19T22:10:00.000Z' : '2026-07-19T22:31:00.000Z',
+      index < instanceKinds.indexOf('cutover-domains')
+        ? '2026-07-19T22:10:00.000Z'
+        : '2026-07-19T22:31:00.000Z',
   })),
 }
 const approval = {
@@ -127,16 +122,7 @@ const managementDisposition = {
     churchOperationsAvailable: true,
   },
 }
-const resourceKinds = [
-  'd1-database',
-  'r2-bucket',
-  'worker',
-  'outbox-queue',
-  'dead-letter-queue',
-  'durable-object-namespace',
-  'access-policy',
-  'domains',
-]
+const resourceKinds = exitResourceKindsFor(false)
 const handoff = {
   formatVersion: 1,
   operationId,
@@ -190,6 +176,78 @@ const inputs = {
   handoff,
 }
 
+const websiteKinds = importStepKindsFor(true)
+const websiteDisposition = {
+  encryptionKey: 'preserved',
+  setupSecret: 'removed',
+  sessionStore: 'recreated',
+} as const
+const websiteDomains = ['new.example.org', 'www.new.example.org']
+const websiteInputs = {
+  ...inputs,
+  plan: {
+    ...plan,
+    steps: websiteKinds.map((kind, index) => ({
+      id: `import-${String(index + 1).padStart(2, '0')}`,
+      kind,
+      risk: importStepRisks[kind],
+      resourceName: null,
+      dependsOn:
+        index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
+      approvalRequired:
+        kind === 'cutover-domains' || kind === 'retire-source-routing',
+    })),
+  },
+  report: {
+    ...report,
+    steps: websiteKinds.map((kind, index) => ({
+      id: `import-${String(index + 1).padStart(2, '0')}`,
+      kind,
+      status: 'succeeded',
+      code: `${kind}-succeeded`,
+      completedAt:
+        index < websiteKinds.indexOf('cutover-domains')
+          ? '2026-07-19T22:10:00.000Z'
+          : '2026-07-19T22:31:00.000Z',
+    })),
+  },
+  approval: {
+    ...approval,
+    credentialDisposition: {
+      ...approval.credentialDisposition,
+      website: websiteDisposition,
+    },
+    domains: websiteDomains,
+  },
+  handoff: {
+    ...handoff,
+    resources: exitResourceKindsFor(true).map((kind) => ({
+      kind,
+      destinationState: 'verified',
+      sourceDisposition:
+        kind === 'domains'
+          ? 'routing-retired'
+          : kind === 'website-session-kv'
+            ? 'disposed'
+            : kind === 'd1-database' ||
+                kind === 'r2-bucket' ||
+                kind === 'website-d1-database' ||
+                kind === 'website-r2-bucket'
+              ? 'retained-under-policy'
+              : 'access-revoked',
+    })),
+    domains: websiteDomains.map((hostname) => ({
+      hostname,
+      destinationRouting: 'active',
+      sourceRouting: 'retired',
+    })),
+    credentialAttestation: {
+      ...handoff.credentialAttestation,
+      website: websiteDisposition,
+    },
+  },
+}
+
 describe('hosted exit packets', () => {
   it('binds, verifies, and rejects drift in every public source record', () => {
     const packet = buildExitPacket({
@@ -215,6 +273,102 @@ describe('hosted exit packets', () => {
         inputs,
       }),
     ).toThrow('canonical source evidence')
+
+    // An instance-only packet keeps the eight-domain cap.
+    const domains = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        hostname: `host-${index}.example.org`,
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      }))
+    expect(
+      exitPacketSchema.safeParse({ ...packet, domains: domains(8) }).success,
+    ).toBe(true)
+    expect(
+      exitPacketSchema.safeParse({ ...packet, domains: domains(9) }).success,
+    ).toBe(false)
+  })
+
+  it('covers website resources, domains, and credential disposition when present', () => {
+    const packet = buildExitPacket({
+      inputs: websiteInputs,
+      packetId: '42424242-1234-4678-9abc-123456789a94',
+      generatedAt: '2026-07-19T22:32:00.000Z',
+    })
+    expect(packet.resources.map(({ kind }) => kind)).toEqual(
+      exitResourceKindsFor(true),
+    )
+    expect(packet.domains.map(({ hostname }) => hostname)).toEqual(
+      websiteDomains,
+    )
+    expect(packet.credentialAttestation.website).toEqual(websiteDisposition)
+    expect(packet.checks).toHaveLength(12)
+    expect(verifyExitPacket({ packet, inputs: websiteInputs })).toEqual(packet)
+    expect('website' in buildExitPacket({ inputs }).credentialAttestation).toBe(
+      false,
+    )
+
+    for (const invalid of [
+      { ...websiteInputs, handoff: inputs.handoff },
+      {
+        ...websiteInputs,
+        handoff: {
+          ...websiteInputs.handoff,
+          credentialAttestation: {
+            ...websiteInputs.handoff.credentialAttestation,
+            website: { ...websiteDisposition, setupSecret: 'rotated' },
+          },
+        },
+      },
+      {
+        ...inputs,
+        handoff: {
+          ...websiteInputs.handoff,
+          domains: inputs.handoff.domains,
+        },
+      },
+    ]) {
+      expect(() =>
+        buildExitPacket({
+          inputs: invalid,
+          generatedAt: '2026-07-19T22:32:00.000Z',
+        }),
+      ).toThrow()
+    }
+
+    // A report must carry exactly its plan's steps: a website plan cannot be
+    // completed by an instance-only report, nor the reverse.
+    for (const [invalid, message] of [
+      [
+        { ...websiteInputs, report: inputs.report },
+        'does not bind to the import plan and its steps',
+      ],
+      [
+        { ...inputs, report: websiteInputs.report },
+        'does not bind to the import plan and its steps',
+      ],
+      [
+        {
+          ...websiteInputs,
+          approval: inputs.approval,
+          handoff: inputs.handoff,
+        },
+        'Handoff website resources and credentials do not match',
+      ],
+    ] as const) {
+      expect(() =>
+        buildExitPacket({
+          inputs: invalid,
+          generatedAt: '2026-07-19T22:32:00.000Z',
+        }),
+      ).toThrow(message)
+    }
+    expect(() =>
+      verifyExitPacket({
+        packet,
+        inputs: { ...websiteInputs, report: inputs.report },
+      }),
+    ).toThrow('does not bind to the import plan and its steps')
   })
 
   it('exposes equivalent build and verification CLI commands', async () => {

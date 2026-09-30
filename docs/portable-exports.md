@@ -74,6 +74,58 @@ portable configuration contains only application settings currently safe to
 move; it excludes Access configuration, domains, resource names, account IDs,
 and secrets.
 
+## Installations with a website
+
+When the deployment manifest declares a website, the export must also carry
+the website's D1 database and R2 bucket, collected inside the same quiesce
+boundary: stop website editing and publishing as well as church writes. The
+website session KV namespace is disposable and is never exported.
+
+1. Export the website D1 database with the same `wrangler d1 export` command
+   and its own database name.
+2. Stream every website R2 object into a separate capture directory with its
+   own collector index.
+3. Add the three website inputs:
+
+   ```bash
+   pnpm f42ctl export \
+     --manifest ./deployment-manifest.json \
+     --d1 ./database.sql \
+     --r2-index ./r2-source.json \
+     --r2-root ./r2-capture \
+     --website-d1 ./website.sql \
+     --website-r2-index ./website-r2-source.json \
+     --website-r2-root ./website-r2-capture \
+     --directory ./church-export \
+     --quiesced-at 2026-07-19T21:00:00.000Z
+   ```
+
+The three website flags are required together exactly when the manifest has
+a website. The bundle then adds:
+
+```text
+church-export/
+├── …
+└── website/
+    ├── d1/database.sql
+    └── r2/index.json
+```
+
+The export manifest lists five artifacts in fixed order: `d1-sql`,
+`portable-configuration`, `r2-index`, `website-d1-sql`, and
+`website-r2-index`. The website index references the shared
+`r2/objects/<sha256>` store, so bytes present in both buckets are stored once.
+The website D1 export must contain EmDash's `_emdash_migrations` ledger, which
+catches a swapped instance database. The portable configuration adds
+`website.cms`, the EmDash name and version whose schema the SQL carries.
+Website domains, origins, resource names, the identity pin, and secrets are
+not exported.
+
+The website D1 export contains EmDash users, passkey credentials, hashed API
+and auth tokens, the preview secret and IP salt in its `options` table, and
+plugin settings encrypted with `EMDASH_ENCRYPTION_KEY`. Treat it with the same sensitivity as
+the instance database. The encryption key itself is not in the bundle.
+
 ## Verify offline
 
 ```bash
@@ -82,7 +134,9 @@ pnpm f42ctl verify-export --directory ./church-export
 
 Verification rejects malformed contracts, mismatched identity, timestamps,
 sizes or hashes, unsafe paths, links, extra files, duplicate R2 keys, missing
-objects, and non-content-addressed objects. Success emits bounded export
+objects, and non-content-addressed objects. With a website it also requires
+the website artifacts and `website.cms` to be present together and the
+website D1 artifact to carry the EmDash migration ledger. Success emits bounded export
 evidence containing versions, timestamps, portable instance ID, and the export
 manifest digest. It never emits D1 rows, R2 keys, church counts, or object
 payloads.

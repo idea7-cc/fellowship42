@@ -7,25 +7,60 @@ import { sha256DigestSchema } from './releases.js'
 
 export const PORTABLE_IMPORT_FORMAT_VERSION = 1 as const
 
+/**
+ * Every import step kind in execution order. Website steps appear only when
+ * the exported installation and destination manifest both declare a website.
+ */
 export const importStepKindSchema = z.enum([
   'verify-export',
   'verify-release-compatibility',
   'verify-destination-manifest',
   'verify-new-empty-d1',
   'verify-new-empty-r2',
+  'verify-new-empty-website-d1',
+  'verify-new-empty-website-r2',
   'restore-d1',
   'restore-r2',
+  'restore-website-d1',
+  'restore-website-r2',
   'apply-forward-migrations',
   'deploy-without-domains',
+  'deploy-website-without-domains',
   'rotate-deployment-credentials',
   'rotate-application-secrets',
   'rotate-management-credentials',
   'verify-restored-identity',
   'verify-runtime',
+  'verify-website-runtime',
   'cutover-domains',
   'verify-independent-operation',
   'retire-source-routing',
 ])
+
+export type ImportStepKind = z.output<typeof importStepKindSchema>
+
+export const websiteImportStepKinds = [
+  'verify-new-empty-website-d1',
+  'verify-new-empty-website-r2',
+  'restore-website-d1',
+  'restore-website-r2',
+  'deploy-website-without-domains',
+  'verify-website-runtime',
+] as const satisfies readonly ImportStepKind[]
+
+export function isWebsiteImportStepKind(kind: string): boolean {
+  return (websiteImportStepKinds as readonly string[]).includes(kind)
+}
+
+export function importStepKindsFor(
+  website: boolean,
+): readonly ImportStepKind[] {
+  return website
+    ? importStepKindSchema.options
+    : importStepKindSchema.options.filter(
+        (kind) => !isWebsiteImportStepKind(kind),
+      )
+}
 
 export const importStepRiskSchema = z.enum([
   'read-only',
@@ -34,6 +69,35 @@ export const importStepRiskSchema = z.enum([
   'cutover',
   'source-change',
 ])
+
+export type ImportStepRisk = z.output<typeof importStepRiskSchema>
+
+export const importStepRisks: Readonly<Record<ImportStepKind, ImportStepRisk>> =
+  {
+    'verify-export': 'read-only',
+    'verify-release-compatibility': 'read-only',
+    'verify-destination-manifest': 'read-only',
+    'verify-new-empty-d1': 'read-only',
+    'verify-new-empty-r2': 'read-only',
+    'verify-new-empty-website-d1': 'read-only',
+    'verify-new-empty-website-r2': 'read-only',
+    'restore-d1': 'writes-destination',
+    'restore-r2': 'writes-destination',
+    'restore-website-d1': 'writes-destination',
+    'restore-website-r2': 'writes-destination',
+    'apply-forward-migrations': 'writes-destination',
+    'deploy-without-domains': 'writes-destination',
+    'deploy-website-without-domains': 'writes-destination',
+    'rotate-deployment-credentials': 'credential-change',
+    'rotate-application-secrets': 'credential-change',
+    'rotate-management-credentials': 'credential-change',
+    'verify-restored-identity': 'read-only',
+    'verify-runtime': 'read-only',
+    'verify-website-runtime': 'read-only',
+    'cutover-domains': 'cutover',
+    'verify-independent-operation': 'read-only',
+    'retire-source-routing': 'source-change',
+  }
 
 export const importPlanSchema = z
   .object({
@@ -61,7 +125,10 @@ export const importPlanSchema = z
   })
   .strict()
   .superRefine((plan, context) => {
-    if (plan.steps.length !== importStepKindSchema.options.length) {
+    const expectedKinds = importStepKindsFor(
+      plan.steps.some((step) => isWebsiteImportStepKind(step.kind)),
+    )
+    if (plan.steps.length !== expectedKinds.length) {
       context.addIssue({
         code: 'custom',
         message: 'Import plan must contain every step exactly once',
@@ -69,38 +136,16 @@ export const importPlanSchema = z
       })
     }
     const seen = new Set<string>()
-    const expectedRisks = [
-      'read-only',
-      'read-only',
-      'read-only',
-      'read-only',
-      'read-only',
-      'writes-destination',
-      'writes-destination',
-      'writes-destination',
-      'writes-destination',
-      'credential-change',
-      'credential-change',
-      'credential-change',
-      'read-only',
-      'read-only',
-      'cutover',
-      'read-only',
-      'source-change',
-    ] as const
     for (const [position, step] of plan.steps.entries()) {
       const expectedId = `import-${String(position + 1).padStart(2, '0')}`
-      if (
-        step.id !== expectedId ||
-        step.kind !== importStepKindSchema.options[position]
-      ) {
+      if (step.id !== expectedId || step.kind !== expectedKinds[position]) {
         context.addIssue({
           code: 'custom',
           message: `Expected ordered import step ${expectedId}`,
           path: ['steps', position],
         })
       }
-      if (step.risk !== expectedRisks[position]) {
+      if (step.risk !== importStepRisks[step.kind]) {
         context.addIssue({
           code: 'custom',
           message: `Import step ${expectedId} has the wrong risk class`,
@@ -158,6 +203,25 @@ const hostnameSchema = z
     /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/,
   )
 
+/**
+ * Website secret disposition. `EMDASH_ENCRYPTION_KEY` decrypts EmDash plugin
+ * secret settings in the website D1 export and is carried through the
+ * church-authorized secret store. `WEBSITE_SETUP_SECRET` is removed after the
+ * first administrator is claimed, or rotated on both Workers if setup is still
+ * pending. The session KV namespace is recreated empty.
+ */
+export const websiteCredentialDispositionSchema = z
+  .object({
+    encryptionKey: z.literal('preserved'),
+    setupSecret: z.enum(['removed', 'rotated']),
+    sessionStore: z.literal('recreated'),
+  })
+  .strict()
+
+export type WebsiteCredentialDisposition = z.output<
+  typeof websiteCredentialDispositionSchema
+>
+
 export const cutoverApprovalSchema = z
   .object({
     formatVersion: z.literal(PORTABLE_IMPORT_FORMAT_VERSION),
@@ -178,9 +242,11 @@ export const cutoverApprovalSchema = z
         deployment: z.literal('rotated'),
         applicationSecrets: z.literal('rotated'),
         management: z.enum(['rotated', 'disconnected']),
+        website: websiteCredentialDispositionSchema.optional(),
       })
       .strict(),
-    domains: z.array(hostnameSchema).min(1).max(8),
+    /** Instance domains followed by website domains, as in the destination manifest. */
+    domains: z.array(hostnameSchema).min(1).max(16),
     rollbackDeadline: z.iso.datetime({ offset: true }),
   })
   .strict()
@@ -212,6 +278,18 @@ export const cutoverApprovalSchema = z
         path: ['domains'],
       })
     }
+    // A manifest declares at most eight instance domains and, with a website,
+    // at most eight more.
+    if (
+      !approval.credentialDisposition.website &&
+      approval.domains.length > 8
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'An instance-only cutover approves at most eight domains',
+        path: ['domains'],
+      })
+    }
   })
 
 export type CutoverApproval = z.output<typeof cutoverApprovalSchema>
@@ -239,6 +317,25 @@ export const destinationImportPreflightSchema = z
     outboxQueue: z.literal('absent'),
     deadLetterQueue: z.literal('absent'),
     durableObjectNamespace: z.literal('absent'),
+    website: z
+      .object({
+        d1: z
+          .object({
+            state: z.enum(['empty', 'occupied']),
+            createdAt: z.iso.datetime({ offset: true }),
+          })
+          .strict(),
+        r2: z
+          .object({
+            state: z.enum(['empty', 'occupied']),
+            createdAt: z.iso.datetime({ offset: true }),
+          })
+          .strict(),
+        worker: z.literal('absent'),
+        sessionKv: z.literal('absent'),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 
@@ -274,7 +371,10 @@ export const importExecutionReportSchema = z
   })
   .strict()
   .superRefine((report, context) => {
-    if (report.steps.length !== importStepKindSchema.options.length) {
+    const expectedKinds = importStepKindsFor(
+      report.steps.some((step) => isWebsiteImportStepKind(step.kind)),
+    )
+    if (report.steps.length !== expectedKinds.length) {
       context.addIssue({
         code: 'custom',
         message: 'Execution report must include every import step',
@@ -282,14 +382,12 @@ export const importExecutionReportSchema = z
       })
       return
     }
+    const cutoverPosition = expectedKinds.indexOf('cutover-domains')
     let failureSeen = false
     let pendingSeen = false
     for (const [position, step] of report.steps.entries()) {
       const expectedId = `import-${String(position + 1).padStart(2, '0')}`
-      if (
-        step.id !== expectedId ||
-        step.kind !== importStepKindSchema.options[position]
-      ) {
+      if (step.id !== expectedId || step.kind !== expectedKinds[position]) {
         context.addIssue({
           code: 'custom',
           message: `Expected execution step ${expectedId}`,
@@ -334,7 +432,9 @@ export const importExecutionReportSchema = z
     const failed = report.steps.some((step) => step.status === 'failed')
     const complete = report.steps.every((step) => step.status === 'succeeded')
     const awaiting = report.steps.every((step, position) =>
-      position < 14 ? step.status === 'succeeded' : step.status === 'pending',
+      position < cutoverPosition
+        ? step.status === 'succeeded'
+        : step.status === 'pending',
     )
     const expectedStatus = failed
       ? 'failed'

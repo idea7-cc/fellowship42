@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  WEBSITE_CMS_NAME,
   deploymentReleaseSchema,
   portableInstanceIdSchema,
 } from './lifecycle.js'
@@ -27,7 +28,31 @@ export const exportArtifactKindSchema = z.enum([
   'd1-sql',
   'portable-configuration',
   'r2-index',
+  'website-d1-sql',
+  'website-r2-index',
 ])
+
+export type ExportArtifactKind = z.output<typeof exportArtifactKindSchema>
+
+/** Fixed artifact order and paths. Website artifacts exist only with a website. */
+export const instanceExportArtifacts = [
+  { kind: 'd1-sql', file: 'd1/database.sql' },
+  { kind: 'portable-configuration', file: 'config/portable.json' },
+  { kind: 'r2-index', file: 'r2/index.json' },
+] as const satisfies ReadonlyArray<{ kind: ExportArtifactKind; file: string }>
+
+export const websiteExportArtifacts = [
+  { kind: 'website-d1-sql', file: 'website/d1/database.sql' },
+  { kind: 'website-r2-index', file: 'website/r2/index.json' },
+] as const satisfies ReadonlyArray<{ kind: ExportArtifactKind; file: string }>
+
+export function exportArtifactsFor(
+  website: boolean,
+): ReadonlyArray<{ kind: ExportArtifactKind; file: string }> {
+  return website
+    ? [...instanceExportArtifacts, ...websiteExportArtifacts]
+    : instanceExportArtifacts
+}
 
 export const exportArtifactSchema = z
   .object({
@@ -52,6 +77,17 @@ export const portableConfigurationSchema = z
           .nullable(),
       })
       .strict(),
+    website: z
+      .object({
+        cms: z
+          .object({
+            name: z.literal(WEBSITE_CMS_NAME),
+            version: semanticVersionSchema,
+          })
+          .strict(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
 
@@ -112,7 +148,10 @@ export const portableExportManifestSchema = z
         quiescedAt: z.iso.datetime({ offset: true }),
       })
       .strict(),
-    artifacts: z.array(exportArtifactSchema).length(3),
+    artifacts: z
+      .array(exportArtifactSchema)
+      .min(instanceExportArtifacts.length)
+      .max(instanceExportArtifacts.length + websiteExportArtifacts.length),
   })
   .strict()
   .superRefine((manifest, context) => {
@@ -126,12 +165,17 @@ export const portableExportManifestSchema = z
         path: ['exportedAt'],
       })
     }
-    const expected = [
-      ['d1-sql', 'd1/database.sql'],
-      ['portable-configuration', 'config/portable.json'],
-      ['r2-index', 'r2/index.json'],
-    ] as const
-    for (const [position, [kind, file]] of expected.entries()) {
+    const expected = exportArtifactsFor(
+      manifest.artifacts.length > instanceExportArtifacts.length,
+    )
+    if (manifest.artifacts.length !== expected.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Export must contain every installation artifact exactly once',
+        path: ['artifacts'],
+      })
+    }
+    for (const [position, { kind, file }] of expected.entries()) {
       const artifact = manifest.artifacts[position]
       if (artifact?.kind !== kind || artifact.file !== file) {
         context.addIssue({

@@ -12,6 +12,7 @@ import {
   type InstanceHealthObservation,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './plan.js'
+import { websiteOriginsFor } from './website-origins.js'
 
 type Check = DoctorReport['checks'][number]
 type ReleaseCheck = Pick<Check, 'status' | 'code'>
@@ -122,6 +123,165 @@ function namedBinding(
   })
 }
 
+function routeDomains(routes: unknown) {
+  return (Array.isArray(routes) ? routes : [])
+    .map((route) =>
+      typeof route === 'string'
+        ? route
+        : typeof asRecord(route).pattern === 'string'
+          ? String(asRecord(route).pattern)
+          : '',
+    )
+    .map((pattern) => pattern.replace(/^\*\./, '').replace(/\/\*$/, ''))
+    .filter(Boolean)
+    .sort()
+}
+
+/** Returns the origin of a bare `https://host` URL, or null for anything else. */
+function bareHttpsOrigin(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      url.pathname === '/' &&
+      !url.search &&
+      !url.hash
+      ? url.origin
+      : null
+  } catch {
+    return null
+  }
+}
+
+function isOrigin(value: unknown, expected: string) {
+  return bareHttpsOrigin(value) === expected
+}
+
+function websiteChecks(
+  manifest: DeploymentManifest,
+  instanceVariables: Record<string, unknown>,
+  websiteInput: unknown,
+  expectedIdentitySha256: string,
+): Check[] {
+  const website = manifest.website
+  const origins = websiteOriginsFor(manifest)
+  if (!website || !origins) return []
+  const wrangler = asRecord(websiteInput)
+  const variables = asRecord(wrangler.vars)
+  const triggers = asRecord(wrangler.triggers)
+  const services = Array.isArray(wrangler.services) ? wrangler.services : []
+  const instanceServices = services.filter(
+    (item) => asRecord(item).binding === 'FELLOWSHIP42',
+  )
+  const instanceServiceMatches = website.resources.instanceService
+    ? instanceServices.length === 1 &&
+      asRecord(instanceServices[0]).service === manifest.worker.name
+    : instanceServices.length === 0
+  const sessionKvConfigured =
+    Array.isArray(wrangler.kv_namespaces) &&
+    wrangler.kv_namespaces.some((item) => {
+      const record = asRecord(item)
+      return (
+        record.binding === website.resources.sessionKv.binding &&
+        typeof record.id === 'string' &&
+        record.id.length > 0
+      )
+    })
+  const websiteOriginsMatch =
+    isOrigin(variables.EMDASH_SITE_URL, origins.website) &&
+    isOrigin(variables.FELLOWSHIP42_URL, origins.instance)
+  const instanceWebsiteOrigin = instanceVariables.WEBSITE_ORIGIN
+  const originsCheck: Check = !websiteOriginsMatch
+    ? {
+        id: 'website-origins',
+        status: 'fail',
+        code: 'website-origins-mismatch',
+      }
+    : instanceWebsiteOrigin === undefined || instanceWebsiteOrigin === ''
+      ? {
+          id: 'website-origins',
+          status: 'warning',
+          code: 'instance-website-origin-unset',
+        }
+      : isOrigin(instanceWebsiteOrigin, origins.website)
+        ? {
+            id: 'website-origins',
+            status: 'pass',
+            code: 'website-origins-match',
+          }
+        : {
+            id: 'website-origins',
+            status: 'fail',
+            code: 'instance-website-origin-mismatch',
+          }
+  return [
+    check(
+      'website-worker-name',
+      wrangler.name === website.worker.name,
+      'website-worker-name-matches',
+      'website-worker-name-mismatch',
+    ),
+    check(
+      'website-d1-binding',
+      namedBinding(
+        wrangler.d1_databases,
+        website.resources.d1.binding,
+        website.resources.d1.name,
+        'database_name',
+      ),
+      'website-d1-binding-matches',
+      'website-d1-binding-mismatch',
+    ),
+    check(
+      'website-r2-binding',
+      namedBinding(
+        wrangler.r2_buckets,
+        website.resources.r2.binding,
+        website.resources.r2.name,
+        'bucket_name',
+      ),
+      'website-r2-binding-matches',
+      'website-r2-binding-mismatch',
+    ),
+    check(
+      'website-session-kv',
+      sessionKvConfigured,
+      'website-session-kv-configured',
+      'website-session-kv-missing',
+    ),
+    check(
+      'website-instance-service',
+      instanceServiceMatches,
+      'website-instance-service-matches',
+      'website-instance-service-mismatch',
+    ),
+    check(
+      'website-schedule',
+      JSON.stringify(triggers.crons) ===
+        JSON.stringify(website.resources.schedules),
+      'website-schedule-matches',
+      'website-schedule-mismatch',
+    ),
+    check(
+      'website-domains',
+      JSON.stringify(routeDomains(wrangler.routes)) ===
+        JSON.stringify([...website.worker.domains].sort()),
+      'website-domains-match',
+      'website-domains-mismatch',
+    ),
+    check(
+      'website-instance-pin',
+      variables.FELLOWSHIP42_INSTANCE_SHA256 === expectedIdentitySha256,
+      'website-instance-pin-matches',
+      'website-instance-pin-mismatch',
+    ),
+    originsCheck,
+  ]
+}
+
 function check(
   id: Check['id'],
   passing: boolean,
@@ -184,11 +344,18 @@ export async function inspectDeployment(input: {
   manifest: unknown
   wrangler: unknown
   migrationFiles: string[]
+  /** The website Worker's Wrangler configuration; used only with a website. */
+  websiteWrangler?: unknown
   runtimeHealth?: unknown
   releaseCheck?: ReleaseCheck
   checkedAt?: string
 }): Promise<DoctorReport> {
   const manifest = deploymentManifestSchema.parse(input.manifest)
+  if (!manifest.website && input.websiteWrangler !== undefined) {
+    throw new Error(
+      'Website Wrangler configuration was supplied for a manifest without a website',
+    )
+  }
   const wrangler = asRecord(input.wrangler)
   const resources = manifest.resources
   const queues = asRecord(wrangler.queues)
@@ -208,19 +375,7 @@ export async function inspectDeployment(input: {
     )
   })
   const expectedDomains = [...manifest.worker.domains].sort()
-  const configuredDomains = (
-    Array.isArray(wrangler.routes) ? wrangler.routes : []
-  )
-    .map((route) =>
-      typeof route === 'string'
-        ? route
-        : typeof asRecord(route).pattern === 'string'
-          ? String(asRecord(route).pattern)
-          : '',
-    )
-    .map((pattern) => pattern.replace(/^\*\./, '').replace(/\/\*$/, ''))
-    .filter(Boolean)
-    .sort()
+  const configuredDomains = routeDomains(wrangler.routes)
   const runtimeChecked = input.runtimeHealth !== undefined
   const runtimeResult = runtimeChecked
     ? instanceRuntimeHealthSchema.safeParse(input.runtimeHealth)
@@ -386,6 +541,12 @@ export async function inspectDeployment(input: {
           status: 'unknown',
           code: 'runtime-not-checked',
         },
+    ...websiteChecks(
+      manifest,
+      variables,
+      input.websiteWrangler,
+      expectedIdentitySha256,
+    ),
   ]
   const status = checks.some((item) => item.status === 'fail')
     ? 'failed'
@@ -409,13 +570,27 @@ export async function doctorFromFiles(options: {
   manifestPath: string
   wranglerPath: string
   migrationsPath: string
+  /** Required exactly when the manifest declares a website. */
+  websiteWranglerPath?: string
   runtimeUrl?: string
   offline?: boolean
 }) {
   const manifest = deploymentManifestSchema.parse(
     JSON.parse(await readFile(options.manifestPath, 'utf8')),
   )
+  if (Boolean(manifest.website) !== Boolean(options.websiteWranglerPath)) {
+    throw new Error(
+      manifest.website
+        ? 'The deployment manifest declares a website; supply its Wrangler configuration'
+        : 'The deployment manifest declares no website; omit the website Wrangler configuration',
+    )
+  }
   const wrangler = parseJsonc(await readFile(options.wranglerPath, 'utf8'))
+  const websiteWrangler = options.websiteWranglerPath
+    ? (parseJsonc(
+        await readFile(options.websiteWranglerPath, 'utf8'),
+      ) as unknown)
+    : undefined
   const runtimeHealth = options.runtimeUrl
     ? await fetch(new URL('/api/health', options.runtimeUrl), {
         signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
@@ -433,6 +608,7 @@ export async function doctorFromFiles(options: {
     manifest,
     wrangler,
     migrationFiles: await readdir(options.migrationsPath),
+    ...(websiteWrangler === undefined ? {} : { websiteWrangler }),
     runtimeHealth,
     releaseCheck,
   })

@@ -3,12 +3,15 @@ import {
   deploymentManifestSchema,
   importExecutionReportSchema,
   importPlanSchema,
-  migrationRehearsalAssertionIdSchema,
+  migrationRehearsalAssertionIdsFor,
   migrationRehearsalEvidenceSchema,
   type MigrationRehearsalEvidence,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './canonical.js'
-import { verifyCutoverApproval } from './portable-import.js'
+import {
+  importReportBindsToPlan,
+  verifyCutoverApproval,
+} from './portable-import.js'
 
 export interface MigrationRehearsalObservations {
   exportVerified: boolean
@@ -21,22 +24,21 @@ export interface MigrationRehearsalObservations {
   cutoverApplied: boolean
   independentOperationVerified: boolean
   sourceRoutingRetired: boolean
+  /** Required exactly when the rehearsed installation has a website. */
+  websiteD1RestoredExactly?: boolean
+  websiteR2RestoredExactly?: boolean
+  /** The restored website runs and pins the preserved portable identity. */
+  websiteRuntimeHealthy?: boolean
 }
+
+const WEBSITE_OBSERVATIONS = [
+  'websiteD1RestoredExactly',
+  'websiteR2RestoredExactly',
+  'websiteRuntimeHealthy',
+] as const
 
 function digestJson(value: unknown) {
   return createHash('sha256').update(canonicalJson(value)).digest('hex')
-}
-
-function reportBindsToPlan(
-  plan: ReturnType<typeof importPlanSchema.parse>,
-  report: ReturnType<typeof importExecutionReportSchema.parse>,
-) {
-  return (
-    report.operationId === plan.operationId &&
-    report.instanceId === plan.instanceId &&
-    report.exportManifestSha256 === plan.exportManifestSha256 &&
-    report.destinationManifestSha256 === plan.destinationManifestSha256
-  )
 }
 
 export function buildMigrationRehearsalEvidence(options: {
@@ -68,8 +70,8 @@ export function buildMigrationRehearsalEvidence(options: {
     )
   }
   if (
-    !reportBindsToPlan(plan, restoreReport) ||
-    !reportBindsToPlan(plan, completionReport) ||
+    !importReportBindsToPlan(plan, restoreReport) ||
+    !importReportBindsToPlan(plan, completionReport) ||
     restoreReport.status !== 'awaiting-cutover' ||
     completionReport.status !== 'succeeded'
   ) {
@@ -94,10 +96,16 @@ export function buildMigrationRehearsalEvidence(options: {
       'Church-owned rehearsal requires rotated deployment/application credentials and disconnected management.',
     )
   }
-  const observationValues = Object.values(options.observations)
+  const website = Boolean(destination.website)
+  const observationEntries = Object.entries(options.observations).filter(
+    ([, value]) => value !== undefined,
+  )
   if (
-    observationValues.length !== 10 ||
-    observationValues.some((value) => value !== true)
+    observationEntries.length !== (website ? 13 : 10) ||
+    WEBSITE_OBSERVATIONS.some(
+      (key) => (options.observations[key] !== undefined) !== website,
+    ) ||
+    observationEntries.some(([, value]) => value !== true)
   ) {
     throw new Error(
       'Every hosted-to-church-owned rehearsal observation must pass.',
@@ -125,7 +133,7 @@ export function buildMigrationRehearsalEvidence(options: {
     cutoverApprovedAt: approval.approvedAt,
     completedAt: completionReport.updatedAt,
     status: 'verified',
-    assertions: migrationRehearsalAssertionIdSchema.options.map((id) => ({
+    assertions: migrationRehearsalAssertionIdsFor(website).map((id) => ({
       id,
       status: 'pass',
       code: `${id}-passed`,

@@ -23,6 +23,25 @@ pnpm f42ctl export \
   --directory ./church-export \
   --quiesced-at 2026-07-19T21:00:00.000Z
 
+pnpm f42ctl plan \
+  --manifest tooling/f42ctl/examples/deployment-manifest.website.json
+
+pnpm f42ctl doctor \
+  --manifest ./deployment-manifest.json \
+  --website-wrangler apps/website/wrangler.jsonc \
+  --runtime https://app.example.org
+
+pnpm f42ctl export \
+  --manifest ./deployment-manifest.json \
+  --d1 ./database.sql \
+  --r2-index ./r2-source.json \
+  --r2-root ./r2-capture \
+  --website-d1 ./website.sql \
+  --website-r2-index ./website-r2-source.json \
+  --website-r2-root ./website-r2-capture \
+  --directory ./church-export \
+  --quiesced-at 2026-07-19T21:00:00.000Z
+
 pnpm f42ctl verify-export --directory ./church-export
 
 pnpm f42ctl plan-import \
@@ -48,6 +67,25 @@ Omit `--offline` to download and verify the exact published release manifest.
 Add `--runtime https://instance.example.org` to include `/api/health`. Both
 commands write versioned JSON to stdout. `--output <new-file>` uses exclusive
 creation and will not overwrite an existing file.
+
+`examples/deployment-manifest.local.json` is an instance-only installation that
+mirrors the committed `apps/instance/wrangler.jsonc` placeholders, so the
+offline doctor example reports `attention` (release, identity, and runtime
+evidence not yet checked) rather than `failed`. Update it with the Worker's
+release coordinates when cutting a release; the test suite enforces the match.
+`examples/deployment-manifest.website.json` is the same installation with its
+optional EmDash website component as deployed to staging. Against the
+committed templates, whose routes, origins, identity pin, and service binding
+are left for a deployment to fill in, doctor reports `failed` on those checks
+only; see
+[`docs/lifecycle-manifests-and-doctor.md`](../../docs/lifecycle-manifests-and-doctor.md#examples).
+
+When a manifest declares `website`, `plan` appends six website steps, `doctor`
+also inspects the website Worker's Wrangler file (default
+`apps/website/wrangler.jsonc`, override with `--website-wrangler`), and
+`export` requires the website D1 export and R2 capture through the three
+`--website-*` flags. Without a website these flags are rejected and every
+output keeps its instance-only shape.
 
 The `plan` CLI is evidence, not execution. It contains no credential, provider
 account ID, or destructive step. The callable, Worker-safe
@@ -79,8 +117,11 @@ emits only the strict public payload-free report in
 provider identifiers.
 `buildMigrationRehearsalEvidence` verifies the complete plan, restore report,
 church-owner approval, completion report, credential disposition, and adapter
-observations. Run `pnpm test:migration-rehearsal` at repository root to execute
-the public hosted-to-church-owned compatibility fixture.
+observations. Cutover, rehearsal evidence, and exit packets accept an
+execution report only when its ordered step IDs and kinds equal the plan's
+(`importReportBindsToPlan`). Run `pnpm test:migration-rehearsal` at
+repository root to execute the public hosted-to-church-owned compatibility
+fixtures, with and without the website.
 
 The CLI is expected to add:
 

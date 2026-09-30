@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -9,9 +10,17 @@ import {
   deployPlanSchema,
   deploymentManifestSchema,
   doctorReportSchema,
+  instanceDoctorCheckIds,
+  importStepKindsFor,
+  isWebsiteImportStepKind,
   migrationRehearsalEvidenceSchema,
+  portableConfigurationSchema,
+  websiteDoctorCheckIds,
+  type DestinationImportPreflight,
+  type DeploymentManifest,
 } from '@fellowship42/management-protocol'
 import {
+  doctorFromFiles,
   healthObservationFromDoctorReport,
   inspectDeployment,
   verifyPublishedRelease,
@@ -22,6 +31,7 @@ import {
   buildPortableImportPlan,
   executePortableCutover,
   executePortableImportRestore,
+  installationDomains,
   verifyCutoverApproval,
   type PortableImportAdapter,
 } from './portable-import'
@@ -33,6 +43,15 @@ const manifest = deploymentManifestSchema.parse(
   JSON.parse(
     await readFile(
       new URL('../examples/deployment-manifest.local.json', import.meta.url),
+      'utf8',
+    ),
+  ),
+)
+
+const websiteManifest = deploymentManifestSchema.parse(
+  JSON.parse(
+    await readFile(
+      new URL('../examples/deployment-manifest.website.json', import.meta.url),
       'utf8',
     ),
   ),
@@ -62,6 +81,42 @@ const wrangler = {
     F42_RELEASE_TAG: manifest.instance.release.tag,
     F42_RELEASE_MANIFEST_SHA256: manifest.instance.release.manifestSha256,
   },
+}
+
+function publishedRelease(commit: string) {
+  const release = manifest.instance.release
+  return {
+    formatVersion: 1,
+    application: {
+      name: 'fellowship42',
+      version: release.applicationVersion,
+      schemaVersion: release.schemaVersion,
+    },
+    managementProtocol: {
+      package: '@fellowship42/management-protocol',
+      packageVersion: release.managementProtocolPackageVersion,
+      wireVersion: release.managementProtocolWireVersion,
+    },
+    source: {
+      repository: 'https://github.com/idea7-cc/fellowship42',
+      commit,
+      committedAt: '2026-07-19T15:22:54-04:00',
+    },
+    artifacts: [
+      {
+        file: `fellowship42-${release.applicationVersion}-source.tgz`,
+        kind: 'portable-instance-source',
+        bytes: 1,
+        sha256: 'a'.repeat(64),
+      },
+      {
+        file: `fellowship42-management-protocol-${release.managementProtocolPackageVersion}.tgz`,
+        kind: 'management-protocol-package',
+        bytes: 1,
+        sha256: 'b'.repeat(64),
+      },
+    ],
+  }
 }
 
 describe('f42ctl deployment planning', () => {
@@ -146,13 +201,7 @@ describe('f42ctl doctor', () => {
     const report = await inspectDeployment({
       manifest,
       wrangler,
-      migrationFiles: [
-        '0001_initial.sql',
-        '0002_instance_identity.sql',
-        '0003_directory_concurrency.sql',
-        '0004_ministry_content_concurrency.sql',
-        '0005_contribution_delivery_hardening.sql',
-      ],
+      migrationFiles: ['0001_initial.sql'],
       releaseCheck: { status: 'pass', code: 'release-verified' },
       checkedAt: '2026-07-19T19:30:00.000Z',
     })
@@ -170,13 +219,7 @@ describe('f42ctl doctor', () => {
     const report = await inspectDeployment({
       manifest,
       wrangler,
-      migrationFiles: [
-        '0001_initial.sql',
-        '0002_instance_identity.sql',
-        '0003_directory_concurrency.sql',
-        '0004_ministry_content_concurrency.sql',
-        '0005_contribution_delivery_hardening.sql',
-      ],
+      migrationFiles: ['0001_initial.sql'],
       runtimeHealth: {
         status: 'ok',
         service: 'fellowship42-instance',
@@ -275,38 +318,7 @@ describe('f42ctl doctor', () => {
   })
 
   it('verifies published manifest bytes and compatibility without trusting redirects or branches', async () => {
-    const published = {
-      formatVersion: 1,
-      application: {
-        name: 'fellowship42',
-        version: '0.6.0',
-        schemaVersion: 5,
-      },
-      managementProtocol: {
-        package: '@fellowship42/management-protocol',
-        packageVersion: '0.2.0',
-        wireVersion: '1',
-      },
-      source: {
-        repository: 'https://github.com/idea7-cc/fellowship42',
-        commit: '4ec2f8b34b4a6b2938b0f3d1d6924daab4587ae1',
-        committedAt: '2026-07-19T15:22:54-04:00',
-      },
-      artifacts: [
-        {
-          file: 'fellowship42-0.6.0-source.tgz',
-          kind: 'portable-instance-source',
-          bytes: 1,
-          sha256: 'a'.repeat(64),
-        },
-        {
-          file: 'fellowship42-management-protocol-0.2.0.tgz',
-          kind: 'management-protocol-package',
-          bytes: 1,
-          sha256: 'b'.repeat(64),
-        },
-      ],
-    }
+    const published = publishedRelease(manifest.instance.release.sourceCommit)
     const bytes = new TextEncoder().encode(JSON.stringify(published))
     const withDigest = {
       ...manifest,
@@ -339,38 +351,7 @@ describe('f42ctl doctor', () => {
       code: 'release-manifest-too-large',
     })
 
-    const published = {
-      formatVersion: 1,
-      application: {
-        name: 'fellowship42',
-        version: '0.6.0',
-        schemaVersion: 5,
-      },
-      managementProtocol: {
-        package: '@fellowship42/management-protocol',
-        packageVersion: '0.2.0',
-        wireVersion: '1',
-      },
-      source: {
-        repository: 'https://github.com/idea7-cc/fellowship42',
-        commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        committedAt: '2026-07-19T15:22:54-04:00',
-      },
-      artifacts: [
-        {
-          file: 'fellowship42-0.6.0-source.tgz',
-          kind: 'portable-instance-source',
-          bytes: 1,
-          sha256: 'a'.repeat(64),
-        },
-        {
-          file: 'fellowship42-management-protocol-0.2.0.tgz',
-          kind: 'management-protocol-package',
-          bytes: 1,
-          sha256: 'b'.repeat(64),
-        },
-      ],
-    }
+    const published = publishedRelease('a'.repeat(40))
     const bytes = new TextEncoder().encode(JSON.stringify(published))
     const withDigest = deploymentManifestSchema.parse({
       ...manifest,
@@ -958,6 +939,1215 @@ describe('f42ctl portable import and cutover planning', () => {
           generatedAt: '2026-07-19T22:00:00.000Z',
         }),
       ).rejects.toThrow('exact source and destination release')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+const identitySha256 = createHash('sha256')
+  .update(manifest.instance.id)
+  .digest('hex')
+
+const websiteWrangler = {
+  name: 'fellowship42-website',
+  main: './src/worker.ts',
+  compatibility_flags: ['nodejs_compat'],
+  d1_databases: [
+    {
+      binding: 'DB',
+      database_name: 'fellowship42-website',
+      database_id: '00000000-0000-0000-0000-000000000000',
+    },
+  ],
+  r2_buckets: [{ binding: 'MEDIA', bucket_name: 'fellowship42-website-media' }],
+  kv_namespaces: [{ binding: 'SESSION', id: '0'.repeat(32) }],
+  services: [{ binding: 'FELLOWSHIP42', service: 'fellowship42' }],
+  routes: [{ pattern: 'www.church.example.test', custom_domain: true }],
+  triggers: { crons: ['* * * * *'] },
+  vars: {
+    EMDASH_SITE_URL: 'https://www.church.example.test',
+    FELLOWSHIP42_URL: 'https://app.church.example.test',
+    FELLOWSHIP42_INSTANCE_SHA256: identitySha256,
+  },
+}
+
+const instanceWranglerWithWebsite = {
+  ...wrangler,
+  routes: [{ pattern: 'app.church.example.test', custom_domain: true }],
+  vars: {
+    ...wrangler.vars,
+    WEBSITE_ORIGIN: 'https://www.church.example.test',
+  },
+}
+
+const websiteDisposition = {
+  encryptionKey: 'preserved',
+  setupSecret: 'removed',
+  sessionStore: 'recreated',
+} as const
+
+async function websiteDoctor(
+  instanceOverrides: Record<string, unknown>,
+  websiteOverrides: Record<string, unknown>,
+  targetManifest: DeploymentManifest = websiteManifest,
+) {
+  return inspectDeployment({
+    manifest: targetManifest,
+    wrangler: { ...instanceWranglerWithWebsite, ...instanceOverrides },
+    websiteWrangler: { ...websiteWrangler, ...websiteOverrides },
+    migrationFiles: ['0001_initial.sql'],
+    releaseCheck: { status: 'pass', code: 'release-verified' },
+    checkedAt: '2026-07-19T19:30:00.000Z',
+  })
+}
+
+function checkFor(
+  report: Awaited<ReturnType<typeof inspectDeployment>>,
+  id: string,
+) {
+  return report.checks.find((item) => item.id === id)
+}
+
+describe('f42ctl website component', () => {
+  it('appends website provisioning, deploy, domain, and verification steps', async () => {
+    const plan = buildDeployPlan(websiteManifest)
+    const { website, ...rest } = websiteManifest
+    expect(buildDeployPlan({ website, ...rest })).toEqual(plan)
+    expect(plan.steps).toHaveLength(17)
+    expect(plan.steps.slice(0, 11)).toEqual(
+      buildDeployPlan(rest).steps.slice(0, 11),
+    )
+    expect(plan.steps.slice(11)).toEqual([
+      {
+        id: 'step-12',
+        kind: 'ensure-website-d1',
+        resourceName: 'fellowship42-website',
+        dependsOn: ['step-01'],
+        destructive: false,
+      },
+      {
+        id: 'step-13',
+        kind: 'ensure-website-r2',
+        resourceName: 'fellowship42-website-media',
+        dependsOn: ['step-01'],
+        destructive: false,
+      },
+      {
+        id: 'step-14',
+        kind: 'ensure-website-session-kv',
+        resourceName: 'fellowship42-website-session',
+        dependsOn: ['step-01'],
+        destructive: false,
+      },
+      {
+        id: 'step-15',
+        kind: 'deploy-website-worker',
+        resourceName: 'fellowship42-website',
+        dependsOn: ['step-08', 'step-12', 'step-13', 'step-14'],
+        destructive: false,
+      },
+      {
+        id: 'step-16',
+        kind: 'configure-website-domains',
+        resourceName: 'fellowship42-website',
+        dependsOn: ['step-15'],
+        destructive: false,
+      },
+      {
+        id: 'step-17',
+        kind: 'verify-website',
+        resourceName: 'fellowship42-website',
+        dependsOn: ['step-11', 'step-16'],
+        destructive: false,
+      },
+    ])
+    expect(deployPlanSchema.parse(plan)).toEqual(plan)
+
+    const { stdout } = await execFileAsync(process.execPath, [
+      path.resolve('dist/cli.js'),
+      'plan',
+      '--manifest',
+      path.resolve('examples/deployment-manifest.website.json'),
+    ])
+    expect(JSON.parse(stdout)).toEqual(plan)
+  })
+
+  it('keeps instance-only doctor evidence to the instance checks', async () => {
+    const report = await inspectDeployment({
+      manifest,
+      wrangler,
+      migrationFiles: ['0001_initial.sql'],
+      checkedAt: '2026-07-19T19:30:00.000Z',
+    })
+    expect(report.checks.map(({ id }) => id)).toEqual(instanceDoctorCheckIds)
+    await expect(
+      inspectDeployment({
+        manifest,
+        wrangler,
+        websiteWrangler,
+        migrationFiles: ['0001_initial.sql'],
+      }),
+    ).rejects.toThrow('manifest without a website')
+  })
+
+  it('inspects the website Worker bindings, schedule, domains, and identity pin', async () => {
+    const report = await websiteDoctor({}, {})
+    expect(doctorReportSchema.parse(report)).toEqual(report)
+    expect(report.checks.map(({ id }) => id)).toEqual([
+      ...instanceDoctorCheckIds,
+      ...websiteDoctorCheckIds,
+    ])
+    expect(
+      report.checks.filter(({ id }) =>
+        (websiteDoctorCheckIds as readonly string[]).includes(id),
+      ),
+    ).toEqual(
+      websiteDoctorCheckIds.map((id) =>
+        expect.objectContaining({ id, status: 'pass' }),
+      ),
+    )
+    expect(checkFor(report, 'domains')?.status).toBe('pass')
+    expect(report.status).toBe('attention')
+    expect(JSON.stringify(report)).not.toContain(identitySha256)
+
+    const failures: Array<
+      [Record<string, unknown>, Record<string, unknown>, string, string]
+    > = [
+      [{}, { name: 'fellowship42' }, 'website-worker-name', 'fail'],
+      [{}, { d1_databases: [] }, 'website-d1-binding', 'fail'],
+      [
+        {},
+        {
+          r2_buckets: [{ binding: 'MEDIA', bucket_name: 'fellowship42-media' }],
+        },
+        'website-r2-binding',
+        'fail',
+      ],
+      [{}, { kv_namespaces: [] }, 'website-session-kv', 'fail'],
+      [
+        {},
+        { kv_namespaces: [{ binding: 'SESSION' }] },
+        'website-session-kv',
+        'fail',
+      ],
+      [
+        {},
+        { kv_namespaces: [{ binding: 'SESSION', id: '' }] },
+        'website-session-kv',
+        'fail',
+      ],
+      [
+        {},
+        { services: [{ binding: 'FELLOWSHIP42', service: 'another-church' }] },
+        'website-instance-service',
+        'fail',
+      ],
+      [
+        {},
+        { triggers: { crons: ['*/1 * * * *'] } },
+        'website-schedule',
+        'fail',
+      ],
+      [{}, { routes: [] }, 'website-domains', 'fail'],
+      [
+        {},
+        {
+          vars: {
+            ...websiteWrangler.vars,
+            FELLOWSHIP42_INSTANCE_SHA256: 'f'.repeat(64),
+          },
+        },
+        'website-instance-pin',
+        'fail',
+      ],
+      [
+        {},
+        {
+          vars: {
+            ...websiteWrangler.vars,
+            EMDASH_SITE_URL: 'https://www.church.example.test/blog',
+          },
+        },
+        'website-origins',
+        'fail',
+      ],
+      [
+        {},
+        {
+          vars: {
+            ...websiteWrangler.vars,
+            FELLOWSHIP42_URL: 'https://www.church.example.test',
+          },
+        },
+        'website-origins',
+        'fail',
+      ],
+      [
+        { vars: { ...instanceWranglerWithWebsite.vars, WEBSITE_ORIGIN: '' } },
+        {},
+        'website-origins',
+        'warning',
+      ],
+      [
+        {
+          vars: {
+            ...instanceWranglerWithWebsite.vars,
+            WEBSITE_ORIGIN: 'https://app.church.example.test',
+          },
+        },
+        {},
+        'website-origins',
+        'fail',
+      ],
+    ]
+    for (const [instanceOverrides, overrides, id, status] of failures) {
+      const failed = await websiteDoctor(instanceOverrides, overrides)
+      expect(checkFor(failed, id)?.status, id).toBe(status)
+    }
+    expect((await websiteDoctor({}, { vars: {} })).status).toBe('failed')
+
+    const unbound = deploymentManifestSchema.parse({
+      ...websiteManifest,
+      website: {
+        ...websiteManifest.website,
+        resources: {
+          ...websiteManifest.website!.resources,
+          instanceService: null,
+        },
+      },
+    })
+    expect(
+      checkFor(await websiteDoctor({}, {}, unbound), 'website-instance-service')
+        ?.status,
+    ).toBe('fail')
+    expect(
+      checkFor(
+        await websiteDoctor({}, { services: [] }, unbound),
+        'website-instance-service',
+      )?.status,
+    ).toBe('pass')
+
+    // The first declared domain is the canonical origin. `EMDASH_SITE_URL`
+    // and `WEBSITE_ORIGIN` must both name it, because the setup claim the
+    // instance mints for `WEBSITE_ORIGIN` must match the website's audience.
+    const twoDomains = deploymentManifestSchema.parse({
+      ...websiteManifest,
+      website: {
+        ...websiteManifest.website,
+        worker: {
+          ...websiteManifest.website!.worker,
+          domains: ['www.church.example.test', 'church.example.test'],
+        },
+      },
+    })
+    const twoRoutes = {
+      routes: ['www.church.example.test', 'church.example.test'].map(
+        (pattern) => ({ pattern, custom_domain: true }),
+      ),
+    }
+    const secondaryOrigin = 'https://church.example.test'
+    for (const [instanceOverrides, websiteOverrides, code] of [
+      [{}, {}, 'website-origins-match'],
+      [
+        {},
+        {
+          vars: { ...websiteWrangler.vars, EMDASH_SITE_URL: secondaryOrigin },
+        },
+        'website-origins-mismatch',
+      ],
+      [
+        {
+          vars: {
+            ...instanceWranglerWithWebsite.vars,
+            WEBSITE_ORIGIN: secondaryOrigin,
+          },
+        },
+        {},
+        'instance-website-origin-mismatch',
+      ],
+    ] as const) {
+      expect(
+        checkFor(
+          await websiteDoctor(
+            instanceOverrides,
+            { ...twoRoutes, ...websiteOverrides },
+            twoDomains,
+          ),
+          'website-origins',
+        )?.code,
+        code,
+      ).toBe(code)
+    }
+  })
+
+  it('reads the website Wrangler file only for a website manifest', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-doctor-'))
+    try {
+      const instancePath = path.join(root, 'instance.jsonc')
+      const websitePath = path.join(root, 'website.jsonc')
+      await writeFile(instancePath, JSON.stringify(instanceWranglerWithWebsite))
+      await writeFile(
+        websitePath,
+        `// EmDash website\n${JSON.stringify(websiteWrangler)}`,
+      )
+      const cli = path.resolve('dist/cli.js')
+      const { stdout } = await execFileAsync(process.execPath, [
+        cli,
+        'doctor',
+        '--manifest',
+        path.resolve('examples/deployment-manifest.website.json'),
+        '--wrangler',
+        instancePath,
+        '--migrations',
+        path.resolve('../../apps/instance/migrations'),
+        '--website-wrangler',
+        websitePath,
+        '--offline',
+      ])
+      const report = doctorReportSchema.parse(JSON.parse(stdout))
+      expect(report.status).toBe('attention')
+      expect(report.checks).toHaveLength(23)
+      await expect(
+        execFileAsync(process.execPath, [
+          cli,
+          'doctor',
+          '--manifest',
+          path.resolve('examples/deployment-manifest.local.json'),
+          '--website-wrangler',
+          websitePath,
+          '--offline',
+        ]),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining('declares no website'),
+      })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the checked-in instance example consistent with the committed Worker configuration', async () => {
+    const { stdout } = await execFileAsync(process.execPath, [
+      path.resolve('dist/cli.js'),
+      'doctor',
+      '--manifest',
+      path.resolve('examples/deployment-manifest.local.json'),
+      '--wrangler',
+      path.resolve('../../apps/instance/wrangler.jsonc'),
+      '--migrations',
+      path.resolve('../../apps/instance/migrations'),
+      '--offline',
+    ])
+    const report = doctorReportSchema.parse(JSON.parse(stdout))
+    expect(
+      report.checks.filter(({ status }) => status !== 'pass'),
+      'update examples/deployment-manifest.local.json with the committed release coordinates',
+    ).toEqual([
+      {
+        id: 'release-manifest',
+        status: 'unknown',
+        code: 'release-not-checked',
+      },
+      {
+        id: 'portable-identity',
+        status: 'unknown',
+        code: 'identity-runtime-check-required',
+      },
+      { id: 'runtime-health', status: 'unknown', code: 'runtime-not-checked' },
+    ])
+  })
+
+  // The website template ships with the website app. Where it is present, the
+  // website example must match its structure; only the values a deployment
+  // fills in may differ: routes, the derived origins, the identity pin, and
+  // the optional same-account service binding.
+  const websiteTemplate = path.resolve('../../apps/website/wrangler.jsonc')
+  it.skipIf(!existsSync(websiteTemplate))(
+    'keeps the checked-in website example consistent with the committed Worker templates',
+    async () => {
+      const report = await doctorFromFiles({
+        manifestPath: path.resolve('examples/deployment-manifest.website.json'),
+        wranglerPath: path.resolve('../../apps/instance/wrangler.jsonc'),
+        migrationsPath: path.resolve('../../apps/instance/migrations'),
+        websiteWranglerPath: websiteTemplate,
+        offline: true,
+      })
+      const deploymentValues = new Set([
+        'domains',
+        'website-domains',
+        'website-origins',
+        'website-instance-pin',
+        'website-instance-service',
+      ])
+      expect(
+        report.checks.filter(
+          ({ id, status }) => status !== 'pass' && !deploymentValues.has(id),
+        ),
+        'update examples/deployment-manifest.website.json to match the committed Worker templates',
+      ).toEqual([
+        {
+          id: 'release-manifest',
+          status: 'unknown',
+          code: 'release-not-checked',
+        },
+        {
+          id: 'portable-identity',
+          status: 'unknown',
+          code: 'identity-runtime-check-required',
+        },
+        {
+          id: 'runtime-health',
+          status: 'unknown',
+          code: 'runtime-not-checked',
+        },
+      ])
+    },
+  )
+})
+
+async function websiteExport(root: string) {
+  const sourceManifestPath = path.join(root, 'source-deployment.json')
+  const d1Path = path.join(root, 'database.sql')
+  const r2IndexPath = path.join(root, 'r2-source.json')
+  const websiteD1Path = path.join(root, 'website.sql')
+  const websiteR2IndexPath = path.join(root, 'website-r2-source.json')
+  const bundle = path.join(root, 'export')
+  await writeFile(sourceManifestPath, JSON.stringify(websiteManifest))
+  await writeFile(d1Path, `instance_metadata ${websiteManifest.instance.id}`)
+  await writeFile(
+    websiteD1Path,
+    'CREATE TABLE _emdash_migrations (name TEXT);\n-- website pages',
+  )
+  await writeFile(path.join(root, 'shared.bin'), 'shared logo')
+  await writeFile(path.join(root, 'media.bin'), 'sermon audio')
+  await writeFile(path.join(root, 'hero.bin'), 'website hero')
+  await writeFile(
+    r2IndexPath,
+    JSON.stringify({
+      formatVersion: 1,
+      objects: [
+        { key: 'sermons/audio.bin', file: 'media.bin' },
+        { key: 'brand/logo.bin', file: 'shared.bin' },
+      ],
+    }),
+  )
+  await writeFile(
+    websiteR2IndexPath,
+    JSON.stringify({
+      formatVersion: 1,
+      objects: [
+        { key: 'uploads/hero.bin', file: 'hero.bin' },
+        { key: 'uploads/logo.bin', file: 'shared.bin' },
+      ],
+    }),
+  )
+  const website = {
+    d1ExportPath: websiteD1Path,
+    r2SourceIndexPath: websiteR2IndexPath,
+    r2SourceRoot: root,
+  }
+  const assembled = await assemblePortableExport({
+    deploymentManifestPath: sourceManifestPath,
+    d1ExportPath: d1Path,
+    r2SourceIndexPath: r2IndexPath,
+    r2SourceRoot: root,
+    website,
+    outputDirectory: bundle,
+    quiescedAt: '2026-07-19T21:00:00.000Z',
+    exportedAt: '2026-07-19T21:01:00.000Z',
+  })
+  return {
+    assembled,
+    bundle,
+    sourceManifestPath,
+    d1Path,
+    r2IndexPath,
+    website,
+  }
+}
+
+/**
+ * Drops the website steps from an import plan or execution report and
+ * renumbers the rest, yielding a schema-valid instance-only document.
+ */
+function withoutWebsiteSteps<
+  T extends { steps: ReadonlyArray<{ id: string; kind: string }> },
+>(value: T): T {
+  return {
+    ...value,
+    steps: value.steps
+      .filter((step) => !isWebsiteImportStepKind(step.kind))
+      .map((step, index) => ({
+        ...step,
+        id: `import-${String(index + 1).padStart(2, '0')}`,
+        ...('dependsOn' in step ? { dependsOn: [] } : {}),
+      })),
+  }
+}
+
+function websiteDestination(
+  overrides: Partial<DeploymentManifest> = {},
+): DeploymentManifest {
+  return deploymentManifestSchema.parse({
+    ...websiteManifest,
+    target: { environment: 'production', accountAlias: 'destination-account' },
+    worker: { name: 'fellowship42-restored', domains: ['new.example.org'] },
+    resources: {
+      ...websiteManifest.resources,
+      d1: { ...websiteManifest.resources.d1, name: 'fellowship42-restored' },
+      r2: {
+        ...websiteManifest.resources.r2,
+        name: 'fellowship42-media-restored',
+      },
+      outboxQueue: {
+        ...websiteManifest.resources.outboxQueue,
+        name: 'fellowship42-outbox-restored',
+        deadLetterName: 'fellowship42-outbox-restored-dlq',
+      },
+    },
+    configuration: {
+      ...websiteManifest.configuration,
+      accessTeamDomain: 'https://fellowship42.cloudflareaccess.com',
+      accessAudienceConfigured: true,
+    },
+    website: {
+      ...websiteManifest.website,
+      worker: {
+        name: 'fellowship42-website-restored',
+        domains: ['www.new.example.org'],
+      },
+      resources: {
+        ...websiteManifest.website!.resources,
+        d1: { binding: 'DB', name: 'fellowship42-website-restored' },
+        r2: { binding: 'MEDIA', name: 'fellowship42-website-media-restored' },
+        sessionKv: {
+          binding: 'SESSION',
+          name: 'fellowship42-website-session-restored',
+        },
+      },
+    },
+    ...overrides,
+  })
+}
+
+describe('f42ctl website portability', () => {
+  it('exports and verifies website D1 and R2 beside the instance artifacts', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-export-'))
+    try {
+      const { assembled, bundle, sourceManifestPath, d1Path, r2IndexPath } =
+        await websiteExport(root)
+      expect(assembled.artifacts.map(({ kind, file }) => [kind, file])).toEqual(
+        [
+          ['d1-sql', 'd1/database.sql'],
+          ['portable-configuration', 'config/portable.json'],
+          ['r2-index', 'r2/index.json'],
+          ['website-d1-sql', 'website/d1/database.sql'],
+          ['website-r2-index', 'website/r2/index.json'],
+        ],
+      )
+      expect(
+        portableConfigurationSchema.parse(
+          JSON.parse(
+            await readFile(path.join(bundle, 'config/portable.json'), 'utf8'),
+          ),
+        ).website,
+      ).toEqual({ cms: { name: 'emdash', version: '1.0.1' } })
+      const { readdir } = await import('node:fs/promises')
+      expect(await readdir(path.join(bundle, 'r2/objects'))).toHaveLength(3)
+      const evidence = await verifyPortableExport({
+        directory: bundle,
+        verifiedAt: '2026-07-19T21:02:00.000Z',
+        evidenceId: '42424242-1234-4678-9abc-123456789abc',
+      })
+      expect(evidence.verificationStatus).toBe('verified')
+      expect(JSON.stringify(evidence)).not.toContain('uploads/')
+
+      const cli = path.resolve('dist/cli.js')
+      const viaCli = await execFileAsync(process.execPath, [
+        cli,
+        'export',
+        '--manifest',
+        sourceManifestPath,
+        '--d1',
+        d1Path,
+        '--r2-index',
+        r2IndexPath,
+        '--r2-root',
+        root,
+        '--website-d1',
+        path.join(root, 'website.sql'),
+        '--website-r2-index',
+        path.join(root, 'website-r2-source.json'),
+        '--website-r2-root',
+        root,
+        '--directory',
+        path.join(root, 'cli-export'),
+        '--quiesced-at',
+        '2026-07-19T21:00:00.000Z',
+        '--exported-at',
+        '2026-07-19T21:01:00.000Z',
+      ])
+      expect(JSON.parse(viaCli.stdout)).toEqual(assembled)
+      for (const extra of [
+        ['--website-d1', path.join(root, 'website.sql')],
+        [],
+      ]) {
+        await expect(
+          execFileAsync(process.execPath, [
+            cli,
+            'export',
+            '--manifest',
+            sourceManifestPath,
+            '--d1',
+            d1Path,
+            '--r2-index',
+            r2IndexPath,
+            '--r2-root',
+            root,
+            ...extra,
+            '--directory',
+            path.join(root, `rejected-${extra.length}`),
+            '--quiesced-at',
+            '2026-07-19T21:00:00.000Z',
+          ]),
+        ).rejects.toMatchObject({ code: 1 })
+      }
+
+      await writeFile(
+        path.join(bundle, 'website/d1/database.sql'),
+        'CREATE TABLE _emdash_migrations (name TEXT);\n-- tampered',
+      )
+      await expect(verifyPortableExport({ directory: bundle })).rejects.toThrow(
+        'website/d1/database.sql',
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects re-digested bundles whose website database or configuration disagree', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-verify-'))
+    try {
+      const { bundle } = await websiteExport(root)
+      // Rewrites one artifact and its manifest digest, so only the semantic
+      // website checks can reject the copy.
+      const rewrite = async (name: string, file: string, contents: string) => {
+        const copy = path.join(root, name)
+        await cp(bundle, copy, { recursive: true })
+        await writeFile(path.join(copy, file), contents)
+        const manifestPath = path.join(copy, 'export-manifest.json')
+        const exportManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+        for (const artifact of exportManifest.artifacts) {
+          if (artifact.file === file) {
+            artifact.bytes = Buffer.byteLength(contents)
+            artifact.sha256 = createHash('sha256')
+              .update(contents)
+              .digest('hex')
+          }
+        }
+        await writeFile(manifestPath, JSON.stringify(exportManifest))
+        return copy
+      }
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            're-exported',
+            'website/d1/database.sql',
+            'CREATE TABLE _emdash_migrations (name TEXT);\n-- re-exported',
+          ),
+        }),
+      ).resolves.toMatchObject({ verificationStatus: 'verified' })
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            'unmarked',
+            'website/d1/database.sql',
+            'CREATE TABLE ec_pages (id TEXT);\n',
+          ),
+        }),
+      ).rejects.toThrow('not an EmDash database export')
+      const { website: _website, ...instanceConfiguration } = JSON.parse(
+        await readFile(path.join(bundle, 'config/portable.json'), 'utf8'),
+      )
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            'instance-configuration',
+            'config/portable.json',
+            JSON.stringify(instanceConfiguration),
+          ),
+        }),
+      ).rejects.toThrow('disagree about the website')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects website inputs that are missing, misplaced, or not EmDash databases', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-invalid-'))
+    try {
+      const { sourceManifestPath, d1Path, r2IndexPath, website } =
+        await websiteExport(root)
+      const common = {
+        d1ExportPath: d1Path,
+        r2SourceIndexPath: r2IndexPath,
+        r2SourceRoot: root,
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+        exportedAt: '2026-07-19T21:01:00.000Z',
+      }
+      await expect(
+        assemblePortableExport({
+          ...common,
+          deploymentManifestPath: sourceManifestPath,
+          outputDirectory: path.join(root, 'missing'),
+        }),
+      ).rejects.toThrow('declares a website')
+      const instancePath = path.join(root, 'instance.json')
+      await writeFile(instancePath, JSON.stringify(manifest))
+      await expect(
+        assemblePortableExport({
+          ...common,
+          deploymentManifestPath: instancePath,
+          website,
+          outputDirectory: path.join(root, 'unexpected'),
+        }),
+      ).rejects.toThrow('declares no website')
+      await expect(
+        assemblePortableExport({
+          ...common,
+          deploymentManifestPath: sourceManifestPath,
+          website: { ...website, d1ExportPath: d1Path },
+          outputDirectory: path.join(root, 'swapped'),
+        }),
+      ).rejects.toThrow('not an EmDash database export')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('stages, restores, cuts over, and rehearses the website with the instance', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-import-'))
+    try {
+      const { bundle } = await websiteExport(root)
+      const destination = websiteDestination()
+      const destinationPath = path.join(root, 'destination.json')
+      await writeFile(destinationPath, JSON.stringify(destination))
+      const operationId = '42424242-1234-4678-9abc-123456789abc'
+      const plan = await buildPortableImportPlan({
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        operationId,
+        generatedAt: '2026-07-19T22:00:00.000Z',
+      })
+      expect(plan.steps.map(({ kind }) => kind)).toEqual(
+        importStepKindsFor(true),
+      )
+      const byKind = Object.fromEntries(
+        plan.steps.map((step) => [step.kind, step]),
+      )
+      expect(byKind['restore-website-d1']).toMatchObject({
+        risk: 'writes-destination',
+        resourceName: 'fellowship42-website-restored',
+      })
+      expect(byKind['deploy-website-without-domains']).toMatchObject({
+        resourceName: 'fellowship42-website-restored',
+        dependsOn: [
+          byKind['restore-website-d1']!.id,
+          byKind['restore-website-r2']!.id,
+          byKind['deploy-without-domains']!.id,
+        ],
+      })
+      expect(byKind['cutover-domains']!.dependsOn).toEqual([
+        byKind['verify-website-runtime']!.id,
+      ])
+      expect(installationDomains(destination)).toEqual([
+        'new.example.org',
+        'www.new.example.org',
+      ])
+
+      const approval = {
+        formatVersion: 1,
+        operationId,
+        instanceId: destination.instance.id,
+        exportManifestSha256: plan.exportManifestSha256,
+        destinationManifestSha256: plan.destinationManifestSha256,
+        approvedAt: '2026-07-19T22:30:00.000Z',
+        approvedBy: 'user:operator_42',
+        sourceVerifiedAt: '2026-07-19T22:20:00.000Z',
+        destinationVerifiedAt: '2026-07-19T22:25:00.000Z',
+        credentialDisposition: {
+          deployment: 'rotated',
+          applicationSecrets: 'rotated',
+          management: 'disconnected',
+          website: websiteDisposition,
+        },
+        domains: installationDomains(destination),
+        rollbackDeadline: '2026-07-20T22:30:00.000Z',
+      }
+      expect(verifyCutoverApproval(plan, destination, approval)).toEqual(
+        approval,
+      )
+      for (const invalid of [
+        { ...approval, domains: destination.worker.domains },
+        {
+          ...approval,
+          credentialDisposition: {
+            deployment: 'rotated',
+            applicationSecrets: 'rotated',
+            management: 'disconnected',
+          },
+        },
+      ]) {
+        expect(() =>
+          verifyCutoverApproval(plan, destination, invalid),
+        ).toThrow()
+      }
+
+      const empty = {
+        state: 'empty' as const,
+        createdAt: '2026-07-19T22:00:30.000Z',
+      }
+      const preflight = (
+        website: DestinationImportPreflight['website'],
+      ): DestinationImportPreflight => ({
+        formatVersion: 1,
+        operationId,
+        instanceId: destination.instance.id,
+        destinationManifestSha256: plan.destinationManifestSha256,
+        observedAt: '2026-07-19T22:01:00.000Z',
+        d1: empty,
+        r2: empty,
+        worker: 'absent',
+        outboxQueue: 'absent',
+        deadLetterQueue: 'absent',
+        durableObjectNamespace: 'absent',
+        ...(website ? { website } : {}),
+      })
+      const newWebsite = {
+        d1: empty,
+        r2: empty,
+        worker: 'absent' as const,
+        sessionKv: 'absent' as const,
+      }
+      const events: string[] = []
+      const adapter: PortableImportAdapter = {
+        async preflight() {
+          events.push('preflight')
+          return preflight(newWebsite)
+        },
+        async restoreD1() {
+          events.push('restore-d1')
+        },
+        async restoreR2Object(input) {
+          events.push(`restore-r2:${input.key}`)
+        },
+        async restoreWebsiteD1(input) {
+          events.push(`restore-website-d1:${path.basename(input.sqlPath)}`)
+        },
+        async restoreWebsiteR2Object(input) {
+          events.push(`restore-website-r2:${input.key}`)
+        },
+        async applyForwardMigrations() {
+          events.push('migrate')
+        },
+        async deployWithoutDomains() {
+          events.push('deploy-domainless')
+        },
+        async deployWebsiteWithoutDomains() {
+          events.push('deploy-website-domainless')
+        },
+        async rotateDeploymentCredentials() {
+          events.push('rotate-deployment')
+        },
+        async rotateApplicationSecrets() {
+          events.push('rotate-application')
+        },
+        async rotateManagementCredentials() {
+          events.push('rotate-management')
+        },
+        async verifyRestoredIdentity() {
+          events.push('verify-identity')
+          return destination.instance.id
+        },
+        async verifyRuntime() {
+          events.push('verify-runtime')
+          return true
+        },
+        async verifyWebsiteRuntime() {
+          events.push('verify-website-runtime')
+          return true
+        },
+        async cutoverDomains(input) {
+          events.push(`cutover:${input.approval.domains.join(',')}`)
+        },
+        async verifyIndependentOperation() {
+          events.push('verify-independent')
+          return true
+        },
+        async retireSourceRouting() {
+          events.push('retire-source-routing')
+        },
+      }
+      const restored = await executePortableImportRestore({
+        plan,
+        exportDirectory: bundle,
+        destinationManifestPath: destinationPath,
+        adapter,
+        now: () => '2026-07-19T22:10:00.000Z',
+      })
+      expect(restored.status).toBe('awaiting-cutover')
+      expect(events).toEqual([
+        'preflight',
+        'restore-d1',
+        'restore-r2:brand/logo.bin',
+        'restore-r2:sermons/audio.bin',
+        'restore-website-d1:database.sql',
+        'restore-website-r2:uploads/hero.bin',
+        'restore-website-r2:uploads/logo.bin',
+        'migrate',
+        'deploy-domainless',
+        'deploy-website-domainless',
+        'rotate-deployment',
+        'rotate-application',
+        'rotate-management',
+        'verify-identity',
+        'verify-runtime',
+        'verify-website-runtime',
+      ])
+      const completed = await executePortableCutover({
+        plan,
+        report: restored,
+        destinationManifest: destination,
+        approval,
+        adapter,
+        now: () => '2026-07-19T22:31:00.000Z',
+      })
+      expect(completed.status).toBe('succeeded')
+      expect(events.slice(-3)).toEqual([
+        'cutover:new.example.org,www.new.example.org',
+        'verify-independent',
+        'retire-source-routing',
+      ])
+
+      // A report that skipped the website, renumbered as a valid
+      // instance-only report, never binds to the website plan; nor does the
+      // website report bind to an instance-only plan.
+      const skippedWebsite = withoutWebsiteSteps(restored)
+      const instancePlan = withoutWebsiteSteps(plan)
+      expect(() =>
+        verifyCutoverApproval(instancePlan, destination, approval),
+      ).toThrow('exactly when the destination has a website')
+      for (const [forgedPlan, forgedReport] of [
+        [plan, skippedWebsite],
+        [instancePlan, restored],
+      ] as const) {
+        const before = events.length
+        await expect(
+          executePortableCutover({
+            plan: forgedPlan,
+            report: forgedReport,
+            destinationManifest: destination,
+            approval,
+            adapter,
+            now: () => '2026-07-19T22:31:00.000Z',
+          }),
+        ).rejects.toThrow('does not bind to the supplied import plan')
+        expect(events).toHaveLength(before)
+      }
+
+      const observations = {
+        exportVerified: true,
+        destinationWasNewAndEmpty: true,
+        d1RestoredExactly: true,
+        r2RestoredExactly: true,
+        websiteD1RestoredExactly: true,
+        websiteR2RestoredExactly: true,
+        credentialsRotated: true,
+        portableIdentityPreserved: true,
+        runtimeHealthy: true,
+        websiteRuntimeHealthy: true,
+        cutoverApplied: true,
+        independentOperationVerified: true,
+        sourceRoutingRetired: true,
+      }
+      const rehearsal = {
+        plan,
+        destinationManifest: destination,
+        restoreReport: restored,
+        approval,
+        completionReport: completed,
+        evidenceId: '42424242-1234-4678-9abc-123456789abd',
+        sourceCustody: 'fellowship42-hosted' as const,
+      }
+      const evidence = buildMigrationRehearsalEvidence({
+        ...rehearsal,
+        observations,
+      })
+      expect(evidence.assertions.map(({ id }) => id)).toEqual([
+        'export-verified',
+        'new-empty-destination',
+        'd1-restored',
+        'r2-restored',
+        'website-d1-restored',
+        'website-r2-restored',
+        'credentials-rotated',
+        'portable-identity-preserved',
+        'runtime-healthy',
+        'website-runtime-healthy',
+        'cutover-approved',
+        'independent-operation-verified',
+        'source-routing-retired',
+      ])
+      expect(JSON.stringify(evidence)).not.toContain('www.new.example.org')
+      const { websiteRuntimeHealthy: _omitted, ...incomplete } = observations
+      for (const invalid of [
+        incomplete,
+        { ...observations, websiteR2RestoredExactly: false },
+      ]) {
+        expect(() =>
+          buildMigrationRehearsalEvidence({
+            ...rehearsal,
+            observations: invalid,
+          }),
+        ).toThrow('Every hosted-to-church-owned rehearsal observation')
+      }
+      for (const forged of [
+        { restoreReport: skippedWebsite },
+        { completionReport: withoutWebsiteSteps(completed) },
+      ]) {
+        expect(() =>
+          buildMigrationRehearsalEvidence({
+            ...rehearsal,
+            ...forged,
+            observations,
+          }),
+        ).toThrow('bound awaiting-cutover and succeeded execution reports')
+      }
+
+      const failures: Array<[PortableImportAdapter, string, string, string[]]> =
+        [
+          [
+            (() => {
+              const instanceOnly: PortableImportAdapter = { ...adapter }
+              delete instanceOnly.restoreWebsiteD1
+              return instanceOnly
+            })(),
+            'verify-destination-manifest',
+            'website-adapter-unsupported',
+            [],
+          ],
+          [
+            { ...adapter, preflight: async () => preflight(undefined) },
+            'verify-new-empty-d1',
+            'destination-preflight-component-mismatch',
+            [],
+          ],
+          [
+            {
+              ...adapter,
+              preflight: async () =>
+                preflight({
+                  ...newWebsite,
+                  d1: { ...empty, state: 'occupied' },
+                }),
+            },
+            'verify-new-empty-website-d1',
+            'destination-website-d1-not-empty',
+            [],
+          ],
+          [
+            {
+              ...adapter,
+              preflight: async () =>
+                preflight({
+                  ...newWebsite,
+                  r2: { ...empty, createdAt: '2026-07-19T21:59:00.000Z' },
+                }),
+            },
+            'verify-new-empty-d1',
+            'destination-preflight-time-invalid',
+            [],
+          ],
+          [
+            {
+              ...adapter,
+              async restoreWebsiteR2Object() {
+                throw new Error('synthetic website R2 failure')
+              },
+            },
+            'restore-website-r2',
+            'website-r2-restore-failed',
+            ['restore-d1'],
+          ],
+          [
+            { ...adapter, verifyWebsiteRuntime: async () => false },
+            'verify-website-runtime',
+            'destination-website-unhealthy',
+            ['verify-runtime'],
+          ],
+        ]
+      for (const [failing, kind, code, reached] of failures) {
+        events.length = 0
+        const failed = await executePortableImportRestore({
+          plan,
+          exportDirectory: bundle,
+          destinationManifestPath: destinationPath,
+          adapter: failing,
+          now: () => '2026-07-19T22:10:00.000Z',
+        })
+        const position = failed.steps.findIndex((step) => step.kind === kind)
+        expect(failed.status, code).toBe('failed')
+        expect(failed.steps[position], code).toMatchObject({
+          status: 'failed',
+          code,
+        })
+        expect(
+          failed.steps
+            .slice(position + 1)
+            .every((step) => step.status === 'pending'),
+          code,
+        ).toBe(true)
+        for (const event of reached) expect(events, code).toContain(event)
+        if (reached.length === 0) {
+          // The replaced preflights record nothing, and an adapter without
+          // website support is refused before any provider call, preflight
+          // included.
+          expect(events, code).toEqual([])
+        }
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses destinations whose components or CMS differ from the export', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-mismatch-'))
+    try {
+      const { bundle } = await websiteExport(root)
+      const { website: _website, ...instanceOnly } = websiteDestination()
+      for (const [destination, message] of [
+        [instanceOnly, 'same installation components'],
+        [
+          websiteDestination({
+            website: {
+              ...websiteDestination().website!,
+              cms: { name: 'emdash', version: '1.1.0' },
+            },
+          }),
+          'website CMS',
+        ],
+      ] as const) {
+        const destinationPath = path.join(root, `${message.length}.json`)
+        await writeFile(destinationPath, JSON.stringify(destination))
+        await expect(
+          buildPortableImportPlan({
+            exportDirectory: bundle,
+            destinationManifestPath: destinationPath,
+            generatedAt: '2026-07-19T22:00:00.000Z',
+          }),
+        ).rejects.toThrow(message)
+      }
     } finally {
       await rm(root, { recursive: true, force: true })
     }
