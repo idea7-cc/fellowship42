@@ -22,3 +22,10 @@ MANAGEMENT_KEY_ENCRYPTION_KEY=replace-with-32-random-base64url-bytes
 # Optional instance-owned staff sign-in (never commit real setup keys).
 SIGN_IN_ORIGIN=http://localhost:5173
 # BOOTSTRAP_ENROLLMENT_TOKEN=<random-32-byte-base64url-value>
+
+# Optional church website (apps/website). The instance homepage redirects to
+# WEBSITE_ORIGIN, and owners can claim the website's first EmDash
+# administrator with WEBSITE_SETUP_SECRET (the same value in both Workers, at
+# least 32 characters; delete it from both after setup).
+WEBSITE_ORIGIN=http://localhost:4322
+# WEBSITE_SETUP_SECRET=<same random value as apps/website/.dev.vars>
