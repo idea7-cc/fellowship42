@@ -46,13 +46,24 @@ Revisit this section when the alpha is declared.
 
 ## Repository boundaries
 
-- `apps/instance` is the only deployable church product. It contains the React
+- `apps/instance` is the deployable church application. It contains the React
   UI, Hono API, D1 migrations, R2 integration, and Durable Objects.
+- `apps/website` is the church's EmDash website, a component of the same
+  deployable installation, not a second instance. Lifecycle contracts list its
+  D1, R2, and session KV beside the instance, and
+  `FELLOWSHIP42_INSTANCE_SHA256` pins it to `instance_metadata`, which remains
+  the only portable identity. It reads church records only through the public
+  website contract. See ADR 0027.
 - `apps/project-site` is the public project/community site. It is not the
   hosted-service dashboard.
 - `packages/management-protocol` is the public, versioned contract shared with
   optional management software. It must not import an application or private
   control-plane package.
+- `packages/website-contract` is the public, versioned, read-only contract for
+  published church content. It must not import an application package.
+- `packages/emdash` (the trusted EmDash integration) and
+  `packages/emdash-connect` (the sandboxed registry connector) are public
+  integration packages built on the website contract.
 - `packages/brand` is public shared presentation code.
 - `tooling/f42ctl` is reserved for portable provisioning, export, import,
   verification, and management enrollment tooling.
@@ -63,12 +74,20 @@ Dependency direction is one-way:
 
 ```text
 apps/instance ──► packages/management-protocol
-       │
+       │    └───► packages/website-contract
        └────────► packages/brand
+
+apps/website ───► packages/emdash ───► packages/website-contract
+       └────────► packages/brand
+packages/emdash-connect ──► packages/emdash, packages/website-contract
 
 fellowship42-cloud (separate private repo)
        └────────► published management protocol + release artifacts
 ```
+
+The website never imports instance code and never reads the instance's D1;
+church content crosses between them only through the website contract over
+HTTPS (or a same-account service binding).
 
 The public instance must never import from the private repository. The private
 repository must operate instances through public contracts rather than private
@@ -91,6 +110,9 @@ database access or unpublished application internals.
   Objects coordinate realtime state and do not become the business record.
 - Keep browser state out of authorization decisions. Validate input and use
   prepared D1 statements.
+- The public website contract (`/api/website/v1`) never reads identity and
+  returns only published, allowlisted fields. Adding a field there is a public
+  disclosure; review it like one.
 
 ## Cloudflare implementation rules
 

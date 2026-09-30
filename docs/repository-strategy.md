@@ -19,11 +19,15 @@ ownership much more likely.
 ```text
 fellowship42/
   apps/
-    instance/                 one complete deployable church installation
+    instance/                 the deployable church application
+    website/                  the installation's EmDash church website
     project-site/             open-source project/community website
   packages/
     brand/                    public brand primitives
     management-protocol/      schemas and types for optional management
+    website-contract/         public read-only church website contract
+    emdash/                   trusted EmDash integration (church blocks)
+    emdash-connect/           sandboxed EmDash registry connector
   tooling/
     f42ctl/                   deployment/export/import/enrollment tooling
   docs/

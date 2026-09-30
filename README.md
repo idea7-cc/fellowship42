@@ -43,7 +43,8 @@ The current source includes these features for development and evaluation:
 | Setup and access | Instance-owned staff passkeys, first-owner setup, team invitations and roles; optional Cloudflare Access |
 | People and households | Private directory, household relationships, search, pagination, and record editing |
 | Groups and learning | Group rosters, sessions and attendance, courses, lessons, and enrollment |
-| Publishing | Church settings, gatherings, style and images, private profile drafts and preview, public church website, and groups/courses/events/sermons with independent publish controls |
+| Publishing | Church settings, gatherings, style and images, private profile drafts and preview, and groups/courses/events/sermons with independent publish controls |
+| Church website | An EmDash website beside the instance for pages, articles, and menus, with church blocks that show live published records through a versioned public contract; an owner-claimed first editor; the same integration for an existing EmDash site |
 | Contributions | Finance-scoped manual entry, a signed normalized payment-event API, and durable outbox delivery |
 | Optional management | Owner-approved enrollment, signed sync, grants, rotation, disconnect, update authorization, and diagnostic support approval |
 | Portability | Release verification, deployment planning, export assembly, staged import contracts, and deterministic migration rehearsals |
@@ -98,9 +99,13 @@ pnpm db:seed
 pnpm dev
 ```
 
-The church website runs at `http://localhost:5173`; the staff workspace is at
-`http://localhost:5173/app`. Start the
-separate public project site with `pnpm dev:site`.
+The instance runs at `http://localhost:5173` (staff workspace at `/app`).
+Start the EmDash church website with `pnpm dev:website`
+(`http://localhost:4322`) and the separate public project site with
+`pnpm dev:site`. [EmDash church websites](docs/emdash-church-websites.md)
+describes the full local evaluation journey, and
+`pnpm acceptance:fellowship42-first` runs it in a browser against production
+builds on isolated synthetic state.
 
 Public routes work without authentication. Protected workflows require a local
 staff session or valid Cloudflare Access JWT; seed data is not a sign-in bypass. Use
@@ -139,12 +144,19 @@ These commands do not create or change Cloudflare resources. Continue with the
 
 ```text
 apps/instance/                 React UI and Worker API for one church
+apps/website/                  The church's EmDash website (same installation)
 apps/project-site/             Public project/community website
 packages/brand/                Shared presentation code
 packages/management-protocol/  Public, versioned management contracts
+packages/website-contract/     Public, versioned church website contract
+packages/emdash/               Trusted EmDash integration: church blocks
+packages/emdash-connect/       Sandboxed EmDash registry connector
 tooling/f42ctl/                Public lifecycle and verification tooling
 docs/                         Architecture, workflows, runbooks, and ADRs
 ```
+
+`f42ctl` plans, diagnoses, exports, restores, and hands off the optional EmDash
+website together with the instance, as one installation.
 
 ## Contribute and give feedback
 
@@ -172,7 +184,10 @@ through [SECURITY.md](SECURITY.md).
 Additional documentation:
 
 - [Church setup and website publishing](docs/church-setup-and-publishing.md)
-- [EmDash church website build plan](docs/emdash-website-plan.md)
+- [EmDash church websites](docs/emdash-church-websites.md) and the
+  [public website contract](docs/website-contract.md)
+- [EmDash church website build plan](docs/emdash-website-plan.md) and
+  [build handoff](docs/emdash-build-handoff.md)
 - [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Team and roles](docs/team-and-roles.md)

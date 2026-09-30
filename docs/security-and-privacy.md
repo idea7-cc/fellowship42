@@ -25,7 +25,14 @@ response, or independent review.
 
 ## Data that may leave an instance
 
-Public pages contain only explicitly published church/ministry content.
+Public pages contain only explicitly published church/ministry content. The
+[public website contract](website-contract.md) serves the same published
+content to church websites on other origins. It never reads identity, allowlists
+its fields, sends no cookies, and is not cached, so a staff session cannot
+widen it and a withdrawal applies on the next request. Public media and the
+contract are the only instance responses that other origins may embed or read.
+EmDash website accounts are separate from Fellowship42 accounts and grant no
+access to church records beyond that published content.
 Optional management messages contain portable identity, release/protocol state,
 coarse operational health, grant/connection state, bounded operation results,
 and audit evidence defined by strict public schemas. They must not contain

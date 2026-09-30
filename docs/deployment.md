@@ -109,8 +109,9 @@ Worker variables:
 
 Protect `/app` and `/app/*`, including `/app/preview`, with the Access
 application whose audience is configured in the Worker. Keep `/`,
-`/courses/*`, frontend assets, `/api/site`, published church read endpoints,
-and `/media/*` reachable without a login redirect. Use narrowly scoped path
+`/courses/*`, frontend assets, `/api/site`, `/api/website/v1/*`, published
+church read endpoints, and `/media/*` reachable without a login redirect: the
+church website reads them anonymously, possibly from another origin. Use narrowly scoped path
 applications for the public/staff boundary on the instance domain. Protect
 private API paths, including `/api/church-settings/*`, session, directory,
 finance, and management; Worker permission checks still authorize each call.
@@ -242,6 +243,53 @@ Deploy the optional public project site separately with:
 pnpm deploy:site
 ```
 
+### 5a. Deploy the church website
+
+A Fellowship42 installation includes an EmDash church website (`apps/website`)
+on its own hostname, such as `www.<church domain>`, while the instance serves
+the application, for example `app.<church domain>`. See
+[EmDash church websites](emdash-church-websites.md) and
+[ADR 0027](adr/0027-emdash-church-websites.md).
+
+1. Create the website's own D1 database, R2 bucket, and a KV namespace for
+   `SESSION`, and record them under `website` in the deployment manifest.
+   Keep preview and production resources separate, as for the instance.
+2. Set the website Worker variables:
+   - `EMDASH_SITE_URL=https://<website domain>` (required for EmDash setup and
+     passkeys);
+   - `FELLOWSHIP42_URL=https://<instance domain>`;
+   - `FELLOWSHIP42_INSTANCE_SHA256`, the SHA-256 hex of
+     `F42_PORTABLE_INSTANCE_ID`. It equals `bootstrap.portableIdentitySha256`
+     in the instance's `/api/health`.
+
+   On the instance, set `WEBSITE_ORIGIN=https://<website domain>`. The instance
+   homepage then redirects to the website.
+3. Set the website Worker secrets:
+   - `EMDASH_ENCRYPTION_KEY` (`pnpm --filter @fellowship42/website exec emdash
+     secrets generate`). Generate it once per installation, keep it in the
+     church-authorized secret store, and preserve it for backup and migration:
+     it decrypts EmDash secret settings. Rotate it only with EmDash's
+     prepend-and-resave procedure.
+   - `WEBSITE_SETUP_SECRET`, at least 32 random characters, with the same value
+     set on the instance. Delete it from both Workers after the first EmDash
+     administrator is claimed. If a migration happens before that, rotate it
+     on both.
+4. When both Workers are in the same account, uncomment the `FELLOWSHIP42`
+   service binding in `apps/website/wrangler.jsonc` so contract requests stay
+   on Cloudflare's network. Otherwise the website uses public HTTPS.
+5. Deploy with `pnpm deploy:website` and attach the website's custom domain.
+   The built Worker is about 4 MiB compressed; Cloudflare's Workers Free plan
+   limit is smaller, so the website needs a plan that allows it.
+6. Finish setup promptly: sign in to the instance as the owner and choose
+   **Settings → Website → Set up website editor**. Until an administrator
+   exists, the website refuses EmDash setup without that owner claim.
+7. Run `f42ctl doctor --website-wrangler apps/website/wrangler.jsonc …`; the
+   website checks must pass.
+
+An Access application may protect `/_emdash/*` on the website domain, but it is
+not required: EmDash authenticates editors itself, and public pages must stay
+open.
+
 ## 6. Management enrollment
 
 Remote management is not part of bootstrap. A church owner may later use the
@@ -275,6 +323,11 @@ and test this sequence before accepting production custody:
 7. rotate application, deployment, and management credentials;
 8. switch and validate the domain;
 9. revoke the former operator only after acceptance.
+
+With a website, export both D1 databases and both R2 buckets
+(`--website-d1`, `--website-r2-index`, `--website-r2-root`). The website session
+KV is recreated, so editors sign in again. Preserve `EMDASH_ENCRYPTION_KEY`,
+remove or rotate `WEBSITE_SETUP_SECRET`, and reissue any EmDash API tokens.
 
 Account takeover is easiest when the church owns the account from the start.
 Otherwise the supported guarantee is portable export and redeployment, not an
