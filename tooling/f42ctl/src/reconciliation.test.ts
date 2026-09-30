@@ -226,7 +226,29 @@ describe('provider-neutral deployment reconciliation', () => {
       fixture.observation,
     )
     expect(preview.changes.map(({ action }) => action)).toEqual(instanceActions)
-    expect(preview.changes).toEqual(website.changes.slice(0, 11))
+    // The instance-only preview is byte-identical to the one produced before
+    // the website component existed.
+    expect(await sha256Canonical(preview)).toBe(
+      'e6197f5fa42406c7c95d077a7a099f01e900c310b0e8aa9d3133af0381a16f8b',
+    )
+    // With a website, only the instance Worker configuration also carries
+    // the website origin.
+    const configureWorker = preview.changes.findIndex(
+      ({ kind }) => kind === 'configure-worker',
+    )
+    for (const [index, change] of preview.changes.entries()) {
+      const withWebsite = website.changes[index]!
+      if (index === configureWorker) {
+        expect(withWebsite).toEqual({
+          ...change,
+          desiredFingerprint: expect.not.stringMatching(
+            change.desiredFingerprint,
+          ),
+        })
+      } else {
+        expect(withWebsite).toEqual(change)
+      }
+    }
 
     await expect(
       buildReconciliationPreview(fixture.manifest, {
@@ -240,6 +262,66 @@ describe('provider-neutral deployment reconciliation', () => {
         steps: fixture.observation.steps,
       }),
     ).rejects.toMatchObject({ code: 'observation_binding_mismatch' })
+  })
+
+  it('fingerprints the canonical website origins and identity pin', async () => {
+    const fingerprints = async (manifest: typeof fixture.manifest) => {
+      const preview = await buildReconciliationPreview(manifest, {
+        ...fixture.observation,
+        manifestSha256: await sha256Canonical(manifest),
+      })
+      return new Map(
+        preview.changes.map(({ kind, desiredFingerprint }) => [
+          kind,
+          desiredFingerprint,
+        ]),
+      )
+    }
+    const baseline = await fingerprints(fixture.manifest)
+    const changedKinds = async (manifest: typeof fixture.manifest) => {
+      const changed = await fingerprints(manifest)
+      return [...baseline].flatMap(([kind, fingerprint]) =>
+        changed.get(kind) === fingerprint ? [] : [kind],
+      )
+    }
+    const { website, worker } = fixture.manifest
+    // A new first website domain moves `WEBSITE_ORIGIN` and `EMDASH_SITE_URL`.
+    expect(
+      await changedKinds({
+        ...fixture.manifest,
+        website: {
+          ...website,
+          worker: {
+            ...website.worker,
+            domains: ['www.example.test', ...website.worker.domains],
+          },
+        },
+      }),
+    ).toEqual([
+      'configure-worker',
+      'deploy-website-worker',
+      'configure-website-domains',
+    ])
+    // A new first instance domain moves `FELLOWSHIP42_URL`.
+    expect(
+      await changedKinds({
+        ...fixture.manifest,
+        worker: { ...worker, domains: ['app.example.test', ...worker.domains] },
+      }),
+    ).toEqual(['configure-domains', 'deploy-website-worker'])
+    // Appending a domain changes routing but not the canonical origins.
+    expect(
+      await changedKinds({
+        ...fixture.manifest,
+        website: {
+          ...website,
+          worker: {
+            ...website.worker,
+            domains: [...website.worker.domains, 'www.example.test'],
+          },
+        },
+      }),
+    ).toEqual(['configure-website-domains'])
   })
 
   it('blocks unknown, foreign, unverified, and contradictory observations', async () => {
@@ -513,6 +595,7 @@ describe('provider-neutral deployment reconciliation', () => {
       '../dist/canonical.js',
       '../dist/plan-shape.js',
       '../dist/reconciliation.js',
+      '../dist/website-origins.js',
     ]) {
       const compiled = await readFile(
         new URL(compiledPath, import.meta.url),

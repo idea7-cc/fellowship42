@@ -14,6 +14,9 @@ import {
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './canonical.js'
 import { buildDeployPlanWithDigest } from './plan-shape.js'
+import { websiteOriginsFor } from './website-origins.js'
+
+export { websiteOriginsFor, type WebsiteOrigins } from './website-origins.js'
 
 export interface DeploymentReconciliationAdapter {
   observe(input: {
@@ -62,7 +65,12 @@ function websiteOf(manifest: DeploymentManifest) {
   return manifest.website
 }
 
-function desiredStepState(
+/**
+ * The provider state a step converges to. With a website, the instance's
+ * `WEBSITE_ORIGIN` and the website's `EMDASH_SITE_URL`, `FELLOWSHIP42_URL`, and
+ * `FELLOWSHIP42_INSTANCE_SHA256` are part of it, so drift in them is visible.
+ */
+async function desiredStepState(
   manifest: DeploymentManifest,
   kind: DeployPlan['steps'][number]['kind'],
 ) {
@@ -80,7 +88,8 @@ function desiredStepState(
       }
     case 'ensure-dead-letter-queue':
       return { name: manifest.resources.outboxQueue.deadLetterName }
-    case 'configure-worker':
+    case 'configure-worker': {
+      const origins = websiteOriginsFor(manifest)
       return {
         workerName: manifest.worker.name,
         portableInstanceId: manifest.instance.id,
@@ -96,7 +105,10 @@ function desiredStepState(
           tag: manifest.instance.release.tag,
           manifestSha256: manifest.instance.release.manifestSha256,
         },
+        // Absent for an instance-only installation, whose state is unchanged.
+        ...(origins ? { websiteOrigin: origins.website } : {}),
       }
+    }
     case 'apply-migrations':
       return {
         d1: manifest.resources.d1.name,
@@ -133,10 +145,15 @@ function desiredStepState(
       return websiteOf(manifest).resources.sessionKv
     case 'deploy-website-worker': {
       const website = websiteOf(manifest)
+      const origins = websiteOriginsFor(manifest)!
       return {
         workerName: website.worker.name,
         cms: website.cms,
-        portableInstanceId: manifest.instance.id,
+        siteOrigin: origins.website,
+        instanceOrigin: origins.instance,
+        instanceIdentitySha256: await sha256Bytes(
+          new TextEncoder().encode(manifest.instance.id),
+        ),
         instanceWorkerName: manifest.worker.name,
         bindings: {
           d1: website.resources.d1.binding,
@@ -244,7 +261,7 @@ export async function buildReconciliationPreview(
     plan.steps.map(async (step, index) => {
       const observed = observation.steps[index]!
       const desiredFingerprint = await sha256Canonical(
-        desiredStepState(manifest, step.kind),
+        await desiredStepState(manifest, step.kind),
       )
       const ownershipBlocked =
         ['unverified', 'foreign'].includes(observed.ownership) ||
@@ -397,7 +414,7 @@ export async function executeDeploymentReconciliation(options: {
   for (const [index, change] of preview.changes.entries()) {
     const planStep = plan.steps[index]!
     const desiredFingerprint = await sha256Canonical(
-      desiredStepState(manifest, planStep.kind),
+      await desiredStepState(manifest, planStep.kind),
     )
     const allowedActions: Record<
       DeployPlan['steps'][number]['kind'],

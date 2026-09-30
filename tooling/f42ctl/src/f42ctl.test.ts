@@ -1225,6 +1225,58 @@ describe('f42ctl website component', () => {
         'website-instance-service',
       )?.status,
     ).toBe('pass')
+
+    // The first declared domain is the canonical origin. `EMDASH_SITE_URL`
+    // and `WEBSITE_ORIGIN` must both name it, because the setup claim the
+    // instance mints for `WEBSITE_ORIGIN` must match the website's audience.
+    const twoDomains = deploymentManifestSchema.parse({
+      ...websiteManifest,
+      website: {
+        ...websiteManifest.website,
+        worker: {
+          ...websiteManifest.website!.worker,
+          domains: ['www.church.example.test', 'church.example.test'],
+        },
+      },
+    })
+    const twoRoutes = {
+      routes: ['www.church.example.test', 'church.example.test'].map(
+        (pattern) => ({ pattern, custom_domain: true }),
+      ),
+    }
+    const secondaryOrigin = 'https://church.example.test'
+    for (const [instanceOverrides, websiteOverrides, code] of [
+      [{}, {}, 'website-origins-match'],
+      [
+        {},
+        {
+          vars: { ...websiteWrangler.vars, EMDASH_SITE_URL: secondaryOrigin },
+        },
+        'website-origins-mismatch',
+      ],
+      [
+        {
+          vars: {
+            ...instanceWranglerWithWebsite.vars,
+            WEBSITE_ORIGIN: secondaryOrigin,
+          },
+        },
+        {},
+        'instance-website-origin-mismatch',
+      ],
+    ] as const) {
+      expect(
+        checkFor(
+          await websiteDoctor(
+            instanceOverrides,
+            { ...twoRoutes, ...websiteOverrides },
+            twoDomains,
+          ),
+          'website-origins',
+        )?.code,
+        code,
+      ).toBe(code)
+    }
   })
 
   it('reads the website Wrangler file only for a website manifest', async () => {

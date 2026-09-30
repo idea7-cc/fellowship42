@@ -67,12 +67,19 @@ restore, like the instance's optional `OAUTH_KV`. EmDash applies its own core
 migrations at runtime, so the website has no numbered SQL migrations; `cms`
 records the EmDash version whose database schema the export carries.
 
-The website Worker's non-secret variables are derived rather than declared:
-`EMDASH_SITE_URL` is a website origin, `FELLOWSHIP42_URL` is an instance
-origin, and `FELLOWSHIP42_INSTANCE_SHA256` is the SHA-256 of the portable
-instance ID, the same digest the instance health endpoint exposes as
-`bootstrap.portableIdentitySha256`. The instance may set `WEBSITE_ORIGIN` to a
-website origin so that `/` redirects there. Secrets never appear in the
+The website Worker's non-secret variables are derived rather than declared.
+The first domain listed for each Worker is its canonical origin:
+`EMDASH_SITE_URL` is `https://` plus the first website domain,
+`FELLOWSHIP42_URL` is `https://` plus the first instance domain, and
+`FELLOWSHIP42_INSTANCE_SHA256` is the SHA-256 of the portable instance ID, the
+same digest the instance health endpoint exposes as
+`bootstrap.portableIdentitySha256`. The instance may set `WEBSITE_ORIGIN` so
+that `/` redirects to the website; when set, it must equal `EMDASH_SITE_URL`,
+because the instance mints the owner's setup claim for `WEBSITE_ORIGIN` and
+the website accepts only claims for `EMDASH_SITE_URL`. Other website domains
+are routed to the same Worker. `websiteOriginsFor(manifest)`, exported by
+`f42ctl` and its reconciliation subpath, returns both canonical origins.
+Secrets never appear in the
 manifest: `EMDASH_ENCRYPTION_KEY` and the shared, setup-only
 `WEBSITE_SETUP_SECRET` are covered in
 [Portable import and cutover](portable-import-and-cutover.md#credential-disposition).
@@ -194,10 +201,10 @@ manifest is an input error. Nine checks follow the fourteen instance checks:
 | `website-schedule` | the crons are exactly `* * * * *` |
 | `website-domains` | the routes are exactly the website domains |
 | `website-instance-pin` | `FELLOWSHIP42_INSTANCE_SHA256` is the SHA-256 of the portable instance ID |
-| `website-origins` | `EMDASH_SITE_URL` is a website origin, `FELLOWSHIP42_URL` is an instance origin, and the instance's `WEBSITE_ORIGIN` is a website origin |
+| `website-origins` | `EMDASH_SITE_URL` is the canonical website origin, `FELLOWSHIP42_URL` is the canonical instance origin, and the instance's `WEBSITE_ORIGIN` is the canonical website origin |
 
 Origins must be bare `https://<domain>` URLs with no path, query, port, or
-credentials. An empty instance `WEBSITE_ORIGIN` is a `warning`
+credentials; a trailing `/` is accepted. An empty instance `WEBSITE_ORIGIN` is a `warning`
 (`instance-website-origin-unset`): the church keeps the instance homepage.
 Doctor never reads or reports secret values and does not expose the identity
 digest.
@@ -224,7 +231,12 @@ provider resources require verified portable-instance ownership; unverified,
 foreign, unknown, or contradictory observations produce a blocked preview.
 
 `buildReconciliationPreview` recomputes the canonical manifest digest and a
-separate desired-state fingerprint for every step. It emits only `none`,
+separate desired-state fingerprint for every step. With a website, the
+`configure-worker` state includes the instance's `WEBSITE_ORIGIN`, and the
+`deploy-website-worker` state includes `EMDASH_SITE_URL`, `FELLOWSHIP42_URL`,
+and `FELLOWSHIP42_INSTANCE_SHA256`, so an adapter that fingerprints what it
+observes sees drift in them. An instance-only installation's fingerprints are
+unchanged. It emits only `none`,
 `create`, `update`, `execute`, `verify`, or `blocked` changes, preserves the
 dependency graph, and never emits a destructive change. An observation or
 approved preview whose step count differs from the manifest's plan is

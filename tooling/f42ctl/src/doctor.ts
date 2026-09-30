@@ -12,6 +12,7 @@ import {
   type InstanceHealthObservation,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './plan.js'
+import { websiteOriginsFor } from './website-origins.js'
 
 type Check = DoctorReport['checks'][number]
 type ReleaseCheck = Pick<Check, 'status' | 'code'>
@@ -155,11 +156,8 @@ function bareHttpsOrigin(value: unknown): string | null {
   }
 }
 
-function originIn(value: unknown, domains: readonly string[]) {
-  const origin = bareHttpsOrigin(value)
-  return (
-    origin !== null && domains.some((domain) => origin === `https://${domain}`)
-  )
+function isOrigin(value: unknown, expected: string) {
+  return bareHttpsOrigin(value) === expected
 }
 
 function websiteChecks(
@@ -169,7 +167,8 @@ function websiteChecks(
   expectedIdentitySha256: string,
 ): Check[] {
   const website = manifest.website
-  if (!website) return []
+  const origins = websiteOriginsFor(manifest)
+  if (!website || !origins) return []
   const wrangler = asRecord(websiteInput)
   const variables = asRecord(wrangler.vars)
   const triggers = asRecord(wrangler.triggers)
@@ -192,8 +191,8 @@ function websiteChecks(
       )
     })
   const websiteOriginsMatch =
-    originIn(variables.EMDASH_SITE_URL, website.worker.domains) &&
-    originIn(variables.FELLOWSHIP42_URL, manifest.worker.domains)
+    isOrigin(variables.EMDASH_SITE_URL, origins.website) &&
+    isOrigin(variables.FELLOWSHIP42_URL, origins.instance)
   const instanceWebsiteOrigin = instanceVariables.WEBSITE_ORIGIN
   const originsCheck: Check = !websiteOriginsMatch
     ? {
@@ -207,7 +206,7 @@ function websiteChecks(
           status: 'warning',
           code: 'instance-website-origin-unset',
         }
-      : originIn(instanceWebsiteOrigin, website.worker.domains)
+      : isOrigin(instanceWebsiteOrigin, origins.website)
         ? {
             id: 'website-origins',
             status: 'pass',
