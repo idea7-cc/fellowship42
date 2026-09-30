@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -1125,6 +1125,18 @@ describe('f42ctl website component', () => {
       [{}, { kv_namespaces: [] }, 'website-session-kv', 'fail'],
       [
         {},
+        { kv_namespaces: [{ binding: 'SESSION' }] },
+        'website-session-kv',
+        'fail',
+      ],
+      [
+        {},
+        { kv_namespaces: [{ binding: 'SESSION', id: '' }] },
+        'website-session-kv',
+        'fail',
+      ],
+      [
+        {},
         { services: [{ binding: 'FELLOWSHIP42', service: 'another-church' }] },
         'website-instance-service',
         'fail',
@@ -1508,6 +1520,64 @@ describe('f42ctl website portability', () => {
       await expect(verifyPortableExport({ directory: bundle })).rejects.toThrow(
         'website/d1/database.sql',
       )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects re-digested bundles whose website database or configuration disagree', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'f42-website-verify-'))
+    try {
+      const { bundle } = await websiteExport(root)
+      // Rewrites one artifact and its manifest digest, so only the semantic
+      // website checks can reject the copy.
+      const rewrite = async (name: string, file: string, contents: string) => {
+        const copy = path.join(root, name)
+        await cp(bundle, copy, { recursive: true })
+        await writeFile(path.join(copy, file), contents)
+        const manifestPath = path.join(copy, 'export-manifest.json')
+        const exportManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+        for (const artifact of exportManifest.artifacts) {
+          if (artifact.file === file) {
+            artifact.bytes = Buffer.byteLength(contents)
+            artifact.sha256 = createHash('sha256')
+              .update(contents)
+              .digest('hex')
+          }
+        }
+        await writeFile(manifestPath, JSON.stringify(exportManifest))
+        return copy
+      }
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            're-exported',
+            'website/d1/database.sql',
+            'CREATE TABLE _emdash_migrations (name TEXT);\n-- re-exported',
+          ),
+        }),
+      ).resolves.toMatchObject({ verificationStatus: 'verified' })
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            'unmarked',
+            'website/d1/database.sql',
+            'CREATE TABLE ec_pages (id TEXT);\n',
+          ),
+        }),
+      ).rejects.toThrow('not an EmDash database export')
+      const { website: _website, ...instanceConfiguration } = JSON.parse(
+        await readFile(path.join(bundle, 'config/portable.json'), 'utf8'),
+      )
+      await expect(
+        verifyPortableExport({
+          directory: await rewrite(
+            'instance-configuration',
+            'config/portable.json',
+            JSON.stringify(instanceConfiguration),
+          ),
+        }),
+      ).rejects.toThrow('disagree about the website')
     } finally {
       await rm(root, { recursive: true, force: true })
     }
