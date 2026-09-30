@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local development. Never commit real values.
+EMDASH_SITE_URL=http://localhost:4322
+FELLOWSHIP42_URL=http://localhost:5173
+# Optional: pin the church identity reported by the instance's /api/health.
+# FELLOWSHIP42_INSTANCE_SHA256=
+# Shared with the instance; lets a Fellowship42 owner claim the first EmDash
+# administrator. Delete from both Workers after setup.
+WEBSITE_SETUP_SECRET=replace-with-at-least-32-random-characters
+# Generate with: pnpm exec emdash secrets generate
+# EMDASH_ENCRYPTION_KEY=

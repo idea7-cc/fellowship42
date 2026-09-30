@@ -1,0 +1,39 @@
+---
+import { decodeSlug, getEmDashEntry, getSeoMeta, getSiteSettings } from 'emdash'
+import { PortableText } from 'emdash/ui'
+import Base from '../layouts/Base.astro'
+import { churchPages } from '../lib/church-pages'
+
+const slug = decodeSlug(Astro.params.slug)
+if (!slug) return Astro.rewrite('/404')
+const { entry: page, isPreview, error } = await getEmDashEntry('pages', slug)
+if (error) throw error
+const builtIn = page ? null : churchPages[slug]
+if (!page && !builtIn) return Astro.rewrite('/404')
+const settings = await getSiteSettings()
+const siteTitle = settings?.title || 'Our church'
+const seo = page
+  ? getSeoMeta(page, {
+      siteTitle,
+      siteUrl: Astro.url.origin,
+      path: Astro.url.pathname.replace(/\/$/, ''),
+    })
+  : null
+const title = page ? seo!.title : builtIn!.title
+---
+
+<Base
+  title={title}
+  pageTitle={page ? seo!.ogTitle : builtIn!.title}
+  description={seo?.description ?? builtIn?.description}
+  canonical={seo?.canonical}
+  preview={isPreview}
+  content={page ? { collection: 'pages', id: page.data.id, slug } : undefined}
+>
+  <article>
+    <h1 {...(page?.edit.title ?? {})}>{page ? page.data.title : builtIn!.title}</h1>
+    <div class="prose-wide">
+      <PortableText value={page ? page.data.content : builtIn!.blocks} />
+    </div>
+  </article>
+</Base>

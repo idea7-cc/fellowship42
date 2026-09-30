@@ -1,0 +1,54 @@
+---
+import { getEmDashCollection } from 'emdash'
+import Base from '../../layouts/Base.astro'
+
+const cursor = Astro.url.searchParams.get('cursor') || undefined
+const { entries: posts, nextCursor, error } = await getEmDashCollection('posts', {
+  orderBy: { published_at: 'desc' },
+  limit: 12,
+  cursor,
+})
+if (error) throw error
+const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
+  dateStyle: 'long',
+})
+---
+
+<Base title="Articles" description="News and articles from the church.">
+  <h1>Articles</h1>
+  {
+    posts.length === 0 ? (
+      <p>No articles have been published yet.</p>
+    ) : (
+      <ul class="article-list" role="list">
+        {posts.map((post) => (
+          <li>
+            <h2>
+              <a href={`/articles/${post.id}`}>{post.data.title}</a>
+            </h2>
+            {post.data.publishedAt && (
+              <p class="meta">
+                <time datetime={post.data.publishedAt.toISOString()}>
+                  {dateFormat.format(post.data.publishedAt)}
+                </time>
+              </p>
+            )}
+            {post.data.excerpt && <p>{post.data.excerpt}</p>}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    (cursor || nextCursor) && (
+      <nav class="pager" aria-label="More articles">
+        {cursor && <a href="/articles">First page</a>}
+        {nextCursor && (
+          <a href={`/articles?cursor=${encodeURIComponent(nextCursor)}`} rel="next">
+            Older articles
+          </a>
+        )}
+      </nav>
+    )
+  }
+</Base>

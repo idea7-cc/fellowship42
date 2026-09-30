@@ -1,0 +1,51 @@
+---
+import { decodeSlug, getEmDashEntry, getSeoMeta, getSiteSettings } from 'emdash'
+import { Image, PortableText } from 'emdash/ui'
+import Base from '../../layouts/Base.astro'
+
+const slug = decodeSlug(Astro.params.slug)
+if (!slug) return Astro.rewrite('/404')
+const { entry: post, isPreview, error } = await getEmDashEntry('posts', slug)
+if (error) throw error
+if (!post) return Astro.rewrite('/404')
+const settings = await getSiteSettings()
+const seo = getSeoMeta(post, {
+  siteTitle: settings?.title || 'Our church',
+  siteUrl: Astro.url.origin,
+  path: Astro.url.pathname.replace(/\/$/, ''),
+})
+const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
+  dateStyle: 'long',
+})
+---
+
+<Base
+  title={seo.title}
+  pageTitle={seo.ogTitle}
+  description={seo.description}
+  canonical={seo.canonical}
+  image={seo.ogImage}
+  preview={isPreview}
+  content={{ collection: 'posts', id: post.data.id, slug }}
+>
+  <article class="prose">
+    <h1 {...post.edit.title}>{post.data.title}</h1>
+    {
+      post.data.publishedAt && (
+        <p class="meta">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {dateFormat.format(post.data.publishedAt)}
+          </time>
+        </p>
+      )
+    }
+    {
+      post.data.featured_image && (
+        <div {...post.edit.featured_image}>
+          <Image image={post.data.featured_image} />
+        </div>
+      )
+    }
+    <PortableText value={post.data.content} />
+  </article>
+</Base>

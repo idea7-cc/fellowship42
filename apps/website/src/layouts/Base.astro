@@ -1,0 +1,143 @@
+---
+import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from 'emdash'
+import { createPublicPageContext } from 'emdash/page'
+import { EmDashBodyEnd, EmDashBodyStart, EmDashHead } from 'emdash/ui'
+import { loadChurch } from '@fellowship42/emdash/data'
+import { churchThemeStyle } from '../lib/theme'
+import '../styles/site.css'
+
+interface Props {
+  title: string
+  pageTitle?: string | null
+  description?: string | null
+  image?: string | null
+  canonical?: string | null
+  preview?: boolean
+  /** Content reference for plugin page contributions on content pages. */
+  content?: { collection: string; id: string; slug?: string | null }
+}
+
+const { title, pageTitle, description, image, canonical, preview, content } =
+  Astro.props
+const [settingsResult, menuResult, churchResult] = await Promise.all([
+  getSiteSettingsWithCacheHint(),
+  getMenuWithCacheHint('primary'),
+  loadChurch(Astro.request),
+])
+const settings = settingsResult.data
+const church = churchResult.ok ? churchResult.data.church : null
+const siteTitle = settings?.title || church?.name || 'Our church'
+const siteTagline = settings?.tagline || church?.tagline || ''
+const logo = settings?.logo?.url
+  ? { url: settings.logo.url, alt: settings.logo.alt || siteTitle }
+  : church?.logo
+    ? { url: church.logo.url, alt: church.logo.alt || siteTitle }
+    : null
+const fullTitle =
+  title === siteTitle || title.endsWith(` — ${siteTitle}`)
+    ? title
+    : `${title} — ${siteTitle}`
+const path = Astro.url.pathname.replace(/\/$/, '') || '/'
+const pageContext = createPublicPageContext({
+  Astro,
+  kind: content ? 'content' : 'custom',
+  pageType: path === '/' ? 'home' : 'website',
+  title: fullTitle,
+  pageTitle: pageTitle ?? title,
+  description: description ?? (siteTagline || null),
+  canonical,
+  image: image ?? church?.cover?.url ?? null,
+  content,
+  siteName: siteTitle,
+})
+const items = menuResult.data?.items ?? []
+const isCurrent = (url: string) => {
+  try {
+    const target = new URL(url, Astro.url)
+    if (target.origin !== Astro.url.origin) return false
+    const targetPath = target.pathname.replace(/\/$/, '') || '/'
+    return targetPath === path
+  } catch {
+    return false
+  }
+}
+const address = church
+  ? [church.address.street, church.address.city, church.address.region]
+      .filter(Boolean)
+      .join(', ')
+  : ''
+---
+
+<!doctype html>
+<html lang={Astro.currentLocale ?? 'en'} style={churchThemeStyle(church?.theme.preset)}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <EmDashHead page={pageContext} />
+  </head>
+  <body>
+    <EmDashBodyStart page={pageContext} />
+    <a class="skip-link" href="#main">Skip to content</a>
+    {
+      preview && (
+        <p class="preview-banner" role="status">
+          Preview — this draft is not public.
+        </p>
+      )
+    }
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-title" href="/">
+          {logo && <img src={logo.url} alt="" width="40" height="40" />}
+          <span>{siteTitle}</span>
+        </a>
+        {
+          items.length > 0 && (
+            <nav class="site-nav" aria-label="Main">
+              <ul role="list">
+                {items.map((item) => (
+                  <li>
+                    <a
+                      href={item.url}
+                      target={item.target || undefined}
+                      rel={
+                        item.target === '_blank'
+                          ? 'noopener noreferrer'
+                          : undefined
+                      }
+                      aria-current={isCurrent(item.url) ? 'page' : undefined}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )
+        }
+      </div>
+    </header>
+    <main id="main" class="site-main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <div>
+          <strong>{church?.name ?? siteTitle}</strong>
+          {address && <address>{address}</address>}
+        </div>
+        <p>
+          {
+            church?.contact.email && (
+              <a href={`mailto:${church.contact.email}`}>
+                {church.contact.email}
+              </a>
+            )
+          }
+        </p>
+      </div>
+    </footer>
+    <EmDashBodyEnd page={pageContext} />
+  </body>
+</html>

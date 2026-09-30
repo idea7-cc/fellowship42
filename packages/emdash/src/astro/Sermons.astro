@@ -1,0 +1,80 @@
+---
+import { formatCalendarDate } from '@fellowship42/website-contract'
+import {
+  BLOCK_TYPES,
+  blockFlag,
+  blockHeading,
+  blockLimit,
+  type BlockSettings,
+} from '../shared/blocks'
+import { cursorParam, loadList, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Pager from './Pager.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'Recent sermons')
+const paginate = blockFlag(node.paginate, false)
+const param = cursorParam(BLOCK_TYPES.sermons, node._key)
+const result = await loadList(Astro.request, 'sermons', {
+  cursor: paginate ? Astro.url.searchParams.get(param) : null,
+  limit: blockLimit(node, 5),
+})
+const locale = Astro.currentLocale ?? 'en-US'
+---
+
+<Section id={`${param}-heading`} heading={heading} kind="sermons">
+  {
+    !result.ok ? (
+      <Notice message={VISITOR_MESSAGES[result.state]} tone="unavailable" />
+    ) : result.data.items.length === 0 ? (
+      <Notice message="No sermons have been published yet." />
+    ) : (
+      <ul class="f42-list" role="list">
+        {result.data.items.map((sermon) => (
+          <li class="f42-card">
+            <h3>{sermon.title}</h3>
+            <p class="f42-meta">
+              {sermon.speaker}
+              {sermon.series && <> · {sermon.series}</>}
+            </p>
+            <p class="f42-meta">
+              <time datetime={sermon.preachedOn}>
+                {formatCalendarDate(sermon.preachedOn, locale)}
+              </time>
+            </p>
+            {sermon.summary && <p>{sermon.summary}</p>}
+            {sermon.audio && (
+              <audio
+                controls
+                preload="none"
+                aria-label={`Listen to ${sermon.title}`}
+              >
+                <source src={sermon.audio.url} type={sermon.audio.contentType} />
+              </audio>
+            )}
+            {sermon.videoUrl && (
+              <p class="f42-actions">
+                <a href={sermon.videoUrl} rel="noopener">
+                  Watch<span class="f42-sr-only"> {sermon.title}</span>
+                </a>
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    paginate && result.ok && (
+      <Pager
+        param={param}
+        nextCursor={result.data.nextCursor}
+        label="Sermons"
+      />
+    )
+  }
+</Section>

@@ -65,7 +65,7 @@ websiteSetupRoutes.post('/:churchId/claim', async (c) => {
     )
     .run()
   return c.json({
-    url: `${origin}/_fellowship42/setup#claim=${token}`,
+    url: `${origin}/fellowship42/setup#claim=${token}`,
     expiresAt: claim.exp * 1000,
   })
 })

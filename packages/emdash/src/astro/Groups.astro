@@ -1,0 +1,63 @@
+---
+import {
+  BLOCK_TYPES,
+  blockFlag,
+  blockHeading,
+  blockLimit,
+  type BlockSettings,
+} from '../shared/blocks'
+import { cursorParam, loadList, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Pager from './Pager.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'Groups')
+const paginate = blockFlag(node.paginate, false)
+const param = cursorParam(BLOCK_TYPES.groups, node._key)
+const result = await loadList(Astro.request, 'groups', {
+  cursor: paginate ? Astro.url.searchParams.get(param) : null,
+  limit: blockLimit(node, 12),
+})
+const joining = {
+  open: 'Open to join',
+  request: 'Ask to join',
+  closed: 'Not taking new members',
+} as const
+---
+
+<Section id={`${param}-heading`} heading={heading} kind="groups">
+  {
+    !result.ok ? (
+      <Notice message={VISITOR_MESSAGES[result.state]} tone="unavailable" />
+    ) : result.data.items.length === 0 ? (
+      <Notice message="No groups are listed right now." />
+    ) : (
+      <ul class="f42-list" role="list">
+        {result.data.items.map((group) => (
+          <li class="f42-card">
+            <h3>{group.title}</h3>
+            <p class="f42-meta">
+              {[group.schedule, group.location].filter(Boolean).join(' · ')}
+            </p>
+            {group.audience && <p class="f42-meta">For {group.audience}</p>}
+            {group.summary && <p>{group.summary}</p>}
+            <p class="f42-meta">{joining[group.enrollment]}</p>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    paginate && result.ok && (
+      <Pager
+        param={param}
+        nextCursor={result.data.nextCursor}
+        label="Groups"
+      />
+    )
+  }
+</Section>

@@ -382,7 +382,7 @@ describe('instance front door and website setup', () => {
     )
     expect(issued.status).toBe(200)
     const { url } = (await issued.json()) as { url: string }
-    expect(url.startsWith(`${website}/_fellowship42/setup#claim=`)).toBe(true)
+    expect(url.startsWith(`${website}/fellowship42/setup#claim=`)).toBe(true)
     const claim = await verifySetupClaim(setupSecret, url.split('#claim=')[1], {
       audience: website,
     })

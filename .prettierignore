@@ -5,3 +5,4 @@ artifacts
 **/worker-configuration.d.ts
 **/fixtures
 pnpm-lock.yaml
+**/emdash-env.d.ts

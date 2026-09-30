@@ -1,0 +1,66 @@
+---
+import {
+  BLOCK_TYPES,
+  blockFlag,
+  blockHeading,
+  blockLimit,
+  type BlockSettings,
+} from '../shared/blocks'
+import { cursorParam, loadList, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Pager from './Pager.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'Courses')
+const paginate = blockFlag(node.paginate, false)
+const param = cursorParam(BLOCK_TYPES.courses, node._key)
+const result = await loadList(Astro.request, 'courses', {
+  cursor: paginate ? Astro.url.searchParams.get(param) : null,
+  limit: blockLimit(node, 12),
+})
+---
+
+<Section id={`${param}-heading`} heading={heading} kind="courses">
+  {
+    !result.ok ? (
+      <Notice message={VISITOR_MESSAGES[result.state]} tone="unavailable" />
+    ) : result.data.items.length === 0 ? (
+      <Notice message="No courses are listed right now." />
+    ) : (
+      <ul class="f42-list" role="list">
+        {result.data.items.map((course) => (
+          <li class="f42-card">
+            <h3>
+              <a href={course.url}>{course.title}</a>
+            </h3>
+            <p class="f42-meta">
+              {[course.audience, course.duration, course.deliveryMode]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            {course.summary && <p>{course.summary}</p>}
+            <p class="f42-meta">
+              {course.lessonCount === 1
+                ? '1 lesson'
+                : `${course.lessonCount} lessons`}
+              {course.certificateOffered && ' · Certificate offered'}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    paginate && result.ok && (
+      <Pager
+        param={param}
+        nextCursor={result.data.nextCursor}
+        label="Courses"
+      />
+    )
+  }
+</Section>

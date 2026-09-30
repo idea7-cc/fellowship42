@@ -2,9 +2,13 @@
   "schemaVersion": 1,
   "repositoryType": "public-portable-instance",
   "deployableInstance": "apps/instance",
+  "deployableWebsite": "apps/website",
   "projectSite": "apps/project-site",
-  "publicContracts": ["packages/management-protocol"],
-  "publicSharedPackages": ["packages/brand"],
+  "publicContracts": [
+    "packages/management-protocol",
+    "packages/website-contract"
+  ],
+  "publicSharedPackages": ["packages/brand", "packages/emdash"],
   "publicPortableTooling": ["tooling/f42ctl"],
   "releaseContract": {
     "documentation": "docs/releases.md",

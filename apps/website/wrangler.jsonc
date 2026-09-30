@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "fellowship42-website",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-07-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fellowship42-website",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "fellowship42-website-media"
+    }
+  ],
+  // EmDash sessions. Disposable: a new namespace only signs editors out.
+  "kv_namespaces": [
+    { "binding": "SESSION", "id": "00000000000000000000000000000000" }
+  ],
+  // When the instance Worker runs in the same account, bind it so church
+  // content never leaves Cloudflare's network:
+  // "services": [{ "binding": "FELLOWSHIP42", "service": "fellowship42" }],
+  // Scheduled publishing and EmDash maintenance.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "EMDASH_SITE_URL": "",
+    "FELLOWSHIP42_URL": "",
+    "FELLOWSHIP42_INSTANCE_SHA256": ""
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
+  }
+}

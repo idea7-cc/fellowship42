@@ -1,0 +1,76 @@
+---
+import {
+  formatEventWhen,
+  localDateTimeAttribute,
+} from '@fellowship42/website-contract'
+import {
+  BLOCK_TYPES,
+  blockFlag,
+  blockHeading,
+  blockLimit,
+  type BlockSettings,
+} from '../shared/blocks'
+import { cursorParam, loadList, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Pager from './Pager.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'Upcoming events')
+const paginate = blockFlag(node.paginate, false)
+const param = cursorParam(BLOCK_TYPES.events, node._key)
+const result = await loadList(Astro.request, 'events', {
+  cursor: paginate ? Astro.url.searchParams.get(param) : null,
+  limit: blockLimit(node, 5),
+})
+const locale = Astro.currentLocale ?? 'en-US'
+---
+
+<Section id={`${param}-heading`} heading={heading} kind="events">
+  {
+    !result.ok ? (
+      <Notice message={VISITOR_MESSAGES[result.state]} tone="unavailable" />
+    ) : result.data.items.length === 0 ? (
+      <Notice message="No upcoming events right now." />
+    ) : (
+      <ul class="f42-list" role="list">
+        {result.data.items.map((event) => (
+          <li class="f42-card">
+            <h3>{event.title}</h3>
+            <p class="f42-meta">
+              <time
+                datetime={localDateTimeAttribute(
+                  event.startsAt,
+                  event.timezone,
+                )}
+              >
+                {formatEventWhen(event, locale)}
+              </time>
+            </p>
+            {event.location && <p class="f42-meta">{event.location}</p>}
+            {event.summary && <p>{event.summary}</p>}
+            {event.registrationUrl && (
+              <p class="f42-actions">
+                <a href={event.registrationUrl} rel="noopener">
+                  Register<span class="f42-sr-only"> for {event.title}</span>
+                </a>
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    paginate && result.ok && (
+      <Pager
+        param={param}
+        nextCursor={result.data.nextCursor}
+        label="Events"
+      />
+    )
+  }
+</Section>

@@ -1,0 +1,51 @@
+{
+  "name": "@fellowship42/emdash",
+  "version": "0.1.0",
+  "description": "Fellowship42 church content for EmDash sites: connection, Portable Text blocks, and Astro renderers",
+  "type": "module",
+  "main": "./src/index.ts",
+  "sideEffects": false,
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./astro": "./src/astro/index.ts",
+    "./components": "./src/astro/components.ts",
+    "./shared": "./src/shared/index.ts",
+    "./data": "./src/astro/data.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && astro check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fellowship42/website-contract": "workspace:*"
+  },
+  "peerDependencies": {
+    "astro": ">=7.0.0 <8",
+    "emdash": ">=1.0.1 <2"
+  },
+  "devDependencies": {
+    "@emdash-cms/blocks": "1.0.1",
+    "astro": "^7.3.3",
+    "emdash": "1.0.1",
+    "typescript": "~6.0.3",
+    "vitest": "~4.1.11",
+    "@astrojs/check": "^0.9.10"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idea7-cc/fellowship42.git",
+    "directory": "packages/emdash"
+  },
+  "homepage": "https://github.com/idea7-cc/fellowship42#readme",
+  "bugs": {
+    "url": "https://github.com/idea7-cc/fellowship42/issues"
+  },
+  "license": "Apache-2.0"
+}

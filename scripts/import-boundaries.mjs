@@ -48,6 +48,12 @@ export async function inspectImportBoundaries(root, kind) {
             'packages/website-contract',
           ],
           'apps/project-site': ['packages/brand'],
+          'apps/website': [
+            'packages/brand',
+            'packages/emdash',
+            'packages/website-contract',
+          ],
+          'packages/emdash': ['packages/website-contract'],
           'packages/brand': [],
           'packages/management-protocol': [],
           'packages/website-contract': [],
