@@ -21,6 +21,12 @@ versions, soft deletion where the domain table supports it, redacted audit
 evidence, minimal outbox events, and realtime invalidation. The public church
 routes continue to return only published content.
 
+A staff editor saves against the version it opened. If the record changed in
+the meantime, the save is refused, the typed input stays in place, and the
+editor explains that choosing **Edit** on the record again loads its latest
+version. Choosing **Edit** on the open record while its version is unchanged
+keeps the unsaved input.
+
 ## Courses and lessons
 
 Courses own ordered lessons. Lesson text is plain content rendered safely by

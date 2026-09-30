@@ -18,7 +18,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { useRecordEditor } from '@/lib/record-editor'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, Course, CursorPage } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -74,9 +74,7 @@ function CourseForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The course could not be saved.',
+        describeSaveFailure(caught, 'course', 'The course could not be saved.'),
       )
       setSaving(false)
     }

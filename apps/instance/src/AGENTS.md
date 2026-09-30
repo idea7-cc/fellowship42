@@ -11,9 +11,11 @@ outside `useApiQuery` use `useRequestGuard`. A field whose options or default
 arrive after the editor opens must be controlled rather than use `defaultValue`.
 
 Submit the observed version for edits and deletes. On conflicts preserve user
-input and explain that fresh data is needed. Creates that can be retried send
-a per-entry `Idempotency-Key` from `useEntryKey` (`src/lib/entry-key.ts`),
-keep it across uncertain failures, and describe those failures honestly with
-`describeEntryFailure`. Add DOM interaction regressions for async behavior
+input and explain that fresh data is needed; record editors use
+`describeSaveFailure`, and opening a newer version of the open record loads it.
+Creates that can be retried send a per-entry `Idempotency-Key` from
+`useEntryKey` (`src/lib/entry-key.ts`), keep it across uncertain failures,
+describe those failures honestly with `describeEntryFailure`, and offer
+**Start a new entry**, which resets the key and the form. Add DOM interaction regressions for async behavior
 (`pnpm --filter @fellowship42/instance test:ui`), and finish with root
 `pnpm verify`.

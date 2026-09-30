@@ -19,7 +19,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { useRecordEditor } from '@/lib/record-editor'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -76,9 +76,7 @@ function GroupForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The group could not be saved.',
+        describeSaveFailure(caught, 'group', 'The group could not be saved.'),
       )
       setSaving(false)
     }

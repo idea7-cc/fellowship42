@@ -38,7 +38,11 @@ function keyedServer(prefix: string) {
     ) {
       const key = call.headers.get('idempotency-key')
       seenKeys.push(key)
-      const body = JSON.stringify(call.body ?? null)
+      // Like the Worker's checksum, a file body is compared by its contents.
+      const body =
+        call.body instanceof Blob
+          ? `file:${await call.body.text()}`
+          : JSON.stringify(call.body ?? null)
       let result: Response
       const existing = key ? keys.get(key) : undefined
       if (existing && existing.body !== body) {
@@ -239,6 +243,52 @@ describe('directory entries', () => {
     expect(ui.text()).not.toContain('Add a person')
   })
 
+  it('lets staff start a new person entry after a changed retry', async () => {
+    const { people, ui } = await renderDirectory()
+    await ui.click(ui.button('Add person'))
+    await ui.type(ui.field('firstName', ui.form()), 'Changed')
+    await ui.type(ui.field('lastName', ui.form()), 'Mind')
+    people.loseNextResponse()
+    await ui.submit(ui.form())
+    await ui.type(ui.field('lastName', ui.form()), 'Minds')
+    await ui.submit(ui.form())
+    expect(ui.alert()).toMatch(/different details/)
+    expect(people.rows).toHaveLength(1)
+    // Choosing Add person again keeps the open entry, typed input included.
+    await ui.click(ui.button('Add person'))
+    expect(ui.field('lastName', ui.form()).value).toBe('Minds')
+    await ui.click(ui.button('Start a new entry'))
+    expect(ui.alert()).toBeNull()
+    expect(ui.field('firstName', ui.form()).value).toBe('')
+    await ui.type(ui.field('firstName', ui.form()), 'Changed')
+    await ui.type(ui.field('lastName', ui.form()), 'Minds')
+    await ui.submit(ui.form())
+    expect(people.rows).toHaveLength(2)
+    expect(new Set(people.seenKeys).size).toBe(2)
+    expect(ui.text()).not.toContain('Add a person')
+  })
+
+  it('lets staff start a new household entry after a changed retry', async () => {
+    const { households, ui } = await renderDirectory()
+    await ui.click(ui.button('Households'))
+    await ui.click(ui.button('Add household'))
+    await ui.type(ui.field('name', ui.form()), 'Rivera Household')
+    households.loseNextResponse()
+    await ui.submit(ui.form())
+    await ui.type(ui.field('city', ui.form()), 'Austin')
+    await ui.submit(ui.form())
+    expect(ui.alert()).toMatch(/different details/)
+    await ui.click(ui.button('Start a new entry'))
+    expect(ui.alert()).toBeNull()
+    expect(ui.field('name', ui.form()).value).toBe('')
+    await ui.type(ui.field('name', ui.form()), 'Rivera Household')
+    await ui.type(ui.field('city', ui.form()), 'Austin')
+    await ui.submit(ui.form())
+    expect(households.rows).toHaveLength(2)
+    expect(new Set(households.seenKeys).size).toBe(2)
+    expect(ui.text()).not.toContain('Add a household')
+  })
+
   it('keeps the household entry key across a lost response', async () => {
     const { households, ui } = await renderDirectory()
     await ui.click(ui.button('Households'))
@@ -286,6 +336,59 @@ it('keeps the group session entry key across a lost response', async () => {
   expect(sessions.rows).toHaveLength(1)
 })
 
+describe('group session entries', () => {
+  async function renderSessions() {
+    const sessions = keyedServer('session')
+    stubApi(async (call) => {
+      if (call.method === 'POST') {
+        return sessions.create(call, (_id, replayed) =>
+          Response.json({ sessions: [], replayed }, { status: 201 }),
+        )
+      }
+      return Response.json({ sessions: [] })
+    })
+    const ui = await mountStaff(
+      <GroupSessionsPanel
+        churchId="church"
+        group={{ id: 'group', title: 'Alpha', location: 'Hall' } as Group}
+        onClose={() => {}}
+      />,
+    )
+    cleanup = ui.unmount
+    return { sessions, ui }
+  }
+
+  it('lets staff start a new session entry after a changed retry', async () => {
+    const { sessions, ui } = await renderSessions()
+    await ui.click(ui.button('Add session'))
+    await ui.type(ui.field('title', ui.form()), 'Planning night')
+    sessions.loseNextResponse()
+    await ui.submit(ui.form())
+    await ui.type(ui.field('title', ui.form()), 'Planning evening')
+    await ui.submit(ui.form())
+    expect(ui.alert()).toMatch(/different details/)
+    await ui.click(ui.button('Start a new entry'))
+    expect(ui.alert()).toBeNull()
+    expect(ui.field('title', ui.form()).value).toBe('Weekly gathering')
+    await ui.type(ui.field('title', ui.form()), 'Planning evening')
+    await ui.submit(ui.form())
+    expect(sessions.rows).toHaveLength(2)
+    expect(new Set(sessions.seenKeys).size).toBe(2)
+    expect(ui.alert()).toBeNull()
+  })
+
+  it('uses a new key for the next session after a confirmed save', async () => {
+    const { sessions, ui } = await renderSessions()
+    for (const title of ['Week one', 'Week two']) {
+      await ui.click(ui.button('Add session'))
+      await ui.type(ui.field('title', ui.form()), title)
+      await ui.submit(ui.form())
+    }
+    expect(sessions.rows).toHaveLength(2)
+    expect(sessions.seenKeys[1]).not.toBe(sessions.seenKeys[0])
+  })
+})
+
 function chooseFile(input: HTMLInputElement, file: File) {
   Object.defineProperty(input, 'files', {
     configurable: true,
@@ -318,6 +421,36 @@ it('keeps the media upload key across a lost response', async () => {
   expect(media.seenKeys[1]).toBe(media.seenKeys[0])
   expect(media.rows).toHaveLength(1)
   expect(ui.alert()).toBeNull()
+})
+
+it('uses a new key for the next media upload after a confirmed upload', async () => {
+  const media = keyedServer('media')
+  stubApi(async (call) => {
+    if (call.method === 'POST') {
+      return media.create(call, (id, replayed) =>
+        Response.json({ media: { id }, replayed }, { status: 201 }),
+      )
+    }
+    return Response.json({ media: [], page: { limit: 100, nextCursor: null } })
+  })
+  const ui = await mountStaff(<MediaPage />)
+  cleanup = ui.unmount
+  const form = ui.form()
+  chooseFile(
+    ui.field('file', form),
+    new File(['bulletin'], 'bulletin.png', { type: 'image/png' }),
+  )
+  await ui.submit(form)
+  expect(ui.alert()).toBeNull()
+  chooseFile(
+    ui.field('file', form),
+    new File(['poster'], 'poster.png', { type: 'image/png' }),
+  )
+  await ui.submit(form)
+  expect(ui.alert()).toBeNull()
+  expect(media.seenKeys).toHaveLength(2)
+  expect(media.seenKeys[1]).not.toBe(media.seenKeys[0])
+  expect(media.rows).toHaveLength(2)
 })
 
 it('retries the same picked image with the same key and a different image with a new key', async () => {

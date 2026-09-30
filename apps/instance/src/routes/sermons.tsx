@@ -17,7 +17,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { useRecordEditor } from '@/lib/record-editor'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, MediaRecord, Sermon } from '@/lib/api-types'
 import {
   calendarDateToEpoch,
@@ -87,9 +87,7 @@ function SermonForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The sermon could not be saved.',
+        describeSaveFailure(caught, 'sermon', 'The sermon could not be saved.'),
       )
       setSaving(false)
     }

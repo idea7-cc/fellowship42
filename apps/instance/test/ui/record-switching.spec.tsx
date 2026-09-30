@@ -223,6 +223,8 @@ interface SwitchCase {
   fields: FieldExpectation[]
   patchPath: string
   patchBody: Record<string, unknown>
+  /** Record A, which the fixtures serve at version 3. */
+  recordA: { id: string; patchPath: string }
 }
 
 function listing(
@@ -253,6 +255,7 @@ const switchCases: SwitchCase[] = [
       { name: 'volunteerReady', checked: false },
       { name: 'notes', value: 'Ben note' },
     ],
+    recordA: { id: 'person-a', patchPath: '/api/people/church/person-a' },
     patchPath: '/api/people/church/person-b',
     patchBody: {
       version: 5,
@@ -276,6 +279,7 @@ const switchCases: SwitchCase[] = [
       { name: 'city', value: 'Boston' },
       { name: 'countryCode', value: 'US' },
     ],
+    recordA: { id: 'h1', patchPath: '/api/households/church/h1' },
     patchPath: '/api/households/church/h2',
     patchBody: { version: 5, name: 'Joneses', city: 'Boston' },
   },
@@ -296,6 +300,7 @@ const switchCases: SwitchCase[] = [
       { name: 'featured', checked: false },
       { name: 'summary', value: 'Beta summary' },
     ],
+    recordA: { id: 'group-a', patchPath: '/api/groups/church/group-a' },
     patchPath: '/api/groups/church/group-b',
     patchBody: {
       version: 5,
@@ -328,6 +333,7 @@ const switchCases: SwitchCase[] = [
       { name: 'certificateOffered', checked: false },
       { name: 'summary', value: 'Beta summary' },
     ],
+    recordA: { id: 'course-a', patchPath: '/api/courses/church/course-a' },
     patchPath: '/api/courses/church/course-b',
     patchBody: {
       version: 5,
@@ -360,6 +366,7 @@ const switchCases: SwitchCase[] = [
       { name: 'featured', checked: false },
       { name: 'summary', value: 'Beta summary' },
     ],
+    recordA: { id: 'event-a', patchPath: '/api/events/church/event-a' },
     patchPath: '/api/events/church/event-b',
     patchBody: {
       version: 5,
@@ -392,6 +399,7 @@ const switchCases: SwitchCase[] = [
       { name: 'featured', checked: false },
       { name: 'summary', value: 'Beta summary' },
     ],
+    recordA: { id: 'sermon-a', patchPath: '/api/sermons/church/sermon-a' },
     patchPath: '/api/sermons/church/sermon-b',
     patchBody: { version: 5, slug: 'sermon-b', title: 'Beta', featured: false },
   },
@@ -423,13 +431,17 @@ const switchCases: SwitchCase[] = [
     openA: (ui) => ui.click(ui.button('Edit', 0)),
     openB: (ui) => ui.click(ui.button('Edit', 1)),
     heading: { a: 'Edit L1', b: 'Edit L2' },
-    typeInto: 'estimatedMinutes',
+    typeInto: 'summary',
     fields: [
       { name: 'title', value: 'L2' },
       { name: 'sortOrder', value: '2' },
       { name: 'required', checked: true },
       { name: 'content', value: 'L2 content' },
     ],
+    recordA: {
+      id: 'l1',
+      patchPath: '/api/courses/church/course-a/lessons/l1',
+    },
     patchPath: '/api/courses/church/course-a/lessons/l2',
     patchBody: { version: 5, title: 'L2', required: true, sortOrder: 2 },
   },
@@ -719,22 +731,30 @@ describe('outstanding requests completing after a switch', () => {
     })
   }
 
-  it('people: A save completing after switching keeps the B editor', async () => {
-    const api = stubApi(
-      directoryRoutes((call) =>
-        call.method === 'PATCH' ? 'defer' : undefined,
-      ),
-    )
-    ui = await mountStaff(<PeoplePage />)
-    await ui.click(ui.button('Edit Ann Doe'))
-    await ui.submit(ui.form())
-    await ui.click(ui.button('Edit Ben Doe'))
-    await ui.type(ui.field('phone', ui.form()), '555-0199')
-    api.held('PATCH', 'person-a').resolve(Response.json({ person: ann }))
-    await flushHeld()
-    expect(ui.text()).toContain('Edit Ben Doe')
-    expect(ui.field('phone', ui.form()).value).toBe('555-0199')
-  })
+  for (const testCase of switchCases) {
+    it(`${testCase.name}: A's save completing after switching keeps the B editor and its input`, async () => {
+      const api = stubApi((call) =>
+        call.method === 'PATCH' ? 'defer' : testCase.routes(call),
+      )
+      ui = await mountStaff(testCase.node, {
+        path: testCase.path,
+        route: testCase.route,
+      })
+      await testCase.prepare?.(ui)
+      await testCase.openA(ui)
+      await ui.submit(ui.formWith(testCase.typeInto))
+      await testCase.openB(ui)
+      const typed = () =>
+        readField(ui!.formWith(testCase.typeInto), testCase.typeInto)
+      await ui.type(typed(), 'Unsaved for B')
+      api.held('PATCH', testCase.recordA.patchPath).resolve(Response.json({}))
+      await flushHeld()
+      expect(ui.text()).toContain(testCase.heading.b)
+      expect(ui.text()).not.toContain(testCase.heading.a)
+      expect(typed().value).toBe('Unsaved for B')
+      expect(ui.alert()).toBeNull()
+    })
+  }
 
   it('roster: a conflict for A arriving after switching does not appear on B', async () => {
     const api = stubApi((call) => {
@@ -867,6 +887,68 @@ describe('outstanding requests completing after a switch', () => {
   })
 })
 
+/** A copy of a JSON body with record `id` at `version`, wherever it appears. */
+function atVersion(value: unknown, id: string, version: number): unknown {
+  if (Array.isArray(value))
+    return value.map((item) => atVersion(item, id, version))
+  if (!value || typeof value !== 'object') return value
+  const copy: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value))
+    copy[key] = atVersion(item, id, version)
+  if (copy.id === id && typeof copy.version === 'number') copy.version = version
+  return copy
+}
+
+describe('picking up the latest version after a conflict', () => {
+  for (const testCase of switchCases) {
+    it(`${testCase.name}: choosing Edit again after a conflict opens the latest version`, async () => {
+      // Someone else saves A (to version 9) while this editor has version 3.
+      let changedElsewhere = false
+      const api = stubApi((call) => {
+        if (call.method === 'PATCH' && !changedElsewhere) {
+          changedElsewhere = true
+          return apiError(409, 'version_conflict', 'Changed elsewhere')
+        }
+        const answer = testCase.routes(call)
+        if (!changedElsewhere || !(answer instanceof Response)) return answer
+        return answer
+          .json()
+          .then((body) =>
+            Response.json(atVersion(body, testCase.recordA.id, 9)),
+          )
+      })
+      ui = await mountStaff(testCase.node, {
+        path: testCase.path,
+        route: testCase.route,
+      })
+      await testCase.prepare?.(ui)
+      await testCase.openA(ui)
+      const typed = () =>
+        readField(ui!.formWith(testCase.typeInto), testCase.typeInto)
+      await ui.type(typed(), 'Typed for A')
+      // Choosing Edit on the unchanged record keeps the unsaved input.
+      await testCase.openA(ui)
+      expect(typed().value).toBe('Typed for A')
+
+      await ui.submit(ui.formWith(testCase.typeInto))
+      expect(api.requests('PATCH')[0]!.body).toMatchObject({ version: 3 })
+      expect(ui.alert()).toMatch(/This .* changed after you opened it/)
+      expect(ui.alert()).toMatch(/Choose Edit on the .* again/)
+      await flushHeld()
+
+      await testCase.openA(ui)
+      expect(ui.text()).toContain(testCase.heading.a)
+      expect(typed().value).not.toBe('Typed for A')
+      expect(ui.alert()).toBeNull()
+      await ui.submit(ui.formWith(testCase.typeInto))
+      const patches = api.requests('PATCH')
+      expect(patches).toHaveLength(2)
+      expect(patches[1]!.path).toBe(testCase.recordA.patchPath)
+      expect(patches[1]!.body).toMatchObject({ version: 9 })
+    })
+  }
+})
+
 describe('editor fields that depend on later data', () => {
   const audio = (id: string): MediaRecord => ({
     id,
@@ -963,6 +1045,40 @@ describe('editor fields that depend on later data', () => {
     ).toBe('doc-1')
     await ui.submit(ui.formWith('mediaId'))
     expect(api.requests('PATCH')[0]!.body).toMatchObject({ mediaId: 'doc-1' })
+  })
+
+  it('lessons: media outside the loaded media page is kept', async () => {
+    const api = stubApi((call) => {
+      if (call.method === 'PATCH') return Response.json({})
+      if (call.path === '/api/courses/church/course-a')
+        return Response.json({
+          course: course('course-a', 'Course A'),
+          lessons: [lesson('l1', 'L1', { mediaId: 'doc-old' })],
+        })
+      if (call.path.endsWith('/enrollments'))
+        return Response.json({ enrollments: [] })
+      if (call.path.startsWith('/api/people/'))
+        return Response.json({ people: [] })
+      if (call.path.startsWith('/api/groups/'))
+        return Response.json({ groups: [] })
+      if (call.path.startsWith('/api/media/'))
+        return Response.json({
+          media: [{ ...audio('doc-1'), mediaType: 'document' }],
+        })
+      return Response.json(church)
+    })
+    ui = await mountStaff(<CourseDetailPage />, {
+      path: '/app/courses/course-a',
+      route: '/app/courses/:slug',
+    })
+    await ui.click(ui.button('Edit'))
+    expect(
+      ui.field<HTMLSelectElement>('mediaId', ui.formWith('mediaId')).value,
+    ).toBe('doc-old')
+    await ui.submit(ui.formWith('mediaId'))
+    expect(api.requests('PATCH')[0]!.body).toMatchObject({
+      mediaId: 'doc-old',
+    })
   })
 
   it('events: a new event uses the church timezone even when the church loads late', async () => {

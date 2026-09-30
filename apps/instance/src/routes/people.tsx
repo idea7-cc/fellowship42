@@ -13,7 +13,7 @@ import {
 
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { useRecordEditor } from '@/lib/record-editor'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import { useRequestGuard } from '@/lib/request-guard'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
@@ -141,14 +141,24 @@ function PersonForm({
   // The person as shown when this editor opened; the save is checked against it.
   const [person] = useState(record)
   const [error, setError] = useState<string | null>(null)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('person')
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const common = {
       firstName: String(form.get('firstName') ?? ''),
@@ -180,11 +190,14 @@ function PersonForm({
     } catch (caught) {
       setError(
         person
-          ? caught instanceof ApiError
-            ? caught.message
-            : 'The person could not be saved.'
+          ? describeSaveFailure(
+              caught,
+              'person',
+              'The person could not be saved.',
+            )
           : describeEntryFailure(caught, 'person').message,
       )
+      setEntryFailed(!person)
       setSaving(false)
     }
   }
@@ -277,6 +290,17 @@ function PersonForm({
           <Button disabled={saving} size="sm" type="submit">
             {saving ? 'Saving…' : 'Save person'}
           </Button>
+          {entryFailed ? (
+            <Button
+              disabled={saving}
+              onClick={(event) => startNewEntry(event.currentTarget.form)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Start a new entry
+            </Button>
+          ) : null}
           <Button onClick={onCancel} size="sm" variant="ghost">
             Cancel
           </Button>
@@ -299,14 +323,24 @@ function HouseholdForm({
   // The household as shown when this editor opened; the save is checked against it.
   const [household] = useState(record)
   const [error, setError] = useState<string | null>(null)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('household')
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       name: String(form.get('name') ?? ''),
@@ -339,11 +373,14 @@ function HouseholdForm({
     } catch (caught) {
       setError(
         household
-          ? caught instanceof ApiError
-            ? caught.message
-            : 'The household could not be saved.'
+          ? describeSaveFailure(
+              caught,
+              'household',
+              'The household could not be saved.',
+            )
           : describeEntryFailure(caught, 'household').message,
       )
+      setEntryFailed(!household)
       setSaving(false)
     }
   }
@@ -414,6 +451,17 @@ function HouseholdForm({
           <Button disabled={saving} size="sm" type="submit">
             {saving ? 'Saving…' : 'Save household'}
           </Button>
+          {entryFailed ? (
+            <Button
+              disabled={saving}
+              onClick={(event) => startNewEntry(event.currentTarget.form)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Start a new entry
+            </Button>
+          ) : null}
           <Button onClick={onCancel} size="sm" variant="ghost">
             Cancel
           </Button>

@@ -34,7 +34,9 @@ Updates, deletes, and household-member changes require the record version that
 the editor loaded. D1 increments that version only when it still matches. An
 opaque per-operation token conditions every later statement in the same batch,
 so a losing concurrent request cannot write an audit event, outbox event, or
-household link after another editor wins.
+household link after another editor wins. The staff person and household
+editors then keep the typed input and explain that choosing **Edit** on the
+record again loads its latest version.
 
 Deletes are soft deletes. They disappear from directory reads while preserving
 referential and audit history for later retention policy. A deleted person

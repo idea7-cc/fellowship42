@@ -17,7 +17,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { useRecordEditor } from '@/lib/record-editor'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
 import {
   formatInTimeZone,
@@ -103,9 +103,7 @@ function EventForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The event could not be saved.',
+        describeSaveFailure(caught, 'event', 'The event could not be saved.'),
       )
       setSaving(false)
     }

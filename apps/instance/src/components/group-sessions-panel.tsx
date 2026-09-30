@@ -77,6 +77,8 @@ export function GroupSessionsPanel({
   const [busy, setBusy] = useState(false)
   const [openSessionId, setOpenSessionId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
   const sessionEntry = useEntryKey('session')
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
@@ -118,6 +120,7 @@ export function GroupSessionsPanel({
     const endsRaw = String(form.get('endsAt') ?? '')
     const endsAt = endsRaw ? new Date(endsRaw).getTime() : null
     const location = String(form.get('location') ?? '').trim()
+    setEntryFailed(false)
     const saved = await run(
       () =>
         apiRequest(`${base}/sessions`, {
@@ -137,13 +140,23 @@ export function GroupSessionsPanel({
       sessionEntry.reset()
       formElement.reset()
       setCreating(false)
+    } else {
+      setEntryFailed(true)
     }
   }
 
   function toggleCreating(open: boolean) {
     // Closing the form abandons the entry; reopening starts a new one.
     sessionEntry.reset()
+    setEntryFailed(false)
     setCreating(open)
+  }
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    sessionEntry.reset()
+    form?.reset()
+    setEntryFailed(false)
+    setError(null)
   }
 
   return (
@@ -225,6 +238,17 @@ export function GroupSessionsPanel({
             <Button disabled={busy} size="sm" type="submit">
               Save session
             </Button>
+            {entryFailed ? (
+              <Button
+                disabled={busy}
+                onClick={(event) => startNewEntry(event.currentTarget.form)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               onClick={() => toggleCreating(false)}
               size="sm"
