@@ -173,9 +173,11 @@ mediaRoutes.get('/:mediaId', async (c) => {
     .first<{ r2_key: string; content_type: string }>()
   if (!media) throw new AppError(404, 'media_not_found', 'Media not found')
 
+  // Only a request that asks for a range receives a partial response.
+  const requestHeaders = c.req.raw.headers
   const object = await c.env.MEDIA.get(media.r2_key, {
-    onlyIf: c.req.raw.headers,
-    range: c.req.raw.headers,
+    onlyIf: requestHeaders,
+    ...(requestHeaders.has('Range') ? { range: requestHeaders } : {}),
   })
   if (!object) throw new AppError(404, 'media_not_found', 'Media not found')
 
@@ -185,7 +187,8 @@ mediaRoutes.get('/:mediaId', async (c) => {
   headers.set('ETag', object.httpEtag)
   headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
   headers.set('Accept-Ranges', 'bytes')
-  if (object.range) {
+  const partial = requestHeaders.has('Range') && Boolean(object.range)
+  if (partial && object.range) {
     const range = object.range as {
       offset?: number
       length?: number
@@ -204,9 +207,19 @@ mediaRoutes.get('/:mediaId', async (c) => {
       `bytes ${offset}-${offset + length - 1}/${object.size}`,
     )
   }
-  if (!('body' in object)) return new Response(null, { status: 412, headers })
+  if (!('body' in object)) {
+    // A failed If-None-Match/If-Modified-Since means the client copy is
+    // current; only If-Match/If-Unmodified-Since failures are 412.
+    const notModified =
+      !requestHeaders.has('If-Match') &&
+      !requestHeaders.has('If-Unmodified-Since') &&
+      (requestHeaders.has('If-None-Match') ||
+        requestHeaders.has('If-Modified-Since'))
+    headers.delete('Content-Range')
+    return new Response(null, { status: notModified ? 304 : 412, headers })
+  }
   return new Response(object.body, {
-    status: object.range ? 206 : 200,
+    status: partial ? 206 : 200,
     headers,
   })
 })

@@ -30,7 +30,10 @@ const sermonFields = {
   speaker: z.string().trim().min(1).max(160),
   series: z.string().trim().min(1).max(160).nullable(),
   summary: z.string().trim().max(10_000),
-  videoUrl: z.url().nullable(),
+  videoUrl: z
+    .url({ protocol: /^https?$/ })
+    .max(2_048)
+    .nullable(),
   audioMediaId: z.string().trim().min(1).max(128).nullable(),
   preachedAt: z.number().int().nonnegative(),
   featured: z.boolean(),

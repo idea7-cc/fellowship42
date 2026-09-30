@@ -8,7 +8,7 @@
     "binding": "ASSETS",
     "directory": "./dist/client",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/media/*", "/webhooks/*", "/mcp", "/mcp/*", "/oauth/*", "/.well-known/*"]
+    "run_worker_first": ["/", "/api/*", "/media/*", "/webhooks/*", "/mcp", "/mcp/*", "/oauth/*", "/.well-known/*"]
   },
   "d1_databases": [
     {
@@ -64,6 +64,7 @@
     "ENVIRONMENT": "production",
     "MCP_ORIGIN": "",
     "SIGN_IN_ORIGIN": "",
+    "WEBSITE_ORIGIN": "",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": "",
     "PAYMENT_WEBHOOK_PROVIDER": "",
