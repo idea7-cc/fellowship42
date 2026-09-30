@@ -660,6 +660,51 @@ try {
   )
 
   await check(
+    'staff enter event times in the event zone from a browser elsewhere',
+    async () => {
+      await page.goto(`${INSTANCE}/app/events`)
+      await page.getByRole('button', { name: 'Add event' }).click()
+      const form = page
+        .locator('form')
+        .filter({ has: page.locator('input[name="startsAt"]') })
+      await form.locator('input[name="title"]').fill('Advent Concert')
+      await form.locator('input[name="slug"]').fill('advent-concert')
+      await form.locator('input[name="timezone"]').fill('America/Chicago')
+      await form.locator('input[name="startsAt"]').fill('2027-12-12T16:00')
+      await form.locator('input[name="endsAt"]').fill('2027-12-12T17:30')
+      await form.locator('select[name="status"]').selectOption('published')
+      await shot(page, '11-staff-event-editor')
+      await form.getByRole('button', { name: 'Save event' }).click()
+      let item
+      for (let attempt = 0; attempt < 20 && !item; attempt++) {
+        item = (await contract('events')).items.find(
+          (entry) => entry.slug === 'advent-concert',
+        )
+        if (!item) await page.waitForTimeout(250)
+      }
+      lib.assert(item, 'event not published')
+      lib.assert(
+        item.startsAt === '2027-12-12T22:00:00.000Z',
+        `stored ${item.startsAt}`,
+      )
+      const when = 'Sun, Dec 12, 2027 · 4:00 PM – 5:30 PM CST'
+      lib.assert(
+        (await html(`${WEBSITE}/events`)).text.includes(when),
+        'website time',
+      )
+      const staffZone = await page.evaluate(
+        () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+      )
+      return {
+        staffBrowserZone: staffZone,
+        entered: '2027-12-12T16:00 America/Chicago',
+        stored: item.startsAt,
+        rendered: when,
+      }
+    },
+  )
+
+  await check(
     'a draft event stays private even beside a signed-in staff session',
     async () => {
       const draft = await staffApi(
