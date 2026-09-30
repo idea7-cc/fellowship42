@@ -1257,8 +1257,18 @@ describe('management protocol contracts', () => {
     const evidence = migrationRehearsalEvidenceSchema.parse(fixture)
 
     expect(evidence.status).toBe('verified')
-    expect(evidence.assertions).toHaveLength(10)
-    expect(JSON.stringify(evidence)).not.toContain('rehearsal.example.org')
+    expect(evidence.assertions).toHaveLength(13)
+    expect(evidence.assertions.map(({ id }) => id)).toEqual(
+      migrationRehearsalAssertionIdsFor(true),
+    )
+    for (const privateValue of [
+      'rehearsal.example.org',
+      'fellowship42-church-website',
+      'uploads/',
+      'ec_pages',
+    ]) {
+      expect(JSON.stringify(evidence)).not.toContain(privateValue)
+    }
     expect(
       migrationRehearsalEvidenceSchema.safeParse({
         ...evidence,
