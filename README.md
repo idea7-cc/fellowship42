@@ -171,6 +171,7 @@ through [SECURITY.md](SECURITY.md).
 Additional documentation:
 
 - [Church setup and website publishing](docs/church-setup-and-publishing.md)
+- [EmDash church website build plan](docs/emdash-website-plan.md)
 - [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Team and roles](docs/team-and-roles.md)
