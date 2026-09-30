@@ -12,7 +12,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { apiRequest, useApiQuery } from '@/lib/api'
+import {
+  describeEntryFailure,
+  useEntryKey,
+  type EntryFailure,
+} from '@/lib/entry-key'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import type { Contribution, CursorPage } from '@/lib/api-types'
@@ -50,19 +55,24 @@ export function ContributionsPage() {
       ? `/api/contributions/${encodeURIComponent(churchId)}?limit=100`
       : null,
   )
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<EntryFailure | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const entryKey = useEntryKey('contribution')
 
   async function createContribution(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
+    // React clears currentTarget once the handler awaits; keep the form.
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setSaving(true)
     setError(null)
-    const form = new FormData(event.currentTarget)
+    setNotice(null)
     try {
       await apiRequest(`/api/contributions/${encodeURIComponent(churchId)}`, {
         method: 'POST',
-        headers: { 'Idempotency-Key': `manual-${crypto.randomUUID()}` },
+        headers: { 'Idempotency-Key': entryKey.current() },
         body: JSON.stringify({
           donorName: String(form.get('donorName') ?? ''),
           amountMinor: Number(form.get('amountMinor')),
@@ -73,17 +83,22 @@ export function ContributionsPage() {
           donatedAt: new Date(String(form.get('donatedAt'))).toISOString(),
         }),
       })
-      event.currentTarget.reset()
-      await contributionsQuery.refetch()
+      entryKey.reset()
+      formElement.reset()
+      setNotice('Contribution recorded.')
+      void contributionsQuery.refetch()
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The contribution could not be recorded.',
-      )
+      setError(describeEntryFailure(caught, 'contribution', 'recorded'))
     } finally {
       setSaving(false)
     }
+  }
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setNotice(null)
   }
 
   return (
@@ -171,12 +186,35 @@ export function ContributionsPage() {
                     </label>
                     {error ? (
                       <p role="alert" className="text-sm text-destructive">
-                        {error}
+                        {error.message}
                       </p>
                     ) : null}
-                    <Button type="submit" size="sm" disabled={saving}>
-                      {saving ? 'Recording…' : 'Record contribution'}
-                    </Button>
+                    {notice ? (
+                      <p
+                        className="rounded-md bg-success-soft p-2.5 text-sm text-success-soft-foreground"
+                        role="status"
+                      >
+                        {notice}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="submit" size="sm" disabled={saving}>
+                        {saving ? 'Recording…' : 'Record contribution'}
+                      </Button>
+                      {error ? (
+                        <Button
+                          disabled={saving}
+                          onClick={(event) =>
+                            startNewEntry(event.currentTarget.form)
+                          }
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          Start a new entry
+                        </Button>
+                      ) : null}
+                    </div>
                   </form>
                 </CardContent>
               </Card>

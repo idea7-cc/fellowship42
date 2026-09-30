@@ -453,4 +453,26 @@ describe('ministry and publishing workflows', () => {
       'sermons.created',
     ])
   })
+
+  it('stores a sermon date as noon UTC of its calendar day', async () => {
+    const created = await jsonRequest('POST', '/api/sermons/church_demo', {
+      slug: `calendar-date-${crypto.randomUUID()}`,
+      title: 'Calendar Date',
+      speaker: 'Jordan Lee',
+      preachedAt: Date.UTC(2026, 9, 4, 0, 30),
+    })
+    expect(created.status).toBe(201)
+    const sermon = (await created.json<{ sermon: Sermon }>()).sermon
+    expect(sermon.preachedAt).toBe(Date.UTC(2026, 9, 4, 12))
+
+    const updated = await jsonRequest(
+      'PATCH',
+      `/api/sermons/church_demo/${sermon.id}`,
+      { version: sermon.version, preachedAt: Date.UTC(2026, 9, 11, 23, 59) },
+    )
+    expect(updated.status).toBe(200)
+    expect((await updated.json<{ sermon: Sermon }>()).sermon.preachedAt).toBe(
+      Date.UTC(2026, 9, 11, 12),
+    )
+  })
 })

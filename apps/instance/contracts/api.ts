@@ -125,13 +125,19 @@ export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'serving'
 /**
  * One person's attendance at one session. `status` is undefined until someone
  * marks them, which is what distinguishes "not recorded" from "absent".
+ *
+ * A register lists everyone marked for the session, whatever their roster
+ * state is now, plus current active or paused members who are not marked yet.
  */
 export interface AttendanceEntry {
   version: number
   personId: string
   firstName: string
   lastName: string
+  /** Church-wide directory status (guest, member, ...), not the group roster. */
   membershipStatus: string
+  /** Current roster status in this group; undefined once removed from it. */
+  rosterStatus?: GroupMembershipStatus
   status?: AttendanceStatus
   checkedInAt?: number
   notes?: string
@@ -203,8 +209,11 @@ export interface EventRecord {
   title: string
   status: PublishStatus
   summary: string
+  /** An instant in epoch milliseconds; show its wall-clock time in `timezone`. */
   startDate: number
+  /** An instant in epoch milliseconds; show its wall-clock time in `timezone`. */
   endDate?: number
+  /** The IANA timezone the event takes place in. */
   timezone: string
   location: string
   registrationUrl?: string
@@ -224,6 +233,13 @@ export interface Sermon {
   summary: string
   videoUrl?: string
   audioMediaId?: string
+  /**
+   * The calendar date the sermon was preached, as epoch milliseconds at 12:00
+   * UTC of that day. Display it with `timeZone: 'UTC'` (see
+   * `formatCalendarDate` in `src/lib/time-zone.ts`), never in the church's or
+   * viewer's zone: at UTC+12 or later that shows the next day. The Worker
+   * stores every written value at noon UTC of its UTC calendar day.
+   */
   preachedAt: number
   featured: boolean
   version: number
@@ -241,6 +257,17 @@ export interface MediaRecord {
   createdAt: number
   version: number
   url?: string
+}
+
+/**
+ * Staff creates that accept an `Idempotency-Key` header (contributions,
+ * people, households, group sessions, and media uploads) answer a retry of
+ * the same entry with the original record and `replayed: true` instead of
+ * creating another one. Reusing a key for different details returns 409
+ * `idempotency_key_conflict`.
+ */
+export interface CreateOutcome {
+  replayed: boolean
 }
 
 export interface Contribution {

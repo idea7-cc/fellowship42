@@ -122,7 +122,7 @@ INSERT OR IGNORE INTO sermons (
 ) VALUES (
   'sermon_demo_hope', 'church_demo', 'a-living-hope', 'A Living Hope', 'published',
   'Jordan Lee', 'Rooted', 'Hope that changes how a community lives.',
-  (unixepoch() - 259200) * 1000, 1, unixepoch() * 1000, unixepoch() * 1000
+  ((unixepoch() / 86400 - 3) * 86400 + 43200) * 1000, 1, unixepoch() * 1000, unixepoch() * 1000
 );
 
 -- ---------------------------------------------------------------------------
@@ -266,15 +266,16 @@ INSERT OR IGNORE INTO events (
   -- Past event: exercises date formatting for elapsed dates
   ('event_demo_christmas','church_demo','christmas-eve','Christmas Eve Services','archived','Candlelight services at 4:00 and 6:00 PM.',(unixepoch()-5184000)*1000,(unixepoch()-5173200)*1000,'America/New_York','Sanctuary',NULL,NULL,0,unixepoch()*1000,unixepoch()*1000);
 
+-- Sermon dates are calendar dates, stored at noon UTC of the day.
 INSERT OR IGNORE INTO sermons (
   id, church_id, slug, title, status, speaker, series, summary, video_url, preached_at,
   featured, created_at, updated_at
 ) VALUES
-  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.','https://example.test/watch/cornerstone',(unixepoch()-864000)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_household','church_demo','a-household-of-faith','A Household of Faith','published','Amara Osei','Rooted','Belonging as the shape of Christian life.',NULL,(unixepoch()-1468800)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.','https://example.test/watch/welcome-table',(unixepoch()-2073600)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_lament','church_demo','learning-to-lament','Learning to Lament','published','Ruth Delacroix',NULL,'Grief that stays honest and still prays.',NULL,(unixepoch()-2678400)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_draft','church_demo','the-long-obedience','The Long Obedience','draft','Jordan Lee','Table Manners','Faithfulness measured in decades, not moments.',NULL,(unixepoch()+259200)*1000,0,unixepoch()*1000,unixepoch()*1000);
+  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.','https://example.test/watch/cornerstone',((unixepoch()/86400-10)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_household','church_demo','a-household-of-faith','A Household of Faith','published','Amara Osei','Rooted','Belonging as the shape of Christian life.',NULL,((unixepoch()/86400-17)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.','https://example.test/watch/welcome-table',((unixepoch()/86400-24)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_lament','church_demo','learning-to-lament','Learning to Lament','published','Ruth Delacroix',NULL,'Grief that stays honest and still prays.',NULL,((unixepoch()/86400-31)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_draft','church_demo','the-long-obedience','The Long Obedience','draft','Jordan Lee','Table Manners','Faithfulness measured in decades, not moments.',NULL,((unixepoch()/86400+3)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000);
 
 -- Contributions cover every status the schema allows, a recurring gift, and a
 -- wide range of magnitudes so column alignment and tabular figures are visible.
@@ -345,7 +346,9 @@ INSERT OR IGNORE INTO course_enrollments (
   -- A whole group enrolled together, which is how most studies actually run.
   ('enrollment_demo_04','church_demo','course_demo_finance',NULL,'group_demo_midtown','active',unixepoch()*1000,NULL,'Running as the autumn study',unixepoch()*1000,unixepoch()*1000),
   ('enrollment_demo_05','church_demo','course_demo_baptism','person_demo_21',NULL,'active',unixepoch()*1000,NULL,NULL,unixepoch()*1000,unixepoch()*1000),
-  ('enrollment_demo_06','church_demo','course_demo_marriage',NULL,'group_demo_young_adults','invited',NULL,NULL,NULL,unixepoch()*1000,unixepoch()*1000);
+  ('enrollment_demo_06','church_demo','course_demo_marriage',NULL,'group_demo_young_adults','invited',NULL,NULL,NULL,unixepoch()*1000,unixepoch()*1000),
+  -- Archived after completion: the completion date stays on the record.
+  ('enrollment_demo_07','church_demo','course_demo_baptism','person_demo_16',NULL,'archived',(unixepoch()-7776000)*1000,(unixepoch()-5184000)*1000,'Baptised in the spring',unixepoch()*1000,unixepoch()*1000);
 
 -- ---------------------------------------------------------------------------
 -- SESSIONS AND ATTENDANCE
@@ -353,6 +356,10 @@ INSERT OR IGNORE INTO course_enrollments (
 -- Three weeks of one group's meetings: a fully recorded past week, a partly
 -- recorded one, and an upcoming session with nothing recorded yet. That spread
 -- is what makes "not recorded" visibly different from "absent" in the register.
+-- Recorded marks outlive roster changes: Jordan Ellis came to Midtown's first
+-- week and has since left the group, so is no longer on its roster, and
+-- Tabitha Okoro's mark in the women's study remains after she completed the
+-- cohort.
 -- ---------------------------------------------------------------------------
 
 INSERT OR IGNORE INTO group_sessions (
@@ -372,7 +379,10 @@ INSERT OR IGNORE INTO attendance_records (
   ('attendance_demo_03','church_demo','groupsession_demo_01','person_demo_04','present',(unixepoch()-1209600)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_04','church_demo','groupsession_demo_01','person_demo_11','serving',(unixepoch()-1209600)*1000,'Hosting',unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_05','church_demo','groupsession_demo_01','person_demo_14','excused',NULL,'Travelling',unixepoch()*1000,unixepoch()*1000),
+  ('attendance_demo_09','church_demo','groupsession_demo_01','person_demo_19','present',(unixepoch()-1209600)*1000,'Came once before leaving the group',unixepoch()*1000,unixepoch()*1000),
   -- Week 2: partly recorded, so the register shows a real mid-entry state.
   ('attendance_demo_06','church_demo','groupsession_demo_02','person_demo_01','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('attendance_demo_07','church_demo','groupsession_demo_02','person_demo_02','absent',NULL,NULL,unixepoch()*1000,unixepoch()*1000),
-  ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000);
+  ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
+  -- The women's study: a mark for a member who has since completed the cohort.
+  ('attendance_demo_10','church_demo','groupsession_demo_04','person_demo_16','present',(unixepoch()-259200)*1000,'Final session before completing',unixepoch()*1000,unixepoch()*1000);

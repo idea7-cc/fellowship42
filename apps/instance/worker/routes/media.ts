@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import {
@@ -9,7 +9,8 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import type { MediaRecord } from '../../contracts/api'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
+import type { CreateOutcome, MediaRecord } from '../../contracts/api'
 
 type AppEnv = {
   Bindings: Env
@@ -273,6 +274,23 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdMedia = z.object({ mediaId: z.string() })
+
+async function respondWithMedia(
+  c: Context<AppEnv>,
+  churchId: string,
+  mediaId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      media: mapMedia(await findMedia(c.env.DB, churchId, mediaId)),
+      replayed,
+    } satisfies { media: MediaRecord } & CreateOutcome,
+    201,
+  )
+}
+
 mediaManagementRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'media.write')
@@ -317,6 +335,22 @@ mediaManagementRoutes.post('/:churchId', async (c) => {
     )
   }
 
+  // Check the key before storing bytes, so a retried upload stores nothing.
+  const claim = await idempotencyClaim(c, {
+    operation: 'media:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      contentType,
+      checksum,
+      body.byteLength,
+      metadata.data.visibility,
+      metadata.data.altText,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdMedia))
+  if (replay) return respondWithMedia(c, churchId, replay.mediaId, true)
+
   const mediaId = `media_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
@@ -332,57 +366,66 @@ mediaManagementRoutes.post('/:churchId', async (c) => {
     sha256: checksum,
   })
 
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { mediaId },
+      outcomeSchema: createdMedia,
+      proof: { table: 'media', churchId, id: mediaId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
           INSERT INTO media (
             id, church_id, r2_key, media_type, content_type, byte_size, checksum,
             alt_text, visibility, created_by_user_id, created_at, updated_at,
             version, last_operation_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         `,
-      ).bind(
-        mediaId,
-        churchId,
-        r2Key,
-        mediaTypeFor(contentType),
-        contentType,
-        body.byteLength,
-        checksum,
-        metadata.data.altText,
-        metadata.data.visibility,
-        actor.id,
-        now,
-        now,
-        operationId,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'media',
-        entityId: mediaId,
-        eventName: 'media.created',
-        operationId,
-        table: 'media',
-        now,
-        metadata: {
-          mediaType: mediaTypeFor(contentType),
-          visibility: metadata.data.visibility,
-          byteSize: body.byteLength,
-        },
-      }),
-    ])
+        ).bind(
+          mediaId,
+          churchId,
+          r2Key,
+          mediaTypeFor(contentType),
+          contentType,
+          body.byteLength,
+          checksum,
+          metadata.data.altText,
+          metadata.data.visibility,
+          actor.id,
+          now,
+          now,
+          operationId,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'media',
+          entityId: mediaId,
+          eventName: 'media.created',
+          operationId,
+          table: 'media',
+          now,
+          metadata: {
+            mediaType: mediaTypeFor(contentType),
+            visibility: metadata.data.visibility,
+            byteSize: body.byteLength,
+          },
+        }),
+      ],
+    })
   } catch (error) {
     await c.env.MEDIA.delete(r2Key)
     throw error
   }
+  if (committed.replayed) {
+    // A concurrent attempt with this key stored the upload first.
+    await c.env.MEDIA.delete(r2Key)
+    return respondWithMedia(c, churchId, committed.outcome.mediaId, true)
+  }
   broadcastContent(c, churchId, 'media', mediaId, 'created')
-  return c.json(
-    { media: mapMedia(await findMedia(c.env.DB, churchId, mediaId)) },
-    201,
-  )
+  return respondWithMedia(c, churchId, mediaId, false)
 })
 
 mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {

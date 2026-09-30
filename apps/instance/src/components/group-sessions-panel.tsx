@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import { formatTimestamp } from '@/lib/format'
 import type {
   AttendanceStatus,
@@ -19,6 +20,7 @@ import type {
   SessionAttendance,
 } from '@/lib/api-types'
 import { Avatar } from '@/components/ui/avatar'
+import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -57,9 +59,10 @@ function toLocalInputValue(timestamp: number): string {
  * Meeting occurrences for one group, and the register for each.
  *
  * Attendance hangs off sessions in the schema, so there is no way to record
- * who came without first recording that the group met. The register lists the
- * whole roster rather than only marked people, which is what makes "not
- * recorded yet" visibly different from "absent".
+ * who came without first recording that the group met. The register lists
+ * current active and paused members as well as marked people, which is what
+ * makes "not recorded yet" visibly different from "absent". People keep their
+ * recorded marks after they complete or leave the group.
  */
 export function GroupSessionsPanel({
   churchId,
@@ -74,6 +77,9 @@ export function GroupSessionsPanel({
   const [busy, setBusy] = useState(false)
   const [openSessionId, setOpenSessionId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const sessionEntry = useEntryKey('session')
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
   const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(
@@ -81,7 +87,13 @@ export function GroupSessionsPanel({
   )
   const sessions = sessionQuery.data?.sessions ?? []
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(
+    action: () => Promise<unknown>,
+    describe: (caught: unknown) => string = (caught) =>
+      caught instanceof ApiError
+        ? caught.message
+        : 'The session could not be saved.',
+  ) {
     setBusy(true)
     setError(null)
     try {
@@ -89,11 +101,7 @@ export function GroupSessionsPanel({
       await sessionQuery.refetch()
       return true
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The session could not be saved.',
-      )
+      setError(describe(caught))
       if (caught instanceof ApiError && caught.status === 409) {
         await sessionQuery.refetch()
       }
@@ -112,22 +120,43 @@ export function GroupSessionsPanel({
     const endsRaw = String(form.get('endsAt') ?? '')
     const endsAt = endsRaw ? new Date(endsRaw).getTime() : null
     const location = String(form.get('location') ?? '').trim()
-    const saved = await run(() =>
-      apiRequest(`${base}/sessions`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: String(form.get('title') ?? ''),
-          startsAt,
-          endsAt,
-          location: location || null,
-          status: String(form.get('status') ?? 'planned'),
+    setEntryFailed(false)
+    const saved = await run(
+      () =>
+        apiRequest(`${base}/sessions`, {
+          method: 'POST',
+          headers: { 'Idempotency-Key': sessionEntry.current() },
+          body: JSON.stringify({
+            title: String(form.get('title') ?? ''),
+            startsAt,
+            endsAt,
+            location: location || null,
+            status: String(form.get('status') ?? 'planned'),
+          }),
         }),
-      }),
+      (caught) => describeEntryFailure(caught, 'session').message,
     )
     if (saved) {
+      sessionEntry.reset()
       formElement.reset()
       setCreating(false)
+    } else {
+      setEntryFailed(true)
     }
+  }
+
+  function toggleCreating(open: boolean) {
+    // Closing the form abandons the entry; reopening starts a new one.
+    sessionEntry.reset()
+    setEntryFailed(false)
+    setCreating(open)
+  }
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    sessionEntry.reset()
+    form?.reset()
+    setEntryFailed(false)
+    setError(null)
   }
 
   return (
@@ -145,7 +174,7 @@ export function GroupSessionsPanel({
           <div className="flex items-center gap-1">
             <Button
               disabled={busy}
-              onClick={() => setCreating((open) => !open)}
+              onClick={() => toggleCreating(!creating)}
               size="sm"
             >
               <Plus />
@@ -209,8 +238,19 @@ export function GroupSessionsPanel({
             <Button disabled={busy} size="sm" type="submit">
               Save session
             </Button>
+            {entryFailed ? (
+              <Button
+                disabled={busy}
+                onClick={(event) => startNewEntry(event.currentTarget.form)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
-              onClick={() => setCreating(false)}
+              onClick={() => toggleCreating(false)}
               size="sm"
               variant="ghost"
             >
@@ -315,7 +355,7 @@ export function GroupSessionsPanel({
       ) : (
         <EmptyState
           action={
-            <Button onClick={() => setCreating(true)} size="sm">
+            <Button onClick={() => toggleCreating(true)} size="sm">
               <Plus />
               Add session
             </Button>
@@ -329,7 +369,10 @@ export function GroupSessionsPanel({
   )
 }
 
-/** The register for one session: the whole roster, marked or not. */
+/**
+ * The register for one session: everyone marked for it, whatever their roster
+ * state is now, plus current members who are not marked yet.
+ */
 function SessionRegister({
   base,
   sessionId,
@@ -415,8 +458,8 @@ function SessionRegister({
     return (
       <div className="border-t border-border p-3">
         <p className="text-sm text-muted-foreground">
-          No active members on this group's roster yet, so there is nobody to
-          mark.
+          Nobody is recorded for this session, and the group has no active or
+          paused members to mark.
         </p>
       </div>
     )
@@ -459,6 +502,13 @@ function SessionRegister({
             >
               <Avatar name={name} size="sm" />
               <span className="text-sm font-medium">{name}</span>
+              {entry.rosterStatus === undefined ? (
+                <Badge size="sm" variant="neutral">
+                  No longer in group
+                </Badge>
+              ) : entry.rosterStatus !== 'active' ? (
+                <StatusBadge size="sm" status={entry.rosterStatus} />
+              ) : null}
               {entry.status === undefined ? (
                 <span className="text-xs text-muted-foreground">
                   Not recorded

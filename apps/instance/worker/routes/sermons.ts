@@ -23,6 +23,8 @@ type AppEnv = {
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
 const sermonFields = {
   slug: slugSchema,
   title: z.string().trim().min(1).max(200),
@@ -35,7 +37,13 @@ const sermonFields = {
     .max(2_048)
     .nullable(),
   audioMediaId: z.string().trim().min(1).max(128).nullable(),
-  preachedAt: z.number().int().nonnegative(),
+  // A calendar date: whatever instant arrives is stored at noon UTC of its
+  // UTC day, the form every reader of `Sermon.preachedAt` expects.
+  preachedAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .transform((value) => value - (value % DAY_MS) + DAY_MS / 2),
   featured: z.boolean(),
 }
 const sermonCreateInput = z

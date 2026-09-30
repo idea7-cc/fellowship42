@@ -17,52 +17,72 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
-import { formatTimestamp } from '@/lib/format'
+import {
+  formatInTimeZone,
+  fromZonedInputValue,
+  isValidTimeZone,
+  toZonedInputValue,
+} from '@/lib/time-zone'
 
 // Selects and textareas in this route share the one control treatment.
 const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
-function localDateTime(value?: number) {
-  if (!value) return ''
-  const date = new Date(value)
-  return new Date(value - date.getTimezoneOffset() * 60_000)
-    .toISOString()
-    .slice(0, 16)
+/** An event's stored time as a `datetime-local` value in the event's zone. */
+function eventInputValue(value: number | undefined, timeZone: string) {
+  if (value === undefined) return ''
+  return toZonedInputValue(value, isValidTimeZone(timeZone) ? timeZone : 'UTC')
 }
 
 function EventForm({
-  event,
-  timezone,
+  event: record,
+  churchTimezone,
   onCancel,
   onSaved,
 }: {
   event: EventRecord | null
-  timezone: string
+  /** Undefined until the church loads; a new event defaults to it. */
+  churchTimezone: string | undefined
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The event as shown when this editor opened; the save is checked against it.
+  const [event] = useState(record)
+  // Null until staff type a zone, so a new event follows the church's zone
+  // even when the church loads after the editor opened.
+  const [typedTimezone, setTypedTimezone] = useState<string | null>(null)
+  const timezone = typedTimezone ?? event?.timezone ?? churchTimezone ?? ''
   async function submit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
     const form = new FormData(formEvent.currentTarget)
+    // Times are wall-clock values in the event's own zone, never the zone of
+    // the browser that happens to be editing.
+    const zone = String(form.get('timezone') ?? '').trim()
+    if (!isValidTimeZone(zone)) {
+      setError(
+        'Enter a valid IANA timezone, such as America/Chicago or Europe/London.',
+      )
+      setSaving(false)
+      return
+    }
+    const endsRaw = String(form.get('endsAt') ?? '')
     const value = {
       slug: String(form.get('slug') ?? ''),
       title: String(form.get('title') ?? ''),
       status: String(form.get('status') ?? 'draft'),
       summary: String(form.get('summary') ?? ''),
-      startsAt: new Date(String(form.get('startsAt'))).getTime(),
-      endsAt: form.get('endsAt')
-        ? new Date(String(form.get('endsAt'))).getTime()
-        : null,
-      timezone: String(form.get('timezone') ?? timezone),
+      startsAt: fromZonedInputValue(String(form.get('startsAt') ?? ''), zone),
+      endsAt: endsRaw ? fromZonedInputValue(endsRaw, zone) : null,
+      timezone: zone,
       location: String(form.get('location') ?? ''),
       registrationUrl: String(form.get('registrationUrl') ?? '') || null,
       capacity: form.get('capacity') ? Number(form.get('capacity')) : null,
@@ -83,9 +103,7 @@ function EventForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The event could not be saved.',
+        describeSaveFailure(caught, 'event', 'The event could not be saved.'),
       )
       setSaving(false)
     }
@@ -125,7 +143,10 @@ function EventForm({
                 name="startsAt"
                 type="datetime-local"
                 required
-                defaultValue={localDateTime(event?.startDate)}
+                defaultValue={eventInputValue(
+                  event?.startDate,
+                  event?.timezone ?? '',
+                )}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -133,7 +154,10 @@ function EventForm({
               <Input
                 name="endsAt"
                 type="datetime-local"
-                defaultValue={localDateTime(event?.endDate)}
+                defaultValue={eventInputValue(
+                  event?.endDate,
+                  event?.timezone ?? '',
+                )}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -142,9 +166,15 @@ function EventForm({
                 name="timezone"
                 required
                 maxLength={64}
-                defaultValue={event?.timezone ?? timezone}
+                value={timezone}
+                onChange={(change) => setTypedTimezone(change.target.value)}
               />
             </label>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {timezone
+                ? `Start and end times are in ${timezone}, the event's timezone, whatever timezone this device uses.`
+                : "Start and end times are in the event's timezone."}
+            </p>
             <label className="grid gap-1 text-sm font-semibold">
               Location
               <Input
@@ -235,7 +265,8 @@ export function EventsPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [editor, setEditor] = useState<EventRecord | 'new' | null>(null)
+  const editor = useRecordEditor<EventRecord>()
+  const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -317,7 +348,7 @@ export function EventsPage() {
             <Button size="sm" type="submit">
               Search
             </Button>
-            <Button size="sm" type="button" onClick={() => setEditor('new')}>
+            <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add event
             </Button>
           </form>
@@ -329,13 +360,14 @@ export function EventsPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
-        {editor ? (
+        {editorSession ? (
           <EventForm
-            event={editor === 'new' ? null : editor}
-            timezone={churchQuery.data?.church.timezone ?? 'America/New_York'}
-            onCancel={() => setEditor(null)}
+            key={editorSession.key}
+            event={editorSession.value === 'new' ? null : editorSession.value}
+            churchTimezone={churchQuery.data?.church.timezone}
+            onCancel={editor.close}
             onSaved={async () => {
-              setEditor(null)
+              editor.closeIf(editorSession.key)
               await eventQuery.refetch()
             }}
           />
@@ -354,7 +386,8 @@ export function EventsPage() {
                 <CardHeader>
                   <CardTitle>{event.title}</CardTitle>
                   <CardDescription>
-                    {formatTimestamp(event.startDate)} · {event.timezone}
+                    {formatInTimeZone(event.startDate, event.timezone)} ·{' '}
+                    {event.timezone}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -381,7 +414,7 @@ export function EventsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditor(event)}
+                        onClick={() => editor.open(event)}
                       >
                         Edit
                       </Button>

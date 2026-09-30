@@ -21,6 +21,12 @@ versions, soft deletion where the domain table supports it, redacted audit
 evidence, minimal outbox events, and realtime invalidation. The public church
 routes continue to return only published content.
 
+A staff editor saves against the version it opened. If the record changed in
+the meantime, the save is refused, the typed input stays in place, and the
+editor explains that choosing **Edit** on the record again loads its latest
+version. Choosing **Edit** on the open record while its version is unchanged
+keeps the unsaved input.
+
 ## Courses and lessons
 
 Courses own ordered lessons. Lesson text is plain content rendered safely by
@@ -35,6 +41,17 @@ Event inputs require valid IANA timezones and an end after the start. Public
 event reads remain limited to upcoming published events. Sermons accept public
 video URLs and may reference an audio media record owned by the same church. A
 published sermon cannot reference private audio.
+
+Event times are stored as instants with the event's IANA timezone. The staff
+editor reads and shows its start and end fields as wall-clock times in that
+timezone, not the timezone of the device doing the editing, and a new event
+starts in the church's timezone. Changing the timezone field keeps the typed
+wall-clock time and reinterprets it in the new zone. Staff lists show event
+times in each event's timezone, as the public site does. A sermon date is a
+calendar date stored at noon UTC of the chosen day and shown as that date in
+every timezone. The Worker moves any written `preachedAt` instant to noon UTC
+of its UTC day, and renderers must format it in UTC, as `Sermon.preachedAt` in
+`apps/instance/contracts/api.ts` documents.
 
 ## R2 media lifecycle
 

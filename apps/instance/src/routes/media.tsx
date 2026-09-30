@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import type { CursorPage, MediaRecord } from '@/lib/api-types'
@@ -35,14 +36,17 @@ export function MediaPage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const uploadEntry = useEntryKey('media')
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     const formElement = event.currentTarget
     const form = new FormData(formElement)
-    const file = form.get('file')
-    if (!(file instanceof File) || file.size === 0) return
+    const fileInput = formElement.elements.namedItem('file')
+    const file =
+      fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : undefined
+    if (!file || file.size === 0) return
     setUploading(true)
     setError(null)
     const query = new URLSearchParams({
@@ -50,33 +54,28 @@ export function MediaPage() {
       altText: String(form.get('altText') ?? ''),
     })
     try {
-      const response = await fetch(
-        `/api/media/${encodeURIComponent(churchId)}?${query}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-          body: file,
+      await apiRequest(`/api/media/${encodeURIComponent(churchId)}?${query}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'Idempotency-Key': uploadEntry.current(),
         },
-      )
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as {
-          error?: { message?: string }
-        }
-        throw new Error(
-          body.error?.message ?? `Upload failed with status ${response.status}`,
-        )
-      }
+        body: file,
+      })
+      uploadEntry.reset()
       formElement.reset()
       await mediaQuery.refetch()
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : 'The media could not be uploaded.',
-      )
+      setError(describeEntryFailure(caught, 'upload').message)
     } finally {
       setUploading(false)
     }
+  }
+
+  function startNewUpload(form: HTMLFormElement | null) {
+    uploadEntry.reset()
+    form?.reset()
+    setError(null)
   }
 
   async function toggleVisibility(media: MediaRecord) {
@@ -177,9 +176,24 @@ export function MediaPage() {
                       {error}
                     </p>
                   ) : null}
-                  <Button type="submit" size="sm" disabled={uploading}>
-                    {uploading ? 'Uploading…' : 'Upload'}
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit" size="sm" disabled={uploading}>
+                      {uploading ? 'Uploading…' : 'Upload'}
+                    </Button>
+                    {error ? (
+                      <Button
+                        disabled={uploading}
+                        onClick={(event) =>
+                          startNewUpload(event.currentTarget.form)
+                        }
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Start a new upload
+                      </Button>
+                    ) : null}
+                  </div>
                 </form>
               </CardContent>
             </Card>

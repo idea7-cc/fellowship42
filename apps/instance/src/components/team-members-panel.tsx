@@ -73,6 +73,8 @@ export function TeamMembersPanel({
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
+  // Bumped to reopen the role editor from the latest server data.
+  const [editorRevision, setEditorRevision] = useState(0)
 
   const members = teamQuery.data?.members ?? []
   const roles = teamQuery.data?.roles ?? []
@@ -221,25 +223,30 @@ export function TeamMembersPanel({
 
       {editingMember ? (
         <RoleEditor
-          key={editingMember.membershipId}
+          key={`${editingMember.membershipId}:${editorRevision}`}
           member={editingMember}
           onCancel={() => setEditing(null)}
-          onSubmit={async (roleKeys) => {
+          onReload={() => setEditorRevision((revision) => revision + 1)}
+          onSubmit={async (roleKeys, observed) => {
             const saved = await run(
               () =>
                 apiRequest(
-                  `${base}/${encodeURIComponent(editingMember.membershipId)}`,
+                  `${base}/${encodeURIComponent(observed.membershipId)}`,
                   {
                     method: 'PATCH',
                     body: JSON.stringify({
-                      version: editingMember.version,
+                      version: observed.version,
                       roleKeys,
                     }),
                   },
                 ),
-              `Updated roles for ${memberName(editingMember)}.`,
+              `Updated roles for ${memberName(observed)}.`,
             )
-            if (saved) setEditing(null)
+            if (saved) {
+              setEditing((current) =>
+                current === observed.membershipId ? null : current,
+              )
+            }
           }}
           roles={roles}
         />
@@ -412,18 +419,24 @@ function RoleChoices({
 }
 
 function RoleEditor({
-  member,
+  member: live,
   onCancel,
+  onReload,
   onSubmit,
   roles,
 }: {
   member: TeamMember
   onCancel: () => void
-  onSubmit: (roleKeys: string[]) => Promise<void>
+  onReload: () => void
+  onSubmit: (roleKeys: string[], observed: TeamMember) => Promise<void>
   roles: TeamRole[]
 }) {
   const [localError, setLocalError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The roles as shown when this editor opened. A background refresh must not
+  // turn a stale choice into a silent overwrite of someone else's change.
+  const [member] = useState(live)
+  const changedElsewhere = live.version !== member.version
   return (
     <Card elevation="raised">
       <CardHeader className="mb-4">
@@ -458,7 +471,7 @@ function RoleEditor({
           setLocalError(null)
           setSaving(true)
           try {
-            await onSubmit(roleKeys)
+            await onSubmit(roleKeys, member)
           } finally {
             setSaving(false)
           }
@@ -468,6 +481,23 @@ function RoleEditor({
           <p className="text-sm text-destructive" role="alert">
             {localError}
           </p>
+        ) : null}
+        {changedElsewhere ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-md bg-warning-soft p-2.5 text-sm text-warning-soft-foreground">
+            <span>
+              These roles changed since you opened this editor. Load the latest
+              roles before saving.
+            </span>
+            <Button
+              disabled={saving}
+              onClick={onReload}
+              size="xs"
+              type="button"
+              variant="secondary"
+            >
+              Load latest roles
+            </Button>
+          </div>
         ) : null}
         <RoleChoices defaultKeys={member.roleKeys} roles={roles} />
         <FormActions>

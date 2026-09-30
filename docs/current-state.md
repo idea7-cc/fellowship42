@@ -5,7 +5,8 @@ Reviewed: 2026-09-16. This describes the working source, not a new release.
 | Surface | Implemented | Remaining |
 |---|---|---|
 | Staff workflows | Directory, households, groups/rosters, courses/enrollments, sessions/attendance, church settings and website publishing, contributions, media, team invitations and roles | Church pilot feedback, wider browser workflow coverage |
-| Participation reliability | Atomic capacity admission, record-specific edit versions, guarded audit/outbox mutations | Live multi-user observation |
+| Participation reliability | Atomic capacity admission, record-specific edit versions, guarded audit/outbox mutations, attendance registers that keep recorded marks across roster changes, course completion dates kept through archiving | Live multi-user observation |
+| Staff form reliability | Retry-safe creates with per-entry `Idempotency-Key` (contributions, people, households, group sessions, media), editors scoped to one record, event times edited and listed in the event's timezone, sermon dates as calendar dates | Clearer messages when a retried edit or slug-keyed create meets its own earlier success |
 | Authentication | Instance-owned staff passkeys and revocable sessions, optional Cloudflare Access, application roles, owner bootstrap, owner-managed team memberships with last-owner protection, normalized invalid-assertion responses | Instance-owned member identity and account claiming; ADR 0020 remains proposed |
 | Optional management | Enrollment, signed sync, grants, rotation, disconnect, owner-approved updates and diagnostic support | Independent security review and live operator exercises |
 | Portability | Public export/import primitives, verification, rehearsal, exit packet contracts | Dedicated-account restore/exit evidence |
