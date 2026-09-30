@@ -83,7 +83,12 @@ async function post(path: string, body: unknown, key?: string) {
   )
 }
 
-async function upload(bytes: string, key?: string, altText = 'Bulletin') {
+async function upload(
+  bytes: string,
+  key?: string,
+  altText = 'Bulletin',
+  bindings: Env = env,
+) {
   return app.fetch(
     new Request(
       `https://fellowship42.test/api/media/church_demo?${new URLSearchParams({ visibility: 'private', altText })}`,
@@ -96,9 +101,36 @@ async function upload(bytes: string, key?: string, altText = 'Bulletin') {
         body: new TextEncoder().encode(bytes),
       },
     ),
-    env,
+    bindings,
     executionContext,
   )
+}
+
+/**
+ * The Worker's bindings with the media bucket's `put` observed. `beforePut`
+ * runs after the Worker decides to store bytes and before they are stored,
+ * which is where a concurrent twin request can overtake this one.
+ */
+function watchMediaPuts(beforePut?: (key: string) => Promise<void>) {
+  const puts: string[] = []
+  const bucket = new Proxy(env.MEDIA, {
+    get(target, property) {
+      if (property === 'put') {
+        return async (
+          key: string,
+          ...rest: [Parameters<R2Bucket['put']>[1], R2PutOptions?]
+        ) => {
+          puts.push(key)
+          await beforePut?.(key)
+          return target.put(key, ...rest)
+        }
+      }
+      const value: unknown = Reflect.get(target, property)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  const bindings = Object.assign(Object.create(env) as Env, { MEDIA: bucket })
+  return { puts, bindings }
 }
 
 async function count(sql: string, ...bindings: unknown[]) {
@@ -153,6 +185,9 @@ describe('contribution retries', () => {
   }
 
   it('records one contribution, one audit row, and one outbox row for a retried entry', async () => {
+    // The Worker already deduplicated a sequential retry with the same key;
+    // the lost-response defect was in the staff form (see the DOM tests). This
+    // pins that contract together with the `replayed` flag.
     const first = await post(
       '/api/contributions/church_demo',
       gift,
@@ -257,7 +292,7 @@ describe('contribution retries', () => {
     ).toBe(2)
   })
 
-  it('answers a key without a stored outcome with a retryable conflict instead of a server error', async () => {
+  it('answers a key row without an outcome with a retryable conflict (defensive)', async () => {
     const input = { ...gift, donorName: 'Pending Donor' }
     const first = await post(
       '/api/contributions/church_demo',
@@ -265,7 +300,9 @@ describe('contribution retries', () => {
       'entry-contribution-06',
     )
     expect(first.status).toBe(201)
-    // Simulate a key whose owning request has not recorded its outcome.
+    // No code path stores a key without its outcome: commitOnce writes both
+    // in one row in the record's batch. Only manual data repair could leave
+    // this state, and it must still never read as success or a server error.
     await env.DB.prepare(
       `UPDATE idempotency_keys SET response_json = NULL, response_status = NULL WHERE key = 'entry-contribution-06'`,
     ).run()
@@ -518,5 +555,78 @@ describe('media upload retries', () => {
     const conflict = await upload('other-upload-bytes', 'entry-media-02')
     expect(conflict.status).toBe(409)
     expect(await r2ObjectCount()).toBe(objectsBefore)
+  })
+
+  it('checks the key before storing any bytes', async () => {
+    const watched = watchMediaPuts()
+    const first = await upload(
+      'checked-first-bytes',
+      'entry-media-03',
+      'Bulletin',
+      watched.bindings,
+    )
+    expect(first.status).toBe(201)
+    expect(watched.puts).toHaveLength(1)
+
+    const replay = await upload(
+      'checked-first-bytes',
+      'entry-media-03',
+      'Bulletin',
+      watched.bindings,
+    )
+    expect(replay.status).toBe(201)
+    expect((await replay.json<{ replayed: boolean }>()).replayed).toBe(true)
+    const conflict = await upload(
+      'checked-other-bytes',
+      'entry-media-03',
+      'Bulletin',
+      watched.bindings,
+    )
+    expect(conflict.status).toBe(409)
+    // Neither the replay nor the refused upload reached R2.
+    expect(watched.puts).toHaveLength(1)
+  })
+
+  it('removes its own object when a concurrent twin records the key first', async () => {
+    const original = await upload('twin-upload-bytes', 'entry-media-04')
+    expect(original.status).toBe(201)
+    const { media } = await original.json<{ media: MediaRecord }>()
+    // While this attempt stores its bytes, a twin with the same key and
+    // details commits first; its key row names the media it created.
+    const watched = watchMediaPuts(async () => {
+      await env.DB.prepare(
+        `
+          INSERT INTO idempotency_keys (
+            scope, key, request_hash, response_status, response_json,
+            created_at, expires_at
+          )
+          SELECT scope, 'entry-media-05', request_hash, response_status,
+                 response_json, created_at, expires_at
+          FROM idempotency_keys WHERE key = 'entry-media-04'
+        `,
+      ).run()
+    })
+    const objectsBefore = await r2ObjectCount()
+    const late = await upload(
+      'twin-upload-bytes',
+      'entry-media-05',
+      'Bulletin',
+      watched.bindings,
+    )
+    expect(late.status).toBe(201)
+    const lateBody = await late.json<{
+      media: MediaRecord
+      replayed: boolean
+    }>()
+    expect(lateBody).toMatchObject({ replayed: true, media: { id: media.id } })
+    expect(watched.puts).toHaveLength(1)
+    expect(await env.MEDIA.head(watched.puts[0]!)).toBeNull()
+    expect(await r2ObjectCount()).toBe(objectsBefore)
+    expect(
+      await count(
+        'SELECT COUNT(*) AS total FROM media WHERE checksum = ?',
+        media.checksum,
+      ),
+    ).toBe(1)
   })
 })

@@ -85,8 +85,10 @@ export async function idempotencyClaim(
 
 /**
  * Returns the stored outcome for a key that already completed, or `null` when
- * the key is unused. A key used for a different request, or one without a
- * stored outcome, is a conflict: the client must not treat either as success.
+ * the key is unused. A key used for a different request is a conflict. A key
+ * row without a stored outcome cannot come from `commitOnce`, which writes both
+ * together; if manual data repair leaves one, it is answered as a retryable
+ * conflict rather than as success.
  */
 export async function findReplay<T>(
   db: D1Database,
