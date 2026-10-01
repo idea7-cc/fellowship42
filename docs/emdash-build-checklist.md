@@ -22,8 +22,8 @@ progress record.
 - [x] Documentation: architecture, deployment, website guide, AGENTS
 - [x] Evidence: `pnpm verify`, `pnpm acceptance:fellowship42-first`,
       `pnpm acceptance:emdash-first`
-- [ ] Independent multi-lens review findings resolved
-- [ ] Handoff finalized for Codex review
+- [x] Independent multi-lens review findings resolved
+- [x] Handoff finalized for Codex review
 
 ## Resume here
 
