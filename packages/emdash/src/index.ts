@@ -1,18 +1,12 @@
 import type { PluginDescriptor, ResolvedPlugin } from 'emdash'
 import { definePlugin } from 'emdash'
 import { version } from '../package.json'
-import {
-  CONNECTION_SETTINGS,
-  PLUGIN_ID,
-  processEnv,
-  resolveConnectionConfig,
-  sourceFor,
-  type ConnectionConfig,
-} from './shared/connection'
+import { loadConnection } from './environment'
+import { CONNECTION_SETTINGS, PLUGIN_ID, sourceFor } from './shared/connection'
 import { portableTextBlocks } from './shared/blocks'
 import { churchJsonLd, isHomePage } from './shared/jsonld'
-import { connectionStatusBlocks } from './shared/status'
-import { nativeFetch } from './transport'
+import { connectionStatus } from './shared/status'
+import { contractTransport } from './transport'
 
 /**
  * Fellowship42 church content for EmDash.
@@ -24,9 +18,12 @@ import { nativeFetch } from './transport'
  * emdash({ plugins: [fellowship42()] })
  * ```
  *
- * The connection comes from the deployment (`FELLOWSHIP42_URL`, optional
- * `FELLOWSHIP42_INSTANCE_SHA256` and `FELLOWSHIP42` service binding) or,
- * when those are unset, from plugin settings that only Administrators edit.
+ * The deployment pins the connection with `FELLOWSHIP42_URL` (address,
+ * optionally carried by a `FELLOWSHIP42` service binding) and
+ * `FELLOWSHIP42_INSTANCE_SHA256` (church identity). Whatever it leaves unset
+ * comes from plugin settings that only Administrators edit; an address from
+ * settings must be public unless `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` or
+ * the site runs under `astro dev`.
  */
 export function fellowship42(): PluginDescriptor {
   return {
@@ -39,15 +36,8 @@ export function fellowship42(): PluginDescriptor {
   }
 }
 
-async function connection(settings: {
-  get<T>(key: string): Promise<T | null>
-}): Promise<ConnectionConfig> {
-  return resolveConnectionConfig(processEnv(), {
-    [CONNECTION_SETTINGS.url]: await settings.get(CONNECTION_SETTINGS.url),
-    [CONNECTION_SETTINGS.instance]: await settings.get(
-      CONNECTION_SETTINGS.instance,
-    ),
-  })
+function connection(settings: { get<T>(key: string): Promise<T | null> }) {
+  return loadConnection((key) => settings.get(key))
 }
 
 export function createPlugin(): ResolvedPlugin {
@@ -60,35 +50,38 @@ export function createPlugin(): ResolvedPlugin {
           type: 'url',
           label: 'Fellowship42 address',
           description:
-            'The church instance, for example https://app.example.org. Ignored when the website deployment sets FELLOWSHIP42_URL.',
+            "The church instance's public address, for example https://app.example.org. Local and private network addresses are refused unless the website deployment sets FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true. Ignored when the website deployment sets FELLOWSHIP42_URL.",
         },
         [CONNECTION_SETTINGS.instance]: {
           type: 'string',
           label: 'Church identity (optional)',
           description:
-            'The instance identity digest shown on the Fellowship42 page. When set, the website refuses any other church.',
+            'The full 64-character church identity digest. Copy it from the Fellowship42 page in this admin, from instance.portableIdentitySha256 at <address>/api/website/v1, or from bootstrap.portableIdentitySha256 at <address>/api/health. When set, the website refuses any other church. Ignored when the website deployment sets FELLOWSHIP42_URL or FELLOWSHIP42_INSTANCE_SHA256.',
         },
       },
       pages: [{ path: '/status', label: 'Fellowship42' }],
       portableTextBlocks,
     },
     routes: {
-      // Block Kit page. Editors may read it so they know where to edit what.
+      // Block Kit page. Everyone who can insert church blocks (Contributors
+      // and up) may read it to learn where church content is edited.
       admin: {
-        permission: 'plugins:read',
+        permission: 'content:create',
         handler: async (ctx) => {
           const config = await connection(ctx.settings)
-          const described = await sourceFor(config, nativeFetch).describe()
-          return connectionStatusBlocks(config, described)
+          return connectionStatus(config, contractTransport(config), {
+            viewerRole: ctx.user?.role,
+          })
         },
       },
     },
     hooks: {
       'page:metadata': async (event, ctx) => {
         if (!isHomePage(event.page.path)) return null
+        const config = await connection(ctx.settings)
         const result = await sourceFor(
-          await connection(ctx.settings),
-          nativeFetch,
+          config,
+          contractTransport(config),
         ).church()
         if (!result.ok) return null
         return {
