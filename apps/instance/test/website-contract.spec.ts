@@ -73,6 +73,13 @@ function base64Url(bytes: Uint8Array) {
     .replace(/=+$/, '')
 }
 
+// The widest title a group or course can have that JSON does not escape: 160
+// characters of three UTF-8 bytes each. Its cursor is longer than 512
+// characters, and other titles sort after it, so it ends pages.
+const widestTitle = '가'.repeat(160)
+// Too long to fit in a cursor at all.
+const longTitle = '말씀'.repeat(150)
+
 // Titles that are not Latin-1, that JSON escapes, or that are too long to fit
 // in a cursor at all.
 const pagingTitles = [
@@ -84,11 +91,10 @@ const pagingTitles = [
   'Women’s Study',
   '聖書研究会',
   '"Quoted" \\ and\ttabbed',
-  '청'.repeat(160),
+  widestTitle,
   '\u0001'.repeat(160),
-  '말씀'.repeat(150),
+  longTitle,
 ]
-const longTitle = '말씀'.repeat(150)
 
 async function pageAll(resource: ListResource, limit: number) {
   const source = createChurchSource({ url: origin, fetch: sourceFetch })
@@ -275,18 +281,31 @@ describe('public website contract v1', () => {
       const [all] = await pageAll(resource, 100)
       const expected = all!.ids
       expect(expected.length).toBeGreaterThan(pagingTitles.length)
+      let longest = 0
       for (let limit = 1; limit < expected.length; limit += 1) {
         const pages = await pageAll(resource, limit)
         expect(pages.flatMap((page) => page.ids)).toEqual(expected)
         expect(pages).toHaveLength(Math.ceil(expected.length / limit))
-        for (const { nextCursor } of pages)
+        for (const { nextCursor } of pages) {
+          longest = Math.max(longest, nextCursor?.length ?? 0)
           expect(nextCursor?.length ?? 0).toBeLessThanOrEqual(MAX_CURSOR_LENGTH)
+        }
       }
-      // A title too long for a cursor is looked up by id on the next request.
+      // Every issued cursor was accepted above, including ones over 512.
+      expect(longest).toBeGreaterThan(512)
       const prefix = resource === 'groups' ? 'group_page_' : 'course_page_'
-      const anchor = expected.indexOf(
-        `${prefix}${pagingTitles.indexOf(longTitle)}`,
-      )
+      const position = (title: string) =>
+        expected.indexOf(`${prefix}${pagingTitles.indexOf(title)}`)
+      // The widest title that fits is carried in the cursor itself.
+      const wide = position(widestTitle)
+      expect(wide).toBeLessThan(expected.length - 1)
+      const [head, tail] = await pageAll(resource, wide + 1)
+      expect(head!.ids.at(-1)).toBe(expected[wide])
+      expect(head!.nextCursor!.length).toBeGreaterThan(512)
+      expect(tail!.ids[0]).toBe(expected[wide + 1])
+      // A title too long for a cursor is looked up by id on the next request.
+      const anchor = position(longTitle)
+      expect(anchor).toBeLessThan(expected.length - 1)
       const [first, second] = await pageAll(resource, anchor + 1)
       expect(first!.ids.at(-1)).toBe(expected[anchor])
       expect(first!.nextCursor!.length).toBeLessThan(200)
