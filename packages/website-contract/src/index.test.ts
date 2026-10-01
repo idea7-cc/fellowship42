@@ -324,6 +324,39 @@ describe('formatting', () => {
     ).toBe('2026-10-04T19:30+05:30')
   })
 
+  it('labels each end of an event that crosses a daylight-saving change', () => {
+    const at = (startsAt: string, endsAt: string) =>
+      formatEventWhen({ ...event, startsAt, endsAt } as never, 'en-US')
+    // New York falls back at 2:00 AM EDT on Nov 1, 2026.
+    expect(at('2026-11-01T04:30:00.000Z', '2026-11-01T08:00:00.000Z')).toBe(
+      'Sun, Nov 1, 2026 · 12:30 AM EDT – 3:00 AM EST',
+    )
+    // And springs forward at 2:00 AM EST on Mar 8, 2026.
+    expect(at('2026-03-08T06:00:00.000Z', '2026-03-08T08:00:00.000Z')).toBe(
+      'Sun, Mar 8, 2026 · 1:00 AM EST – 4:00 AM EDT',
+    )
+    // A weekend retreat over the change.
+    expect(at('2026-10-30T22:00:00.000Z', '2026-11-01T17:00:00.000Z')).toBe(
+      'Fri, Oct 30, 2026 · 6:00 PM EDT – Sun, Nov 1, 2026 · 12:00 PM EST',
+    )
+    // Numeric labels name each offset too.
+    expect(
+      formatEventWhen(
+        {
+          ...event,
+          timezone: 'Australia/Sydney',
+          startsAt: '2026-04-04T13:00:00.000Z',
+          endsAt: '2026-04-05T01:00:00.000Z',
+        } as never,
+        'en-GB',
+      ),
+    ).toMatch(/ GMT\+11 – 11:00 GMT\+10$/)
+    // An event without a change keeps one label.
+    expect(at('2026-11-01T08:00:00.000Z', '2026-11-01T09:00:00.000Z')).toBe(
+      'Sun, Nov 1, 2026 · 3:00 AM – 4:00 AM EST',
+    )
+  })
+
   it('renders wall-clock service times and calendar dates without shifting', () => {
     expect(
       formatServiceTime({ label: 'x', day: 0, time: '10:30' }, 'en-US'),

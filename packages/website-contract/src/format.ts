@@ -68,7 +68,7 @@ function zonedParts(instant: string, timeZone: string, locale?: string) {
   return { day, time, key }
 }
 
-/** Short zone name at the event's start, e.g. `EDT`, `GMT+10`. */
+/** Short zone name in effect at an instant, e.g. `EDT`, `GMT+10`. */
 export function zoneLabel(
   instant: string,
   timeZone: string,
@@ -85,16 +85,20 @@ export function zoneLabel(
 
 /**
  * Formats an event's start (and end, when present) in the event's own zone:
- * `Sun, Oct 4, 2026 · 10:00 AM – 11:30 AM EDT`.
+ * `Sun, Oct 4, 2026 · 10:00 AM – 11:30 AM EDT`. When the zone's offset changes
+ * during the event, each time carries its own label:
+ * `Sun, Nov 1, 2026 · 12:30 AM EDT – 3:00 AM EST`.
  */
 export function formatEventWhen(event: EventItem, locale?: string): string {
   const start = zonedParts(event.startsAt, event.timezone, locale)
-  const zone = zoneLabel(event.startsAt, event.timezone, locale)
-  if (!event.endsAt) return `${start.day} · ${start.time} ${zone}`
+  const startZone = zoneLabel(event.startsAt, event.timezone, locale)
+  if (!event.endsAt) return `${start.day} · ${start.time} ${startZone}`
   const end = zonedParts(event.endsAt, event.timezone, locale)
+  const endZone = zoneLabel(event.endsAt, event.timezone, locale)
+  const from = startZone === endZone ? start.time : `${start.time} ${startZone}`
   return start.key === end.key
-    ? `${start.day} · ${start.time} – ${end.time} ${zone}`
-    : `${start.day} · ${start.time} – ${end.day} · ${end.time} ${zone}`
+    ? `${start.day} · ${from} – ${end.time} ${endZone}`
+    : `${start.day} · ${from} – ${end.day} · ${end.time} ${endZone}`
 }
 
 /** Offset-qualified local start time for `<time datetime>`, e.g. `2026-10-04T10:00-04:00`. */
