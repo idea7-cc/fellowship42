@@ -272,13 +272,17 @@ Owned source code. Modify freely.
 
 ## Routing: the church is not in the URL
 
-One deployment is one church. The public website is at `/` and public course
-pages at `/courses/:slug`. Staff routes live under `/app` — `/app/people`,
+One deployment is one church. The church's public website is normally the
+EmDash site deployed beside the instance (`apps/website`, not this SPA): when
+`WEBSITE_ORIGIN` is configured, the Worker redirects `/` there. Without it, the
+instance serves its own fallback public page at `/`. Public course pages stay
+at `/courses/:slug` either way. Staff routes live under `/app` — `/app/people`,
 `/app/groups`, `/app/courses/:slug` — and the church comes from `useChurch()` in
 `lib/church-context.tsx`. `BootstrapGate` already fetches `/api/bootstrap` and
 refuses to render until it reports `configured`, so the identity is known
-before any staff route mounts and costs no extra request. The public website
-reads `/api/site` without fetching bootstrap or session state.
+before any staff route mounts and costs no extra request. The fallback public
+page reads `/api/site` without fetching bootstrap or session state; the EmDash
+website reads the [public website contract](website-contract.md) instead.
 
 Routes were previously `/churches/:churchId/...`. That made a single-church
 product navigate like a tenant console: "Church" opened a list of one, which

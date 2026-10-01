@@ -331,6 +331,7 @@ Planned, not implied by the scaffolding:
 The public instance exposes optional OAuth-granted church tools independently
 of the private fleet MCP adapter. D1 owns local consent and revocation; the
 OAuth provider stores disposable credentials in an instance-local KV namespace.
-The initial tools read church information and save private website drafts using
-the app's services and version checks. Publishing remains in the app. See
+The initial tools read church information and save private church profile
+drafts using the app's services and version checks; they do not reach EmDash
+website pages. Publishing remains in the app. See
 [agent connections](agent-connections.md) and [ADR 0023](adr/0023-church-owned-agent-connections.md).

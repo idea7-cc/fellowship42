@@ -33,7 +33,11 @@ import { Tab, Tabs } from '@/components/ui/tabs'
 import { ChurchImagePicker } from '@/components/church-image-picker'
 import { days } from '@/components/church-site'
 import { DraftReview } from '@/components/draft-review'
-import { WebsiteCard } from '@/components/website-card'
+import {
+  WEBSITE_PREVIEW_NOTE_ID,
+  WebsiteCard,
+  useWebsiteSetup,
+} from '@/components/website-card'
 
 export function ChurchSettingsPage() {
   const { churchId } = useChurch()
@@ -93,6 +97,10 @@ export function ChurchSettingsEditor({
   const [error, setError] = useState<string | null>(null)
   const [conflict, setConflict] = useState(false)
   const [notice, setNotice] = useState('')
+  const website = useWebsiteSetup(churchId)
+  // With a connected website, Preview shows the saved profile on the
+  // instance's own page rather than the website visitors see.
+  const hasWebsite = Boolean(website.data?.origin)
   const active = useRef(false)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved.draft)
   const path = `/api/church-settings/${encodeURIComponent(churchId)}`
@@ -286,9 +294,15 @@ export function ChurchSettingsEditor({
         actions={
           <>
             <Button asChild size="sm" variant="secondary">
-              <Link to="/app/preview" target="_blank">
+              <Link
+                to="/app/preview"
+                target="_blank"
+                aria-describedby={
+                  hasWebsite ? WEBSITE_PREVIEW_NOTE_ID : undefined
+                }
+              >
                 <Eye aria-hidden />
-                Preview
+                {hasWebsite ? 'Preview profile' : 'Preview'}
               </Link>
             </Button>
             {saved.published && (
@@ -312,7 +326,12 @@ export function ChurchSettingsEditor({
         disabled={busy !== null || dirty || conflict}
         restore={() => void mutate('restore')}
       />
-      <WebsiteCard churchId={churchId} owner={owner} />
+      <WebsiteCard
+        churchId={churchId}
+        owner={owner}
+        website={website.data}
+        error={website.error}
+      />
       {!saved.published && (
         <div
           className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border p-4 text-sm"

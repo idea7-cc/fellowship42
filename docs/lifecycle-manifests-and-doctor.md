@@ -217,7 +217,10 @@ manifest is an input error. Nine checks follow the fourteen instance checks:
 | `website-instance-pin` | `FELLOWSHIP42_INSTANCE_SHA256` is the SHA-256 of the portable instance ID |
 | `website-origins` | `EMDASH_SITE_URL` is the canonical website origin, `FELLOWSHIP42_URL` is the canonical instance origin, and the instance's `WEBSITE_ORIGIN` is the canonical website origin |
 
-Origins must be bare `https://<domain>` URLs with no path, query, port, or
+Doctor compares binding names, not provider IDs, so the website checks pass
+with the template's all-zero D1 and KV IDs; the
+[deployment runbook](deployment.md#5a-deploy-the-church-website) replaces
+them. Origins must be bare `https://<domain>` URLs with no path, query, port, or
 credentials; a trailing `/` is accepted. An empty instance `WEBSITE_ORIGIN` is a `warning`
 (`instance-website-origin-unset`): the church keeps the instance homepage.
 Doctor never reads or reports secret values and does not expose the identity

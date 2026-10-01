@@ -9,9 +9,10 @@ visitors see**. Both need no Fellowship42 Cloud connection. Member
 registration is separate work.
 
 The **Website** card in Settings shows where the website lives, which content
-is edited in the website editor versus here, and, for owners of a new
-installation, **Set up website editor**. Publishing here updates the website on
-its next page load, and withdrawing or deleting a record removes it there.
+is edited in the website editor versus here, what **Preview profile** shows,
+and, for owners of a new installation, **Set up website editor**. Publishing
+here updates the website on its next page load, and withdrawing or deleting a
+record removes it there.
 
 ## Owner workflow
 
@@ -22,7 +23,11 @@ its next page load, and withdrawing or deleting a record removes it there.
 3. Choose a style, logo, and cover image under **Appearance**. Uploaded images
    start private. Existing church images can also be selected.
 4. **Save draft**, then **Preview** to inspect the saved version in a new tab.
-   Unsaved form edits are not part of the preview.
+   Unsaved form edits are not part of the preview. When the installation has a
+   church website, the button reads **Preview profile**: it shows the saved
+   church details on the instance's own page, not in the website's design.
+   The website reads only published records, so it shows profile changes after
+   you publish them.
 5. **Publish** makes the saved profile and its selected images public. Later
    profile edits remain private until saved and published again.
 

@@ -43,7 +43,10 @@ moves hosting control.
 the church profile, service times, events, sermons, groups, courses, and their
 media. EmDash is authoritative for pages, articles, menus, and presentation.
 The website stores no copy of church records. It renders them at request time
-from the public contract and caches nothing beyond the request.
+from the public contract and caches nothing beyond the request. On the
+installation's website, the church name, tagline, and logo also come from the
+profile; EmDash's site title, tagline, and logo are only a fallback while church
+information is unavailable or unpublished.
 
 **Public website contract v1.** The instance serves anonymous `GET` routes under
 `/api/website/v1`. They:
@@ -80,12 +83,23 @@ blocks require the trusted package, because the registry cannot carry them.
 there is no privileged connection or shared credential. Deployment environment
 variables pin the connection:
 
-- `FELLOWSHIP42_URL` and `FELLOWSHIP42_INSTANCE_SHA256`;
-- an optional `FELLOWSHIP42` service binding when both Workers share an account.
+- `FELLOWSHIP42_URL` pins the address; when it is set, plugin settings are not
+  read;
+- `FELLOWSHIP42_INSTANCE_SHA256` pins the identity whenever it is set, even
+  when the address comes from plugin settings;
+- an optional `FELLOWSHIP42` service binding, when both Workers share an
+  account, carries requests only for an address pinned by `FELLOWSHIP42_URL`.
 
-When they are unset, the connection comes from plugin settings, which only an
-EmDash Administrator can change. A digest mismatch is a deliberate "different
-church" state, not a fallback.
+When the address is not pinned, it comes from plugin settings, which only an
+EmDash Administrator can change. The trusted plugin fetches from the site's
+server without the sandbox's network limits, so a settings address must name
+a public host: loopback, private, link-local, carrier-grade NAT, unspecified,
+and local-only names (`localhost`, `*.localhost`, `*.local`, `*.internal`) are
+refused unless the deployment sets `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` for
+local evaluation or the site runs under `astro dev`. A pinned address is
+trusted as given. A digest mismatch is a deliberate "different church" state,
+not a fallback, and a pin that is not a 64-character hex digest is reported as
+its own state.
 
 **Editor sign-in.** Website editors use EmDash's own accounts: passkeys and
 invitations, with EmDash roles. An EmDash account confers no Fellowship42
@@ -99,7 +113,10 @@ EmDash administrator:
    is removed after setup.
 3. Setup then continues with EmDash's own passkey flow.
 
-Seamless single sign-on is deferred.
+EmDash's OAuth sign-in makes the first OAuth user an administrator, so while
+`WEBSITE_SETUP_SECRET` is configured the website also refuses EmDash's OAuth
+start routes. OAuth sign-in is enabled only after the first administrator
+exists and the secret is removed. Seamless single sign-on is deferred.
 
 **Instance homepage.** When `WEBSITE_ORIGIN` is configured, the instance's `/`
 redirects to the website. Public course detail pages and public media remain on

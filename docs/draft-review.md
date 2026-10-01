@@ -1,4 +1,8 @@
-# Review and recover a website draft
+# Review and recover a church profile draft
+
+This is the Fellowship42 church profile edited in **Settings**, which the
+church website shows once published. EmDash pages and articles have their own
+drafts and revisions in the website editor.
 
 Church settings shows who last edited the saved draft and a collapsed comparison
 with the published profile. Expand **Review changes** to inspect the changed
