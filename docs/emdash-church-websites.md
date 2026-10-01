@@ -150,10 +150,10 @@ cp apps/website/.dev.vars.example apps/website/.dev.vars
 # Use the same WEBSITE_SETUP_SECRET (32+ characters) in both files.
 rm -rf apps/instance/.wrangler/state
 pnpm db:migrate && pnpm db:seed
-node apps/instance/scripts/recover-owner.mjs --config apps/instance/wrangler.jsonc \
+(cd apps/instance && node scripts/recover-owner.mjs --config wrangler.jsonc \
   --database fellowship42 --origin http://localhost:5173 \
   --email owner@example.test --output /tmp/owner-link.txt --local \
-  --confirm-reset-owner
+  --confirm-reset-owner)
 pnpm dev            # instance: http://localhost:5173
 pnpm dev:website    # website:  http://www.localhost:4322
 ```
