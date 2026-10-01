@@ -21,7 +21,7 @@ The decision is recorded in [ADR 0027](adr/0027-emdash-church-websites.md).
 | Content | Edited in | Made public by |
 | --- | --- | --- |
 | Pages, articles, menus, and site design | EmDash (`/_emdash/admin`) | Publishing the page or article. Drafts and previews stay private. |
-| Church profile, address, contact, and service times | Fellowship42 **Settings** | Publishing the church in Settings |
+| Church name, welcome line (tagline), logo, profile, address, contact, and service times | Fellowship42 **Settings** | Publishing the church in Settings |
 | Events, sermons, groups, and courses | Fellowship42 | Publishing each record there |
 
 The website stores no copy of church records. A church block in a page stores
@@ -31,7 +31,8 @@ from every website on the next visit. When Fellowship42 cannot be reached, or
 the connection points at another church or an incompatible version, blocks show
 a plain "temporarily unavailable" notice. They never show stale content. Both
 Fellowship42 Settings and the EmDash **Fellowship42** admin page state these
-rules.
+rules. That promise holds only while pages with church content are rendered on
+demand and never cached; see [Caching](#caching).
 
 ## Church blocks
 
@@ -60,6 +61,14 @@ visit, Events, Sermons, Groups, Courses, and a first article. If an editor
 removes one of the church pages, a built-in version with the same blocks still
 answers at `/visit`, `/events`, `/sermons`, `/groups`, and `/courses`.
 
+Fellowship42 also decides how the church is named and branded on this website.
+The header, the home page hero, the site name in each page's `<title>`, the
+tagline, and the logo show the connected church's name, welcome line, and logo
+from Fellowship42 **Settings**. EmDash's own site settings (title, tagline, and
+logo) are only a fallback, shown while church information is unavailable or the
+church is unpublished. To rename the church or change its logo, edit Settings
+in Fellowship42 and publish.
+
 Owner journey:
 
 1. Sign in to Fellowship42 at `/app` with your passkey.
@@ -67,20 +76,58 @@ Owner journey:
    **Set up website editor**. Only owners see this, and only while the
    installation holds a `WEBSITE_SETUP_SECRET`.
 3. The website opens its setup page, accepts the ten-minute claim, and hands
-   over to EmDash's setup wizard. Enter the site title and your details, then
-   create your EmDash passkey. You become the website's first Administrator.
+   over to EmDash's setup wizard. Enter a site title (the fallback described
+   above) and your details, then create your EmDash passkey. You become the
+   website's first Administrator.
 4. Edit pages in the website editor. **Preview** shows an unpublished edit
    through a private, expiring link. **Publish** makes the page public.
 5. Invite other editors from the EmDash **Users** screen (a copyable invite link
    works without email) and give them the Editor or Author role.
 6. Remove `WEBSITE_SETUP_SECRET` from both Workers once setup is done.
 
-Until an administrator exists, EmDash's own setup routes, including its
-development shortcuts, answer `403` unless the browser holds a valid claim.
-Afterwards EmDash closes setup itself. See [deployment](deployment.md) for the
-website's resources, configuration, and hostnames.
+In Fellowship42, **Settings → Preview profile** shows the saved, unpublished
+church profile on the instance's own page, not in the website's design. The
+website reads only published records, so it shows profile changes after you
+publish them.
+
+### The setup gate
+
+Until an administrator exists, the website accepts EmDash setup only from a
+browser that holds a valid owner claim. Without one:
+
+- EmDash's setup wizard (`GET /_emdash/admin/setup`) redirects (`303`) to the
+  website's Fellowship42 setup page, `/fellowship42/setup`;
+- EmDash's setup APIs (`/_emdash/api/setup` and everything under it except
+  `/_emdash/api/setup/status`) answer `403`. That includes EmDash's
+  development setup shortcuts, `/_emdash/api/setup/dev-bypass` and
+  `/_emdash/api/setup/dev-reset`.
+
+After the first administrator exists, EmDash closes setup itself.
+
+EmDash's OAuth sign-in (GitHub or Google) makes the first OAuth user an
+Administrator while setup is open, which would bypass the owner claim. So while
+`WEBSITE_SETUP_SECRET` is configured, the website answers `403` to EmDash's OAuth
+start routes, `/_emdash/api/auth/oauth/<provider>`. The OAuth callback is not
+gated; without a started flow it has nothing to complete. Do not enable OAuth
+sign-in (`EMDASH_OAUTH_GITHUB_CLIENT_ID` and `_SECRET`,
+`EMDASH_OAUTH_GOOGLE_CLIENT_ID` and `_SECRET`, or their `GITHUB_*` and
+`GOOGLE_*` aliases) until the first administrator exists and the secret has been
+removed from both Workers.
+
+Under `astro dev`, EmDash's development sign-in shortcut
+`/_emdash/api/auth/dev-bypass` is not a setup route and is not gated: it signs
+in a development administrator (`dev@emdash.local`) without a claim. Production
+builds refuse it. See [deployment](deployment.md) for the website's resources,
+configuration, and hostnames.
 
 ## EmDash first
+
+> **Not yet published.** `@fellowship42/emdash`,
+> `@fellowship42/website-contract`, and the `fellowship42-connect` registry
+> artifact are not yet on npm or the EmDash registry, so `pnpm add` and a
+> registry install fail today. Publication follows independent review. Until
+> then, evaluate this path from packed tarballs as described under
+> [Evaluate before publication](#evaluate-before-publication).
 
 On an EmDash 1.0.1 site the church already runs:
 
@@ -96,39 +143,192 @@ On an EmDash 1.0.1 site the church already runs:
    emdash({ /* database, storage */ plugins: [fellowship42()] })
    ```
 
-   Rebuild and deploy. EmDash loads Portable Text blocks and their renderers
-   only from trusted npm packages registered in the site's code, so this step
-   needs source and deploy access, not an EmDash role.
+   Then add the no-cache middleware from [Caching](#caching), rebuild, and
+   deploy. EmDash loads Portable Text blocks and their renderers only from
+   trusted npm packages registered in the site's code, so this step needs
+   source and deploy access, not an EmDash role.
 2. An Administrator opens **Plugins → Fellowship42 → Settings** and enters the
-   Fellowship42 address (for example `https://app.example.org`). Optionally,
-   enter the church identity digest shown on the **Fellowship42** page to refuse
-   any other church.
-3. The **Fellowship42** admin page confirms the connected church. Editors can
-   now insert church blocks.
+   instance's public Fellowship42 address (for example
+   `https://app.example.org`). Private and local addresses are refused; see
+   [Connection rules](#connection-rules).
+3. The **Fellowship42** admin page confirms the connected church and shows its
+   full 64-character church identity digest as copyable text. To refuse any
+   other church, copy that digest into **Church identity** in the plugin
+   settings. The same value is `instance.portableIdentitySha256` in
+   `https://<instance>/api/website/v1` and `bootstrap.portableIdentitySha256`
+   in `https://<instance>/api/health`.
+4. Editors can now insert church blocks.
 
 To pin the connection instead, set `FELLOWSHIP42_URL` (and optionally
-`FELLOWSHIP42_INSTANCE_SHA256`) in the site's environment. The settings are
-then ignored. When the site runs in the same Cloudflare account as the
-instance, a `FELLOWSHIP42` service binding carries the requests.
+`FELLOWSHIP42_INSTANCE_SHA256`) in the site's environment; see
+[Connection rules](#connection-rules) for what each pin overrides. When the
+site runs in the same Cloudflare account as the instance and pins
+`FELLOWSHIP42_URL`, a `FELLOWSHIP42` service binding carries the requests.
 
 ### The registry connector
 
 `fellowship42-connect` ([`packages/emdash-connect`](../packages/emdash-connect))
-is the artifact the EmDash plugin registry can distribute. An Administrator can
-install it from the registry without a deploy. It provides the connection, a
-status page, public JSON routes, and structured data. It cannot add church
-blocks: EmDash 1.0.1's registry carries only sandboxed plugins, which cannot
-declare Portable Text blocks, ship Astro components, or reach private or
-loopback addresses. A site that wants the blocks installs the npm package
-above; it does not need both.
+is the artifact the EmDash plugin registry can distribute. Once it is
+published, an Administrator can install it from the registry without a deploy.
+It provides the connection, a status page, public JSON routes, and structured
+data. It cannot add church blocks: EmDash 1.0.1's registry carries only
+sandboxed plugins, which cannot declare Portable Text blocks, ship Astro
+components, or reach private or loopback addresses. A site that wants the
+blocks installs the npm package above; it does not need both.
+
+### Evaluate before publication
+
+The automated journey packs both npm packages, installs them into a copy of
+EmDash 1.0.1's Cloudflare starter site, connects it through plugin settings to
+an isolated synthetic instance, and checks the blocks, access boundaries, and
+content lifecycle on production builds:
+
+```bash
+pnpm acceptance:emdash-first   # writes /tmp/f42-acceptance/emdash-first.json
+```
+
+To try the integration in your own EmDash site, pack both packages from this
+repository:
+
+```bash
+pnpm build:contracts
+pnpm --filter @fellowship42/website-contract pack --pack-destination /tmp/f42-packs
+pnpm --filter @fellowship42/emdash pack --pack-destination /tmp/f42-packs
+```
+
+In the site, depend on both tarballs (their file names carry each package's
+version), and override the contract so the packed `@fellowship42/emdash`
+resolves its dependency to the tarball rather than npm:
+
+```jsonc
+// package.json
+"dependencies": {
+  "@fellowship42/emdash": "file:/tmp/f42-packs/fellowship42-emdash-0.1.0.tgz",
+  "@fellowship42/website-contract": "file:/tmp/f42-packs/fellowship42-website-contract-1.0.0.tgz"
+}
+```
+
+```yaml
+# pnpm-workspace.yaml
+overrides:
+  '@fellowship42/website-contract': 'file:/tmp/f42-packs/fellowship42-website-contract-1.0.0.tgz'
+```
+
+`scripts/acceptance/fixtures/emdash-first-site` is a complete example. A
+production build connected through plugin settings to an instance on
+`localhost` also needs `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` in the site's
+environment; `astro dev` does not. The registry connector is validated and
+bundled locally with `pnpm --filter @fellowship42/emdash-connect test`.
+
+## Connection rules
+
+These rules apply to every site that uses `@fellowship42/emdash`, including
+the Fellowship42-first website.
+
+- **Deployment pins win.** `FELLOWSHIP42_URL` pins the instance address. When
+  it is set, the plugin settings are not read at all, and both the address and
+  identity settings are ignored. `FELLOWSHIP42_INSTANCE_SHA256` pins the
+  church identity whenever it is set, even when the address comes from plugin
+  settings; the identity setting is then ignored.
+- **Settings addresses must be public.** An address from plugin settings must
+  name a public host. The website refuses literal loopback, private,
+  link-local, carrier-grade NAT (`100.64.0.0/10`), and unspecified IPv4 and
+  IPv6 addresses, as well as `localhost`, `*.localhost`, `*.local`, and
+  `*.internal`. The status page says why, and church blocks show a notice
+  instead of church content. The site fetches that address from its own
+  server, so this keeps an Administrator's setting from reaching the site's
+  internal network. Two exceptions exist: a deployment opt-in,
+  `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true`, meant for local evaluation and
+  never for production; and Astro development mode (`astro dev`). An address
+  pinned with `FELLOWSHIP42_URL` is trusted as given, including a private one.
+- **The identity pin is a full digest.** A pin must be exactly 64 hexadecimal
+  characters, the full digest the status page shows. Anything else, such as a
+  shortened prefix, is reported on the status page as "The church identity pin
+  is not a valid 64-character digest", and visitors see the unavailable
+  notice. A valid pin that differs from the instance's digest is the
+  "different church" state.
+- **The service binding carries only a pinned address.** A `FELLOWSHIP42`
+  service binding is used only when `FELLOWSHIP42_URL` is set. An address from
+  plugin settings always goes through the runtime's `fetch`, even in the same
+  account as the instance.
+- **Settings failures do not break pages.** When the deployment does not pin
+  the address and the site cannot read the plugin settings, church blocks show
+  the unavailable notice and the site logs the failure; the rest of the page
+  renders normally.
+
+## Caching
+
+Church blocks read Fellowship42 each time a page renders. A stored copy of the
+page would keep showing withdrawn or deleted records, and a church block cannot
+opt its page out of caching by itself. Pages that show church blocks or
+components must therefore render on demand and must not be cached by EmDash
+route caching or the Workers Cache:
+
+- do not prerender them (`export const prerender = true`), including pages
+  whose layout places church components;
+- do not add route-cache rules (for example `routeRules` with
+  `cacheCloudflare()`) that cover them; and
+- send `Cache-Control: no-cache` on public HTML, so browsers and CDNs
+  revalidate instead of keeping a copy. Without a header, a cached `200` can be
+  kept for hours.
+
+The Fellowship42-first website does this in
+[`apps/website/src/outer-middleware.ts`](../apps/website/src/outer-middleware.ts).
+An EmDash-first site can register the same rule as EmDash's outer middleware,
+which runs after EmDash has finished the response:
+
+```ts
+// src/no-cache.ts
+import { defineMiddleware } from 'astro:middleware'
+
+// Church blocks render live Fellowship42 data; never serve a stored copy.
+export const onRequest = defineMiddleware(async ({ url }, next) => {
+  const response = await next()
+  const html = response.headers
+    .get('Content-Type')
+    ?.toLowerCase()
+    .startsWith('text/html')
+  if (
+    !html ||
+    url.pathname.startsWith('/_emdash') ||
+    response.headers.has('Cache-Control')
+  )
+    return response
+  const headers = new Headers(response.headers)
+  headers.set('Cache-Control', 'no-cache')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+})
+```
+
+```js
+// astro.config.mjs
+emdash({
+  /* database, storage */
+  plugins: [fellowship42()],
+  middleware: { outer: new URL('./src/no-cache.ts', import.meta.url) },
+})
+```
+
+The middleware leaves an explicit `Cache-Control` alone, so it does not weaken
+EmDash's own `private, no-store` responses; that is also why route-cache rules
+must not cover these pages.
 
 ## Sign-in and permissions
 
 - Website editors use EmDash accounts: passkeys and invitations, with EmDash's
   Subscriber, Contributor, Author, Editor, and Administrator roles. An EmDash
   account confers no Fellowship42 finance, directory, team, or fleet access.
+- The **Fellowship42** status page is open to Contributors, Authors, Editors,
+  and Administrators (EmDash's `content:create` permission). Only
+  Administrators see its **Connection settings** link.
 - Only EmDash Administrators can change the Fellowship42 connection. A pinned
   connection cannot be changed from the website at all.
+- OAuth sign-in stays off until the first administrator exists and
+  `WEBSITE_SETUP_SECRET` is removed; see [The setup gate](#the-setup-gate).
 - Disabling or deleting an EmDash user ends that user's access on the next
   request. Removing a Fellowship42 owner stops that person from issuing
   website setup claims.
@@ -148,7 +348,8 @@ pnpm install
 cp apps/instance/.dev.vars.example apps/instance/.dev.vars
 cp apps/website/.dev.vars.example apps/website/.dev.vars
 # Use the same WEBSITE_SETUP_SECRET (32+ characters) in both files.
-rm -rf apps/instance/.wrangler/state
+# Start fresh: the instance's state and the website's EmDash state together.
+rm -rf apps/instance/.wrangler/state apps/website/.wrangler/state
 pnpm db:migrate && pnpm db:seed
 (cd apps/instance && node scripts/recover-owner.mjs --config wrangler.jsonc \
   --database fellowship42 --origin http://localhost:5173 \
@@ -158,23 +359,31 @@ pnpm dev            # instance: http://localhost:5173
 pnpm dev:website    # website:  http://www.localhost:4322
 ```
 
+Reset both states together. EmDash closes setup once its first administrator
+exists, so if `apps/website/.wrangler/state` survives from an earlier run,
+**Set up website editor** cannot create a new first administrator.
+
 The website uses `www.localhost` so that, as in production, the two apps have
 different hostnames and therefore separate passkeys. On a shared `localhost`
 both passkeys would be offered, and choosing the wrong one fails sign-in.
 Open the link in `/tmp/owner-link.txt`, create a passkey, and follow the owner
-journey above. The website reaches the local instance directly because the
-trusted plugin uses the runtime's `fetch`. Publish, edit, withdraw, and delete
-events or sermons in `/app`, and reload the website to see each change.
-`astro dev` keeps EmDash's development sign-in shortcut
-(`/_emdash/api/auth/dev-bypass`) available; production builds refuse it. To
-evaluate exactly what deploys, run the automated journey, which uses production
-builds of both Workers on isolated synthetic state:
+journey above. The website reaches the local instance because
+`apps/website/.dev.vars` pins `FELLOWSHIP42_URL=http://localhost:5173`, which
+is trusted as given, and the trusted plugin uses the runtime's `fetch`.
+Publish, edit, withdraw, and delete events or sermons in `/app`, and reload
+the website to see each change. `astro dev` keeps EmDash's development sign-in
+shortcut (`/_emdash/api/auth/dev-bypass`) available; production builds refuse
+it. To evaluate exactly what deploys, run the automated journeys, which use
+production builds on isolated synthetic state:
 
 ```bash
 pnpm acceptance:fellowship42-first   # Chromium with virtual passkeys
+pnpm acceptance:emdash-first         # a separate EmDash site from packed tarballs
 ```
 
-It writes `evidence.json` and screenshots to `/tmp/f42-acceptance/fellowship42-first`.
+The first writes `evidence.json` and screenshots to
+`/tmp/f42-acceptance/fellowship42-first`; the second writes
+`/tmp/f42-acceptance/emdash-first.json`.
 
 ## Ownership, backup, and exit
 
@@ -197,7 +406,10 @@ installation it generated.
 | Notice or admin state | Meaning | Action |
 | --- | --- | --- |
 | Not connected | No Fellowship42 address | Set the address (Administrator) or `FELLOWSHIP42_URL` |
+| Private or local address refused | The plugin-settings address names a private or local host | Use the instance's public address, or pin it with `FELLOWSHIP42_URL`. For local evaluation only, set `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` |
+| The church identity pin is not a valid 64-character digest | The pin is not exactly 64 hexadecimal characters, for example a shortened prefix | Copy the full digest from the status page, `/api/website/v1`, or `/api/health` |
 | Not published | Fellowship42 church website is unpublished | Publish the church in Fellowship42 Settings |
-| Not responding | Network failure or server error | Check the address and instance health; blocks recover on the next load |
-| Not a compatible instance | Not a Fellowship42 instance, or another contract version | Check the address; update the integration |
+| Not responding | Network failure, timeout, `429` or `5xx`, a response cut off while it was read, or plugin settings that could not be read | Check the address, instance health, and the site's logs; blocks recover on the next load |
+| Not a compatible instance | Not a Fellowship42 instance, another contract version, malformed JSON, or an unexpected `4xx` error | Check the address; update the integration |
 | Different church | The identity digest differs from the pin | Correct the address or the pin |
+| That page of results is no longer available | A block's paging link came from another list, was altered, or is longer than the contract allows (cursors are bound to their list and at most 1,024 characters) | Start again from the block's first page |
