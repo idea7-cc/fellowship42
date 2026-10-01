@@ -10,8 +10,20 @@ instance through the public [website contract](../../docs/website-contract.md):
   under `/_emdash/api/plugins/<plugin id>/`; and
 - church structured data (JSON-LD) on the home page.
 
-Only EmDash Administrators can change the connection (plugin settings). The
-connector holds no credential and reads only published church content.
+Only EmDash Administrators can change the connection (plugin settings); the
+admin page is open to Contributors and above, and only Administrators see its
+**Connection settings** link. The connector holds no credential and reads only
+published church content.
+
+The address must be the instance's public address: local and private network
+addresses are refused, and the admin page says why. The optional church
+identity pin is the full 64-character digest the admin page shows once
+connected (also `instance.portableIdentitySha256` at
+`<address>/api/website/v1`, or `bootstrap.portableIdentitySha256` at
+`<address>/api/health`). A malformed pin is reported as its own state, and
+the data routes answer `unavailable` until it is corrected. Like the trusted
+integration, the connector does not follow redirects and gives up on a
+request after five seconds.
 
 ## What it cannot do
 
