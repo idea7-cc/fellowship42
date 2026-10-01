@@ -180,8 +180,8 @@ blocks installs the npm package above; it does not need both.
 
 The automated journey packs both npm packages, installs them into a copy of
 EmDash 1.0.1's Cloudflare starter site, connects it through plugin settings to
-an isolated synthetic instance, and checks the blocks, access boundaries, and
-content lifecycle on production builds:
+an isolated synthetic instance, and checks the blocks, access boundaries,
+caching headers, and content lifecycle on production builds:
 
 ```bash
 pnpm acceptance:emdash-first   # writes /tmp/f42-acceptance/emdash-first.json
@@ -214,11 +214,12 @@ overrides:
   '@fellowship42/website-contract': 'file:/tmp/f42-packs/fellowship42-website-contract-1.0.0.tgz'
 ```
 
-`scripts/acceptance/fixtures/emdash-first-site` is a complete example. A
-production build connected through plugin settings to an instance on
-`localhost` also needs `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` in the site's
-environment; `astro dev` does not. The registry connector is validated and
-bundled locally with `pnpm --filter @fellowship42/emdash-connect test`.
+`scripts/acceptance/fixtures/emdash-first-site` is a complete example,
+including the middleware from [Caching](#caching). A production build
+connected through plugin settings to an instance on `localhost` also needs
+`FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` in the site's environment; `astro dev`
+does not. The registry connector is validated and bundled locally with
+`pnpm --filter @fellowship42/emdash-connect test`.
 
 ## Connection rules
 
@@ -260,40 +261,41 @@ the Fellowship42-first website.
 
 Church blocks read Fellowship42 each time a page renders. A stored copy of the
 page would keep showing withdrawn or deleted records, and a church block cannot
-opt its page out of caching by itself. Pages that show church blocks or
-components must therefore render on demand and must not be cached by EmDash
-route caching or the Workers Cache:
+opt its page out of caching by itself: the response headers are decided before
+the blocks finish rendering. Pages that show church blocks or components must
+therefore render on demand and must not be cached by EmDash route caching or
+the Workers Cache:
 
 - do not prerender them (`export const prerender = true`), including pages
   whose layout places church components;
-- do not add route-cache rules (for example `routeRules` with
-  `cacheCloudflare()`) that cover them; and
+- do not give them a cache lifetime, either with route-cache rules (for
+  example `routeRules` with `cacheCloudflare()`) or with
+  `Astro.cache.set({ maxAge })`; and
 - send `Cache-Control: no-cache` on public HTML, so browsers and CDNs
   revalidate instead of keeping a copy. Without a header, a cached `200` can be
   kept for hours.
 
 The Fellowship42-first website does this in
 [`apps/website/src/outer-middleware.ts`](../apps/website/src/outer-middleware.ts).
-An EmDash-first site can register the same rule as EmDash's outer middleware,
-which runs after EmDash has finished the response:
+An EmDash-first site adds this middleware, the same recipe as the
+[`@fellowship42/emdash` README](../packages/emdash/README.md#caching) and the
+EmDash-first acceptance fixture. Astro loads `src/middleware.ts` on its own, so
+`astro.config.mjs` needs no change:
 
 ```ts
-// src/no-cache.ts
+// src/middleware.ts
 import { defineMiddleware } from 'astro:middleware'
 
 // Church blocks render live Fellowship42 data; never serve a stored copy.
-export const onRequest = defineMiddleware(async ({ url }, next) => {
+export const onRequest = defineMiddleware(async (context, next) => {
   const response = await next()
-  const html = response.headers
+  const isHtml = response.headers
     .get('Content-Type')
     ?.toLowerCase()
     .startsWith('text/html')
-  if (
-    !html ||
-    url.pathname.startsWith('/_emdash') ||
-    response.headers.has('Cache-Control')
-  )
-    return response
+  if (!isHtml || context.url.pathname.startsWith('/_emdash')) return response
+  if (context.cache.enabled) context.cache.set(false)
+  if (response.headers.has('Cache-Control')) return response
   const headers = new Headers(response.headers)
   headers.set('Cache-Control', 'no-cache')
   return new Response(response.body, {
@@ -304,18 +306,16 @@ export const onRequest = defineMiddleware(async ({ url }, next) => {
 })
 ```
 
-```js
-// astro.config.mjs
-emdash({
-  /* database, storage */
-  plugins: [fellowship42()],
-  middleware: { outer: new URL('./src/no-cache.ts', import.meta.url) },
-})
-```
-
-The middleware leaves an explicit `Cache-Control` alone, so it does not weaken
-EmDash's own `private, no-store` responses; that is also why route-cache rules
-must not cover these pages.
+If the site already has a `src/middleware.ts`, add these steps to its
+`onRequest` after `next()` instead of creating a second file. Route caching
+follows its own options rather than `Cache-Control`, so when a cache provider
+is configured the middleware also opts the page out of it with
+`context.cache.set(false)`; that overrides the `Astro.cache.set(...)` hints
+EmDash's starter pages and layouts add. The middleware leaves an explicit
+`Cache-Control` alone, so it does not weaken EmDash's own `private, no-store`
+responses. Keep route-cache rules off these pages anyway: a cache provider
+answers from its store before any middleware runs, so a copy stored before the
+middleware was added would still be served.
 
 ## Sign-in and permissions
 
