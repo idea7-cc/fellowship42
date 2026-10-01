@@ -67,6 +67,16 @@ function jsonResponse(status: number, body: unknown) {
   })
 }
 
+/** A response whose headers arrived but whose body could not be read. */
+function failedBody(status: number, error: unknown): ContractFetch {
+  return () =>
+    Promise.resolve({
+      ok: status >= 200 && status < 300,
+      status,
+      json: () => Promise.reject(error),
+    })
+}
+
 describe('parsers', () => {
   it('accepts a church document and ignores unknown fields', () => {
     const parsed = parseChurch(church)
@@ -219,6 +229,54 @@ describe('createChurchSource', () => {
           error: { code: 'invalid_cursor', message: 'x' },
         }),
       }).list('sermons', { cursor: 'bad' }),
+      // A contract error this version does not know means the versions differ.
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: fetchFor(404, {
+          ...envelope,
+          error: { code: 'route_not_found', message: 'x' },
+        }),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: fetchFor(409, {
+          ...envelope,
+          error: { code: 'something_new', message: 'x' },
+        }),
+      }).church(),
+      // The body could not be read: the timeout fired or the connection reset.
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(
+          200,
+          new DOMException('The operation timed out.', 'TimeoutError'),
+        ),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(200, new DOMException('Aborted', 'AbortError')),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(200, new TypeError('terminated')),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(404, new Error('Network connection lost.')),
+      }).church(),
+      // The body arrived and is not JSON.
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(200, new SyntaxError('Unexpected token <')),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(404, new SyntaxError('Unexpected token <')),
+      }).church(),
+      createChurchSource({
+        url: 'https://app.example.org',
+        fetch: failedBody(502, new SyntaxError('Unexpected token <')),
+      }).church(),
     ])
     expect(states.map((state) => (state.ok ? 'ok' : state.state))).toEqual([
       'not-configured',
@@ -231,6 +289,15 @@ describe('createChurchSource', () => {
       'wrong-instance',
       'wrong-instance',
       'invalid-request',
+      'incompatible',
+      'incompatible',
+      'unavailable',
+      'unavailable',
+      'unavailable',
+      'unavailable',
+      'incompatible',
+      'incompatible',
+      'unavailable',
     ])
   })
 

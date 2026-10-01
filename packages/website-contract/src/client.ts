@@ -113,6 +113,15 @@ function failure<T>(state: SourceState): SourceResult<T> {
   return { ok: false, state, message: SOURCE_MESSAGES[state] }
 }
 
+/** Matches by name so a SyntaxError from another realm still counts. */
+function isSyntaxError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'SyntaxError'
+  )
+}
+
 export function createChurchSource(options: ChurchSourceOptions): ChurchSource {
   const origin = normalizeInstanceOrigin(options.url)
   const expected = options.expectedInstanceSha256?.trim().toLowerCase() || null
@@ -141,24 +150,21 @@ export function createChurchSource(options: ChurchSourceOptions): ChurchSource {
     } catch {
       return failure('unavailable')
     }
+    const transient = response.status >= 500 || response.status === 429
     let body: unknown
     try {
       body = await response.json()
-    } catch {
+    } catch (error) {
+      // Only a body that arrived and is not JSON says anything about the
+      // server; a timeout, abort, or reset while reading it is transient.
       return failure(
-        response.status >= 500 || response.status === 429
-          ? 'unavailable'
-          : 'incompatible',
+        transient || !isSyntaxError(error) ? 'unavailable' : 'incompatible',
       )
     }
     if (!response.ok) {
       const code = parseErrorCode(body)
-      if (response.status >= 500 || response.status === 429 || code === null)
-        return failure(
-          response.status >= 500 || response.status === 429
-            ? 'unavailable'
-            : 'incompatible',
-        )
+      if (transient) return failure('unavailable')
+      if (code === null) return failure('incompatible')
       try {
         const envelope = parseEnvelope(body)
         if (expected && envelope.instance.portableIdentitySha256 !== expected)
@@ -169,7 +175,9 @@ export function createChurchSource(options: ChurchSourceOptions): ChurchSource {
       if (code === 'site_unpublished') return failure('unpublished')
       if (code === 'invalid_cursor' || code === 'invalid_limit')
         return failure('invalid-request')
-      return failure('unavailable')
+      // A contract error this client does not know, such as route_not_found
+      // from an instance that lacks a route, means the versions disagree.
+      return failure('incompatible')
     }
     try {
       const data = parse(body)

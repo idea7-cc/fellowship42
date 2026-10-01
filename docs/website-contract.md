@@ -96,11 +96,11 @@ stale or guessed content:
 | State | When |
 | --- | --- |
 | `not-configured` | No or invalid instance address |
-| `unavailable` | Network failure, timeout, 5xx, or 429 |
-| `incompatible` | Not this contract, another major version, or a malformed document |
+| `unavailable` | Network failure or timeout, including while the body is read; 5xx; or 429 |
+| `incompatible` | Not this contract, another major version, a body that is not JSON, a malformed document, or a 4xx contract error this client does not know (such as `route_not_found`) |
 | `unpublished` | The church website is not published |
 | `wrong-instance` | The identity digest differs from the pinned one |
-| `invalid-request` | A stale or foreign page cursor |
+| `invalid-request` | A malformed, stale, or foreign page cursor |
 
 ## Changing the contract
 
