@@ -4,11 +4,21 @@ import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
-interface WebsiteSetup {
+export interface WebsiteSetup {
   origin: string | null
   editorUrl: string | null
   setupAvailable: boolean
 }
+
+/** The installation's church website, if one is connected. */
+export function useWebsiteSetup(churchId: string) {
+  return useApiQuery<WebsiteSetup>(
+    `/api/website-setup/${encodeURIComponent(churchId)}`,
+  )
+}
+
+/** Explains the Settings preview; the preview button points at it. */
+export const WEBSITE_PREVIEW_NOTE_ID = 'website-preview-note'
 
 /**
  * Where the church website lives and who edits what. Owners of a new
@@ -17,15 +27,17 @@ interface WebsiteSetup {
 export function WebsiteCard({
   churchId,
   owner,
+  website,
+  error: loadError = null,
   navigate = (url) => window.location.assign(url),
 }: {
   churchId: string
   owner: boolean
+  /** From `useWebsiteSetup`; undefined while loading or after an error. */
+  website: WebsiteSetup | undefined
+  error?: ApiError | null
   navigate?: (url: string) => void
 }) {
-  const query = useApiQuery<WebsiteSetup>(
-    `/api/website-setup/${encodeURIComponent(churchId)}`,
-  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const mounted = useRef(true)
@@ -57,7 +69,6 @@ export function WebsiteCard({
     }
   }
 
-  const website = query.data
   return (
     <Card className="mb-6" aria-labelledby="website-card-title">
       <div className="grid gap-3 text-sm">
@@ -65,8 +76,8 @@ export function WebsiteCard({
           Website
         </h2>
         {!website ? (
-          query.error ? (
-            <p role="alert">{query.error.message}</p>
+          loadError ? (
+            <p role="alert">{loadError.message}</p>
           ) : (
             <p className="text-muted-foreground">Loading website details…</p>
           )
@@ -93,6 +104,14 @@ export function WebsiteCard({
                 Church details, gatherings, events, sermons, groups, and courses
                 are edited here. Publishing here updates the website the next
                 time a page loads; withdrawing an item removes it.
+              </li>
+              <li id={WEBSITE_PREVIEW_NOTE_ID}>
+                <strong className="font-medium text-foreground">
+                  Preview profile
+                </strong>{' '}
+                shows your saved church details on Fellowship42&apos;s own page,
+                not in your website&apos;s design. The website shows church
+                details only after you publish them.
               </li>
               <li>
                 Website editor accounts are separate and grant no access to

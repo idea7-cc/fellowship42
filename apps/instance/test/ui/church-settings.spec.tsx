@@ -439,12 +439,6 @@ it('requires deliberate review of a newer clean draft without claiming unsaved e
 it('shows where the website lives and lets an owner start website setup', async () => {
   const navigate = vi.fn()
   const fetch = vi.fn(async (path: string, init?: RequestInit) => {
-    if (path === '/api/website-setup/church' && !init?.method)
-      return Response.json({
-        origin: 'https://www.grace.example',
-        editorUrl: 'https://www.grace.example/_emdash/admin',
-        setupAvailable: true,
-      })
     if (path === '/api/website-setup/church/claim' && init?.method === 'POST')
       return Response.json({
         url: 'https://www.grace.example/fellowship42/setup#claim=f42ws1.a.b',
@@ -457,7 +451,16 @@ it('shows where the website lives and lets an owner start website setup', async 
   await act(async () =>
     root.render(
       <MemoryRouter>
-        <WebsiteCard churchId="church" owner navigate={navigate} />
+        <WebsiteCard
+          churchId="church"
+          owner
+          website={{
+            origin: 'https://www.grace.example',
+            editorUrl: 'https://www.grace.example/_emdash/admin',
+            setupAvailable: true,
+          }}
+          navigate={navigate}
+        />
       </MemoryRouter>,
     ),
   )
@@ -476,24 +479,60 @@ it('shows where the website lives and lets an owner start website setup', async 
 })
 
 it('offers staff without owner authority no website setup', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async () =>
-      Response.json({
-        origin: 'https://www.grace.example',
-        editorUrl: 'https://www.grace.example/_emdash/admin',
-        setupAvailable: true,
-      }),
-    ),
-  )
+  vi.stubGlobal('fetch', vi.fn())
   const { WebsiteCard } = await import('../../src/components/website-card')
   await act(async () =>
     root.render(
       <MemoryRouter>
-        <WebsiteCard churchId="church" owner={false} />
+        <WebsiteCard
+          churchId="church"
+          owner={false}
+          website={{
+            origin: 'https://www.grace.example',
+            editorUrl: 'https://www.grace.example/_emdash/admin',
+            setupAvailable: true,
+          }}
+        />
       </MemoryRouter>,
     ),
   )
   expect(container.textContent).toContain('Open website editor')
   expect(container.textContent).not.toContain('Set up website editor')
+})
+
+async function renderEditorWithWebsite(origin: string | null) {
+  const fetch = vi.fn(async (path: string) => {
+    if (path === '/api/website-setup/church')
+      return Response.json({
+        origin,
+        editorUrl: origin && `${origin}/_emdash/admin`,
+        setupAvailable: false,
+      })
+    throw new Error(`unexpected ${path}`)
+  })
+  vi.stubGlobal('fetch', fetch)
+  await renderEditor()
+  return container.querySelector<HTMLAnchorElement>('a[href="/app/preview"]')!
+}
+
+it('labels the profile preview and explains it when a church website is connected', async () => {
+  const preview = await renderEditorWithWebsite('https://www.grace.example')
+  expect(preview.textContent).toBe('Preview profile')
+  const note = document.getElementById(
+    preview.getAttribute('aria-describedby') ?? '',
+  )
+  expect(note?.textContent).toBe(
+    "Preview profile shows your saved church details on Fellowship42's own page, not in your website's design. The website shows church details only after you publish them.",
+  )
+  expect(note?.closest('[aria-labelledby="website-card-title"]')).not.toBeNull()
+})
+
+it('keeps the plain preview when the instance serves the public page itself', async () => {
+  const preview = await renderEditorWithWebsite(null)
+  expect(preview.textContent).toBe('Preview')
+  expect(preview.hasAttribute('aria-describedby')).toBe(false)
+  expect(container.textContent).toContain(
+    'No church website is connected to this installation. Visitors see the page at this address',
+  )
+  expect(container.textContent).not.toContain('Preview profile')
 })
