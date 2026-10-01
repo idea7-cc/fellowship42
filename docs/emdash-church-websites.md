@@ -235,10 +235,11 @@ the Fellowship42-first website.
   name a public host. The website refuses literal loopback, private,
   link-local, carrier-grade NAT (`100.64.0.0/10`), and unspecified IPv4 and
   IPv6 addresses, as well as `localhost`, `*.localhost`, `*.local`, and
-  `*.internal`. The status page says why, and church blocks show a notice
-  instead of church content. The site fetches that address from its own
-  server, so this keeps an Administrator's setting from reaching the site's
-  internal network. Two exceptions exist: a deployment opt-in,
+  `*.internal`. The status page explains why under "The Fellowship42 address
+  is a local or private address", and church blocks show a notice instead of
+  church content. The site fetches that address from its own server, so this
+  keeps an Administrator's setting from reaching the site's internal network.
+  Two exceptions exist: a deployment opt-in,
   `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true`, meant for local evaluation and
   never for production; and Astro development mode (`astro dev`). An address
   pinned with `FELLOWSHIP42_URL` is trusted as given, including a private one.
@@ -253,9 +254,10 @@ the Fellowship42-first website.
   plugin settings always goes through the runtime's `fetch`, even in the same
   account as the instance.
 - **Settings failures do not break pages.** When the deployment does not pin
-  the address and the site cannot read the plugin settings, church blocks show
-  the unavailable notice and the site logs the failure; the rest of the page
-  renders normally.
+  the address and the site cannot read the plugin settings, the status page
+  shows "The Fellowship42 connection settings could not be read", church
+  blocks show the unavailable notice, and the site logs
+  `fellowship42.settings_unreadable`; the rest of the page renders normally.
 
 ## Caching
 
@@ -403,13 +405,17 @@ installation it generated.
 
 ## Troubleshooting
 
-| Notice or admin state | Meaning | Action |
+The first column is the heading the **Fellowship42** status page shows, or
+the notice visitors see on a church block.
+
+| Status page heading or visitor notice | Meaning | Action |
 | --- | --- | --- |
-| Not connected | No Fellowship42 address | Set the address (Administrator) or `FELLOWSHIP42_URL` |
-| Private or local address refused | The plugin-settings address names a private or local host | Use the instance's public address, or pin it with `FELLOWSHIP42_URL`. For local evaluation only, set `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` |
+| Not connected to Fellowship42 | No Fellowship42 address | Set the address (Administrator) or `FELLOWSHIP42_URL` |
+| The Fellowship42 address is a local or private address | The plugin-settings address names a private or local host | Use the instance's public address, or pin it with `FELLOWSHIP42_URL`. For local evaluation only, set `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true` |
 | The church identity pin is not a valid 64-character digest | The pin is not exactly 64 hexadecimal characters, for example a shortened prefix | Copy the full digest from the status page, `/api/website/v1`, or `/api/health` |
-| Not published | Fellowship42 church website is unpublished | Publish the church in Fellowship42 Settings |
-| Not responding | Network failure, timeout, `429` or `5xx`, a response cut off while it was read, or plugin settings that could not be read | Check the address, instance health, and the site's logs; blocks recover on the next load |
-| Not a compatible instance | Not a Fellowship42 instance, another contract version, malformed JSON, or an unexpected `4xx` error | Check the address; update the integration |
-| Different church | The identity digest differs from the pin | Correct the address or the pin |
+| The Fellowship42 connection settings could not be read | The site could not read its plugin settings. Visitors see the unavailable notice, the rest of the page renders, and the site logs `fellowship42.settings_unreadable` | Check the site's logs and its EmDash database; blocks recover on the next load once the settings can be read. Pinning the address with `FELLOWSHIP42_URL` skips the settings read |
+| Connected, but the church website is not published in Fellowship42 | Fellowship42 church website is unpublished | Publish the church in Fellowship42 Settings |
+| Fellowship42 is not responding | Network failure, timeout, `429` or `5xx`, or a response cut off while it was read | Check the address, instance health, and the site's logs; blocks recover on the next load |
+| This address is not a compatible Fellowship42 instance | Not a Fellowship42 instance, another contract version, malformed JSON, or an unexpected `4xx` error | Check the address; update the integration |
+| Connected to a different church than expected | The identity digest differs from the pin | Correct the address or the pin |
 | That page of results is no longer available | A block's paging link came from another list, was altered, or is longer than the contract allows (cursors are bound to their list and at most 1,024 characters) | Start again from the block's first page |
