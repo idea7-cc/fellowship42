@@ -101,12 +101,18 @@ pnpm dev
 ```
 
 The instance runs at `http://localhost:5173` (staff workspace at `/app`).
-Start the EmDash church website with `pnpm dev:website`
-(`http://localhost:4322`) and the separate public project site with
-`pnpm dev:site`. [EmDash church websites](docs/emdash-church-websites.md)
-describes the full local evaluation journey, and
-`pnpm acceptance:fellowship42-first` runs it in a browser against production
-builds on isolated synthetic state.
+To run the EmDash church website, copy `apps/website/.dev.vars.example` to
+`apps/website/.dev.vars` and `apps/instance/.dev.vars.example` to
+`apps/instance/.dev.vars`, give both the same `WEBSITE_SETUP_SECRET`, and start
+it with `pnpm dev:website`. Open it at `http://www.localhost:4322`, the origin
+the example configuration sets: website setup and passkeys are bound to it,
+which keeps them apart from the instance's, and fail at
+`http://localhost:4322`. Start the separate public project site with
+`pnpm dev:site`.
+[EmDash church websites](docs/emdash-church-websites.md#local-evaluation)
+describes the full local evaluation journey.
+`pnpm acceptance:fellowship42-first` and `pnpm acceptance:emdash-first` run
+both setup paths against production builds on isolated synthetic state.
 
 Public routes work without authentication. Protected workflows require a local
 staff session or valid Cloudflare Access JWT; seed data is not a sign-in bypass. Use
