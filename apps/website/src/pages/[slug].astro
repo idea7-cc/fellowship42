@@ -1,5 +1,5 @@
 ---
-import { decodeSlug, getEmDashEntry, getSeoMeta, getSiteSettings } from 'emdash'
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash'
 import { PortableText } from 'emdash/ui'
 import Base from '../layouts/Base.astro'
 import { churchPages } from '../lib/church-pages'
@@ -10,23 +10,12 @@ const { entry: page, isPreview, error } = await getEmDashEntry('pages', slug)
 if (error) throw error
 const builtIn = page ? null : churchPages[slug]
 if (!page && !builtIn) return Astro.rewrite('/404')
-const settings = await getSiteSettings()
-const siteTitle = settings?.title || 'Our church'
-const seo = page
-  ? getSeoMeta(page, {
-      siteTitle,
-      siteUrl: Astro.url.origin,
-      path: Astro.url.pathname.replace(/\/$/, ''),
-    })
-  : null
-const title = page ? seo!.title : builtIn!.title
+const seo = page ? getSeoMeta(page) : null
 ---
 
 <Base
-  title={title}
-  pageTitle={page ? seo!.ogTitle : builtIn!.title}
+  title={seo ? seo.ogTitle : builtIn!.title}
   description={seo?.description ?? builtIn?.description}
-  canonical={seo?.canonical}
   preview={isPreview}
   content={page ? { collection: 'pages', id: page.data.id, slug } : undefined}
 >

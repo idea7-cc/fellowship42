@@ -3,22 +3,41 @@ import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from 'emdash'
 import { createPublicPageContext } from 'emdash/page'
 import { EmDashBodyEnd, EmDashBodyStart, EmDashHead } from 'emdash/ui'
 import { loadChurch } from '@fellowship42/emdash/data'
+import { canonicalUrl, publicOrigin } from '../lib/canonical'
+import { runtimeEnv } from '../lib/env'
+import { composeTitle, siteIdentity } from '../lib/site-identity'
 import { churchThemeStyle } from '../lib/theme'
 import '../styles/site.css'
 
 interface Props {
-  title: string
-  pageTitle?: string | null
+  /** The page's own title, without the site name. Omit on the home page. */
+  title?: string | null
   description?: string | null
   image?: string | null
+  /** Omit for this page's own URL; `null` for none (error pages). */
   canonical?: string | null
   preview?: boolean
   /** Content reference for plugin page contributions on content pages. */
   content?: { collection: string; id: string; slug?: string | null }
+  /** `article` for posts: og:type, article times, and BlogPosting JSON-LD. */
+  pageType?: 'article'
+  articleMeta?: {
+    publishedTime?: string | null
+    modifiedTime?: string | null
+    author?: string | null
+  }
 }
 
-const { title, pageTitle, description, image, canonical, preview, content } =
-  Astro.props
+const {
+  title,
+  description,
+  image,
+  canonical,
+  preview,
+  content,
+  pageType,
+  articleMeta,
+} = Astro.props
 const [settingsResult, menuResult, churchResult] = await Promise.all([
   getSiteSettingsWithCacheHint(),
   getMenuWithCacheHint('primary'),
@@ -26,29 +45,28 @@ const [settingsResult, menuResult, churchResult] = await Promise.all([
 ])
 const settings = settingsResult.data
 const church = churchResult.ok ? churchResult.data.church : null
-const siteTitle = settings?.title || church?.name || 'Our church'
-const siteTagline = settings?.tagline || church?.tagline || ''
-const logo = settings?.logo?.url
-  ? { url: settings.logo.url, alt: settings.logo.alt || siteTitle }
-  : church?.logo
-    ? { url: church.logo.url, alt: church.logo.alt || siteTitle }
-    : null
-const fullTitle =
-  title === siteTitle || title.endsWith(` — ${siteTitle}`)
-    ? title
-    : `${title} — ${siteTitle}`
+const identity = siteIdentity(church, settings)
+const fullTitle = composeTitle(
+  title,
+  identity.name,
+  settings?.seo?.titleSeparator,
+)
+const origin = publicOrigin(runtimeEnv(), Astro.url, settings?.url)
 const path = Astro.url.pathname.replace(/\/$/, '') || '/'
 const pageContext = createPublicPageContext({
   Astro,
   kind: content ? 'content' : 'custom',
-  pageType: path === '/' ? 'home' : 'website',
+  pageType: pageType ?? (path === '/' ? 'home' : 'website'),
   title: fullTitle,
-  pageTitle: pageTitle ?? title,
-  description: description ?? (siteTagline || null),
-  canonical,
+  pageTitle: title?.trim() || identity.name,
+  description: description ?? (identity.tagline || null),
+  canonical:
+    canonical === undefined ? canonicalUrl(origin, Astro.url) : canonical,
   image: image ?? church?.cover?.url ?? null,
   content,
-  siteName: siteTitle,
+  articleMeta,
+  siteName: identity.name,
+  siteUrl: origin,
 })
 const items = menuResult.data?.items ?? []
 const isCurrent = (url: string) => {
@@ -98,8 +116,8 @@ const address = church
     <header class="site-header">
       <div class="site-header__inner">
         <a class="site-title" href="/">
-          {logo && <img src={logo.url} alt="" width="40" height="40" />}
-          <span>{siteTitle}</span>
+          {identity.logo && <img src={identity.logo.url} alt="" width="40" height="40" />}
+          <span>{identity.name}</span>
         </a>
         {
           items.length > 0 && (
@@ -133,7 +151,7 @@ const address = church
     <footer class="site-footer">
       <div class="site-footer__inner">
         <div>
-          <strong>{church?.name ?? siteTitle}</strong>
+          <strong>{identity.name}</strong>
           {address && <address>{address}</address>}
         </div>
         <p>
