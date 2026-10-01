@@ -7,7 +7,7 @@ import {
   blockLimit,
   type BlockSettings,
 } from '../shared/blocks'
-import { cursorParam, loadList, VISITOR_MESSAGES } from './data'
+import { cursorParam, headingId, loadList, VISITOR_MESSAGES } from './data'
 import Notice from './Notice.astro'
 import Pager from './Pager.astro'
 import Section from './Section.astro'
@@ -19,14 +19,18 @@ const { node } = Astro.props
 const heading = blockHeading(node, 'Recent sermons')
 const paginate = blockFlag(node.paginate, false)
 const param = cursorParam(BLOCK_TYPES.sermons, node._key)
+const id = headingId(Astro.request, BLOCK_TYPES.sermons, node._key)
 const result = await loadList(Astro.request, 'sermons', {
   cursor: paginate ? Astro.url.searchParams.get(param) : null,
   limit: blockLimit(node, 5),
 })
 const locale = Astro.currentLocale ?? 'en-US'
+// A rejected cursor still offers the first page, as its notice says.
+const showPager =
+  paginate && (result.ok || result.state === 'invalid-request')
 ---
 
-<Section id={`${param}-heading`} heading={heading} kind="sermons">
+<Section id={id} heading={heading} kind="sermons">
   {
     !result.ok ? (
       <Notice message={VISITOR_MESSAGES[result.state]} tone="unavailable" />
@@ -69,10 +73,10 @@ const locale = Astro.currentLocale ?? 'en-US'
     )
   }
   {
-    paginate && result.ok && (
+    showPager && (
       <Pager
         param={param}
-        nextCursor={result.data.nextCursor}
+        nextCursor={result.ok ? result.data.nextCursor : null}
         label="Sermons"
       />
     )
