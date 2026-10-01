@@ -26,6 +26,7 @@ try {
     '--confirm-reset-owner',
     '--local',
     '--remote',
+    '--persist-to',
   ])
   const flags = new Map()
   for (let i = 0; i < args.length; i++) {
@@ -48,6 +49,8 @@ try {
   ])
     if (!flags.has(flag)) throw new Error()
   if (flags.has('--local') === flags.has('--remote')) throw new Error()
+  // Local state directory, as `wrangler --persist-to`; never for --remote.
+  if (flags.has('--persist-to') && !flags.has('--local')) throw new Error()
   const origin = new URL(value('--origin'))
   if (
     origin.origin !== value('--origin') ||
@@ -101,6 +104,9 @@ SELECT count(*) AS recovery_count FROM local_auth_enrollments WHERE id='${id}';
     '--config',
     resolve(value('--config')),
     flags.has('--remote') ? '--remote' : '--local',
+    ...(flags.has('--persist-to')
+      ? ['--persist-to', resolve(value('--persist-to'))]
+      : []),
   ]
   // Remote --file returns import statistics, not SELECT rows. Verify separately
   // with --command, whose read result shape is shared by both execution modes.
