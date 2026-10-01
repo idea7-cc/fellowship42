@@ -43,6 +43,7 @@ import {
   Instance,
   readContract,
 } from './lib-emdash-first/instance.mjs'
+import { chromium } from 'playwright-core'
 import { run, stopAll } from './lib-emdash-first/process.mjs'
 import {
   ALLOW_PRIVATE_HOSTS,
@@ -858,13 +859,73 @@ async function main() {
     await evidence.check(
       'setup',
       'setup.administrator-connects',
-      'The Administrator saves the Fellowship42 address and church identity digest in plugin settings',
+      'The Administrator saves the Fellowship42 address and church identity digest in the generated plugin settings form, in a browser',
       async () => {
-        const put = await site.putSettings(admin, connection)
+        // The Administrator's EmDash session, carried into a real browser.
+        const browser = await chromium.launch({
+          executablePath: process.env.CHROMIUM_PATH ?? '/usr/bin/chromium',
+        })
+        let form
+        try {
+          const context = await browser.newContext()
+          const siteUrl = new URL(admin.base)
+          await context.addCookies(
+            [...admin.cookies].map(([name, value]) => ({
+              name,
+              value,
+              domain: siteUrl.hostname,
+              path: '/',
+            })),
+          )
+          const page = await context.newPage()
+          await page.goto(
+            new URL(
+              '/_emdash/admin/plugins-manager/fellowship42/settings',
+              admin.base,
+            ).href,
+          )
+          const address = page.getByLabel('Fellowship42 address')
+          await address.waitFor({ timeout: 20_000 })
+          // EmDash greets a first-time Administrator with a dialog.
+          const welcome = page.getByRole('dialog')
+          if (
+            await welcome
+              .waitFor({ state: 'visible', timeout: 5_000 })
+              .then(() => true)
+              .catch(() => false)
+          ) {
+            await welcome.getByRole('button', { name: 'Get Started' }).click()
+            await welcome.waitFor({ state: 'hidden', timeout: 5_000 })
+          }
+          await address.fill(connection.instanceUrl)
+          await page
+            .getByLabel('Church identity (optional)')
+            .fill(connection.instanceSha256)
+          const [saved] = await Promise.all([
+            page.waitForResponse(
+              (response) =>
+                response.url().endsWith('/plugins/fellowship42/settings') &&
+                response.request().method() === 'PUT',
+              { timeout: 20_000 },
+            ),
+            // The form has a Save Settings button at its top and bottom.
+            page.getByRole('button', { name: 'Save Settings' }).first().click(),
+          ])
+          form = { status: saved.status() }
+          await page.screenshot({
+            path: path.join(
+              path.dirname(options.out),
+              'emdash-first-settings-form.png',
+            ),
+            fullPage: true,
+          })
+        } finally {
+          await browser.close()
+        }
         const get = await site.settings(admin)
         return {
-          pass: put.status === 200 && same(get.data?.data?.values, connection),
-          observed: { put: put.status, values: get.data?.data?.values },
+          pass: form.status === 200 && same(get.data?.data?.values, connection),
+          observed: { formSave: form.status, values: get.data?.data?.values },
         }
       },
       { required: true },
