@@ -349,6 +349,58 @@ describe('public website contract v1', () => {
     ).toMatchObject({ ok: false, state: 'invalid-request' })
   })
 
+  it('answers an unknown contract route with an enveloped route_not_found', async () => {
+    const { response, body } = await json('/api/website/v1/nope')
+    expect(response.status).toBe(404)
+    expect(body).toMatchObject({
+      contract: 'fellowship42-website',
+      version: 1,
+      instance: {
+        portableIdentitySha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
+      error: { code: 'route_not_found' },
+    })
+  })
+
+  it('answers server errors without an envelope', async () => {
+    const unconfigured = {
+      DB: { prepare: () => ({ first: () => Promise.resolve(null) }) },
+      F42_PORTABLE_INSTANCE_ID: '',
+    }
+    const failing = {
+      DB: {
+        prepare: () => {
+          throw new Error('D1 is unavailable')
+        },
+      },
+    }
+    for (const [bindings, status, code] of [
+      [unconfigured, 503, 'instance_unconfigured'],
+      [failing, 500, 'internal_error'],
+    ] as const) {
+      const response = await call('/api/website/v1/church', {}, bindings)
+      expect(response.status).toBe(status)
+      const body = (await response.json()) as Record<string, unknown>
+      expect(body).toEqual({
+        error: {
+          code,
+          message: expect.any(String),
+          requestId: expect.any(String),
+        },
+      })
+      expect(response.headers.get('Cache-Control')).toBe('no-store')
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      const source = createChurchSource({
+        url: origin,
+        fetch: async (url) => call(new URL(url).pathname, {}, bindings),
+      })
+      expect(await source.church()).toMatchObject({
+        ok: false,
+        state: 'unavailable',
+      })
+    }
+  })
+
   it('keeps an event listed while it is in progress and serves UTC instants with its zone', async () => {
     const now = Date.now()
     await env.DB.batch([

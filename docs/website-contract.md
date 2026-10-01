@@ -34,7 +34,7 @@ read church content through it. See [ADR 0027](adr/0027-emdash-church-websites.m
 
 ## Envelope
 
-Every response, including errors, starts with:
+Every successful response and every 4xx contract error starts with:
 
 ```json
 {
@@ -49,6 +49,10 @@ the same value `/api/health` reports as `bootstrap.portableIdentitySha256`. A
 consumer may pin it to refuse a different church. Consumers must refuse any
 other `contract` value or major `version`. Within version 1, fields may be
 added; consumers ignore fields they do not know.
+
+5xx responses have no envelope. Their body is only
+`{ "error": { "code", "message", "requestId" } }`: an instance without a
+valid portable identity has no digest to report.
 
 ## Routes
 
@@ -80,12 +84,14 @@ change without notice.
 
 ### Errors
 
-| Status | `error.code` | Meaning |
-| --- | --- | --- |
-| 404 | `site_unpublished` | The church website is not published. No church details are returned. |
-| 400 | `invalid_limit` | `limit` is not 1–100. |
-| 400 | `invalid_cursor` | The cursor was not issued by this route. |
-| 503 | `instance_unconfigured` | The instance has no valid portable identity. |
+| Status | `error.code` | Envelope | Meaning |
+| --- | --- | --- | --- |
+| 404 | `site_unpublished` | Yes | The church website is not published. No church details are returned. |
+| 404 | `route_not_found` | Yes | No contract route has this path. |
+| 400 | `invalid_limit` | Yes | `limit` is not 1–100. |
+| 400 | `invalid_cursor` | Yes | The cursor is malformed or was issued by another route. |
+| 503 | `instance_unconfigured` | No | The instance has no valid portable identity. |
+| 500 | `internal_error` | No | The instance failed unexpectedly. |
 
 ## Client states
 
