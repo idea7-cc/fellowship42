@@ -28,12 +28,12 @@
       "instanceUrl": {
         "type": "url",
         "label": "Fellowship42 address",
-        "description": "The church instance, for example https://app.example.org."
+        "description": "The church instance's public address, for example https://app.example.org. Local and private network addresses are refused."
       },
       "instanceSha256": {
         "type": "string",
         "label": "Church identity (optional)",
-        "description": "The instance identity digest shown on the Fellowship42 page. When set, the connector refuses any other church."
+        "description": "The full 64-character church identity digest. Copy it from the Fellowship42 page in this admin, from instance.portableIdentitySha256 at <address>/api/website/v1, or from bootstrap.portableIdentitySha256 at <address>/api/health. When set, the connector refuses any other church."
       }
     }
   },

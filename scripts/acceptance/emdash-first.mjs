@@ -45,6 +45,7 @@ import {
 } from './lib-emdash-first/instance.mjs'
 import { run, stopAll } from './lib-emdash-first/process.mjs'
 import {
+  ALLOW_PRIVATE_HOSTS,
   Site,
   describeStatusPage,
   sha256Hex,
@@ -65,6 +66,13 @@ const MESSAGES = {
     'Church information is temporarily unavailable. Please try again shortly.',
   wrongInstance: 'Church information is temporarily unavailable.',
   notConfigured: 'Church information will appear here soon.',
+  invalidCursor:
+    'That page of results is no longer available. Start again from the first page.',
+}
+const BANNERS = {
+  connected: 'Connected to Fellowship42',
+  invalidPin: 'The church identity pin is not a valid 64-character digest',
+  privateHost: 'The Fellowship42 address is a local or private address',
 }
 const BLOCK_KINDS = [
   'church',
@@ -570,7 +578,7 @@ async function main() {
     await evidence.check(
       'setup',
       'setup.independent-site',
-      'The site is an independent EmDash 1.0.1 site (upstream starter shape) that imports nothing from apps/website and registers the integration as documented',
+      'The site is an independent EmDash 1.0.1 site (upstream starter shape) that imports nothing from apps/website, registers the integration and the caching middleware as documented, and does not pin the connection (only the local-evaluation private-host opt-in is set)',
       () => {
         const imports = fixtureImports()
         const config = readFileSync(
@@ -589,7 +597,18 @@ async function main() {
             name.startsWith('@fellowship42/'),
           ),
           connectionPinnedByEnvironment:
-            /FELLOWSHIP42_/.test(env) || /FELLOWSHIP42_/.test(wrangler),
+            /FELLOWSHIP42_(URL|INSTANCE_SHA256)=/.test(env) ||
+            /FELLOWSHIP42_(URL|INSTANCE_SHA256)"/.test(wrangler),
+          // The instance runs on localhost, which settings may name only
+          // with the deployment's local-evaluation opt-in.
+          allowPrivateHosts: new RegExp(
+            `^${ALLOW_PRIVATE_HOSTS}=true$`,
+            'm',
+          ).test(env),
+          cachingMiddleware: readFileSync(
+            path.join(site.dir, 'src/middleware.ts'),
+            'utf8',
+          ).includes("headers.set('Cache-Control', 'no-cache')"),
           envKeys: env
             .split('\n')
             .filter(Boolean)
@@ -602,6 +621,8 @@ async function main() {
             same(observed.fellowship42Imports, ['@fellowship42/emdash']) &&
             !imports.some((name) => /apps\/|\.\.\/\.\.\//.test(name)) &&
             !observed.connectionPinnedByEnvironment &&
+            observed.allowPrivateHosts &&
+            observed.cachingMiddleware &&
             observed.emdash === '1.0.1',
           observed,
         }
@@ -852,17 +873,19 @@ async function main() {
     await evidence.check(
       'setup',
       'setup.status-page-shows-connected-church',
-      'The Fellowship42 status page confirms the connected church, its verified identity, and contract version 1',
+      'The Fellowship42 status page confirms the connected church, its verified identity pin, the full copyable identity digest, and contract version 1, with the settings link for the Administrator',
       async () => {
         const status = describeStatusPage(await site.statusPage(admin))
         return {
           pass:
-            status.banner?.title === 'Connected to Fellowship42' &&
+            status.banner?.title === BANNERS.connected &&
             status.fields.Church === descriptor.body.church?.name &&
             status.fields['Fellowship42 address'] === instanceOrigin &&
-            status.fields['Church identity'] ===
-              `${digest.slice(0, 16)}… (verified)` &&
-            status.fields['Website contract'] === 'Version 1',
+            status.fields['Identity pin'] ===
+              'Set in plugin settings (verified)' &&
+            status.digest === digest &&
+            status.fields['Website contract'] === 'Version 1' &&
+            status.actions.includes('Connection settings'),
           observed: { ...status, healthDigest: digest },
         }
       },
@@ -1007,6 +1030,75 @@ async function main() {
     )
     await evidence.check(
       'setup',
+      'setup.invalid-cursor-offers-first-page',
+      'A rejected page cursor shows the "start again" notice with a working "First page" link, and only in that block',
+      async () => {
+        const param = 'f42-sermons'
+        const rendered = await renderedPage(
+          anonymous,
+          `/${PAGE_SLUG}?${param}=not-a-cursor`,
+        )
+        const sermons = blockOf(rendered.html, 'sermons')
+        const events = blockOf(rendered.html, 'events')
+        const first = sermons?.firstHref
+          ? await renderedPage(anonymous, sermons.firstHref)
+          : null
+        const firstTitles = first
+          ? blockOf(first.html, 'sermons')?.titles
+          : null
+        return {
+          pass:
+            sermons?.notice === MESSAGES.invalidCursor &&
+            sermons.firstHref === `/${PAGE_SLUG}` &&
+            same(firstTitles, baseline.lists.sermons.contractTitles) &&
+            same(events?.titles, baseline.lists.events.contractTitles),
+          observed: {
+            notice: sermons?.notice ?? null,
+            firstHref: sermons?.firstHref ?? null,
+            firstPageTitles: firstTitles,
+            eventsTitles: events?.titles ?? null,
+          },
+        }
+      },
+    )
+    await evidence.check(
+      'setup',
+      'setup.pages-not-cached',
+      'Pages with church blocks are served with Cache-Control: no-cache by the documented middleware recipe',
+      async () => {
+        const rendered = await renderedPage(anonymous)
+        const cacheControl = rendered.response.headers.get('cache-control')
+        return {
+          pass: cacheControl === 'no-cache',
+          observed: { cacheControl },
+        }
+      },
+    )
+    await evidence.check(
+      'setup',
+      'setup.block-headings-labelled',
+      'Every church block section is labelled by its own, unique heading id',
+      async () => {
+        const { blocks } = await renderedPage(anonymous)
+        const ids = blocks.map((block) => block.headingId)
+        return {
+          pass:
+            blocks.length === 6 &&
+            new Set(ids).size === ids.length &&
+            blocks.every(
+              (block) =>
+                block.headingId && block.labelledBy === block.headingId,
+            ),
+          observed: blocks.map((block) => ({
+            kind: block.kind,
+            headingId: block.headingId,
+            labelledBy: block.labelledBy,
+          })),
+        }
+      },
+    )
+    await evidence.check(
+      'setup',
       'setup.structured-data',
       "The home page carries the integration's schema.org Church data from the contract",
       async () => {
@@ -1134,14 +1226,37 @@ async function main() {
     await evidence.check(
       'access',
       'access.editor-reads-status-page',
-      'An Editor can open the Fellowship42 status page (plugins:read) to see where content is edited',
+      'An Editor can open the Fellowship42 status page to see where content is edited, without the Administrator-only settings link',
       async () => {
         const status = describeStatusPage(await site.statusPage(editor.client))
         return {
           pass:
             status.status === 200 &&
-            status.banner?.title === 'Connected to Fellowship42',
+            status.banner?.title === BANNERS.connected &&
+            status.digest === digest &&
+            !status.actions.includes('Connection settings'),
           observed: status,
+        }
+      },
+    )
+    await evidence.check(
+      'access',
+      'access.contributor-reads-status-page',
+      'A Contributor, who can insert church blocks, can open the status page (content:create), without the settings link',
+      async () => {
+        const invited = await site.inviteAndAccept(admin, {
+          email: 'contributor@riverside.example',
+          name: 'Riverside Contributor',
+          role: 20,
+        })
+        const status = describeStatusPage(await site.statusPage(invited.client))
+        return {
+          pass:
+            invited.user?.role === 20 &&
+            status.status === 200 &&
+            status.banner?.title === BANNERS.connected &&
+            !status.actions.includes('Connection settings'),
+          observed: { role: invited.user?.role ?? null, status },
         }
       },
     )
@@ -1484,6 +1599,43 @@ async function main() {
     )
     await evidence.check(
       'lifecycle',
+      'lifecycle.malformed-identity-pin',
+      'A shortened identity pin is reported as its own state, the status page still shows the full digest to copy, and blocks show the unavailable notice',
+      async () => {
+        const prefix = `${digest.slice(0, 16)}…`
+        const put = await site.putSettings(admin, {
+          ...connection,
+          instanceSha256: prefix,
+        })
+        try {
+          const status = describeStatusPage(await site.statusPage(admin))
+          const rendered = await renderedPage(anonymous)
+          const blocks = allUnavailable(rendered.blocks, MESSAGES.unavailable)
+          const visible = textContent(rendered.html)
+          const stale = everyTitle.filter((title) => visible.includes(title))
+          return {
+            pass:
+              put.status === 200 &&
+              status.banner?.title === BANNERS.invalidPin &&
+              status.fields['Identity pin'] ===
+                'Set in plugin settings (not a valid digest)' &&
+              status.digest === digest &&
+              blocks.every((block) => block.ok) &&
+              stale.length === 0,
+            observed: {
+              pinned: prefix,
+              statusPage: status,
+              blocks,
+              staleTitles: stale,
+            },
+          }
+        } finally {
+          await site.putSettings(admin, connection)
+        }
+      },
+    )
+    await evidence.check(
+      'lifecycle',
       'lifecycle.restored-connection',
       'Restoring the correct identity renders the church records again',
       async () => {
@@ -1493,7 +1645,7 @@ async function main() {
         return {
           pass:
             Object.values(lists).every((list) => list.match) &&
-            status.banner?.title === 'Connected to Fellowship42',
+            status.banner?.title === BANNERS.connected,
           observed: {
             statusPage: status.banner,
             lists: Object.fromEntries(
@@ -1506,6 +1658,51 @@ async function main() {
         }
       },
     )
+    // Last: restarts the site without the local-evaluation opt-in.
+    const localInstance = ['localhost', '127.0.0.1', '[::1]'].includes(
+      new URL(instanceOrigin).hostname,
+    )
+    if (localInstance)
+      await evidence.check(
+        'access',
+        'access.private-address-refused',
+        'Without the deployment opt-in, the production build refuses the local Fellowship42 address from plugin settings: the status page explains why and blocks show the unavailable notice',
+        async () => {
+          await site.stop()
+          site.setAllowPrivateHosts(false)
+          await site.start()
+          const env = readFileSync(site.envFile, 'utf8')
+          const status = describeStatusPage(await site.statusPage(admin))
+          const rendered = await renderedPage(anonymous)
+          const blocks = allUnavailable(rendered.blocks, MESSAGES.unavailable)
+          const visible = textContent(rendered.html)
+          const stale = everyTitle.filter((title) => visible.includes(title))
+          return {
+            pass:
+              !env.includes(ALLOW_PRIVATE_HOSTS) &&
+              status.status === 200 &&
+              status.banner?.title === BANNERS.privateHost &&
+              String(status.banner?.description).includes(
+                `${ALLOW_PRIVATE_HOSTS}=true`,
+              ) &&
+              blocks.every((block) => block.ok) &&
+              stale.length === 0,
+            observed: {
+              instanceUrlSetting: instanceOrigin,
+              statusPage: status.banner,
+              blocks,
+              staleTitles: stale,
+            },
+          }
+        },
+      )
+    else
+      evidence.skip(
+        'access',
+        'access.private-address-refused',
+        'Without the deployment opt-in, a local Fellowship42 address from plugin settings is refused',
+        'needs a local instance address',
+      )
   } catch (error) {
     aborted = error
     console.error(`\nRun aborted: ${error.stack ?? error.message}`)

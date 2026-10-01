@@ -4,46 +4,10 @@ import {
   blockHeading,
   blockLimit,
   churchJsonLd,
-  connectionStatusBlocks,
   isHomePage,
   portableTextBlocks,
-  resolveConnectionConfig,
   BLOCK_TYPES,
 } from './index'
-
-const digest = 'c'.repeat(64)
-
-describe('connection authority', () => {
-  it('lets the deployment pin the connection over plugin settings', () => {
-    expect(
-      resolveConnectionConfig(
-        {
-          FELLOWSHIP42_URL: ' https://app.example.org ',
-          FELLOWSHIP42_INSTANCE_SHA256: digest,
-        },
-        { instanceUrl: 'https://attacker.example', instanceSha256: 'x' },
-      ),
-    ).toEqual({
-      url: 'https://app.example.org',
-      expectedInstanceSha256: digest,
-      pinned: true,
-    })
-  })
-
-  it('falls back to Administrator settings when unpinned', () => {
-    expect(
-      resolveConnectionConfig(
-        { FELLOWSHIP42_URL: '   ' },
-        { instanceUrl: 'https://app.example.org', instanceSha256: '' },
-      ),
-    ).toEqual({
-      url: 'https://app.example.org',
-      expectedInstanceSha256: null,
-      pinned: false,
-    })
-    expect(resolveConnectionConfig({}, {})).toMatchObject({ url: null })
-  })
-})
 
 describe('block settings', () => {
   it('declares every block type with display-only fields', () => {
@@ -68,51 +32,6 @@ describe('block settings', () => {
     expect(blockHeading({ heading: '  Events ' }, 'x')).toBe('Events')
     expect(blockHeading({ heading: 3 }, 'Fallback')).toBe('Fallback')
     expect(blockFlag('yes', false)).toBe(false)
-  })
-})
-
-describe('status page', () => {
-  const pinned = {
-    url: 'https://app.example.org',
-    expectedInstanceSha256: digest,
-    pinned: true,
-  }
-
-  it('explains a healthy pinned connection and where content is edited', () => {
-    const { blocks } = connectionStatusBlocks(pinned, {
-      ok: true,
-      data: {
-        contract: 'fellowship42-website',
-        version: 1,
-        instance: { portableIdentitySha256: digest },
-        site: { status: 'published' },
-        church: { name: 'Grace Chapel', slug: 'grace' },
-        origin: 'https://app.example.org',
-      },
-    })
-    const text = JSON.stringify(blocks)
-    expect(text).toContain('Connected to Fellowship42')
-    expect(text).toContain('Grace Chapel')
-    expect(text).toContain('Website deployment (cannot be changed here)')
-    expect(text).toContain('Where content is edited')
-    expect(text).not.toContain('plugin-settings')
-  })
-
-  it('names each failure state', () => {
-    for (const state of [
-      'not-configured',
-      'unavailable',
-      'incompatible',
-      'wrong-instance',
-      'unpublished',
-    ] as const) {
-      const { blocks } = connectionStatusBlocks(
-        { ...pinned, pinned: false },
-        { ok: false, state, message: `message for ${state}` },
-      )
-      expect(JSON.stringify(blocks)).toContain(`message for ${state}`)
-      expect(JSON.stringify(blocks)).toContain('plugin-settings')
-    }
   })
 })
 

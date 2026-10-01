@@ -5,7 +5,7 @@ import {
   blockHeading,
   type BlockSettings,
 } from '../shared/blocks'
-import { cursorParam, loadChurch, VISITOR_MESSAGES } from './data'
+import { headingId, loadChurch, VISITOR_MESSAGES } from './data'
 import Notice from './Notice.astro'
 import Section from './Section.astro'
 
@@ -24,7 +24,7 @@ function zoneName(timeZone: string) {
       .find((part) => part.type === 'timeZoneName')?.value ?? timeZone
   )
 }
-const id = `${cursorParam(BLOCK_TYPES.serviceTimes, node._key)}-heading`
+const id = headingId(Astro.request, BLOCK_TYPES.serviceTimes, node._key)
 ---
 
 <Section id={id} heading={heading} kind="services">

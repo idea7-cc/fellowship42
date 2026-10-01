@@ -5,16 +5,12 @@ import type {
   ListResources,
   PageResponse,
   SourceResult,
-  SourceState,
 } from '@fellowship42/website-contract'
-import {
-  CONNECTION_SETTINGS,
-  PLUGIN_ID,
-  processEnv,
-  resolveConnectionConfig,
-  sourceFor,
-} from '../shared/connection'
-import { nativeFetch } from '../transport'
+import { loadConnection } from '../environment'
+import { PLUGIN_ID, sourceFor } from '../shared/connection'
+import { contractTransport } from '../transport'
+
+export { VISITOR_MESSAGES, cursorParam, headingId } from './present'
 
 /**
  * Reads church content while a page renders. Results are shared by the blocks
@@ -34,22 +30,18 @@ function memo<T>(request: Request, key: string, load: () => Promise<T>) {
   return entries.get(key) as Promise<T>
 }
 
+/**
+ * The request's church source. Plugin settings are read only when the
+ * deployment does not pin the address, and a failed read becomes the
+ * unavailable state instead of a failed render.
+ */
 function source(request: Request) {
-  return memo(request, 'source', async () =>
-    sourceFor(
-      resolveConnectionConfig(processEnv(), {
-        [CONNECTION_SETTINGS.url]: await getPluginSetting(
-          PLUGIN_ID,
-          CONNECTION_SETTINGS.url,
-        ),
-        [CONNECTION_SETTINGS.instance]: await getPluginSetting(
-          PLUGIN_ID,
-          CONNECTION_SETTINGS.instance,
-        ),
-      }),
-      nativeFetch,
-    ),
-  )
+  return memo(request, 'source', async () => {
+    const config = await loadConnection((key) =>
+      getPluginSetting(PLUGIN_ID, key),
+    )
+    return sourceFor(config, contractTransport(config))
+  })
 }
 
 function logFailure(result: SourceResult<unknown>, resource: string) {
@@ -60,6 +52,7 @@ function logFailure(result: SourceResult<unknown>, resource: string) {
         message: 'fellowship42.source_unavailable',
         state: result.state,
         resource,
+        reason: result.message,
       }),
     )
   return result
@@ -84,23 +77,4 @@ export function loadList<K extends ListResource>(
     async () =>
       logFailure(await (await source(request)).list(resource, query), resource),
   ) as Promise<SourceResult<PageResponse<ListResources[K]>>>
-}
-
-/** Words for visitors; operator detail goes to the log and the admin page. */
-export const VISITOR_MESSAGES: Record<SourceState, string> = {
-  'not-configured': 'Church information will appear here soon.',
-  unavailable:
-    'Church information is temporarily unavailable. Please try again shortly.',
-  incompatible: 'Church information is temporarily unavailable.',
-  'wrong-instance': 'Church information is temporarily unavailable.',
-  unpublished: 'Church information will appear here once it is published.',
-  'invalid-request':
-    'That page of results is no longer available. Start again from the first page.',
-}
-
-/** Query parameter for one block's page cursor. */
-export function cursorParam(type: string, key: unknown) {
-  const safe =
-    typeof key === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(key) ? key : type
-  return `f42-${safe}`
 }

@@ -5,7 +5,7 @@ import {
   type BlockSettings,
   BLOCK_TYPES,
 } from '../shared/blocks'
-import { cursorParam, loadChurch, VISITOR_MESSAGES } from './data'
+import { headingId, loadChurch, VISITOR_MESSAGES } from './data'
 import Notice from './Notice.astro'
 import Section from './Section.astro'
 
@@ -34,7 +34,7 @@ const paragraphs = (church?.summary ?? '')
   .split(/\n\s*\n/)
   .map((part) => part.trim())
   .filter(Boolean)
-const id = `${cursorParam(BLOCK_TYPES.churchInfo, node._key)}-heading`
+const id = headingId(Astro.request, BLOCK_TYPES.churchInfo, node._key)
 ---
 
 <Section id={id} heading={heading} kind="church">

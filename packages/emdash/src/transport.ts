@@ -1,7 +1,7 @@
 import type { ContractFetch } from '@fellowship42/website-contract'
-import { CONNECTION_ENV } from './shared/connection'
+import { CONNECTION_ENV, type ConnectionConfig } from './shared/connection'
 
-interface ServiceBinding {
+export interface ServiceBinding {
   fetch(input: string, init?: RequestInit): Promise<Response>
 }
 
@@ -11,7 +11,7 @@ let binding: Promise<ServiceBinding | null> | undefined
  * The instance Worker's service binding, when this site runs on Cloudflare in
  * the same account. Resolved once; any failure falls back to public HTTPS.
  */
-function serviceBinding(): Promise<ServiceBinding | null> {
+export function serviceBinding(): Promise<ServiceBinding | null> {
   binding ??= (async () => {
     try {
       const specifier = 'cloudflare:workers'
@@ -31,11 +31,18 @@ function serviceBinding(): Promise<ServiceBinding | null> {
 }
 
 /**
- * Trusted transport: a service binding when present, otherwise the runtime's
- * `fetch`. Unlike sandboxed plugin HTTP it can reach a local development
- * instance. Server-side requests carry no visitor cookies or credentials.
+ * Trusted transport for one connection. The service binding carries the
+ * requests only when the deployment pins the address (`FELLOWSHIP42_URL`);
+ * an address from plugin settings always goes through the runtime's `fetch`,
+ * so it reaches the instance it names. Server-side requests carry no visitor
+ * cookies or credentials.
  */
-export const nativeFetch: ContractFetch = async (url, init) => {
-  const service = await serviceBinding()
-  return service ? service.fetch(url, init) : fetch(url, init)
+export function contractTransport(
+  config: Pick<ConnectionConfig, 'pinned'>,
+  resolveBinding: () => Promise<ServiceBinding | null> = serviceBinding,
+): ContractFetch {
+  return async (url, init) => {
+    const service = config.pinned ? await resolveBinding() : null
+    return service ? service.fetch(url, init) : fetch(url, init)
+  }
 }

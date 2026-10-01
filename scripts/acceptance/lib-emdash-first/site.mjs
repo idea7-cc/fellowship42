@@ -26,6 +26,7 @@ import { SoftPasskey } from './soft-passkey.mjs'
  */
 
 export const PLUGIN_ID = 'fellowship42'
+export const ALLOW_PRIVATE_HOSTS = 'FELLOWSHIP42_ALLOW_PRIVATE_HOSTS'
 const EMDASH = { 'X-EmDash-Request': '1', accept: 'application/json' }
 
 export class Site {
@@ -109,8 +110,21 @@ export class Site {
     const written = readFileSync(this.envFile, 'utf8')
     if (!/^EMDASH_ENCRYPTION_KEY=emdash_enc_v1_/m.test(written))
       throw new Error('emdash secrets generate did not write a key')
-    // Only the public site URL; the Fellowship42 connection is not pinned.
+    // The public site URL; the Fellowship42 connection itself is not pinned.
     appendFileSync(this.envFile, `EMDASH_SITE_URL=${this.origin}\n`)
+    this.setAllowPrivateHosts(true)
+  }
+
+  /**
+   * The local-evaluation opt-in: the instance runs on localhost, which plugin
+   * settings may name only while the deployment allows private hosts.
+   */
+  setAllowPrivateHosts(allowed) {
+    const kept = readFileSync(this.envFile, 'utf8')
+      .split('\n')
+      .filter((line) => line && !line.startsWith(`${ALLOW_PRIVATE_HOSTS}=`))
+    if (allowed) kept.push(`${ALLOW_PRIVATE_HOSTS}=true`)
+    writeFileSync(this.envFile, `${kept.join('\n')}\n`)
   }
 
   versions() {
@@ -328,7 +342,10 @@ export class Site {
   }
 }
 
-/** Reads the status page's banner and fields out of the Block Kit JSON. */
+/**
+ * Reads the status page's banner, fields, copyable identity digest, and
+ * action links out of the Block Kit JSON.
+ */
 export function describeStatusPage(response) {
   const blocks = response.data?.data?.blocks ?? response.data?.blocks ?? []
   const banner = blocks.find((block) => block.type === 'banner') ?? null
@@ -337,10 +354,22 @@ export function describeStatusPage(response) {
       (field) => [field.label, field.value],
     ),
   )
+  const digest = blocks.find((block) => block.type === 'code')?.code ?? null
+  const actions = (
+    blocks.find((block) => block.type === 'actions')?.elements ?? []
+  ).map((element) => element.label)
   return {
     status: response.status,
-    banner: banner ? { title: banner.title, variant: banner.variant } : null,
+    banner: banner
+      ? {
+          title: banner.title,
+          variant: banner.variant,
+          description: banner.description,
+        }
+      : null,
     fields,
+    digest,
+    actions,
   }
 }
 

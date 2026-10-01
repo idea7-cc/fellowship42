@@ -1,17 +1,13 @@
 import type { PluginContext, SandboxedPlugin } from 'emdash/plugin'
 import {
-  CONNECTION_SETTINGS,
   churchJsonLd,
-  connectionStatusBlocks,
+  connectionStatus,
   isHomePage,
-  resolveConnectionConfig,
+  readConnectionConfig,
   sourceFor,
 } from '@fellowship42/emdash/shared'
-import type {
-  ContractFetch,
-  ListResource,
-  SourceResult,
-} from '@fellowship42/website-contract'
+import type { ListResource, SourceResult } from '@fellowship42/website-contract'
+import { sandboxTransport } from './transport'
 
 /**
  * Registry connector for a Fellowship42 church. It runs in EmDash's plugin
@@ -20,30 +16,14 @@ import type {
  * church's published website contract.
  */
 
-async function config(ctx: PluginContext) {
-  // A sandbox cannot read deployment variables; Administrators set these.
-  return resolveConnectionConfig(
-    {},
-    {
-      [CONNECTION_SETTINGS.url]: await ctx.settings.get(
-        CONNECTION_SETTINGS.url,
-      ),
-      [CONNECTION_SETTINGS.instance]: await ctx.settings.get(
-        CONNECTION_SETTINGS.instance,
-      ),
-    },
-  )
-}
-
-function transport(ctx: PluginContext): ContractFetch {
-  const http = ctx.http
-  if (!http) return () => Promise.reject(new Error('network not granted'))
-  return (url, init) =>
-    http.fetch(url, { method: init.method, headers: init.headers })
+function config(ctx: PluginContext) {
+  // A sandbox cannot read deployment variables; Administrators set these,
+  // and an address must be public.
+  return readConnectionConfig({}, (key) => ctx.settings.get(key))
 }
 
 async function source(ctx: PluginContext) {
-  return sourceFor(await config(ctx), transport(ctx))
+  return sourceFor(await config(ctx), sandboxTransport(ctx.http))
 }
 
 /** Same shape for every data route: data, or a named unavailable state. */
@@ -76,18 +56,15 @@ function listRoute(resource: ListResource) {
 
 const plugin: SandboxedPlugin = {
   routes: {
-    // Block Kit status page. Editors may read it; only Administrators change
-    // the connection, through the generated settings form.
+    // Block Kit status page. Contributors and up may read it; only
+    // Administrators change the connection, through the settings form.
     admin: {
-      permission: 'plugins:read',
-      handler: async (_routeCtx, ctx) => {
-        const current = await config(ctx)
-        return connectionStatusBlocks(
-          current,
-          await sourceFor(current, transport(ctx)).describe(),
-          { sandboxed: true },
-        )
-      },
+      permission: 'content:create',
+      handler: async (routeCtx, ctx) =>
+        connectionStatus(await config(ctx), sandboxTransport(ctx.http), {
+          sandboxed: true,
+          viewerRole: routeCtx.user?.role,
+        }),
     },
     church: {
       public: true,
