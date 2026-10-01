@@ -109,10 +109,14 @@ Worker variables:
 
 Protect `/app` and `/app/*`, including `/app/preview`, with the Access
 application whose audience is configured in the Worker. Keep `/`,
-`/courses/*`, frontend assets, `/api/site`, `/api/website/v1/*`, published
-church read endpoints, and `/media/*` reachable without a login redirect: the
-church website reads them anonymously, possibly from another origin. Use narrowly scoped path
-applications for the public/staff boundary on the instance domain. Protect
+`/courses/*`, frontend assets, `/api/site`, both `/api/website/v1` (the
+contract descriptor) and `/api/website/v1/*`, published church read endpoints,
+and `/media/*` reachable without a login redirect: the church website reads
+them anonymously, possibly from another origin. An Access path wildcard does
+not cover its parent path, so list the descriptor separately: a login
+redirect there makes the website report the instance as incompatible. Use
+narrowly scoped path applications for the public/staff boundary on the
+instance domain. Protect
 private API paths, including `/api/church-settings/*`, session, directory,
 finance, and management; Worker permission checks still authorize each call.
 
@@ -251,20 +255,63 @@ the application, for example `app.<church domain>`. See
 [EmDash church websites](emdash-church-websites.md) and
 [ADR 0027](adr/0027-emdash-church-websites.md).
 
-1. Create the website's own D1 database, R2 bucket, and a KV namespace for
-   `SESSION`, and record them under `website` in the deployment manifest.
-   Keep preview and production resources separate, as for the instance.
-2. Set the website Worker variables:
+1. Create the website's own D1 database, R2 bucket, and `SESSION` KV
+   namespace, using the names recorded under `website.resources` in the
+   deployment manifest:
+
+   ```bash
+   pnpm --filter @fellowship42/website exec wrangler d1 create fellowship42-website
+   pnpm --filter @fellowship42/website exec wrangler r2 bucket create fellowship42-website-media
+   pnpm --filter @fellowship42/website exec wrangler kv namespace create fellowship42-website-session
+   ```
+
+   Keep preview and production resources separate, and use
+   installation-specific names in an account with more than one installation,
+   as for the instance.
+2. Put the new IDs and the website's routes in `apps/website/wrangler.jsonc`:
+   - copy the D1 UUID into `database_id` and the KV namespace ID into the
+     `SESSION` entry's `id`. The committed all-zero IDs are intentionally
+     non-deployable scaffolding. Doctor compares names, not IDs, so it does
+     not catch a placeholder left in place;
+   - keep `database_name` and `bucket_name` equal to the manifest's names;
+   - add one custom-domain route per website domain, exactly the manifest's
+     `website.worker.domains`, which doctor's `website-domains` check
+     compares:
+
+     ```jsonc
+     "routes": [{ "pattern": "www.example.org", "custom_domain": true }]
+     ```
+
+   - when both Workers are in the same account, uncomment the `FELLOWSHIP42`
+     service binding so contract requests stay on Cloudflare's network.
+     The binding carries requests only for the address pinned by
+     `FELLOWSHIP42_URL`. Otherwise the website uses public HTTPS.
+3. Set the website Worker variables:
    - `EMDASH_SITE_URL=https://<website domain>` (required for EmDash setup and
      passkeys);
-   - `FELLOWSHIP42_URL=https://<instance domain>`;
-   - `FELLOWSHIP42_INSTANCE_SHA256`, the SHA-256 hex of
+   - `FELLOWSHIP42_URL=https://<instance domain>`. A pinned address is trusted
+     as given, and the website then ignores both Fellowship42 plugin settings;
+   - `FELLOWSHIP42_INSTANCE_SHA256`, the full 64-character SHA-256 hex of
      `F42_PORTABLE_INSTANCE_ID`. It equals `bootstrap.portableIdentitySha256`
-     in the instance's `/api/health`.
+     in the instance's `/api/health` and `instance.portableIdentitySha256` in
+     `/api/website/v1`, and the website's **Fellowship42** status page shows
+     it in full. It pins the identity whenever it is set, even when the
+     address comes from plugin settings. Any other value is reported as
+     "The church identity pin is not a valid 64-character digest", and
+     visitors see the unavailable notice.
+
+   Do not set `FELLOWSHIP42_ALLOW_PRIVATE_HOSTS` in production. Without it,
+   an address entered in the plugin settings must name a public host: literal
+   loopback, private, link-local, carrier-grade NAT, and unspecified IPv4 and
+   IPv6 addresses, `localhost`, `*.localhost`, `*.local`, and `*.internal` are
+   refused, and the status page explains why. Setting it to `true` lifts that
+   rule for local evaluation; `astro dev` also lifts it. The rule matters only
+   when `FELLOWSHIP42_URL` is empty, because a pinned address is trusted as
+   given. See [connection rules](emdash-church-websites.md#connection-rules).
 
    On the instance, set `WEBSITE_ORIGIN=https://<website domain>`. The instance
    homepage then redirects to the website.
-3. Set the website Worker secrets:
+4. Set the website Worker secrets:
    - `EMDASH_ENCRYPTION_KEY` (`pnpm --filter @fellowship42/website exec emdash
      secrets generate`). Generate it once per installation, keep it in the
      church-authorized secret store, and preserve it for backup and migration:
@@ -274,17 +321,32 @@ the application, for example `app.<church domain>`. See
      set on the instance. Delete it from both Workers after the first EmDash
      administrator is claimed. If a migration happens before that, rotate it
      on both.
-4. When both Workers are in the same account, uncomment the `FELLOWSHIP42`
-   service binding in `apps/website/wrangler.jsonc` so contract requests stay
-   on Cloudflare's network. Otherwise the website uses public HTTPS.
-5. Deploy with `pnpm deploy:website` and attach the website's custom domain.
+5. Leave EmDash OAuth sign-in unconfigured until setup is finished. EmDash
+   makes the first OAuth user an Administrator while setup is open, which
+   would bypass the owner claim. While `WEBSITE_SETUP_SECRET` is set, the
+   website answers `403` to the OAuth start routes
+   (`/_emdash/api/auth/oauth/<provider>`); the callback is not gated. Set
+   `EMDASH_OAUTH_GITHUB_CLIENT_ID` and `_SECRET`,
+   `EMDASH_OAUTH_GOOGLE_CLIENT_ID` and `_SECRET` (or their `GITHUB_*` and
+   `GOOGLE_*` aliases) only after the first administrator exists and the
+   setup secret has been deleted from both Workers.
+6. Deploy with `pnpm deploy:website`; the routes attach the custom domains.
    The built Worker is about 4 MiB compressed; Cloudflare's Workers Free plan
    limit is smaller, so the website needs a plan that allows it.
-6. Finish setup promptly: sign in to the instance as the owner and choose
+7. Finish setup promptly: sign in to the instance as the owner and choose
    **Settings → Website → Set up website editor**. Until an administrator
    exists, the website refuses EmDash setup without that owner claim.
-7. Run `f42ctl doctor --website-wrangler apps/website/wrangler.jsonc …`; the
+   EmDash's `/_emdash/api/auth/dev-bypass` sign-in shortcut works only under
+   `astro dev`; production builds refuse it. The site title entered in
+   EmDash's wizard is only a fallback: the website shows the church name,
+   tagline, and logo published in Fellowship42 Settings.
+8. Run `f42ctl doctor --website-wrangler apps/website/wrangler.jsonc …`; the
    website checks must pass.
+
+Do not add Workers Cache or route-cache rules for the website's pages. Its
+middleware sends `Cache-Control: no-cache` on public HTML so church changes
+show on the next visit; see
+[caching](emdash-church-websites.md#caching).
 
 An Access application may protect `/_emdash/*` on the website domain, but it is
 not required: EmDash authenticates editors itself, and public pages must stay
