@@ -118,13 +118,16 @@ The export manifest lists five artifacts in fixed order: `d1-sql`,
 The website D1 export must contain EmDash's `_emdash_migrations` ledger, which
 catches a swapped instance database. The portable configuration adds
 `website.cms`, the EmDash name and version whose schema the SQL carries.
-Website domains, origins, resource names, the identity pin, and secrets are
-not exported.
+Website domains, origins, resource names, the deployment's identity pin
+(`FELLOWSHIP42_INSTANCE_SHA256`), and secrets are not exported.
 
 The website D1 export contains EmDash users, passkey credentials, hashed API
 and auth tokens, the preview secret and IP salt in its `options` table, and
-plugin settings encrypted with `EMDASH_ENCRYPTION_KEY`. Treat it with the same sensitivity as
-the instance database. The encryption key itself is not in the bundle.
+plugin settings. Only plugin settings of EmDash's `secret` type are encrypted,
+with `EMDASH_ENCRYPTION_KEY`; other plugin settings, such as a Fellowship42
+address or identity pin an Administrator entered, are stored in plaintext.
+Treat the export with the same sensitivity as the instance database. The
+encryption key itself is not in the bundle.
 
 ## Verify offline
 

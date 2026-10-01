@@ -78,6 +78,7 @@ apps/instance ──► packages/management-protocol
        └────────► packages/brand
 
 apps/website ───► packages/emdash ───► packages/website-contract
+       │    └───► packages/website-contract
        └────────► packages/brand
 packages/emdash-connect ──► packages/emdash, packages/website-contract
 
@@ -87,7 +88,8 @@ fellowship42-cloud (separate private repo)
 
 The website never imports instance code and never reads the instance's D1;
 church content crosses between them only through the website contract over
-HTTPS (or a same-account service binding).
+HTTPS (or a same-account service binding when the deployment pins the
+instance address).
 
 The public instance must never import from the private repository. The private
 repository must operate instances through public contracts rather than private
