@@ -1,12 +1,9 @@
 import type { APIRoute } from 'astro'
 import { verifySetupClaim } from '@fellowship42/website-contract'
-import { setupCookie, siteOrigin, type GateEnv } from '../../lib/setup-gate'
+import { runtimeEnv } from '../../lib/env'
+import { setupCookie, siteOrigin } from '../../lib/setup-gate'
 
 export const prerender = false
-
-const env = () =>
-  ((globalThis as { process?: { env?: GateEnv } }).process?.env ??
-    {}) as GateEnv
 
 const noStore = {
   'Cache-Control': 'private, no-store',
@@ -69,7 +66,7 @@ export const GET: APIRoute = () =>
   })
 
 export const POST: APIRoute = async ({ request, url }) => {
-  const settings = env()
+  const settings = runtimeEnv()
   const origin = siteOrigin(settings, url)
   if (!origin || request.headers.get('Origin') !== origin)
     return Response.json(

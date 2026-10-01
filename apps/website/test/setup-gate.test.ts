@@ -4,7 +4,10 @@ import {
   SETUP_COOKIE,
   hasSetupClaim,
   isGatedSetupPath,
+  isOAuthStartPath,
+  isSetupWindowOpen,
   readCookie,
+  routePath,
   setupCookie,
   siteOrigin,
 } from '../src/lib/setup-gate'
@@ -35,6 +38,44 @@ describe('setup gate', () => {
     expect(isGatedSetupPath('/_emdash/api/setup/status', 'GET')).toBe(false)
     expect(isGatedSetupPath('/_emdash/admin', 'GET')).toBe(false)
     expect(isGatedSetupPath('/_emdash/api/content/pages', 'POST')).toBe(false)
+  })
+
+  it('matches setup routes however the path is encoded or padded', () => {
+    expect(routePath('/_emdash/api/s%65tup/admin/')).toBe(
+      '/_emdash/api/setup/admin',
+    )
+    expect(routePath('//_emdash//api/setup')).toBe('/_emdash/api/setup')
+    expect(routePath('/%2565')).toBe('/e')
+    expect(routePath('/%E0%A4%A')).toBe('/%E0%A4%A')
+    expect(isGatedSetupPath('/_emdash/api/s%65tup/admin', 'POST')).toBe(true)
+    expect(isGatedSetupPath('//_emdash/api/setup//', 'POST')).toBe(true)
+    expect(isGatedSetupPath('/_emdash/admin/s%65tup', 'GET')).toBe(true)
+  })
+
+  it('identifies the OAuth start route but never its callback', () => {
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/github')).toBe(true)
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/google/')).toBe(true)
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/gith%75b')).toBe(true)
+    expect(isOAuthStartPath('//_emdash/api/auth/o%61uth/github')).toBe(true)
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/github%2Fcallback')).toBe(
+      true,
+    )
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/github/callback')).toBe(
+      false,
+    )
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth/google/callback/')).toBe(
+      false,
+    )
+    expect(isOAuthStartPath('/_emdash/api/auth/oauth')).toBe(false)
+    expect(isOAuthStartPath('/_emdash/api/auth/dev-bypass')).toBe(false)
+    expect(isOAuthStartPath('/_emdash/api/auth/passkey/options')).toBe(false)
+  })
+
+  it('treats setup as open while any setup secret is configured', () => {
+    expect(isSetupWindowOpen({ WEBSITE_SETUP_SECRET: secret })).toBe(true)
+    expect(isSetupWindowOpen({ WEBSITE_SETUP_SECRET: 'short' })).toBe(true)
+    expect(isSetupWindowOpen({ WEBSITE_SETUP_SECRET: '  ' })).toBe(false)
+    expect(isSetupWindowOpen({})).toBe(false)
   })
 
   it('accepts only an authentic, current claim for this site', async () => {

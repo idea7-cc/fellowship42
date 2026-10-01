@@ -4,9 +4,10 @@ import { PortableText } from 'emdash/ui'
 import { loadChurch } from '@fellowship42/emdash/data'
 import Base from '../layouts/Base.astro'
 import { homeBlocks } from '../lib/church-pages'
+import { siteIdentity } from '../lib/site-identity'
 
 // An editor-created page with the slug "home" is the home page; otherwise
-// the church's own information fills it.
+// the church's own information fills it. `/home` redirects here.
 const [{ entry: page, isPreview, error }, settings, churchResult] =
   await Promise.all([
     getEmDashEntry('pages', 'home'),
@@ -15,25 +16,20 @@ const [{ entry: page, isPreview, error }, settings, churchResult] =
   ])
 if (error) throw error
 const church = churchResult.ok ? churchResult.data.church : null
-const siteTitle = settings?.title || church?.name || 'Our church'
-const tagline = settings?.tagline || church?.tagline || ''
-const seo = page
-  ? getSeoMeta(page, { siteTitle, siteUrl: Astro.url.origin, path: '/' })
-  : null
+const identity = siteIdentity(church, settings)
+const seo = page ? getSeoMeta(page) : null
 const cover = church?.cover
 ---
 
 <Base
-  title={siteTitle}
-  description={seo?.description ?? (tagline || church?.summary?.slice(0, 160))}
-  canonical={seo?.canonical}
+  description={seo?.description ?? (identity.tagline || church?.summary?.slice(0, 160))}
   preview={isPreview}
   content={page ? { collection: 'pages', id: page.data.id, slug: 'home' } : undefined}
 >
   <section class:list={['hero', cover && 'hero--with-image']}>
     <div class="hero__text">
-      <h1>{page?.data.title && page.data.title !== 'Home' ? page.data.title : siteTitle}</h1>
-      {tagline && <p class="hero__tagline">{tagline}</p>}
+      <h1>{page?.data.title && page.data.title !== 'Home' ? page.data.title : identity.name}</h1>
+      {identity.tagline && <p class="hero__tagline">{identity.tagline}</p>}
     </div>
     {cover && <img class="hero__image" src={cover.url} alt={cover.alt} />}
   </section>

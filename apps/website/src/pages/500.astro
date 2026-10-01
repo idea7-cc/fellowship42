@@ -1,0 +1,30 @@
+---
+import { churchThemeStyle } from '../lib/theme'
+import '../styles/site.css'
+
+// Rendered when a page throws. Without this route, Astro would hand the error
+// to the `[slug]` catch-all and report a server failure as "Page not found".
+// It reads nothing from the database or Fellowship42, so it still renders
+// when either of them is the cause.
+Astro.response.status = 500
+Astro.response.headers.set('Cache-Control', 'no-store')
+---
+
+<!doctype html>
+<html lang="en" style={churchThemeStyle(null)}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Temporarily unavailable</title>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <main id="main" class="site-main">
+      <h1>This page is temporarily unavailable</h1>
+      <p>Something went wrong on our side. Please try again in a moment.</p>
+      <p><a href="/">Go to the home page</a></p>
+    </main>
+  </body>
+</html>

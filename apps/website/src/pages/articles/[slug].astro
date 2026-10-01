@@ -1,32 +1,35 @@
 ---
-import { decodeSlug, getEmDashEntry, getSeoMeta, getSiteSettings } from 'emdash'
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash'
 import { Image, PortableText } from 'emdash/ui'
 import Base from '../../layouts/Base.astro'
 
-const slug = decodeSlug(Astro.params.slug)
+let slug: string | undefined
+try {
+  slug = decodeSlug(Astro.params.slug)
+} catch {
+  // A malformed percent-encoding names no article.
+}
 if (!slug) return Astro.rewrite('/404')
 const { entry: post, isPreview, error } = await getEmDashEntry('posts', slug)
 if (error) throw error
 if (!post) return Astro.rewrite('/404')
-const settings = await getSiteSettings()
-const seo = getSeoMeta(post, {
-  siteTitle: settings?.title || 'Our church',
-  siteUrl: Astro.url.origin,
-  path: Astro.url.pathname.replace(/\/$/, ''),
-})
+const seo = getSeoMeta(post)
 const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
   dateStyle: 'long',
 })
 ---
 
 <Base
-  title={seo.title}
-  pageTitle={seo.ogTitle}
+  title={seo.ogTitle}
   description={seo.description}
-  canonical={seo.canonical}
-  image={seo.ogImage}
   preview={isPreview}
   content={{ collection: 'posts', id: post.data.id, slug }}
+  pageType="article"
+  articleMeta={{
+    publishedTime: post.data.publishedAt?.toISOString() ?? null,
+    modifiedTime: post.data.updatedAt?.toISOString() ?? null,
+    author: post.data.byline?.displayName ?? null,
+  }}
 >
   <article class="prose">
     <h1 {...post.edit.title}>{post.data.title}</h1>
