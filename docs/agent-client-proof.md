@@ -53,9 +53,9 @@ For the installed Claude CLI, inspect `claude mcp add --help` and
 through its normal OAuth flow. Do not supply an administrator bearer token or
 replace OAuth with a shared development principal.
 
-Ask the client to read the website draft, change only the synthetic welcome
-line, save it, and return the preview/review links. Review and publish in the
-app. Check that an attempted stale save cannot overwrite a newer human edit.
+Ask the client to read the church profile draft, change only the synthetic
+welcome line, save it, and return the preview/review links. Review and publish
+in the app. Check that an attempted stale save cannot overwrite a newer human edit.
 Disconnect the client and verify both tool access and refresh denial. Remove the
 temporary client configuration after the exercise.
 

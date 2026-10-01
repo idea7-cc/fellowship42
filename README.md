@@ -80,9 +80,10 @@ contain changes that are not in a published release. See
 ## Bring your own agent
 
 Administrators can connect an external agent to read church information and
-save private website drafts. The church grants and revokes access locally;
-publishing stays in the app. This early-alpha surface needs operator setup and
-a client supporting MCP 2026-07-28. See [agent connections](docs/agent-connections.md).
+save private church profile drafts (not EmDash website pages). The church
+grants and revokes access locally; publishing stays in the app. This
+early-alpha surface needs operator setup and a client supporting MCP
+2026-07-28. See [agent connections](docs/agent-connections.md).
 
 ## Run locally
 
