@@ -25,7 +25,9 @@ read church content through it. See [ADR 0027](adr/0027-emdash-church-websites.m
   or deleting a record removes it from the next response.
 - **Readable from any origin.** Responses carry `Access-Control-Allow-Origin: *`
   and `Cross-Origin-Resource-Policy: cross-origin`, and never set cookies.
-  Public `/media/*` responses are also embeddable cross-origin.
+  Public `/media/*` responses are also embeddable cross-origin. They answer
+  `HEAD`, entity-tag and date preconditions, `If-Range`, and a single byte
+  range as RFC 9110 specifies; any other `Range` gets the whole file.
 - **No silent truncation.** Every list is paged with an opaque cursor.
 - **Absolute links and unambiguous time.** URLs are absolute on the instance
   origin. Instants are ISO 8601 UTC (`Z`) with the IANA zone in which they
