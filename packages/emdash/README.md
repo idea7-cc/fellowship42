@@ -15,6 +15,12 @@ Fellowship42 church content for [EmDash](https://github.com/emdash-cms/emdash)
 pnpm add @fellowship42/emdash
 ```
 
+> **Not yet published.** This package and `@fellowship42/website-contract` are
+> not on npm yet. Until they are, install the tarballs from a Fellowship42
+> checkout (`pnpm --filter @fellowship42/website-contract pack` and
+> `pnpm --filter @fellowship42/emdash pack`), as
+> `pnpm acceptance:emdash-first` does.
+
 ```js
 // astro.config.mjs
 import { fellowship42 } from '@fellowship42/emdash'
