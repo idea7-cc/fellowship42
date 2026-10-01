@@ -11,6 +11,19 @@ export interface ChurchPage {
 }
 
 export const churchPages: Record<string, ChurchPage> = {
+  about: {
+    title: 'About',
+    description: 'Who we are, where to find us, and how to get in touch.',
+    blocks: [
+      {
+        _type: BLOCK_TYPES.churchInfo,
+        _key: 'church',
+        heading: '',
+        showAbout: true,
+        showContact: true,
+      },
+    ],
+  },
   visit: {
     title: 'Plan a visit',
     description: 'Service times, directions, and how to get in touch.',
@@ -81,6 +94,11 @@ export const churchPages: Record<string, ChurchPage> = {
       },
     ],
   },
+}
+
+/** The built-in page for `slug`, if there is one. */
+export function builtInPage(slug: string): ChurchPage | undefined {
+  return Object.hasOwn(churchPages, slug) ? churchPages[slug] : undefined
 }
 
 /** Home page content when an editor has not created a "home" page. */

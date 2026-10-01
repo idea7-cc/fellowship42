@@ -7,7 +7,7 @@ import { homeBlocks } from '../lib/church-pages'
 import { siteIdentity } from '../lib/site-identity'
 
 // An editor-created page with the slug "home" is the home page; otherwise
-// the church's own information fills it.
+// the church's own information fills it. `/home` redirects here.
 const [{ entry: page, isPreview, error }, settings, churchResult] =
   await Promise.all([
     getEmDashEntry('pages', 'home'),

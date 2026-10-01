@@ -3,7 +3,12 @@ import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash'
 import { Image, PortableText } from 'emdash/ui'
 import Base from '../../layouts/Base.astro'
 
-const slug = decodeSlug(Astro.params.slug)
+let slug: string | undefined
+try {
+  slug = decodeSlug(Astro.params.slug)
+} catch {
+  // A malformed percent-encoding names no article.
+}
 if (!slug) return Astro.rewrite('/404')
 const { entry: post, isPreview, error } = await getEmDashEntry('posts', slug)
 if (error) throw error

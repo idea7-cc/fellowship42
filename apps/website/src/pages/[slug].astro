@@ -2,13 +2,22 @@
 import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash'
 import { PortableText } from 'emdash/ui'
 import Base from '../layouts/Base.astro'
-import { churchPages } from '../lib/church-pages'
+import { builtInPage } from '../lib/church-pages'
 
-const slug = decodeSlug(Astro.params.slug)
+let slug: string | undefined
+try {
+  slug = decodeSlug(Astro.params.slug)
+} catch {
+  // A malformed percent-encoding names no page.
+}
 if (!slug) return Astro.rewrite('/404')
+// The page with the slug "home" is shown at `/`. Its collection URL (used by
+// previews and the sitemap) redirects there, so editors preview the layout
+// visitors see and search engines find one address for it.
+if (slug === 'home') return Astro.redirect(`/${Astro.url.search}`, 301)
 const { entry: page, isPreview, error } = await getEmDashEntry('pages', slug)
 if (error) throw error
-const builtIn = page ? null : churchPages[slug]
+const builtIn = page ? null : builtInPage(slug)
 if (!page && !builtIn) return Astro.rewrite('/404')
 const seo = page ? getSeoMeta(page) : null
 ---

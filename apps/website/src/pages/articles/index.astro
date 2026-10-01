@@ -1,6 +1,7 @@
 ---
 import { getEmDashCollection } from 'emdash'
 import Base from '../../layouts/Base.astro'
+import { isInvalidCursorError } from '../../lib/errors'
 
 const cursor = Astro.url.searchParams.get('cursor') || undefined
 const { entries: posts, nextCursor, error } = await getEmDashCollection('posts', {
@@ -8,16 +9,30 @@ const { entries: posts, nextCursor, error } = await getEmDashCollection('posts',
   limit: 12,
   cursor,
 })
-if (error) throw error
+// A stale or edited `cursor` is the visitor's link, not a server failure.
+const invalidCursor = cursor !== undefined && isInvalidCursorError(error)
+if (error && !invalidCursor) throw error
+if (invalidCursor) Astro.response.status = 400
 const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
   dateStyle: 'long',
 })
 ---
 
-<Base title="Articles" description="News and articles from the church.">
+<Base
+  title="Articles"
+  description="News and articles from the church."
+  canonical={invalidCursor ? null : undefined}
+>
   <h1>Articles</h1>
   {
-    posts.length === 0 ? (
+    invalidCursor ? (
+      <>
+        <p>That page of articles is no longer available.</p>
+        <p>
+          <a href="/articles">Start again from the newest articles</a>
+        </p>
+      </>
+    ) : posts.length === 0 ? (
       <p>No articles have been published yet.</p>
     ) : (
       <ul class="article-list" role="list">
@@ -40,7 +55,7 @@ const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
     )
   }
   {
-    (cursor || nextCursor) && (
+    !invalidCursor && (cursor || nextCursor) && (
       <nav class="pager" aria-label="More articles">
         {cursor && <a href="/articles">First page</a>}
         {nextCursor && (
