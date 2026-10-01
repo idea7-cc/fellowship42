@@ -82,7 +82,9 @@ Records that change while a reader pages are seen as of each request.
 A cursor is at most 1024 URL-safe characters (`A–Z`, `a–z`, `0–9`, `-`, `_`)
 and works only on the route that issued it. It encodes its key as UTF-8, so
 titles in any script page correctly. Pass it back unchanged; its contents may
-change without notice.
+change without notice. A cursor can go stale, for example when the record a
+page ended on is unpublished or deleted before the next request. The route then
+answers `invalid_cursor`, and the reader starts again from the first page.
 
 ### Errors
 
@@ -91,7 +93,7 @@ change without notice.
 | 404 | `site_unpublished` | Yes | The church website is not published. No church details are returned. |
 | 404 | `route_not_found` | Yes | No contract route has this path. |
 | 400 | `invalid_limit` | Yes | `limit` is not 1–100. |
-| 400 | `invalid_cursor` | Yes | The cursor is malformed or was issued by another route. |
+| 400 | `invalid_cursor` | Yes | The cursor is malformed, stale, or was issued by another route. |
 | 503 | `instance_unconfigured` | No | The instance has no valid portable identity. |
 | 500 | `internal_error` | No | The instance failed unexpectedly. |
 

@@ -368,6 +368,85 @@ describe('public website contract v1', () => {
     ).toMatchObject({ ok: false, state: 'invalid-request' })
   })
 
+  it('looks up a cursor anchor only among published records', async () => {
+    const now = Date.now()
+    const rows = [
+      ['published', null, longTitle],
+      ['draft', null, longTitle],
+      ['archived', null, longTitle],
+      ['published', now, longTitle],
+      // Sorts after the long title, so the long title ends a page.
+      ['published', null, '청년부'],
+    ] as const
+    await env.DB.batch(
+      rows.flatMap(([status, deletedAt, title], index) => [
+        env.DB.prepare(
+          `INSERT INTO groups (id, church_id, slug, title, status, group_type, featured, created_at, updated_at, deleted_at)
+           VALUES (?, 'church_demo', ?, ?, ?, 'small-group', 0, ?, ?, ?)`,
+        ).bind(
+          `group_page_${index}`,
+          `page-group-${index}`,
+          title,
+          status,
+          now,
+          now,
+          deletedAt,
+        ),
+        env.DB.prepare(
+          `INSERT INTO courses (id, church_id, slug, title, status, course_type, delivery_mode, featured, created_at, updated_at, deleted_at)
+           VALUES (?, 'church_demo', ?, ?, ?, 'class', 'in-person', 0, ?, ?, ?)`,
+        ).bind(
+          `course_page_${index}`,
+          `page-course-${index}`,
+          title,
+          status,
+          now,
+          now,
+          deletedAt,
+        ),
+      ]),
+    )
+    for (const [resource, prefix] of [
+      ['groups', 'group_page_'],
+      ['courses', 'course_page_'],
+    ] as const) {
+      // A cursor that names its anchor by id, as one for a long title does.
+      const compact = (id: string) =>
+        base64Url(
+          new TextEncoder().encode(JSON.stringify([resource, 0, null, id])),
+        )
+      const published = await call(
+        `/api/website/v1/${resource}?cursor=${compact(`${prefix}0`)}`,
+      )
+      expect(published.status).toBe(200)
+      await published.arrayBuffer()
+      // A forged id must not reveal where a hidden record's title sorts.
+      for (const hidden of [1, 2, 3]) {
+        const { response, body } = await json(
+          `/api/website/v1/${resource}?cursor=${compact(`${prefix}${hidden}`)}`,
+        )
+        expect(response.status).toBe(400)
+        expect(body).toMatchObject({ error: { code: 'invalid_cursor' } })
+      }
+      // An issued cursor goes stale when its anchor is unpublished mid-read.
+      const [all] = await pageAll(resource, 100)
+      const anchor = all!.ids.indexOf(`${prefix}0`)
+      expect(anchor).toBeLessThan(all!.ids.length - 1)
+      const [first] = await pageAll(resource, anchor + 1)
+      expect(first!.ids.at(-1)).toBe(`${prefix}0`)
+      await env.DB.prepare(
+        `UPDATE ${resource} SET status = 'draft' WHERE id = ?`,
+      )
+        .bind(`${prefix}0`)
+        .run()
+      const { response, body } = await json(
+        `/api/website/v1/${resource}?limit=${anchor + 1}&cursor=${first!.nextCursor}`,
+      )
+      expect(response.status).toBe(400)
+      expect(body).toMatchObject({ error: { code: 'invalid_cursor' } })
+    }
+  })
+
   it('answers an unknown contract route with an enveloped route_not_found', async () => {
     const { response, body } = await json('/api/website/v1/nope')
     expect(response.status).toBe(404)

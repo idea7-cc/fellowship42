@@ -349,6 +349,9 @@ const featuredKey = (row: { featured: number; title: string; id: string }) => [
 // A title of up to 160 characters fits in a cursor unless JSON must escape
 // most of it. One that does not fit is looked up by id on the next request,
 // so only renaming that one record mid-read can move the reader's position.
+// The lookup sees only published records, so a forged id cannot place a page
+// next to a draft's or deleted record's title; unpublishing the anchor
+// mid-read makes the cursor stale instead.
 const featuredCompactKey = (row: { featured: number; id: string }) => [
   row.featured,
   null,
@@ -360,7 +363,11 @@ const resolveFeaturedTitle =
     const [featured, title, id] = values
     if (title !== null) return values
     const anchor = await db
-      .prepare(`SELECT title FROM ${table} WHERE church_id = ? AND id = ?`)
+      .prepare(
+        `SELECT title FROM ${table}
+         WHERE church_id = ? AND id = ? AND status = 'published'
+           AND deleted_at IS NULL`,
+      )
       .bind(churchId, id)
       .first<{ title: string }>()
     if (!anchor) throw invalidCursor()
