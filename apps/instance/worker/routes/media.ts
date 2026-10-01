@@ -160,6 +160,95 @@ async function requireNotPublished(
   }
 }
 
+// Public media follows RFC 9110 conditional and range rules for GET and HEAD.
+const PRECONDITIONS = [
+  'If-Match',
+  'If-None-Match',
+  'If-Modified-Since',
+  'If-Unmodified-Since',
+] as const
+
+/** Entity tags listed in a header value, or null for `*`. */
+function entityTags(value: string) {
+  if (value.trim() === '*') return null
+  return [...value.matchAll(/(W\/)?"([^"]*)"/g)].map(([, weak, tag]) => ({
+    weak: Boolean(weak),
+    tag: tag ?? '',
+  }))
+}
+
+/** An HTTP-date in whole seconds, or null when absent or invalid. */
+function httpDateSeconds(value: string | null) {
+  if (value === null) return null
+  const time = Date.parse(value)
+  return Number.isNaN(time) ? null : Math.floor(time / 1000)
+}
+
+/** RFC 9110 §13.2.2 for GET and HEAD: 412, 304, or null to continue. */
+function failedPrecondition(request: Headers, stored: R2Object) {
+  const modified = Math.floor(stored.uploaded.getTime() / 1000)
+  const ifMatch = request.get('If-Match')
+  if (ifMatch !== null) {
+    const tags = entityTags(ifMatch)
+    if (tags && !tags.some(({ weak, tag }) => !weak && tag === stored.etag))
+      return 412
+  } else {
+    const since = httpDateSeconds(request.get('If-Unmodified-Since'))
+    if (since !== null && modified > since) return 412
+  }
+  const ifNoneMatch = request.get('If-None-Match')
+  if (ifNoneMatch !== null) {
+    const tags = entityTags(ifNoneMatch)
+    if (!tags || tags.some(({ tag }) => tag === stored.etag)) return 304
+  } else {
+    const since = httpDateSeconds(request.get('If-Modified-Since'))
+    if (since !== null && modified <= since) return 304
+  }
+  return null
+}
+
+/**
+ * The one byte range to send (RFC 9110 §14), `unsatisfiable` for a 416, or
+ * null to send the whole object. A missing or invalid Range, another unit,
+ * several ranges, and an If-Range that is not this object's strong entity tag
+ * all mean the whole object. If-Range dates never match: no Last-Modified is
+ * sent, so a date cannot be a strong validator.
+ */
+function requestedRange(request: Headers, stored: R2Object) {
+  const value = request.get('Range')
+  if (value === null) return null
+  const ifRange = request.get('If-Range')
+  if (ifRange !== null) {
+    const tags = entityTags(ifRange)
+    if (tags?.length !== 1 || tags[0]!.weak || tags[0]!.tag !== stored.etag)
+      return null
+  }
+  const match = /^bytes=\s*(\d*)-(\d*)\s*$/i.exec(value.trim())
+  if (!match || (!match[1] && !match[2])) return null
+  const size = stored.size
+  if (!match[1]) {
+    const suffix = Number(match[2])
+    if (suffix === 0 || size === 0) return 'unsatisfiable'
+    const length = Math.min(suffix, size)
+    return { offset: size - length, length }
+  }
+  const first = Number(match[1])
+  const last = match[2] ? Number(match[2]) : Number.POSITIVE_INFINITY
+  if (last < first) return null
+  if (first >= size) return 'unsatisfiable'
+  return { offset: first, length: Math.min(last, size - 1) - first + 1 }
+}
+
+function mediaHeaders(stored: R2Object, contentType: string) {
+  const headers = new Headers()
+  stored.writeHttpMetadata(headers)
+  headers.set('Content-Type', contentType)
+  headers.set('ETag', stored.httpEtag)
+  headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
+  headers.set('Accept-Ranges', 'bytes')
+  return headers
+}
+
 export const mediaRoutes = new Hono<AppEnv>()
 
 mediaRoutes.get('/:mediaId', async (c) => {
@@ -172,57 +261,61 @@ mediaRoutes.get('/:mediaId', async (c) => {
   )
     .bind(c.req.param('mediaId'))
     .first<{ r2_key: string; content_type: string }>()
-  if (!media) throw new AppError(404, 'media_not_found', 'Media not found')
+  const notFound = () => new AppError(404, 'media_not_found', 'Media not found')
+  if (!media) throw notFound()
 
-  // Only a request that asks for a range receives a partial response.
-  const requestHeaders = c.req.raw.headers
-  const object = await c.env.MEDIA.get(media.r2_key, {
-    onlyIf: requestHeaders,
-    ...(requestHeaders.has('Range') ? { range: requestHeaders } : {}),
-  })
-  if (!object) throw new AppError(404, 'media_not_found', 'Media not found')
+  const request = c.req.raw.headers
+  const head = c.req.method === 'HEAD'
+  // A plain GET reads the object once.
+  if (
+    !head &&
+    !request.has('Range') &&
+    !PRECONDITIONS.some((name) => request.has(name))
+  ) {
+    const object = await c.env.MEDIA.get(media.r2_key)
+    if (!object) throw notFound()
+    return new Response(object.body, {
+      headers: mediaHeaders(object, media.content_type),
+    })
+  }
 
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('Content-Type', media.content_type)
-  headers.set('ETag', object.httpEtag)
-  headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
-  headers.set('Accept-Ranges', 'bytes')
-  const partial = requestHeaders.has('Range') && Boolean(object.range)
-  if (partial && object.range) {
-    const range = object.range as {
-      offset?: number
-      length?: number
-      suffix?: number
-    }
-    const offset =
-      typeof range.suffix === 'number'
-        ? Math.max(0, object.size - range.suffix)
-        : (range.offset ?? 0)
-    const length =
-      typeof range.suffix === 'number'
-        ? Math.min(object.size, range.suffix)
-        : (range.length ?? object.size - offset)
+  // Conditional, ranged, and HEAD requests decide from the stored metadata
+  // first. A media id's R2 key never changes, so the bytes read next match.
+  const stored = await c.env.MEDIA.head(media.r2_key)
+  if (!stored) throw notFound()
+  const headers = mediaHeaders(stored, media.content_type)
+  const failed = failedPrecondition(request, stored)
+  if (failed === 304) return new Response(null, { status: 304, headers })
+  if (failed === 412)
+    return new Response(null, {
+      status: 412,
+      headers: { 'Cache-Control': 'no-store' },
+    })
+  const range = requestedRange(request, stored)
+  if (range === 'unsatisfiable')
+    return new Response(null, {
+      status: 416,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Range': `bytes */${stored.size}`,
+      },
+    })
+  if (range)
     headers.set(
       'Content-Range',
-      `bytes ${offset}-${offset + length - 1}/${object.size}`,
+      `bytes ${range.offset}-${range.offset + range.length - 1}/${stored.size}`,
     )
+  const status = range ? 206 : 200
+  if (head) {
+    headers.set('Content-Length', String(range ? range.length : stored.size))
+    return new Response(null, { status, headers })
   }
-  if (!('body' in object)) {
-    // A failed If-None-Match/If-Modified-Since means the client copy is
-    // current; only If-Match/If-Unmodified-Since failures are 412.
-    const notModified =
-      !requestHeaders.has('If-Match') &&
-      !requestHeaders.has('If-Unmodified-Since') &&
-      (requestHeaders.has('If-None-Match') ||
-        requestHeaders.has('If-Modified-Since'))
-    headers.delete('Content-Range')
-    return new Response(null, { status: notModified ? 304 : 412, headers })
-  }
-  return new Response(object.body, {
-    status: partial ? 206 : 200,
-    headers,
-  })
+  const object = await c.env.MEDIA.get(
+    media.r2_key,
+    range ? { range } : undefined,
+  )
+  if (!object) throw notFound()
+  return new Response(object.body, { status, headers })
 })
 
 export const mediaManagementRoutes = new Hono<AppEnv>()

@@ -13,11 +13,16 @@ export const WEBSITE_CONTRACT_VERSION = 1 as const
 export const WEBSITE_CONTRACT_PATH = '/api/website/v1' as const
 export const DEFAULT_PAGE_LIMIT = 20
 export const MAX_PAGE_LIMIT = 100
+/** Longest page cursor an instance issues or accepts. */
+export const MAX_CURSOR_LENGTH = 1024
 
 export type WebsiteContractName = typeof WEBSITE_CONTRACT
 export type WebsiteContractVersion = typeof WEBSITE_CONTRACT_VERSION
 
-/** Fields present on every contract response, including errors. */
+/**
+ * Fields present on every successful contract response and every 4xx contract
+ * error. 5xx responses carry only `error` (see `ServerErrorResponse`).
+ */
 export interface ContractEnvelope {
   contract: WebsiteContractName
   version: WebsiteContractVersion
@@ -147,15 +152,29 @@ export interface CourseItem {
 
 export interface PageResponse<T> extends ContractEnvelope {
   items: T[]
-  /** Opaque cursor for the next page, or null when this page is the last. */
+  /**
+   * Opaque cursor for the next page, or null when this page is the last. It is
+   * valid only on the route that issued it and is at most `MAX_CURSOR_LENGTH`
+   * URL-safe characters.
+   */
   nextCursor: string | null
 }
 
 export type ContractErrorCode =
-  'site_unpublished' | 'invalid_cursor' | 'invalid_limit'
+  'site_unpublished' | 'invalid_cursor' | 'invalid_limit' | 'route_not_found'
 
+/** A 4xx contract error. It carries the envelope. */
 export interface ContractErrorResponse extends ContractEnvelope {
   error: { code: ContractErrorCode | string; message: string }
+}
+
+/**
+ * A 5xx response, such as `503 instance_unconfigured` or `500 internal_error`.
+ * It has no envelope: an instance without a valid identity has no digest to
+ * report.
+ */
+export interface ServerErrorResponse {
+  error: { code: string; message: string; requestId?: string }
 }
 
 /** List resources and the item each returns. */

@@ -1,4 +1,5 @@
 import {
+  MAX_CURSOR_LENGTH,
   WEBSITE_CONTRACT,
   WEBSITE_CONTRACT_VERSION,
   type ChurchProfile,
@@ -189,46 +190,83 @@ export async function readWebsiteChurch(
   }
 }
 
-type CursorValue = string | number
+type CursorValue = string | number | null
+/** `title` is a string, or null when the anchor's title did not fit. */
+type CursorSlot = 'string' | 'number' | 'title'
 
-function encodeCursor(values: CursorValue[]) {
-  return btoa(JSON.stringify(values))
+const CURSOR = new RegExp(`^[A-Za-z0-9_-]{1,${MAX_CURSOR_LENGTH}}$`)
+
+const invalidCursor = () =>
+  new AppError(400, 'invalid_cursor', 'This page cursor is not valid')
+
+/**
+ * A cursor is base64url over the UTF-8 JSON of `[resource, ...key]`, so any
+ * title can be a key and a cursor from another route is refused. Returns null
+ * when the result would be longer than the contract allows.
+ */
+function encodeCursor(resource: ListResource, key: CursorValue[]) {
+  let binary = ''
+  for (const byte of new TextEncoder().encode(
+    JSON.stringify([resource, ...key]),
+  ))
+    binary += String.fromCharCode(byte)
+  const cursor = btoa(binary)
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replace(/=+$/, '')
+  return cursor.length <= MAX_CURSOR_LENGTH ? cursor : null
 }
 
-function decodeCursor(cursor: string, shape: ('string' | 'number')[]) {
-  const invalid = () =>
-    new AppError(400, 'invalid_cursor', 'This page cursor is not valid')
-  if (!/^[A-Za-z0-9_-]{1,512}$/.test(cursor)) throw invalid()
+function decodeCursor(
+  cursor: string,
+  resource: ListResource,
+  shape: CursorSlot[],
+) {
+  if (!CURSOR.test(cursor)) throw invalidCursor()
   let values: unknown
   try {
+    const binary = atob(cursor.replaceAll('-', '+').replaceAll('_', '/'))
     values = JSON.parse(
-      atob(cursor.replaceAll('-', '+').replaceAll('_', '/')),
+      new TextDecoder('utf-8', { fatal: true }).decode(
+        Uint8Array.from(binary, (char) => char.charCodeAt(0)),
+      ),
     ) as unknown
   } catch {
-    throw invalid()
+    throw invalidCursor()
   }
   if (
     !Array.isArray(values) ||
-    values.length !== shape.length ||
-    values.some((value, index) =>
+    values[0] !== resource ||
+    values.length !== shape.length + 1
+  )
+    throw invalidCursor()
+  const key = values.slice(1) as unknown[]
+  if (
+    key.some((value, index) =>
       shape[index] === 'number'
         ? typeof value !== 'number' || !Number.isSafeInteger(value)
-        : typeof value !== 'string' || value.length > 400,
+        : typeof value !== 'string' &&
+          !(shape[index] === 'title' && value === null),
     )
   )
-    throw invalid()
-  return values as CursorValue[]
+    throw invalidCursor()
+  return key as CursorValue[]
 }
 
 interface ListPlan<T, Row> {
-  cursor: ('string' | 'number')[]
+  cursor: CursorSlot[]
   sql(after: boolean): string
   binds(churchId: string, now: number): CursorValue[]
   after(values: CursorValue[]): CursorValue[]
   key(row: Row): CursorValue[]
+  /** A shorter key for when `key` does not fit in a cursor. */
+  compactKey?(row: Row): CursorValue[]
+  /** Restores the full key from a compact one. */
+  resolve?(
+    db: D1Database,
+    churchId: string,
+    values: CursorValue[],
+  ): Promise<CursorValue[]>
   map(row: Row, origin: string): T
 }
 
@@ -303,6 +341,38 @@ const featuredAfter = (alias: string) =>
   `AND (${alias}featured < ? OR (${alias}featured = ? AND (${alias}title > ? OR (${alias}title = ? AND ${alias}id > ?))))`
 const featuredBinds = ([featured, title, id]: CursorValue[]) =>
   [featured, featured, title, title, id] as CursorValue[]
+const featuredKey = (row: { featured: number; title: string; id: string }) => [
+  row.featured,
+  row.title,
+  row.id,
+]
+// A title of up to 160 characters fits in a cursor unless JSON must escape
+// most of it. One that does not fit is looked up by id on the next request,
+// so only renaming that one record mid-read can move the reader's position.
+// The lookup sees only published records, so a forged id cannot place a page
+// next to a draft's or deleted record's title; unpublishing the anchor
+// mid-read makes the cursor stale instead.
+const featuredCompactKey = (row: { featured: number; id: string }) => [
+  row.featured,
+  null,
+  row.id,
+]
+const resolveFeaturedTitle =
+  (table: 'groups' | 'courses') =>
+  async (db: D1Database, churchId: string, values: CursorValue[]) => {
+    const [featured, title, id] = values
+    if (title !== null) return values
+    const anchor = await db
+      .prepare(
+        `SELECT title FROM ${table}
+         WHERE church_id = ? AND id = ? AND status = 'published'
+           AND deleted_at IS NULL`,
+      )
+      .bind(churchId, id)
+      .first<{ title: string }>()
+    if (!anchor) throw invalidCursor()
+    return [featured, anchor.title, id] as CursorValue[]
+  }
 
 const plans: {
   [K in ListResource]: ListPlan<ListResources[K], never>
@@ -370,7 +440,7 @@ const plans: {
     }),
   } as ListPlan<SermonItem, never>,
   groups: {
-    cursor: ['number', 'string', 'string'],
+    cursor: ['number', 'title', 'string'],
     sql: (after) => `
       SELECT id, slug, title, group_type, audience, schedule, location,
         enrollment_policy, featured, summary
@@ -382,7 +452,9 @@ const plans: {
     `,
     binds: (churchId) => [churchId],
     after: featuredBinds,
-    key: (row: GroupRow) => [row.featured, row.title, row.id],
+    key: featuredKey,
+    compactKey: featuredCompactKey,
+    resolve: resolveFeaturedTitle('groups'),
     map: (row: GroupRow): GroupItem => ({
       id: row.id,
       slug: row.slug,
@@ -397,7 +469,7 @@ const plans: {
     }),
   } as ListPlan<GroupItem, never>,
   courses: {
-    cursor: ['number', 'string', 'string'],
+    cursor: ['number', 'title', 'string'],
     sql: (after) => `
       SELECT c.id, c.slug, c.title, c.course_type, c.delivery_mode, c.audience,
         c.duration, c.featured, c.certificate_offered, c.summary,
@@ -411,7 +483,9 @@ const plans: {
     `,
     binds: (churchId) => [churchId],
     after: featuredBinds,
-    key: (row: CourseRow) => [row.featured, row.title, row.id],
+    key: featuredKey,
+    compactKey: featuredCompactKey,
+    resolve: resolveFeaturedTitle('courses'),
     map: (row: CourseRow, origin): CourseItem => ({
       id: row.id,
       slug: row.slug,
@@ -444,7 +518,11 @@ export async function readWebsiteList<K extends ListResource>(
     ListResources[K],
     Record<string, unknown>
   >
-  const after = input.cursor ? decodeCursor(input.cursor, plan.cursor) : null
+  let after = input.cursor
+    ? decodeCursor(input.cursor, resource, plan.cursor)
+    : null
+  if (after && plan.resolve)
+    after = await plan.resolve(db, input.churchId, after)
   const binds = [
     ...plan.binds(input.churchId, input.now),
     ...(after ? plan.after(after) : []),
@@ -460,7 +538,20 @@ export async function readWebsiteList<K extends ListResource>(
     items: page.map((row) => plan.map(row, input.origin)),
     nextCursor:
       results.length > input.limit && last
-        ? encodeCursor(plan.key(last))
+        ? nextCursor(resource, plan, last)
         : null,
   }
+}
+
+function nextCursor<Row>(
+  resource: ListResource,
+  plan: ListPlan<unknown, Row>,
+  last: Row,
+) {
+  const cursor =
+    encodeCursor(resource, plan.key(last)) ??
+    (plan.compactKey ? encodeCursor(resource, plan.compactKey(last)) : null)
+  if (cursor === null)
+    throw new Error(`The ${resource} page cursor is too long`)
+  return cursor
 }

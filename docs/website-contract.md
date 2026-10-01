@@ -25,7 +25,9 @@ read church content through it. See [ADR 0027](adr/0027-emdash-church-websites.m
   or deleting a record removes it from the next response.
 - **Readable from any origin.** Responses carry `Access-Control-Allow-Origin: *`
   and `Cross-Origin-Resource-Policy: cross-origin`, and never set cookies.
-  Public `/media/*` responses are also embeddable cross-origin.
+  Public `/media/*` responses are also embeddable cross-origin. They answer
+  `HEAD`, entity-tag and date preconditions, `If-Range`, and a single byte
+  range as RFC 9110 specifies; any other `Range` gets the whole file.
 - **No silent truncation.** Every list is paged with an opaque cursor.
 - **Absolute links and unambiguous time.** URLs are absolute on the instance
   origin. Instants are ISO 8601 UTC (`Z`) with the IANA zone in which they
@@ -34,7 +36,7 @@ read church content through it. See [ADR 0027](adr/0027-emdash-church-websites.m
 
 ## Envelope
 
-Every response, including errors, starts with:
+Every successful response and every 4xx contract error starts with:
 
 ```json
 {
@@ -49,6 +51,10 @@ the same value `/api/health` reports as `bootstrap.portableIdentitySha256`. A
 consumer may pin it to refuse a different church. Consumers must refuse any
 other `contract` value or major `version`. Within version 1, fields may be
 added; consumers ignore fields they do not know.
+
+5xx responses have no envelope. Their body is only
+`{ "error": { "code", "message", "requestId" } }`: an instance without a
+valid portable identity has no digest to report.
 
 ## Routes
 
@@ -73,14 +79,23 @@ List routes accept `limit` (1–100, default 20) and `cursor`. A response is
 Cursors are opaque keyset positions: pages never overlap or skip records.
 Records that change while a reader pages are seen as of each request.
 
+A cursor is at most 1024 URL-safe characters (`A–Z`, `a–z`, `0–9`, `-`, `_`)
+and works only on the route that issued it. It encodes its key as UTF-8, so
+titles in any script page correctly. Pass it back unchanged; its contents may
+change without notice. A cursor can go stale, for example when the record a
+page ended on is unpublished or deleted before the next request. The route then
+answers `invalid_cursor`, and the reader starts again from the first page.
+
 ### Errors
 
-| Status | `error.code` | Meaning |
-| --- | --- | --- |
-| 404 | `site_unpublished` | The church website is not published. No church details are returned. |
-| 400 | `invalid_limit` | `limit` is not 1–100. |
-| 400 | `invalid_cursor` | The cursor was not issued by this route. |
-| 503 | `instance_unconfigured` | The instance has no valid portable identity. |
+| Status | `error.code` | Envelope | Meaning |
+| --- | --- | --- | --- |
+| 404 | `site_unpublished` | Yes | The church website is not published. No church details are returned. |
+| 404 | `route_not_found` | Yes | No contract route has this path. |
+| 400 | `invalid_limit` | Yes | `limit` is not 1–100. |
+| 400 | `invalid_cursor` | Yes | The cursor is malformed, stale, or was issued by another route. |
+| 503 | `instance_unconfigured` | No | The instance has no valid portable identity. |
+| 500 | `internal_error` | No | The instance failed unexpectedly. |
 
 ## Client states
 
@@ -91,11 +106,11 @@ stale or guessed content:
 | State | When |
 | --- | --- |
 | `not-configured` | No or invalid instance address |
-| `unavailable` | Network failure, timeout, 5xx, or 429 |
-| `incompatible` | Not this contract, another major version, or a malformed document |
+| `unavailable` | Network failure or timeout, including while the body is read; 5xx; or 429 |
+| `incompatible` | Not this contract, another major version, a body that is not JSON, a malformed document, or a 4xx contract error this client does not know (such as `route_not_found`) |
 | `unpublished` | The church website is not published |
 | `wrong-instance` | The identity digest differs from the pinned one |
-| `invalid-request` | A stale or foreign page cursor |
+| `invalid-request` | A malformed, stale, or foreign page cursor |
 
 ## Changing the contract
 
