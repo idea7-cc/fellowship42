@@ -39,10 +39,10 @@ function all(pattern, html) {
 /** Every church block on the page, in document order. */
 export function churchBlocks(html) {
   return all(
-    /<section\b[^>]*\bdata-f42-block="([a-z]+)"[^>]*>([\s\S]*?)<\/section>/g,
+    /<section\b([^>]*\bdata-f42-block="([a-z]+)"[^>]*)>([\s\S]*?)<\/section>/g,
     html,
-  ).map(([, kind, inner]) => {
-    const heading = /<h2\b[^>]*>([\s\S]*?)<\/h2>/.exec(inner)
+  ).map(([, attributes, kind, inner]) => {
+    const heading = /<h2\b([^>]*)>([\s\S]*?)<\/h2>/.exec(inner)
     const notice =
       /<p\b[^>]*class="[^"]*\bf42-notice\b[^"]*"[^>]*>([\s\S]*?)<\/p>/.exec(
         inner,
@@ -51,9 +51,16 @@ export function churchBlocks(html) {
       inner,
     )
     const next = /<a\b[^>]*href="([^"]*)"[^>]*rel="next"/.exec(inner)
+    const first = /<a\b[^>]*href="([^"]*)"[^>]*>\s*First page\s*<\/a>/.exec(
+      inner,
+    )
     return {
       kind,
-      heading: heading ? textContent(heading[1]) : null,
+      heading: heading ? textContent(heading[2]) : null,
+      headingId: heading
+        ? (/\bid="([^"]*)"/.exec(heading[1])?.[1] ?? null)
+        : null,
+      labelledBy: /\baria-labelledby="([^"]*)"/.exec(attributes)?.[1] ?? null,
       titles: all(/<h3\b[^>]*>([\s\S]*?)<\/h3>/g, inner).map(([, title]) =>
         textContent(title),
       ),
@@ -70,6 +77,7 @@ export function churchBlocks(html) {
           : 'empty'
         : null,
       nextHref: next ? decodeEntities(next[1]) : null,
+      firstHref: first ? decodeEntities(first[1]) : null,
       text: textContent(inner),
     }
   })

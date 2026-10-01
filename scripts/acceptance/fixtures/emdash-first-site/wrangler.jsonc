@@ -21,5 +21,7 @@
     "crons": ["* * * * *"]
   }
   // No FELLOWSHIP42_URL here: on this site an EmDash Administrator sets the
-  // connection in Plugins -> Fellowship42 -> Settings.
+  // connection in Plugins -> Fellowship42 -> Settings. The acceptance run
+  // passes FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true in its env file because its
+  // instance runs on localhost.
 }
