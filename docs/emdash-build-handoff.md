@@ -15,7 +15,9 @@ deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
 - An independent multi-lens review of the branch confirmed 48 findings. All
   are fixed in the `review/stream-*` merges (`a7d2909`, `3db7116`, `5387a00`)
   and the commits after them, and each fix was re-verified.
-- Evidence revision: EVIDENCE_REVISION. Later commits change only this file.
+- Evidence revision: `9d2e4e3`, a clean tree. Both acceptance journeys ran
+  there. `pnpm verify` passed at `202f4b9`; `9d2e4e3` adds only this handoff
+  and the checklist. Later commits change only this file.
 
 ## What changed
 
@@ -29,7 +31,7 @@ deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
 | Lifecycle               | Optional `website` component across the manifest, plan, doctor, reconciliation, export/import, restore conformance, exit packets, and rehearsal; website and instance-only rehearsal fixtures                                                                                                                                                                                                                                     |
 | Gates                   | Boundaries and manifest for the new app and packages; `verify` builds, typechecks, tests, and dry-run-deploys the website; deterministic Worker typegen                                                                                                                                                                                                                                                                           |
 | Docs                    | ADR 0027; [EmDash church websites](emdash-church-websites.md); [public website contract](website-contract.md); architecture, deployment, security, AGENTS, README, lifecycle runbooks                                                                                                                                                                                                                                             |
-| Evidence                | `scripts/acceptance/fellowship42-first.mjs`, `scripts/acceptance/emdash-first.mjs`                                                                                                                                                                                                                                                                                                                                                |
+| Evidence                | `scripts/acceptance/fellowship42-first.mjs`, `scripts/acceptance/emdash-first.mjs`, `scripts/acceptance/local-dev-journey.mjs`                                                                                                                                                                                                                                                                                                    |
 
 ## Key decisions
 
@@ -64,7 +66,7 @@ deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
 Node 26.9.0, pnpm 12.4.2, EmDash 1.0.1 and `@emdash-cms/cloudflare` 1.0.1,
 Astro 7.3.3 (repository site) and 7.3.5 (independent EmDash-first site),
 `@astrojs/cloudflare` 14.3.3, `@astrojs/react` 6.0.6, React 19.3.0, Wrangler
-4.133.0 (repository) and 4.143.1 (independent site), `@emdash-cms/plugin-cli`
+4.133.0 (repository) and 4.144.0 (independent site, workerd 1.20260926.1), `@emdash-cms/plugin-cli`
 0.13.1, `@emdash-cms/plugin-test` 0.2.6, `@emdash-cms/registry-verification`
 0.3.3, playwright-core 1.63.0 with Chromium 153, axe-core 4.13.0.
 
@@ -120,15 +122,18 @@ record names the commit it ran on and whether the tree was clean.
 | `tooling/f42ctl`                   | 47    |
 | Repository tooling (`node --test`) | 22    |
 
-Journey totals: Fellowship42-first F42_FIRST_TOTAL; EmDash-first EMDASH_FIRST_TOTAL.
-Journey transport retries: TRANSPORT_RETRIES.
+Journey totals: Fellowship42-first 35/35; EmDash-first 37/37 (17 setup, 9
+access, 11 lifecycle); local dev journey 4/4. The Fellowship42-first journey
+recorded one transport retry, on the Editor's refused
+`POST /_emdash/api/plugins/fellowship42/admin` (see Local tooling below).
 
 ## Evidence scope
 
 - **Local:** every result above. Both Workers ran as production builds under
   `wrangler dev` (workerd) on isolated synthetic D1/R2 state, driven by
   Chromium with virtual passkeys or by software passkeys through the real
-  WebAuthn ceremonies.
+  WebAuthn ceremonies. The local dev journey instead ran against the
+  documented `pnpm dev` and `pnpm dev:website` servers.
 - **Simulated provider:** the lifecycle rehearsals and restore conformance are
   deterministic, payload-free synthetic runs.
 - **Deployed:** none. No Cloudflare account, custom domain, registry
