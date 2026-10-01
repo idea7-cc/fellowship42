@@ -2,7 +2,13 @@
 // production builds on isolated, synthetic local state and is torn down.
 import { spawn, execFileSync } from 'node:child_process'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -67,6 +73,52 @@ export function prepareInstanceState(state) {
 export function instanceSql(state, sql) {
   const out = d1(state, 'execute', 'fellowship42', '--command', sql, '--json')
   return JSON.parse(out)[0]?.results ?? []
+}
+
+/**
+ * Runs the documented owner-recovery command against isolated local state
+ * and returns the one-time sign-in link it wrote. The script shells out to
+ * `pnpm`, so a shim that runs the pinned pnpm is put first on PATH.
+ */
+export function recoverOwner({ state, origin, email, workDir }) {
+  const shims = path.join(workDir, 'bin')
+  mkdirSync(shims, { recursive: true })
+  const pnpmVersion = JSON.parse(
+    readFileSync(path.join(root, 'package.json'), 'utf8'),
+  ).packageManager.replace(/^pnpm@/, '')
+  const npx = path.join(path.dirname(process.execPath), 'npx')
+  writeFileSync(
+    path.join(shims, 'pnpm'),
+    `#!/bin/sh\nexec "${npx}" -y pnpm@${pnpmVersion} "$@"\n`,
+    { mode: 0o755 },
+  )
+  const output = path.join(workDir, 'owner-link.txt')
+  rmSync(output, { force: true })
+  sh(
+    process.execPath,
+    [
+      'scripts/recover-owner.mjs',
+      '--config',
+      'wrangler.jsonc',
+      '--database',
+      'fellowship42',
+      '--origin',
+      origin,
+      '--email',
+      email,
+      '--output',
+      output,
+      '--local',
+      '--persist-to',
+      state,
+      '--confirm-reset-owner',
+    ],
+    {
+      cwd: instanceDir,
+      env: { PATH: `${shims}:${process.env.PATH}` },
+    },
+  )
+  return readFileSync(output, 'utf8').trim()
 }
 
 /**
@@ -157,7 +209,7 @@ export async function waitFor(
   throw new Error(`${url} not ready: ${last}`)
 }
 
-export function startInstance({ port, state, vars, logFile }) {
+export function startInstance({ port, state, vars, logFile, env }) {
   const args = [
     'dev',
     '--config',
@@ -177,15 +229,24 @@ export function startInstance({ port, state, vars, logFile }) {
   ]
   return startServer('instance', bin(instanceDir, 'wrangler'), args, {
     cwd: instanceDir,
+    env,
     logFile,
   })
 }
 
-export function startWebsite({ port, state, vars, logFile, ip = '127.0.0.1' }) {
+export function startWebsite({
+  port,
+  state,
+  vars,
+  logFile,
+  env,
+  ip = '127.0.0.1',
+  config = 'dist/server/wrangler.json',
+}) {
   const args = [
     'dev',
     '--config',
-    'dist/server/wrangler.json',
+    config,
     '--port',
     String(port),
     '--ip',
@@ -201,6 +262,7 @@ export function startWebsite({ port, state, vars, logFile, ip = '127.0.0.1' }) {
   ]
   return startServer('website', bin(websiteDir, 'wrangler'), args, {
     cwd: websiteDir,
+    env,
     logFile,
   })
 }

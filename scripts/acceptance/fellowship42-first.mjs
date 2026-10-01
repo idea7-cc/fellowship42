@@ -37,7 +37,20 @@ const state = {
 console.log('Building production bundles…')
 lib.buildAll({ skip: args.includes('--skip-build') })
 lib.prepareInstanceState(state.instance)
-const enrollToken = lib.enrollSeedOwner(state.instance)
+// A fresh installation: the synthetic church exists but is not yet published.
+lib.instanceSql(
+  state.instance,
+  "UPDATE churches SET status = 'draft' WHERE id = 'church_demo';",
+)
+// The owner link comes from the documented recovery command.
+const ownerLink = lib.recoverOwner({
+  state: state.instance,
+  origin: INSTANCE,
+  email: 'owner@example.test',
+  workDir: out,
+})
+// Bindings resolve only between this run's own wrangler sessions.
+const serverEnv = { WRANGLER_REGISTRY_PATH: path.join(out, 'registry') }
 const instanceVars = {
   SIGN_IN_ORIGIN: INSTANCE,
   MCP_ORIGIN: INSTANCE,
@@ -53,23 +66,29 @@ let instance = lib.startInstance({
   state: state.instance,
   vars: instanceVars,
   logFile: logs.instance,
+  env: serverEnv,
 })
 await lib.waitFor(`${INSTANCE}/api/health`)
 const health = await (await fetch(`${INSTANCE}/api/health`)).json()
 const digest = health.bootstrap.portableIdentitySha256
-lib.startWebsite({
-  port: 8788,
-  ip: '::1',
-  state: state.website,
-  vars: {
-    EMDASH_SITE_URL: WEBSITE,
-    FELLOWSHIP42_URL: INSTANCE,
-    FELLOWSHIP42_INSTANCE_SHA256: digest,
-    WEBSITE_SETUP_SECRET: setupSecret,
-    EMDASH_ENCRYPTION_KEY: lib.emdashEncryptionKey(),
-  },
-  logFile: logs.website,
-})
+const websiteVars = {
+  EMDASH_SITE_URL: WEBSITE,
+  FELLOWSHIP42_URL: INSTANCE,
+  FELLOWSHIP42_INSTANCE_SHA256: digest,
+  WEBSITE_SETUP_SECRET: setupSecret,
+  EMDASH_ENCRYPTION_KEY: lib.emdashEncryptionKey(),
+}
+const startWebsite = (overrides = {}) =>
+  lib.startWebsite({
+    port: 8788,
+    ip: '::1',
+    state: state.website,
+    vars: websiteVars,
+    logFile: logs.website,
+    env: serverEnv,
+    ...overrides,
+  })
+let website = startWebsite()
 await lib.waitFor(`${WEBSITE}/`, { ok: (r) => r.status === 200 })
 
 const browser = await chromium.launch({ executablePath: chromiumPath })
@@ -79,6 +98,10 @@ const staff = await browser.newContext({
   viewport: { width: 1280, height: 900 },
 })
 const page = await lib.passkeyPage(staff)
+// Settings confirms publishing with window.confirm; the owner agrees.
+page.on('dialog', (dialog) => {
+  dialog.accept().catch(() => {})
+})
 const network = path.join(out, 'auth-network.log')
 page.on('response', async (response) => {
   if (!/\/(_emdash\/)?api\/(auth|setup)/.test(response.url())) return
@@ -184,14 +207,23 @@ try {
   })
 
   await check(
-    'a fresh website already shows published church records',
+    'a fresh website explains that church information is not yet published',
     async () => {
       const home = await html(`${WEBSITE}/`)
-      const events = await contract('events', 'limit=3')
       lib.assert(home.status === 200, `status ${home.status}`)
-      for (const event of events.items)
-        lib.assert(home.text.includes(event.title), `missing ${event.title}`)
-      return { events: events.items.map((event) => event.title) }
+      lib.assert(
+        home.text.includes('will appear here once it is published'),
+        'unpublished notice missing',
+      )
+      lib.assert(
+        !home.text.includes('Summer Church Picnic'),
+        'unpublished church content shown',
+      )
+      await visitor.goto(`${WEBSITE}/`)
+      await shot(visitor, '00-unpublished-website')
+      return {
+        notice: 'Church information will appear here once it is published.',
+      }
     },
   )
 
@@ -210,11 +242,15 @@ try {
         }),
       })
       const bypass = await fetch(`${WEBSITE}/_emdash/api/setup/dev-bypass`)
+      const oauth = await fetch(`${WEBSITE}/_emdash/api/auth/oauth/github`, {
+        redirect: 'manual',
+      })
       const wizard = await fetch(`${WEBSITE}/_emdash/admin/setup`, {
         redirect: 'manual',
       })
       lib.assert(api.status === 403, `setup api ${api.status}`)
       lib.assert(bypass.status === 403, `dev bypass ${bypass.status}`)
+      lib.assert(oauth.status === 403, `oauth start ${oauth.status}`)
       lib.assert(
         wizard.status === 303 &&
           wizard.headers.get('location').endsWith('/fellowship42/setup'),
@@ -223,13 +259,14 @@ try {
       return {
         setupApi: api.status,
         devBypass: bypass.status,
+        oauthStart: oauth.status,
         wizardRedirect: wizard.headers.get('location'),
       }
     },
   )
 
   await check('owner signs in to Fellowship42 with a passkey', async () => {
-    await page.goto(`${INSTANCE}/sign-in#enroll=${enrollToken}`)
+    await page.goto(ownerLink)
     await page.getByRole('button', { name: 'Create passkey' }).click()
     await page.waitForURL(`${INSTANCE}/app**`, { timeout: 30_000 })
     await page
@@ -237,7 +274,7 @@ try {
       .first()
       .waitFor({ timeout: 15_000 })
     await shot(page, '01-staff-app')
-    return { url: page.url() }
+    return { url: page.url(), link: 'from scripts/recover-owner.mjs' }
   })
 
   await check(
@@ -336,6 +373,59 @@ try {
     },
   )
 
+  const settingsAction = async (button, notice) => {
+    await page.getByRole('button', { name: button, exact: true }).click()
+    await page.getByText(notice).first().waitFor({ timeout: 15_000 })
+  }
+
+  await check(
+    'the owner publishes the church in Settings and the website shows it',
+    async () => {
+      await page.goto(`${INSTANCE}/app/settings`)
+      await page
+        .getByRole('button', { name: 'Publish', exact: true })
+        .waitFor({ timeout: 15_000 })
+      await settingsAction('Publish', 'Website published')
+      const home = await html(`${WEBSITE}/`)
+      const events = await contract('events', 'limit=3')
+      for (const event of events.items)
+        lib.assert(home.text.includes(event.title), `missing ${event.title}`)
+      lib.assert(
+        home.text.includes('Fellowship Demo Church'),
+        'church name missing',
+      )
+      return { events: events.items.map((event) => event.title) }
+    },
+  )
+
+  await check(
+    "the website's name and tagline follow the church profile in Fellowship42",
+    async () => {
+      const tagline = 'Everyone belongs here'
+      await page.goto(`${INSTANCE}/app/settings`)
+      const field = page.locator('input[name="tagline"]')
+      await field.waitFor({ timeout: 15_000 })
+      await field.fill(tagline)
+      await settingsAction('Save draft', 'Draft saved')
+      const beforePublish = await html(`${WEBSITE}/`)
+      lib.assert(
+        !beforePublish.text.includes(tagline),
+        'unpublished profile draft is public',
+      )
+      await settingsAction('Publish', 'Website published')
+      const home = await html(`${WEBSITE}/`)
+      lib.assert(
+        new RegExp(`class="hero__tagline"[^>]*>${tagline}<`).test(home.text),
+        'hero does not show the Fellowship42 tagline',
+      )
+      lib.assert(
+        /<title>[^<]*Fellowship Demo Church[^<]*<\/title>/.test(home.text),
+        'title does not use the church name',
+      )
+      return { tagline, draftPrivateUntilPublished: true }
+    },
+  )
+
   await check(
     'the website is tied to the correct church by the deployment',
     async () => {
@@ -352,7 +442,7 @@ try {
         'Connected to Fellowship42',
         'Fellowship Demo Church',
         'Website deployment (cannot be changed here)',
-        '(verified)',
+        digest,
       ])
         lib.assert(text.includes(phrase), `status page lacks ${phrase}`)
       const settings = await emdash(
@@ -393,45 +483,168 @@ try {
     },
   )
 
-  console.log('\nEditorial work')
-  let pageId
+  console.log('\nEditorial work (website editor, in the browser)')
+  let editor
   await check(
-    'an editor creates a draft page that visitors cannot see',
+    'the owner invites a website editor, who joins with their own passkey',
     async () => {
-      const created = await emdash('POST', '/_emdash/api/content/pages', {
-        slug: 'our-story',
-        data: {
-          title: 'Our story',
-          content: [
-            para('Draft: founded by neighbours in 1952.', 'a'),
-            { _type: 'f42Events', _key: 'b', heading: 'Coming up', limit: 2 },
-          ],
-        },
+      const invite = await emdash('POST', '/_emdash/api/auth/invite', {
+        email: 'editor@example.test',
+        role: 40,
       })
       lib.assert(
-        created.status === 201 || created.status === 200,
-        `create ${created.status}`,
+        invite.status === 200 || invite.status === 201,
+        `invite ${invite.status} ${JSON.stringify(invite.json)}`,
       )
-      pageId = created.json.data.item.id
+      const editorContext = await browser.newContext({
+        viewport: { width: 1280, height: 900 },
+      })
+      const editorPage = await lib.passkeyPage(editorContext)
+      await editorPage.goto(new URL(invite.json.data.inviteUrl, WEBSITE).href)
+      const name = editorPage.getByRole('textbox', { name: /name/i })
+      if (await name.count()) await name.first().fill('Web Editor')
+      await editorPage
+        .getByRole('button', { name: /passkey|create|accept/i })
+        .first()
+        .click()
+      await editorPage
+        .waitForURL(
+          (url) =>
+            url.pathname.startsWith('/_emdash/admin') &&
+            !url.pathname.includes('invite'),
+          { timeout: 30_000 },
+        )
+        .catch(() => {})
+      for (
+        let attempt = 0;
+        attempt < 3 && editorPage.url().includes('/login');
+        attempt++
+      ) {
+        await editorPage
+          .getByRole('button', { name: 'Sign in with Passkey' })
+          .click()
+        await editorPage
+          .waitForURL((url) => !url.pathname.includes('/login'), {
+            timeout: 15_000,
+          })
+          .catch(() => {})
+      }
+      const call = (method, url, body) =>
+        withProxyRetry(`editor ${method} ${url}`, async () => {
+          const response = await editorPage.request.fetch(`${WEBSITE}${url}`, {
+            method,
+            headers: {
+              'X-EmDash-Request': '1',
+              'content-type': 'application/json',
+            },
+            ...(body === undefined ? {} : { data: JSON.stringify(body) }),
+          })
+          return {
+            status: response.status(),
+            json: await response.json().catch(() => null),
+          }
+        })
+      const me = await call('GET', '/_emdash/api/auth/me')
+      lib.assert(
+        me.json?.data?.role === 40,
+        `editor role ${me.status} ${JSON.stringify(me.json)}`,
+      )
+      editor = {
+        id: me.json.data.id,
+        call,
+        context: editorContext,
+        page: editorPage,
+      }
+      return { role: 'Editor (40)' }
+    },
+  )
+
+  const dismissWelcome = async (target) => {
+    const welcome = target.getByRole('dialog')
+    if (
+      await welcome
+        .waitFor({ state: 'visible', timeout: 4_000 })
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      const getStarted = welcome.getByRole('button', { name: 'Get Started' })
+      if (await getStarted.count()) await getStarted.click()
+      else await target.keyboard.press('Escape')
+      await welcome.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {})
+    }
+  }
+  const saveEntry = async (target) => {
+    await target.getByRole('button', { name: 'Save', exact: true }).click()
+    await target
+      .getByRole('button', { name: 'Saved' })
+      .waitFor({ timeout: 15_000 })
+  }
+  const publishEntry = async (target) => {
+    // "Publish now" for a draft, "Publish changes" for a live page's draft.
+    await target
+      .getByRole('button', { name: /^Publish (now|changes)$/ })
+      .first()
+      .click()
+    const confirm = target.getByRole('dialog', {
+      name: /^Publish (now|changes)\?$/,
+    })
+    await confirm
+      .getByRole('button', { name: /^Publish (now|changes)$/ })
+      .click()
+    await confirm.waitFor({ state: 'hidden', timeout: 15_000 })
+  }
+  const openPreview = async (target) => {
+    const popup = target.context().waitForEvent('page', { timeout: 15_000 })
+    await target.getByRole('button', { name: 'Preview' }).click()
+    const tab = await popup
+    await tab.waitForLoadState()
+    const url = tab.url()
+    await tab.close()
+    return url
+  }
+
+  await check(
+    'an editor creates a page and inserts a church block from the editor menu',
+    async () => {
+      const p = editor.page
+      await p.goto(`${WEBSITE}/_emdash/admin/content/pages/new`)
+      await dismissWelcome(p)
+      await p.getByRole('textbox', { name: 'Title' }).fill('Our story')
+      await p.getByRole('textbox', { name: 'Slug' }).fill('our-story')
+      await p.locator('.ProseMirror').first().click()
+      await p.keyboard.type('Draft: founded by neighbours in 1952.')
+      await p.keyboard.press('Enter')
+      await p.keyboard.type('/Upcoming')
+      await p
+        .getByText('Published events that have not ended', { exact: false })
+        .first()
+        .waitFor({ timeout: 10_000 })
+      await shot(p, '07-editor-church-blocks')
+      await p.keyboard.press('Enter')
+      const modal = p.getByRole('dialog', { name: 'Insert Upcoming events' })
+      await modal.getByRole('textbox').first().fill('Coming up')
+      await modal.getByRole('spinbutton').fill('2')
+      await modal.getByRole('button', { name: 'Insert' }).click()
+      await saveEntry(p)
       const visit = await fetch(`${WEBSITE}/our-story`, { redirect: 'manual' })
       lib.assert(visit.status === 404, `draft visible: ${visit.status}`)
-      return { id: pageId, anonymousStatus: visit.status }
+      return { anonymousStatusWhileDraft: visit.status }
     },
   )
 
   await check('a private preview shows the unpublished draft', async () => {
-    const preview = await emdash(
-      'POST',
-      `/_emdash/api/content/pages/${pageId}/preview-url`,
-      {},
-    )
-    const url = new URL(preview.json.data.url, WEBSITE).href
+    const url = await openPreview(editor.page)
+    lib.assert(url.includes('_preview='), `preview url ${url}`)
     const response = await html(url)
+    const events = await contract('events', 'limit=2')
     lib.assert(response.status === 200, `preview ${response.status}`)
     lib.assert(
       response.text.includes('founded by neighbours'),
       'draft text missing',
     )
+    lib.assert(response.text.includes('Coming up'), 'block heading missing')
+    for (const event of events.items)
+      lib.assert(response.text.includes(event.title), `block ${event.title}`)
     lib.assert(
       response.text.includes('Preview — this draft is not public'),
       'preview banner missing',
@@ -448,12 +661,7 @@ try {
   await check(
     'publishing makes the page public with live church blocks',
     async () => {
-      const published = await emdash(
-        'POST',
-        `/_emdash/api/content/pages/${pageId}/publish`,
-        {},
-      )
-      lib.assert(published.status === 200, `publish ${published.status}`)
+      await publishEntry(editor.page)
       const response = await html(`${WEBSITE}/our-story`)
       const events = await contract('events', 'limit=2')
       lib.assert(response.status === 200, `status ${response.status}`)
@@ -470,65 +678,53 @@ try {
   await check(
     'an edit to a published page stays private until published',
     async () => {
-      const current = await emdash(
-        'GET',
-        `/_emdash/api/content/pages/${pageId}`,
-      )
-      const updated = await emdash(
-        'PUT',
-        `/_emdash/api/content/pages/${pageId}`,
-        {
-          data: {
-            content: [
-              para(
-                'Revised: founded by neighbours in 1952 and still growing.',
-                'a',
-              ),
-            ],
-          },
-          _rev: current.json.data._rev,
-        },
-      )
-      lib.assert(updated.status === 200, `update ${updated.status}`)
+      const p = editor.page
+      const editorBody = p.locator('.ProseMirror').first()
+      await editorBody.locator('p').first().click()
+      await p.keyboard.press('End')
+      await p.keyboard.type(' Still growing.')
+      await saveEntry(p)
       const before = await html(`${WEBSITE}/our-story`)
       lib.assert(
-        !before.text.includes('still growing'),
+        !before.text.includes('Still growing'),
         'unpublished edit is public',
       )
-      await emdash('POST', `/_emdash/api/content/pages/${pageId}/publish`, {})
+      const preview = await html(await openPreview(p))
+      lib.assert(preview.text.includes('Still growing'), 'edit not previewed')
+      await publishEntry(p)
       const after = await html(`${WEBSITE}/our-story`)
-      lib.assert(after.text.includes('still growing'), 'published edit missing')
-      return { beforePublish: 'old text', afterPublish: 'new text' }
+      lib.assert(after.text.includes('Still growing'), 'published edit missing')
+      return {
+        beforePublish: 'old text',
+        preview: 'new text',
+        afterPublish: 'new text',
+      }
     },
   )
 
-  await check(
-    'the editor offers church blocks with their source explained',
-    async () => {
-      await page.goto(`${WEBSITE}/_emdash/admin/content/pages/${pageId}`)
-      const editor = page.locator('.ProseMirror').first()
-      await editor.waitFor({ timeout: 20_000 })
-      // EmDash greets a first-time user with a dismissible dialog.
-      await page.waitForTimeout(1500)
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const dialog = page.getByRole('dialog')
-        if (!(await dialog.count())) break
-        await shot(page, '07a-editor-welcome')
-        const close = dialog.getByRole('button').first()
-        await close.click().catch(() => page.keyboard.press('Escape'))
-        await page.waitForTimeout(500)
-      }
-      await editor.click()
-      await page.keyboard.press('Control+End')
-      await page.keyboard.press('Enter')
-      await page.keyboard.type('/Upcoming')
-      const item = page.getByText('Upcoming events', { exact: false }).first()
-      await item.waitFor({ timeout: 10_000 })
-      await shot(page, '07-editor-church-blocks')
-      await page.keyboard.press('Escape')
-      return { slashMenu: 'Upcoming events offered' }
-    },
-  )
+  await check('an editor writes and publishes an article', async () => {
+    const p = editor.page
+    await p.goto(`${WEBSITE}/_emdash/admin/content/posts/new`)
+    await dismissWelcome(p)
+    await p.getByRole('textbox', { name: 'Title' }).fill('Harvest thanks')
+    await p.getByRole('textbox', { name: 'Slug' }).fill('harvest-thanks')
+    await p
+      .getByRole('textbox', { name: 'Excerpt' })
+      .fill('Thank you to everyone who served at the harvest supper.')
+    await p.locator('.ProseMirror').first().click()
+    await p.keyboard.type('Over two hundred neighbours shared the meal.')
+    await saveEntry(p)
+    await publishEntry(p)
+    const list = await html(`${WEBSITE}/articles`)
+    const article = await html(`${WEBSITE}/articles/harvest-thanks`)
+    lib.assert(list.text.includes('Harvest thanks'), 'article not listed')
+    lib.assert(article.status === 200, `article ${article.status}`)
+    lib.assert(
+      article.text.includes('Over two hundred neighbours'),
+      'article body missing',
+    )
+    return { listed: true, status: article.status }
+  })
 
   console.log('\nChurch-content lifecycle')
   const eventInput = (overrides = {}) => ({
@@ -871,14 +1067,36 @@ try {
         (img) => img.complete && img.naturalWidth > 0,
       )
       lib.assert(loaded, 'cross-origin logo did not load')
+      const course = (await contract('courses')).items.find(
+        (item) => item.lessonCount > 0,
+      )
+      lib.assert(course, 'no published course with lessons')
       await visitor.goto(`${WEBSITE}/courses`)
-      const courseLink = visitor
-        .locator(`a[href^="${INSTANCE}/courses/"]`)
-        .first()
+      const courseLink = visitor.locator(`a[href="${course.url}"]`).first()
+      await courseLink.waitFor({ timeout: 15_000 })
       const href = await courseLink.getAttribute('href')
-      const course = await fetch(href)
-      lib.assert(course.status === 200, `course page ${course.status}`)
-      return { logo: `${INSTANCE}/media/${mediaId}`, courseLink: href }
+      const detail = await (
+        await fetch(
+          `${INSTANCE}/api/churches/church_demo/courses/${course.slug}`,
+        )
+      ).json()
+      await visitor.goto(href)
+      await visitor
+        .getByRole('heading', { name: course.title })
+        .first()
+        .waitFor({ timeout: 15_000 })
+      for (const lesson of detail.lessons)
+        await visitor
+          .getByRole('heading', { name: lesson.title })
+          .first()
+          .waitFor({ timeout: 10_000 })
+      await shot(visitor, '12-course-page-on-instance')
+      return {
+        logo: `${INSTANCE}/media/${mediaId}`,
+        courseLink: href,
+        courseTitle: course.title,
+        lessonsShown: detail.lessons.length,
+      }
     },
   )
 
@@ -904,6 +1122,7 @@ try {
         state: state.instance,
         vars: instanceVars,
         logFile: logs.instance,
+        env: serverEnv,
       })
       await lib.waitFor(`${INSTANCE}/api/health`)
       const recovered = await html(`${WEBSITE}/events`)
@@ -916,76 +1135,13 @@ try {
   )
 
   console.log('\nAccess boundaries')
-  let editor
   await check(
     'an EmDash editor cannot change the Fellowship42 connection',
     async () => {
-      const invite = await emdash('POST', '/_emdash/api/auth/invite', {
-        email: 'editor@example.test',
-        role: 40,
-      })
-      lib.assert(
-        invite.status === 200 || invite.status === 201,
-        `invite ${invite.status} ${JSON.stringify(invite.json)}`,
-      )
-      const inviteUrl = invite.json.data.inviteUrl
-      const editorContext = await browser.newContext()
-      const editorPage = await lib.passkeyPage(editorContext)
-      await editorPage.goto(new URL(inviteUrl, WEBSITE).href)
-      const name = editorPage.getByRole('textbox', { name: /name/i })
-      if (await name.count()) await name.first().fill('Web Editor')
-      await editorPage
-        .getByRole('button', { name: /passkey|create|accept/i })
-        .first()
-        .click()
-      await editorPage
-        .waitForURL(
-          (url) =>
-            url.pathname.startsWith('/_emdash/admin') &&
-            !url.pathname.includes('invite'),
-          { timeout: 30_000 },
-        )
-        .catch(() => {})
-      for (
-        let attempt = 0;
-        attempt < 3 && editorPage.url().includes('/login');
-        attempt++
-      ) {
-        await editorPage
-          .getByRole('button', { name: 'Sign in with Passkey' })
-          .click()
-        await editorPage
-          .waitForURL((url) => !url.pathname.includes('/login'), {
-            timeout: 15_000,
-          })
-          .catch(() => {})
-      }
-      const call = (method, url, body) =>
-        withProxyRetry(`editor ${method} ${url}`, async () => {
-          const response = await editorPage.request.fetch(`${WEBSITE}${url}`, {
-            method,
-            headers: {
-              'X-EmDash-Request': '1',
-              'content-type': 'application/json',
-            },
-            ...(body === undefined ? {} : { data: JSON.stringify(body) }),
-          })
-          return {
-            status: response.status(),
-            json: await response.json().catch(() => null),
-          }
-        })
-      const me = await call('GET', '/_emdash/api/auth/me')
-      lib.assert(
-        me.json?.data?.role === 40,
-        `editor role ${me.status} ${JSON.stringify(me.json)}`,
-      )
-      const change = await call(
+      const change = await editor.call(
         'PUT',
         '/_emdash/api/admin/plugins/fellowship42/settings',
-        {
-          values: { instanceUrl: 'https://attacker.example' },
-        },
+        { values: { instanceUrl: 'https://attacker.example' } },
       )
       const anonymousChange = await withProxyRetry(
         'anonymous PUT settings',
@@ -1006,13 +1162,10 @@ try {
           return { status: response.status() }
         },
       )
-      const statusPage = await call(
+      const statusPage = await editor.call(
         'POST',
         '/_emdash/api/plugins/fellowship42/admin',
-        {
-          type: 'page_load',
-          page: '/status',
-        },
+        { type: 'page_load', page: '/status' },
       )
       lib.assert(
         change.status === 403,
@@ -1026,12 +1179,30 @@ try {
         statusPage.status === 200,
         `editor status page ${statusPage.status}`,
       )
-      editor = { id: me.json.data.id, call, context: editorContext }
+      lib.assert(
+        !JSON.stringify(statusPage.json).includes('plugin-settings'),
+        'settings link offered to an editor',
+      )
       return {
         editorSettingsWrite: change.status,
         anonymousSettingsWrite: anonymousChange.status,
         editorStatusPage: statusPage.status,
       }
+    },
+  )
+
+  await check(
+    'a website editor session confers no Fellowship42 access',
+    async () => {
+      // The editor's own signed-in browser, asking the instance directly.
+      const people = await editor.page.request.fetch(
+        `${INSTANCE}/api/people/church_demo`,
+      )
+      const session = await editor.page.request.fetch(`${INSTANCE}/api/session`)
+      const sessionBody = await session.json()
+      lib.assert(people.status() === 401, `people ${people.status()}`)
+      lib.assert(sessionBody.user === null, 'editor has a Fellowship42 session')
+      return { people: people.status(), session: sessionBody }
     },
   )
 
@@ -1056,12 +1227,41 @@ try {
     },
   )
 
+  console.log('\nService binding')
   await check(
-    'website editor accounts confer no Fellowship42 access',
+    'a FELLOWSHIP42 service binding carries contract requests when configured',
     async () => {
-      const response = await fetch(`${INSTANCE}/api/people/church_demo`)
-      lib.assert(response.status === 401, `people ${response.status}`)
-      return { peopleWithoutFellowship42Session: response.status }
+      const { readFileSync: read, writeFileSync: write } =
+        await import('node:fs')
+      const built = path.join(lib.websiteDir, 'dist/server/wrangler.json')
+      const bound = path.join(
+        lib.websiteDir,
+        'dist/server/wrangler.binding.json',
+      )
+      const config = JSON.parse(read(built, 'utf8'))
+      config.services = [{ binding: 'FELLOWSHIP42', service: 'fellowship42' }]
+      write(bound, JSON.stringify(config, null, 2))
+      lib.stopServer(website)
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // The public address is unreachable; only the binding can answer.
+      website = startWebsite({
+        config: 'dist/server/wrangler.binding.json',
+        vars: { ...websiteVars, FELLOWSHIP42_URL: 'http://localhost:9' },
+      })
+      await lib.waitFor(`${WEBSITE}/`, { ok: (r) => r.status === 200 })
+      const events = await html(`${WEBSITE}/events`)
+      lib.stopServer(website)
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      website = startWebsite()
+      await lib.waitFor(`${WEBSITE}/`, { ok: (r) => r.status === 200 })
+      lib.assert(
+        events.text.includes('Summer Church Picnic'),
+        'church records did not arrive through the binding',
+      )
+      return {
+        publicAddress: 'http://localhost:9 (closed)',
+        recordsRendered: true,
+      }
     },
   )
 
@@ -1217,8 +1417,11 @@ const versions = JSON.parse(
   ),
 ).version
 const failed = checks.filter((item) => !item.pass)
+const git = (...argv) => lib.sh('git', argv).trim()
 lib.writeJson(path.join(out, 'evidence.json'), {
   journey: 'fellowship42-first',
+  revision: git('rev-parse', 'HEAD'),
+  dirty: git('status', '--porcelain') !== '',
   evidence:
     'local production builds on isolated synthetic state (wrangler dev / workerd)',
   node: process.version,
