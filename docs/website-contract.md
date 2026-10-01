@@ -73,6 +73,11 @@ List routes accept `limit` (1–100, default 20) and `cursor`. A response is
 Cursors are opaque keyset positions: pages never overlap or skip records.
 Records that change while a reader pages are seen as of each request.
 
+A cursor is at most 1024 URL-safe characters (`A–Z`, `a–z`, `0–9`, `-`, `_`)
+and works only on the route that issued it. It encodes its key as UTF-8, so
+titles in any script page correctly. Pass it back unchanged; its contents may
+change without notice.
+
 ### Errors
 
 | Status | `error.code` | Meaning |

@@ -6,6 +6,7 @@ import {
   formatServiceTime,
   isHttpUrl,
   localDateTimeAttribute,
+  MAX_CURSOR_LENGTH,
   normalizeInstanceOrigin,
   parseChurch,
   parseDescriptor,
@@ -124,6 +125,14 @@ describe('parsers', () => {
         nextCursor: null,
       }),
     ).toThrow('preachedOn')
+  })
+
+  it('accepts cursors up to the published length', () => {
+    const page = (nextCursor: string) =>
+      parsePage('groups', { ...envelope, items: [], nextCursor })
+    const longest = 'A'.repeat(MAX_CURSOR_LENGTH)
+    expect(page(longest).nextCursor).toBe(longest)
+    expect(() => page(`${longest}A`)).toThrow('$.nextCursor')
   })
 
   it('hides church identity in an unpublished descriptor', () => {

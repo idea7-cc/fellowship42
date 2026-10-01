@@ -13,6 +13,8 @@ export const WEBSITE_CONTRACT_VERSION = 1 as const
 export const WEBSITE_CONTRACT_PATH = '/api/website/v1' as const
 export const DEFAULT_PAGE_LIMIT = 20
 export const MAX_PAGE_LIMIT = 100
+/** Longest page cursor an instance issues or accepts. */
+export const MAX_CURSOR_LENGTH = 1024
 
 export type WebsiteContractName = typeof WEBSITE_CONTRACT
 export type WebsiteContractVersion = typeof WEBSITE_CONTRACT_VERSION
@@ -147,7 +149,11 @@ export interface CourseItem {
 
 export interface PageResponse<T> extends ContractEnvelope {
   items: T[]
-  /** Opaque cursor for the next page, or null when this page is the last. */
+  /**
+   * Opaque cursor for the next page, or null when this page is the last. It is
+   * valid only on the route that issued it and is at most `MAX_CURSOR_LENGTH`
+   * URL-safe characters.
+   */
   nextCursor: string | null
 }
 

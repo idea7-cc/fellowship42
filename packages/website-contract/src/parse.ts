@@ -1,4 +1,5 @@
 import {
+  MAX_CURSOR_LENGTH,
   WEBSITE_CONTRACT,
   WEBSITE_CONTRACT_VERSION,
   type ChurchProfile,
@@ -373,7 +374,7 @@ export function parsePage<K extends ListResource>(
   const nextCursor =
     root.nextCursor === null || root.nextCursor === undefined
       ? null
-      : string(root.nextCursor, '$.nextCursor', 512)
+      : string(root.nextCursor, '$.nextCursor', MAX_CURSOR_LENGTH)
   return {
     ...envelope,
     items: list(
