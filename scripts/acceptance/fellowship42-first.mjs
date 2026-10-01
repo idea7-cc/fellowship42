@@ -588,9 +588,18 @@ try {
     const confirm = target.getByRole('dialog', {
       name: /^Publish (now|changes)\?$/,
     })
-    await confirm
-      .getByRole('button', { name: /^Publish (now|changes)$/ })
-      .click()
+    // The dialog can close before the publish request completes.
+    const [published] = await Promise.all([
+      target.waitForResponse(
+        (response) =>
+          /\/_emdash\/api\/content\/[^/]+\/[^/]+\/publish$/.test(
+            new URL(response.url()).pathname,
+          ) && response.request().method() === 'POST',
+        { timeout: 20_000 },
+      ),
+      confirm.getByRole('button', { name: /^Publish (now|changes)$/ }).click(),
+    ])
+    lib.assert(published.ok(), `publish request ${published.status()}`)
     await confirm.waitFor({ state: 'hidden', timeout: 15_000 })
   }
   const openPreview = async (target) => {
