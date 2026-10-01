@@ -32,7 +32,12 @@ its fields, sends no cookies, and is not cached, so a staff session cannot
 widen it and a withdrawal applies on the next request. Public media and the
 contract are the only instance responses that other origins may embed or read.
 EmDash website accounts are separate from Fellowship42 accounts and grant no
-access to church records beyond that published content.
+access to church records beyond that published content. The trusted EmDash
+integration fetches the instance from the website's server, so an address an
+EmDash Administrator enters must name a public host; private, loopback,
+link-local, and local-only addresses are refused unless the deployment pins
+the address or opts in for local evaluation. See
+[connection rules](emdash-church-websites.md#connection-rules).
 Optional management messages contain portable identity, release/protocol state,
 coarse operational health, grant/connection state, bounded operation results,
 and audit evidence defined by strict public schemas. They must not contain
