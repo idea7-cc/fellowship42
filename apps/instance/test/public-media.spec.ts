@@ -21,8 +21,8 @@ async function get(headers: Record<string, string> = {}, method = 'GET') {
   return { status: response.status, headers: response.headers, body }
 }
 
-let etag = ''
-let uploaded = new Date()
+let etag: string = ''
+let uploaded: Date = new Date()
 
 beforeAll(async () => {
   const object = await env.MEDIA.put('test/range-probe', bytes, {
@@ -36,8 +36,10 @@ beforeAll(async () => {
   ).run()
 })
 
-const past = () => new Date(uploaded.getTime() - 86_400_000).toUTCString()
-const future = () => new Date(uploaded.getTime() + 86_400_000).toUTCString()
+const past = (): string =>
+  new Date(uploaded.getTime() - 86_400_000).toUTCString()
+const future = (): string =>
+  new Date(uploaded.getTime() + 86_400_000).toUTCString()
 
 describe('public media conditional requests (RFC 9110 §13)', () => {
   it('serves the whole object to a plain GET', async () => {
@@ -62,7 +64,7 @@ describe('public media conditional requests (RFC 9110 §13)', () => {
     expect(partial.headers.get('Content-Range')).toBe('bytes 0-3/10')
   })
 
-  it.each([
+  const cases: [string, Record<string, () => string>, number][] = [
     ['a matching If-None-Match', { 'If-None-Match': () => etag }, 304],
     [
       'a weakly matching If-None-Match',
@@ -116,20 +118,24 @@ describe('public media conditional requests (RFC 9110 §13)', () => {
       { 'If-None-Match': () => etag, Range: () => 'bytes=0-3' },
       304,
     ],
-  ] as const)('answers %s as RFC 9110 requires', async (_, headers, status) => {
-    const response = await get(
-      Object.fromEntries(
-        Object.entries(headers).map(([name, value]) => [name, value()]),
-      ),
-    )
-    expect(response.status).toBe(status)
-    if (status === 304) {
-      expect(response.body).toBe('')
-      expect(response.headers.get('ETag')).toBe(etag)
-    }
-    if (status === 412) expect(response.body).toBe('')
-    if (status === 200) expect(response.body).toBe(bytes)
-  })
+  ]
+  it.each(cases)(
+    'answers %s as RFC 9110 requires',
+    async (_, headers, status) => {
+      const response = await get(
+        Object.fromEntries(
+          Object.entries(headers).map(([name, value]) => [name, value()]),
+        ),
+      )
+      expect(response.status).toBe(status)
+      if (status === 304) {
+        expect(response.body).toBe('')
+        expect(response.headers.get('ETag')).toBe(etag)
+      }
+      if (status === 412) expect(response.body).toBe('')
+      if (status === 200) expect(response.body).toBe(bytes)
+    },
+  )
 })
 
 describe('public media ranges (RFC 9110 §14)', () => {
