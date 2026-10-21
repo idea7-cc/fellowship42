@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^3.3.1",
-    "wrangler": "^4.133.0"
+    "wrangler": "^4.151.1"
   },
   "peerDependencies": {
     "@fellowship42/management-protocol": "workspace:*"
