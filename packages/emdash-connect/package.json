@@ -27,15 +27,15 @@
     "emdash": ">=1.0.1 <2"
   },
   "devDependencies": {
-    "@emdash-cms/blocks": "1.0.1",
-    "@emdash-cms/plugin-cli": "0.13.1",
-    "@emdash-cms/plugin-test": "0.2.6",
-    "@emdash-cms/registry-verification": "0.3.3",
+    "@emdash-cms/blocks": "1.3.0",
+    "@emdash-cms/plugin-cli": "0.13.4",
+    "@emdash-cms/plugin-test": "0.2.9",
+    "@emdash-cms/registry-verification": "0.3.4",
     "@fellowship42/emdash": "workspace:*",
     "@fellowship42/website-contract": "workspace:*",
     "emdash": "1.0.1",
-    "typescript": "~6.0.3",
-    "vitest": "~4.1.11"
+    "typescript": "~7.0.2",
+    "vitest": "~5.0.5"
   },
   "publishConfig": {
     "access": "public"
