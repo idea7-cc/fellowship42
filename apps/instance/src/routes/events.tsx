@@ -36,6 +36,25 @@ function eventInputValue(value: number | undefined, timeZone: string) {
   if (value === undefined) return ''
   return toZonedInputValue(value, isValidTimeZone(timeZone) ? timeZone : 'UTC')
 }
+/**
+ * The instant a submitted time names. An unchanged time keeps its stored
+ * instant, so saving other fields never moves an event that falls in the
+ * repeated hour of a daylight-saving change.
+ */
+function submittedInstant(
+  value: string,
+  timeZone: string,
+  stored: number | undefined,
+  storedZone: string | undefined,
+) {
+  if (
+    stored !== undefined &&
+    timeZone === storedZone &&
+    value === eventInputValue(stored, storedZone)
+  )
+    return stored
+  return fromZonedInputValue(value, timeZone)
+}
 
 function EventForm({
   event: record,
@@ -80,8 +99,15 @@ function EventForm({
       title: String(form.get('title') ?? ''),
       status: String(form.get('status') ?? 'draft'),
       summary: String(form.get('summary') ?? ''),
-      startsAt: fromZonedInputValue(String(form.get('startsAt') ?? ''), zone),
-      endsAt: endsRaw ? fromZonedInputValue(endsRaw, zone) : null,
+      startsAt: submittedInstant(
+        String(form.get('startsAt') ?? ''),
+        zone,
+        event?.startDate,
+        event?.timezone,
+      ),
+      endsAt: endsRaw
+        ? submittedInstant(endsRaw, zone, event?.endDate, event?.timezone)
+        : null,
       timezone: zone,
       location: String(form.get('location') ?? ''),
       registrationUrl: String(form.get('registrationUrl') ?? '') || null,

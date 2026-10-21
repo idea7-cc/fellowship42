@@ -85,6 +85,30 @@ it('edits an existing event in its own timezone and saves the same instant', asy
   })
 })
 
+it('keeps an unchanged time in the repeated daylight-saving hour', async () => {
+  // 01:30 EST, the second 01:30 on the night New York falls back.
+  const lateService: EventRecord = {
+    ...autumnService,
+    id: 'event-late',
+    slug: 'late-service',
+    title: 'Late service',
+    startDate: Date.UTC(2026, 10, 1, 6, 30),
+    endDate: Date.UTC(2026, 10, 1, 7),
+    timezone: 'America/New_York',
+  }
+  const api = await renderEvents([lateService])
+  await ui!.click(ui!.button('Edit'))
+  const form = ui!.formWith('startsAt')
+  expect(ui!.field('startsAt', form).value).toBe('2026-11-01T01:30')
+  await ui!.type(ui!.field('title', form), 'Late vigil')
+  await ui!.submit(form)
+  expect(api.requests('PATCH')[0]!.body).toMatchObject({
+    title: 'Late vigil',
+    startsAt: Date.UTC(2026, 10, 1, 6, 30),
+    endsAt: Date.UTC(2026, 10, 1, 7),
+  })
+})
+
 it('reads a new event time in the church timezone, not the browser timezone', async () => {
   const api = await renderEvents([])
   await ui!.click(ui!.button('Add event'))
