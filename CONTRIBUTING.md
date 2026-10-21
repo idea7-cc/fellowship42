@@ -44,7 +44,7 @@ exports, Access JWTs, or member/donor data.
 - Validate untrusted input, use prepared D1 statements, audit sensitive writes,
   and make external retries idempotent.
 - Before the alpha, breaking changes are expected and need no compatibility
-  shim or migration; see "Pre-alpha development policy" in `AGENTS.md`.
+  shim or migration; see "Stage: iterate" in `AGENTS.md`.
 
 Stable release tags and artifacts follow `docs/releases.md`. Never move or
 reuse a tag, and never publish an artifact from a dirty worktree.
