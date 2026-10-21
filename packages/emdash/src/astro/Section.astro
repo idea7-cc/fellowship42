@@ -1,0 +1,108 @@
+---
+/**
+ * Shared frame for church blocks. Styles read `--f42-*` custom properties so a
+ * theme can restyle every block without overriding component internals.
+ */
+interface Props {
+  id: string
+  heading: string
+  kind: string
+}
+const { id, heading, kind } = Astro.props
+---
+
+<section
+  class:list={['f42-section', `f42-section--${kind}`]}
+  aria-labelledby={heading ? id : undefined}
+  data-f42-block={kind}
+>
+  {heading && <h2 id={id} class="f42-section__heading">{heading}</h2>}
+  <slot />
+</section>
+
+<style>
+  .f42-section {
+    --_accent: var(--f42-accent, #2a4a7c);
+    --_ink: var(--f42-ink, inherit);
+    --_muted: var(--f42-muted, #4f4a45);
+    --_surface: var(--f42-card, transparent);
+    --_border: var(--f42-border, rgba(0, 0, 0, 0.14));
+    --_radius: var(--f42-radius, 0.75rem);
+    color: var(--_ink);
+    margin-block: 2rem;
+  }
+  .f42-section__heading {
+    margin: 0 0 1rem;
+    font-family: var(--f42-heading-font, inherit);
+  }
+  .f42-section :global(.f42-list) {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .f42-section :global(.f42-card) {
+    background: var(--_surface);
+    border: 1px solid var(--_border);
+    border-radius: var(--_radius);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+    padding: 1rem 1.1rem;
+  }
+  .f42-section :global(.f42-card h3) {
+    font-size: 1.1rem;
+    line-height: 1.3;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .f42-section :global(.f42-meta) {
+    color: var(--_muted);
+    font-size: 0.925rem;
+    margin: 0;
+  }
+  .f42-section :global(.f42-card p) {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .f42-section :global(.f42-actions) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: auto;
+    padding-top: 0.4rem;
+  }
+  .f42-section :global(a) {
+    color: var(--_accent);
+    text-underline-offset: 0.15em;
+  }
+  .f42-section :global(a:focus-visible) {
+    outline: 2px solid var(--_accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .f42-section :global(.f42-actions a) {
+    align-items: center;
+    display: inline-flex;
+    font-weight: 600;
+    min-height: 2.75rem;
+  }
+  .f42-section :global(.f42-sr-only) {
+    border: 0;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+  .f42-section :global(audio) {
+    max-width: 100%;
+    width: 100%;
+  }
+</style>

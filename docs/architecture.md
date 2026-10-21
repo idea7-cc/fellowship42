@@ -61,6 +61,32 @@ application and Worker at one origin; Wrangler deploys their versioned output
 together. Bindings keep D1, R2, assets, and Durable Objects inside the instance
 instead of calling Cloudflare REST APIs at runtime.
 
+## Church website
+
+```text
+Visitor ──► EmDash website Worker (apps/website, own hostname)
+              +-- pages, articles, menus, presentation (EmDash, own D1 + R2)
+              +-- @fellowship42/emdash church blocks
+              `-- GET /api/website/v1/* ──► instance Worker (published records)
+```
+
+The default public website is an EmDash 1.0.1 site, deployed as a second Worker
+inside the same installation. It is a component of the installation, not a
+second instance: it uses the same `instance_metadata` identity, the same
+deployment authority, and the `single-church` topology, and the deployment
+manifest's optional `website` object records it. It has its own D1 database, R2
+bucket, and disposable session KV because EmDash's schema and media are its own.
+
+The instance remains the only authority for the church profile, service times,
+events, sermons, groups, and courses. The website stores no copy; it renders
+them at request time from the versioned, anonymous
+[public website contract](website-contract.md). The website's deployment pins
+the instance origin and identity digest. Editors sign in with EmDash's own
+accounts, which grant no Fellowship42 access. A Fellowship42 owner claims the
+website's first administrator. An independently operated EmDash site can
+install the same integration. See [EmDash church websites](emdash-church-websites.md)
+and [ADR 0027](adr/0027-emdash-church-websites.md).
+
 The public project site in `apps/project-site` is a separate Worker with a
 separate release cadence. It is not a hosted-service dashboard.
 
@@ -122,10 +148,14 @@ Access is not the portable instance identity and must not become a requirement
 for management interoperability. A future authentication change should remain
 inside the instance boundary.
 
-The public church website is served at `/`, public course pages at
-`/courses/:slug`, and the staff workspace at `/app`. Private profile drafts,
-saved previews, and publication controls require `church.write`; see
-[ADR 0022](adr/0022-public-church-site-and-private-drafts.md).
+The staff workspace is at `/app` and public course pages at
+`/courses/:slug`. When `WEBSITE_ORIGIN` is configured, `/` redirects to the
+church website; otherwise the instance serves its own public page there.
+Private profile drafts, saved previews, and publication controls require
+`church.write`; see
+[ADR 0022](adr/0022-public-church-site-and-private-drafts.md) and
+[ADR 0027](adr/0027-emdash-church-websites.md). The public website contract
+and public media are the only responses other origins may read or embed.
 
 Public published content is readable without a session. Private people,
 finance, support, and realtime operations require explicit permissions. Member,
@@ -185,6 +215,13 @@ A supported export includes:
 5. non-secret configuration needed to reconstruct the deployment; and
 6. a checksummed manifest for offline verification.
 
+With a website, the export adds `website/d1/database.sql` and
+`website/r2/index.json`, whose objects share `r2/objects/<sha256>`. The website
+`SESSION` KV is disposable and never exported, and `EMDASH_ENCRYPTION_KEY` is
+preserved with the backups because it decrypts EmDash plugin secrets. The exit
+handoff adds `website-d1-database`, `website-r2-bucket`, `website-worker`, and
+`website-session-kv` (disposed) before `domains`.
+
 Import creates new Cloudflare resources, restores data and objects, verifies
 integrity, switches the domain, and rotates every deployment and management
 credential. Cloudflare resource IDs are never portable identifiers.
@@ -216,10 +253,14 @@ conformance proof, not a substitute for real Cloudflare staging certification.
 ## Repository and dependency boundaries
 
 ```text
-apps/instance/                 deployable open church product
+apps/instance/                 deployable open church application
+apps/website/                  the installation's EmDash church website
 apps/project-site/             public project/community site
 packages/brand/                public visual system
 packages/management-protocol/  public integration contract
+packages/website-contract/     public read-only church content contract
+packages/emdash/               trusted EmDash integration (blocks, renderers)
+packages/emdash-connect/       sandboxed EmDash registry connector
 tooling/f42ctl/                public lifecycle contracts and CLI
 docs/adr/                      architecture decision records
 ```
@@ -227,8 +268,10 @@ docs/adr/                      architecture decision records
 Allowed dependency direction:
 
 ```text
-instance ──► management-protocol
-instance ──► brand
+instance ──► management-protocol, website-contract, brand
+website ──► emdash, website-contract, brand
+emdash ──► website-contract
+emdash-connect ──► emdash, website-contract
 project-site ──► brand
 private control plane ──► published protocol and release artifacts
 ```
@@ -246,6 +289,9 @@ Implemented now:
 - a portable singleton instance identity;
 - people/household operations plus group, course/lesson, event, sermon, and
   authorized R2 media publishing workflows;
+- an EmDash church website deployed beside the instance, a versioned public
+  website contract, a trusted EmDash integration with church blocks, and a
+  sandboxed registry connector;
 - a compiled public management-contract package;
 - a strict portable deployment manifest, deterministic deploy plan, and
   evidence-only `f42ctl doctor` CLI;
@@ -285,6 +331,7 @@ Planned, not implied by the scaffolding:
 The public instance exposes optional OAuth-granted church tools independently
 of the private fleet MCP adapter. D1 owns local consent and revocation; the
 OAuth provider stores disposable credentials in an instance-local KV namespace.
-The initial tools read church information and save private website drafts using
-the app's services and version checks. Publishing remains in the app. See
+The initial tools read church information and save private church profile
+drafts using the app's services and version checks; they do not reach EmDash
+website pages. Publishing remains in the app. See
 [agent connections](agent-connections.md) and [ADR 0023](adr/0023-church-owned-agent-connections.md).

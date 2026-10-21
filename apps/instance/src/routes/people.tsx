@@ -13,7 +13,10 @@ import {
 
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRequestGuard } from '@/lib/request-guard'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type {
   Church,
   CursorPage,
@@ -58,8 +61,6 @@ import {
 } from '@/components/ui/table'
 
 type DirectoryView = 'people' | 'households'
-type PersonEditor = PersonDetail | 'new' | null
-type HouseholdEditor = Household | 'new' | null
 
 const membershipStatuses = [
   { value: 'guest', label: 'Guest' },
@@ -128,24 +129,36 @@ function Pagination({
 // ---------------------------------------------------------------------------
 
 function PersonForm({
-  editor,
+  person: record,
   onCancel,
   onSaved,
 }: {
-  editor: Exclude<PersonEditor, null>
+  person: PersonDetail | null
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
   const { churchId } = useChurch()
-  const person = editor === 'new' ? null : editor
+  // The person as shown when this editor opened; the save is checked against it.
+  const [person] = useState(record)
   const [error, setError] = useState<string | null>(null)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
+  const entryKey = useEntryKey('person')
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const common = {
       firstName: String(form.get('firstName') ?? ''),
@@ -168,16 +181,23 @@ function PersonForm({
       } else {
         await apiRequest(`/api/people/${encodeURIComponent(churchId)}`, {
           method: 'POST',
+          headers: { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(common),
         })
+        entryKey.reset()
       }
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The person could not be saved.',
+        person
+          ? describeSaveFailure(
+              caught,
+              'person',
+              'The person could not be saved.',
+            )
+          : describeEntryFailure(caught, 'person').message,
       )
+      setEntryFailed(!person)
       setSaving(false)
     }
   }
@@ -270,6 +290,17 @@ function PersonForm({
           <Button disabled={saving} size="sm" type="submit">
             {saving ? 'Saving…' : 'Save person'}
           </Button>
+          {entryFailed ? (
+            <Button
+              disabled={saving}
+              onClick={(event) => startNewEntry(event.currentTarget.form)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Start a new entry
+            </Button>
+          ) : null}
           <Button onClick={onCancel} size="sm" variant="ghost">
             Cancel
           </Button>
@@ -280,24 +311,36 @@ function PersonForm({
 }
 
 function HouseholdForm({
-  editor,
+  household: record,
   onCancel,
   onSaved,
 }: {
-  editor: Exclude<HouseholdEditor, null>
+  household: Household | null
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
   const { churchId } = useChurch()
-  const household = editor === 'new' ? null : editor
+  // The household as shown when this editor opened; the save is checked against it.
+  const [household] = useState(record)
   const [error, setError] = useState<string | null>(null)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
+  const entryKey = useEntryKey('household')
+
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       name: String(form.get('name') ?? ''),
@@ -321,16 +364,23 @@ function HouseholdForm({
       } else {
         await apiRequest(`/api/households/${encodeURIComponent(churchId)}`, {
           method: 'POST',
+          headers: { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(value),
         })
+        entryKey.reset()
       }
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The household could not be saved.',
+        household
+          ? describeSaveFailure(
+              caught,
+              'household',
+              'The household could not be saved.',
+            )
+          : describeEntryFailure(caught, 'household').message,
       )
+      setEntryFailed(!household)
       setSaving(false)
     }
   }
@@ -401,6 +451,17 @@ function HouseholdForm({
           <Button disabled={saving} size="sm" type="submit">
             {saving ? 'Saving…' : 'Save household'}
           </Button>
+          {entryFailed ? (
+            <Button
+              disabled={saving}
+              onClick={(event) => startNewEntry(event.currentTarget.form)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Start a new entry
+            </Button>
+          ) : null}
           <Button onClick={onCancel} size="sm" variant="ghost">
             Cancel
           </Button>
@@ -511,8 +572,12 @@ export function PeoplePage() {
   const [householdCursors, setHouseholdCursors] = useState<
     Array<string | null>
   >([null])
-  const [personEditor, setPersonEditor] = useState<PersonEditor>(null)
-  const [householdEditor, setHouseholdEditor] = useState<HouseholdEditor>(null)
+  const personEditor = useRecordEditor<PersonDetail>()
+  const personSession = personEditor.session
+  const householdEditor = useRecordEditor<Household>()
+  const householdSession = householdEditor.session
+  // Person details load before their editor opens; only the newest choice wins.
+  const personLoad = useRequestGuard()
   const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
     null,
   )
@@ -569,15 +634,24 @@ export function PeoplePage() {
     (view === 'households' && householdQuery.isLoading)
   const hasFilters = Boolean(appliedSearch || status)
 
+  function choosePersonEditor(next: PersonDetail | 'new' | null) {
+    personLoad.invalidate()
+    if (next) personEditor.open(next)
+    else personEditor.close()
+  }
+
   async function editPerson(person: Person) {
     if (!churchId) return
     setMutationError(null)
+    const ticket = personLoad.start()
     try {
       const result = await apiRequest<{ person: PersonDetail }>(
         `/api/people/${encodeURIComponent(churchId)}/${encodeURIComponent(person.id)}`,
+        { signal: ticket.signal },
       )
-      setPersonEditor(result.person)
+      if (ticket.isCurrent()) personEditor.open(result.person)
     } catch (caught) {
+      if (!ticket.isCurrent()) return
       setMutationError(
         caught instanceof ApiError
           ? caught.message
@@ -660,12 +734,12 @@ export function PeoplePage() {
       <PageHeader
         actions={
           isSignedIn && view === 'people' && canWritePeople ? (
-            <Button onClick={() => setPersonEditor('new')} size="sm">
+            <Button onClick={() => choosePersonEditor('new')} size="sm">
               <Plus />
               Add person
             </Button>
           ) : isSignedIn && view === 'households' && canWriteHouseholds ? (
-            <Button onClick={() => setHouseholdEditor('new')} size="sm">
+            <Button onClick={() => householdEditor.open('new')} size="sm">
               <Plus />
               Add household
             </Button>
@@ -693,7 +767,10 @@ export function PeoplePage() {
           <Toolbar>
             <Tabs
               label="Directory view"
-              onValueChange={(next) => setView(next as DirectoryView)}
+              onValueChange={(next) => {
+                personLoad.invalidate()
+                setView(next as DirectoryView)
+              }}
               value={view}
             >
               <Tab value="people">People</Tab>
@@ -758,12 +835,15 @@ export function PeoplePage() {
 
           {view === 'people' ? (
             <>
-              {personEditor ? (
+              {personSession ? (
                 <PersonForm
-                  editor={personEditor}
-                  onCancel={() => setPersonEditor(null)}
+                  key={personSession.key}
+                  person={
+                    personSession.value === 'new' ? null : personSession.value
+                  }
+                  onCancel={() => choosePersonEditor(null)}
                   onSaved={async () => {
-                    setPersonEditor(null)
+                    personEditor.closeIf(personSession.key)
                     await Promise.all([
                       peopleQuery.refetch(),
                       peopleOptionsQuery.refetch(),
@@ -908,7 +988,10 @@ export function PeoplePage() {
                         Clear filters
                       </Button>
                     ) : canWritePeople ? (
-                      <Button onClick={() => setPersonEditor('new')} size="sm">
+                      <Button
+                        onClick={() => choosePersonEditor('new')}
+                        size="sm"
+                      >
                         <Plus />
                         Add person
                       </Button>
@@ -937,12 +1020,17 @@ export function PeoplePage() {
             </>
           ) : (
             <>
-              {householdEditor ? (
+              {householdSession ? (
                 <HouseholdForm
-                  editor={householdEditor}
-                  onCancel={() => setHouseholdEditor(null)}
+                  key={householdSession.key}
+                  household={
+                    householdSession.value === 'new'
+                      ? null
+                      : householdSession.value
+                  }
+                  onCancel={householdEditor.close}
                   onSaved={async () => {
-                    setHouseholdEditor(null)
+                    householdEditor.closeIf(householdSession.key)
                     await householdQuery.refetch()
                   }}
                 />
@@ -1019,7 +1107,7 @@ export function PeoplePage() {
                                     <Button
                                       aria-label={`Edit ${household.name}`}
                                       onClick={() =>
-                                        setHouseholdEditor(household)
+                                        householdEditor.open(household)
                                       }
                                       size="icon-xs"
                                       variant="ghost"
@@ -1127,7 +1215,7 @@ export function PeoplePage() {
                       </Button>
                     ) : canWriteHouseholds ? (
                       <Button
-                        onClick={() => setHouseholdEditor('new')}
+                        onClick={() => householdEditor.open('new')}
                         size="sm"
                       >
                         <Plus />

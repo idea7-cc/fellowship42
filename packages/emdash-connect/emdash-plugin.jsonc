@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+  // Registry identity. Replace the placeholder publisher with the publishing
+  // account's DID before `emdash-plugin publish`; the reserved .invalid name
+  // makes an unreviewed publication fail publisher pinning.
+  "slug": "fellowship42-connect",
+  "publisher": "fellowship42.invalid",
+  "name": "Fellowship42 connector",
+  "description": "Connects an EmDash site to a Fellowship42 church: connection status, public church data, and structured data.",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Fellowship42 contributors",
+    "url": "https://github.com/idea7-cc/fellowship42"
+  },
+  "security": {
+    "url": "https://github.com/idea7-cc/fellowship42/security/advisories/new"
+  },
+  "repo": "https://github.com/idea7-cc/fellowship42",
+  "keywords": ["church", "fellowship42"],
+  // The administrator enters the instance address, so hosts are not known in
+  // advance. The connector only ever requests that address's public contract.
+  "capabilities": ["network:request:unrestricted"],
+  "allowedHosts": [],
+  "storage": {},
+  "admin": {
+    "pages": [{ "path": "/status", "label": "Fellowship42" }],
+    "settingsSchema": {
+      "instanceUrl": {
+        "type": "url",
+        "label": "Fellowship42 address",
+        "description": "The church instance's public address, for example https://app.example.org. Local and private network addresses are refused."
+      },
+      "instanceSha256": {
+        "type": "string",
+        "label": "Church identity (optional)",
+        "description": "The full 64-character church identity digest. Copy it from the Fellowship42 page in this admin, from instance.portableIdentitySha256 at <address>/api/website/v1, or from bootstrap.portableIdentitySha256 at <address>/api/health. When set, the connector refuses any other church."
+      }
+    }
+  },
+  "release": {
+    "requires": { "env:emdash": ">=1.0.1 <2.0.0" }
+  }
+}

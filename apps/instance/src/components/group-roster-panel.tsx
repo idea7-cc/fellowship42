@@ -283,9 +283,13 @@ export function GroupRosterPanel({
 
           {/* ── Members ─────────────────────────────────────────────── */}
           <section>
-            <h3 className="mb-2 text-[0.8125rem] font-medium text-muted-foreground">
+            <h3 className="mb-1 text-[0.8125rem] font-medium text-muted-foreground">
               Members
             </h3>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Recorded attendance is kept when someone completes or leaves the
+              group.
+            </p>
             {roster?.members.length ? (
               <ul className="mb-3 grid gap-1.5">
                 {roster.members.map((member) => {

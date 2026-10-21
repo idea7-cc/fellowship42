@@ -1,9 +1,16 @@
 # Connect your own agent
 
 Fellowship42's early-alpha church MCP endpoint lets a church administrator
-connect an external agent, edit a saved website draft, and prepare unpublished
-events. Review and publish changes in the church app. No Cloud subscription or
-management enrollment is needed.
+connect an external agent, edit the saved church profile draft, and prepare
+unpublished events. Review and publish changes in the church app. No Cloud
+subscription or management enrollment is needed.
+
+The "website draft" tools edit the Fellowship42 church profile from
+**Settings**: name, welcome line, about text, address, contact, links,
+gatherings, style, and images. The church website shows that profile once it
+is published. The tools cannot read or change EmDash website pages, articles,
+or menus, which are edited in the website editor; see
+[EmDash church websites](emdash-church-websites.md#where-each-kind-of-content-is-edited).
 
 ## Use a connection
 
@@ -26,8 +33,8 @@ receives the authorized content and handles it under its own data policies.
 | Scope | Tool | Effect |
 |---|---|---|
 | `church:read` | `read_church` | Church profile and published ministry content |
-| `draft:read` | `read_website_draft` | Saved private draft, readiness, and version |
-| `draft:write` | `save_website_draft` | Save the complete draft at that observed version |
+| `draft:read` | `read_website_draft` | Saved private church profile draft, readiness, and version |
+| `draft:write` | `save_website_draft` | Save the complete church profile draft at that observed version |
 | `events:read` | `list_events` | Filtered, paginated church events, including drafts |
 | `events:write` | `create_event_draft` | Duplicate-safe creation of an unpublished event |
 

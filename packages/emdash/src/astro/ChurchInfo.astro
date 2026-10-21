@@ -1,0 +1,148 @@
+---
+import {
+  blockFlag,
+  blockHeading,
+  type BlockSettings,
+  BLOCK_TYPES,
+} from '../shared/blocks'
+import { headingId, loadChurch, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'About us')
+const showAbout = blockFlag(node.showAbout, true)
+const showContact = blockFlag(node.showContact, true)
+const result = await loadChurch(Astro.request)
+const church = result.ok ? result.data.church : null
+const address = church
+  ? [
+      church.address.street,
+      [church.address.city, church.address.region, church.address.postalCode]
+        .filter(Boolean)
+        .join(', '),
+    ].filter(Boolean)
+  : []
+const directions =
+  address.length > 0
+    ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(address.join(', '))}`
+    : null
+const paragraphs = (church?.summary ?? '')
+  .split(/\n\s*\n/)
+  .map((part) => part.trim())
+  .filter(Boolean)
+const id = headingId(Astro.request, BLOCK_TYPES.churchInfo, node._key)
+---
+
+<Section id={id} heading={heading} kind="church">
+  {
+    !church ? (
+      <Notice
+        message={VISITOR_MESSAGES[result.ok ? 'unavailable' : result.state]}
+        tone="unavailable"
+      />
+    ) : (
+      <div class="f42-church">
+        {showAbout && (
+          <div class="f42-church__about">
+            {church.tagline && <p class="f42-church__tagline">{church.tagline}</p>}
+            {paragraphs.map((paragraph) => (
+              <p>{paragraph}</p>
+            ))}
+          </div>
+        )}
+        {showContact && (
+          <div class="f42-church__contact">
+            {address.length > 0 && (
+              <address>
+                {address.map((line) => (
+                  <span class="f42-church__line">{line}</span>
+                ))}
+              </address>
+            )}
+            <ul class="f42-church__links" role="list">
+              {directions && (
+                <li>
+                  <a href={directions} rel="noopener">
+                    Get directions
+                  </a>
+                </li>
+              )}
+              {church.contact.phone && (
+                <li>
+                  <a href={`tel:${church.contact.phone.replace(/[^+\d]/g, '')}`}>
+                    {church.contact.phone}
+                  </a>
+                </li>
+              )}
+              {church.contact.email && (
+                <li>
+                  <a href={`mailto:${church.contact.email}`}>
+                    {church.contact.email}
+                  </a>
+                </li>
+              )}
+              {church.links.livestream && (
+                <li>
+                  <a href={church.links.livestream} rel="noopener">
+                    Watch online
+                  </a>
+                </li>
+              )}
+              {church.links.giving && (
+                <li>
+                  <a href={church.links.giving} rel="noopener">
+                    Give
+                  </a>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+    )
+  }
+</Section>
+
+<style>
+  .f42-church {
+    display: grid;
+    gap: 1.5rem;
+  }
+  @media (min-width: 48rem) {
+    .f42-church {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+  }
+  .f42-church__about p {
+    margin: 0 0 0.9rem;
+    overflow-wrap: anywhere;
+  }
+  .f42-church__tagline {
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+  .f42-church address {
+    font-style: normal;
+    margin-bottom: 0.75rem;
+  }
+  .f42-church__line {
+    display: block;
+  }
+  .f42-church__links {
+    display: grid;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .f42-church__links a {
+    align-items: center;
+    display: inline-flex;
+    min-height: 2.75rem;
+    overflow-wrap: anywhere;
+  }
+</style>

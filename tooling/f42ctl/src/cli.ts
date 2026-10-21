@@ -20,7 +20,7 @@ import {
 
 function usage(): never {
   throw new Error(
-    'Usage: f42ctl agents-doctor|agents-reset (see docs/agent-operator.md) | f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>] | f42ctl build-exit-packet --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--packet-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-exit-packet --packet <file> --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--evidence-id <uuid>] [--verified-at <iso-date>] [--output <file>]',
+    'Usage: f42ctl agents-doctor|agents-reset (see docs/agent-operator.md) | f42ctl plan --manifest <file> [--output <file>] | f42ctl doctor --manifest <file> [--wrangler <file>] [--migrations <dir>] [--website-wrangler <file>] [--runtime <url>] [--offline] [--output <file>] | f42ctl export --manifest <file> --d1 <file> --r2-index <file> --r2-root <dir> [--website-d1 <file> --website-r2-index <file> --website-r2-root <dir>] --directory <new-dir> --quiesced-at <iso-date> [--exported-at <iso-date>] [--output <file>] | f42ctl verify-export --directory <dir> [--verified-at <iso-date>] [--evidence-id <uuid>] [--output <file>] | f42ctl plan-import --directory <export-dir> --destination <manifest> [--operation-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-cutover --plan <file> --destination <manifest> --approval <file> [--output <file>] | f42ctl build-exit-packet --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--packet-id <uuid>] [--generated-at <iso-date>] [--output <file>] | f42ctl verify-exit-packet --packet <file> --plan <file> --report <file> --approval <file> --export-evidence <file> --management-disposition <file> --handoff <file> [--evidence-id <uuid>] [--verified-at <iso-date>] [--output <file>]',
   )
 }
 
@@ -60,6 +60,7 @@ async function main() {
             '--manifest',
             '--wrangler',
             '--migrations',
+            '--website-wrangler',
             '--runtime',
             '--offline',
             '--output',
@@ -70,6 +71,9 @@ async function main() {
               '--d1',
               '--r2-index',
               '--r2-root',
+              '--website-d1',
+              '--website-r2-index',
+              '--website-r2-root',
               '--directory',
               '--quiesced-at',
               '--exported-at',
@@ -249,7 +253,16 @@ async function main() {
     const root = process.cwd()
     const wrangler = options.get('--wrangler')
     const migrations = options.get('--migrations')
+    const websiteWrangler = options.get('--website-wrangler')
     const runtime = options.get('--runtime')
+    const manifest = deploymentManifestSchema.parse(
+      JSON.parse(await readFile(manifestPath, 'utf8')),
+    )
+    if (typeof websiteWrangler === 'string' && !manifest.website) {
+      throw new Error(
+        'The deployment manifest declares no website; omit --website-wrangler',
+      )
+    }
     const report = await doctorFromFiles({
       manifestPath,
       wranglerPath:
@@ -260,6 +273,11 @@ async function main() {
         typeof migrations === 'string'
           ? migrations
           : path.join(root, 'apps/instance/migrations'),
+      websiteWranglerPath: manifest.website
+        ? typeof websiteWrangler === 'string'
+          ? websiteWrangler
+          : path.join(root, 'apps/website/wrangler.jsonc')
+        : undefined,
       runtimeUrl: typeof runtime === 'string' ? runtime : undefined,
       offline: options.get('--offline') === true,
     })
@@ -274,21 +292,42 @@ async function main() {
     const outputDirectory = options.get('--directory')
     const quiescedAt = options.get('--quiesced-at')
     const exportedAt = options.get('--exported-at')
+    const website = [
+      options.get('--website-d1'),
+      options.get('--website-r2-index'),
+      options.get('--website-r2-root'),
+    ]
     if (
       typeof d1ExportPath !== 'string' ||
       typeof r2SourceIndexPath !== 'string' ||
       typeof r2SourceRoot !== 'string' ||
       typeof outputDirectory !== 'string' ||
       typeof quiescedAt !== 'string' ||
-      (exportedAt !== undefined && typeof exportedAt !== 'string')
+      (exportedAt !== undefined && typeof exportedAt !== 'string') ||
+      !(
+        website.every((value) => value === undefined) ||
+        website.every((value) => typeof value === 'string')
+      )
     )
       usage()
+    const [websiteD1, websiteR2Index, websiteR2Root] = website as Array<
+      string | undefined
+    >
     await emit(
       await assemblePortableExport({
         deploymentManifestPath: manifestPath,
         d1ExportPath,
         r2SourceIndexPath,
         r2SourceRoot,
+        ...(websiteD1 && websiteR2Index && websiteR2Root
+          ? {
+              website: {
+                d1ExportPath: websiteD1,
+                r2SourceIndexPath: websiteR2Index,
+                r2SourceRoot: websiteR2Root,
+              },
+            }
+          : {}),
         outputDirectory,
         quiescedAt,
         exportedAt,

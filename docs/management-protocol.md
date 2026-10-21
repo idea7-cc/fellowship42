@@ -204,7 +204,9 @@ Protocol package `1.5.0` adds the strict `f42-portable-restore-v1` report
 schema. The executable runner lives in public `f42ctl` because it needs the
 Node filesystem and injected provider restore adapters. It drives real export
 assembly, verification, planning, and pre-cutover restore, then emits only
-exact release/format versions and nine ordered passing scenario IDs.
+exact release/format versions and nine ordered passing scenario IDs, or ten
+with `website-restored` when the capture includes a website (package
+`1.14.0`).
 
 The report never carries a portable instance ID, export digest, D1/R2 payload,
 object key, domain, provider identifier, credential, or storage location. See
@@ -262,6 +264,32 @@ See [Stable operator references](operator-references.md).
 
 Protocol package `1.13.0` lets release upgrade metadata declare no eligible
 sources, which is how pre-alpha releases state that no direct upgrade exists.
+
+Protocol package `1.14.0` adds the optional EmDash website component of one
+installation to the lifecycle contracts without changing wire major 1. When a
+deployment manifest declares `website`, the deploy plan, doctor report,
+portable export, import plan, cutover approval, exit handoff, rehearsal
+evidence, and restore-conformance report carry exact, ordered website entries.
+An instance-only installation produces the same documents as with `1.13.0`,
+and its cutover approvals and exit handoffs still name at most eight domains;
+with a website they may name eight more.
+
+The TypeScript API changes in a way that breaks some consumers, as the
+pre-alpha policy in `AGENTS.md` allows. The `.options` of
+`deployPlanStepKindSchema`, `doctorCheckIdSchema`, `importStepKindSchema`,
+`exitResourceKindSchema`, `migrationRehearsalAssertionIdSchema`, and
+`portableRestoreConformanceScenarioIdSchema` are now the full
+website-inclusive vocabulary (17, 23, 23, 12, 13, and 10 entries), and website
+import steps are interleaved into the import order. Code that derives an
+instance-only length or order from `.options` must instead call
+`deployPlanStepKindsFor(false)`, `doctorCheckIdsFor(false)`,
+`importStepKindsFor(false)`, `exitResourceKindsFor(false)`,
+`migrationRehearsalAssertionIdsFor(false)`, or
+`portableRestoreConformanceScenarioIdsFor(false)`, and pass `true` for an
+installation with a website.
+See [Lifecycle manifests and doctor](lifecycle-manifests-and-doctor.md) and
+[ADR 0027](adr/0027-emdash-church-websites.md).
+
 ## Compatible operator inputs
 
 Protocol package `1.10.0` adds the strict

@@ -18,6 +18,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type {
   Church,
   CourseDetailResponse,
@@ -33,7 +34,7 @@ function can(permissions: string[], permission: string) {
 
 function LessonForm({
   courseId,
-  lesson,
+  lesson: record,
   media,
   onCancel,
   onSaved,
@@ -47,6 +48,11 @@ function LessonForm({
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The lesson as shown when this editor opened; the save is checked against it.
+  const [lesson] = useState(record)
+  // Controlled, so the saved choice survives a media list that loads later.
+  const [mediaId, setMediaId] = useState(lesson?.mediaId ?? '')
+  const mediaOptions = media.filter((item) => item.visibility === 'public')
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -79,9 +85,7 @@ function LessonForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The lesson could not be saved.',
+        describeSaveFailure(caught, 'lesson', 'The lesson could not be saved.'),
       )
       setSaving(false)
     }
@@ -130,16 +134,21 @@ function LessonForm({
               <select
                 name="mediaId"
                 className={fieldClass}
-                defaultValue={lesson?.mediaId ?? ''}
+                value={mediaId}
+                onChange={(event) => setMediaId(event.target.value)}
               >
                 <option value="">No media</option>
-                {media
-                  .filter((item) => item.visibility === 'public')
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.altText || item.id} · {item.contentType}
-                    </option>
-                  ))}
+                {lesson?.mediaId &&
+                !mediaOptions.some((item) => item.id === lesson.mediaId) ? (
+                  <option value={lesson.mediaId}>
+                    Current media ({lesson.mediaId})
+                  </option>
+                ) : null}
+                {mediaOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.altText || item.id} · {item.contentType}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex items-center gap-2 text-sm font-semibold">
@@ -196,14 +205,20 @@ function LessonForm({
 }
 
 export function CourseDetailPage() {
-  const { churchId } = useChurch()
   const { slug } = useParams<{ slug: string }>()
+  // A different course is a different page: no editor state carries over.
+  return <CourseDetail key={slug} slug={slug} />
+}
+
+function CourseDetail({ slug }: { slug: string | undefined }) {
+  const { churchId } = useChurch()
   const { user } = useAuthState()
   const permissions =
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'courses.write')
-  const [editor, setEditor] = useState<Lesson | 'new' | null>(null)
+  const editor = useRecordEditor<Lesson>()
+  const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -286,6 +301,7 @@ export function CourseDetailPage() {
               description="Enroll a person or a whole group, and track their progress."
             >
               <CourseEnrollmentPanel
+                key={course.id}
                 churchId={churchId}
                 courseId={course.id}
                 courseTitle={course.title}
@@ -302,19 +318,22 @@ export function CourseDetailPage() {
           >
             {canWrite ? (
               <div className="mb-5">
-                <Button size="sm" onClick={() => setEditor('new')}>
+                <Button size="sm" onClick={() => editor.open('new')}>
                   Add lesson
                 </Button>
               </div>
             ) : null}
-            {editor && course ? (
+            {editorSession && course ? (
               <LessonForm
+                key={editorSession.key}
                 courseId={course.id}
-                lesson={editor === 'new' ? null : editor}
+                lesson={
+                  editorSession.value === 'new' ? null : editorSession.value
+                }
                 media={mediaQuery.data?.media ?? []}
-                onCancel={() => setEditor(null)}
+                onCancel={editor.close}
                 onSaved={async () => {
-                  setEditor(null)
+                  editor.closeIf(editorSession.key)
                   await courseQuery.refetch()
                 }}
               />
@@ -362,7 +381,7 @@ export function CourseDetailPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setEditor(lesson)}
+                            onClick={() => editor.open(lesson)}
                           >
                             Edit
                           </Button>

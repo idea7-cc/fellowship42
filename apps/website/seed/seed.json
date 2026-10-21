@@ -1,0 +1,364 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "version": "1",
+  "meta": {
+    "name": "Fellowship42 church website",
+    "description": "Pages, articles, and navigation for a church website whose church records live in Fellowship42."
+  },
+  "settings": {},
+  "collections": [
+    {
+      "slug": "pages",
+      "label": "Pages",
+      "labelSingular": "Page",
+      "urlPattern": "/{slug}",
+      "supports": ["drafts", "revisions", "preview", "search", "seo"],
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "slug": "content",
+          "label": "Content",
+          "type": "portableText",
+          "searchable": true
+        }
+      ]
+    },
+    {
+      "slug": "posts",
+      "label": "Articles",
+      "labelSingular": "Article",
+      "urlPattern": "/articles/{slug}",
+      "supports": [
+        "drafts",
+        "revisions",
+        "preview",
+        "scheduling",
+        "search",
+        "seo"
+      ],
+      "fields": [
+        {
+          "slug": "title",
+          "label": "Title",
+          "type": "string",
+          "required": true,
+          "searchable": true
+        },
+        {
+          "slug": "featured_image",
+          "label": "Featured image",
+          "type": "image"
+        },
+        {
+          "slug": "excerpt",
+          "label": "Excerpt",
+          "type": "text"
+        },
+        {
+          "slug": "content",
+          "label": "Content",
+          "type": "portableText",
+          "searchable": true
+        }
+      ]
+    }
+  ],
+  "menus": [
+    {
+      "name": "primary",
+      "label": "Primary navigation",
+      "items": [
+        {
+          "type": "custom",
+          "label": "Home",
+          "url": "/"
+        },
+        {
+          "type": "custom",
+          "label": "Plan a visit",
+          "url": "/visit"
+        },
+        {
+          "type": "custom",
+          "label": "Events",
+          "url": "/events"
+        },
+        {
+          "type": "custom",
+          "label": "Sermons",
+          "url": "/sermons"
+        },
+        {
+          "type": "custom",
+          "label": "Groups",
+          "url": "/groups"
+        },
+        {
+          "type": "custom",
+          "label": "Courses",
+          "url": "/courses"
+        },
+        {
+          "type": "custom",
+          "label": "Articles",
+          "url": "/articles"
+        },
+        {
+          "type": "custom",
+          "label": "About",
+          "url": "/about"
+        }
+      ]
+    }
+  ],
+  "content": {
+    "pages": [
+      {
+        "id": "page-home",
+        "slug": "home",
+        "status": "published",
+        "data": {
+          "title": "Home",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "k0",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k1",
+                  "text": "Welcome. Whoever you are and wherever you are on your journey, you are welcome here.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "f42ServiceTimes",
+              "_key": "k2",
+              "heading": "Join us"
+            },
+            {
+              "_type": "f42Events",
+              "_key": "k3",
+              "heading": "Upcoming events",
+              "limit": 3,
+              "paginate": false
+            },
+            {
+              "_type": "f42Sermons",
+              "_key": "k4",
+              "heading": "Recent sermons",
+              "limit": 3,
+              "paginate": false
+            },
+            {
+              "_type": "f42ChurchInfo",
+              "_key": "k5",
+              "heading": "About us",
+              "showAbout": true,
+              "showContact": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-about",
+        "slug": "about",
+        "status": "published",
+        "data": {
+          "title": "About",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "k6",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k7",
+                  "text": "We are glad you are here. Read a little about our church below, find out where we meet, and get in touch. We would love to hear from you.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "f42ChurchInfo",
+              "_key": "k8",
+              "heading": "Our church",
+              "showAbout": true,
+              "showContact": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-visit",
+        "slug": "visit",
+        "status": "published",
+        "data": {
+          "title": "Plan a visit",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "k9",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k10",
+                  "text": "We would love to meet you. Here is when we gather and how to find us.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "f42ServiceTimes",
+              "_key": "k11",
+              "heading": "Service times"
+            },
+            {
+              "_type": "f42ChurchInfo",
+              "_key": "k12",
+              "heading": "Find us",
+              "showAbout": false,
+              "showContact": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-events",
+        "slug": "events",
+        "status": "published",
+        "data": {
+          "title": "Events",
+          "content": [
+            {
+              "_type": "f42Events",
+              "_key": "k13",
+              "heading": "",
+              "limit": 12,
+              "paginate": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-sermons",
+        "slug": "sermons",
+        "status": "published",
+        "data": {
+          "title": "Sermons",
+          "content": [
+            {
+              "_type": "f42Sermons",
+              "_key": "k14",
+              "heading": "",
+              "limit": 12,
+              "paginate": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-groups",
+        "slug": "groups",
+        "status": "published",
+        "data": {
+          "title": "Groups",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "k15",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k16",
+                  "text": "Groups are the best way to get to know people. Ask us about joining one.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "f42Groups",
+              "_key": "k17",
+              "heading": "",
+              "limit": 24,
+              "paginate": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "page-courses",
+        "slug": "courses",
+        "status": "published",
+        "data": {
+          "title": "Courses",
+          "content": [
+            {
+              "_type": "f42Courses",
+              "_key": "k18",
+              "heading": "",
+              "limit": 24,
+              "paginate": true
+            }
+          ]
+        }
+      }
+    ],
+    "posts": [
+      {
+        "id": "post-welcome",
+        "slug": "welcome",
+        "status": "published",
+        "data": {
+          "title": "Welcome to our new website",
+          "excerpt": "Our church news and articles now live here.",
+          "content": [
+            {
+              "_type": "block",
+              "_key": "k19",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k20",
+                  "text": "This is our church's new website. Articles like this one are written and published in the website editor.",
+                  "marks": []
+                }
+              ]
+            },
+            {
+              "_type": "block",
+              "_key": "k21",
+              "style": "normal",
+              "markDefs": [],
+              "children": [
+                {
+                  "_type": "span",
+                  "_key": "k22",
+                  "text": "Service times, events, sermons, groups, and courses come straight from our church records, so they are always up to date.",
+                  "marks": []
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

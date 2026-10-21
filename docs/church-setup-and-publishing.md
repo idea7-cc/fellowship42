@@ -1,8 +1,18 @@
 # Church setup and website publishing
 
-The church website lives at `/`. Staff work at `/app`; owners edit the church
-at `/app/settings`. Both belong to the same portable instance and need no
-Fellowship42 Cloud connection. Member registration is separate work.
+Staff work at `/app`; owners edit the church at `/app/settings`. The church's
+public website is normally an EmDash site that shows the published church
+information described here; see [EmDash church websites](emdash-church-websites.md).
+When `WEBSITE_ORIGIN` is configured, the instance's `/` redirects to that
+website. Otherwise the instance serves the page described under **What
+visitors see**. Both need no Fellowship42 Cloud connection. Member
+registration is separate work.
+
+The **Website** card in Settings shows where the website lives, which content
+is edited in the website editor versus here, what **Preview profile** shows,
+and, for owners of a new installation, **Set up website editor**. Publishing
+here updates the website on its next page load, and withdrawing or deleting a
+record removes it there.
 
 ## Owner workflow
 
@@ -13,7 +23,11 @@ Fellowship42 Cloud connection. Member registration is separate work.
 3. Choose a style, logo, and cover image under **Appearance**. Uploaded images
    start private. Existing church images can also be selected.
 4. **Save draft**, then **Preview** to inspect the saved version in a new tab.
-   Unsaved form edits are not part of the preview.
+   Unsaved form edits are not part of the preview. When the installation has a
+   church website, the button reads **Preview profile**: it shows the saved
+   church details on the instance's own page, not in the website's design.
+   The website reads only published records, so it shows profile changes after
+   you publish them.
 5. **Publish** makes the saved profile and its selected images public. Later
    profile edits remain private until saved and published again.
 
@@ -43,7 +57,9 @@ shows a neutral placeholder without the church's draft name or contact details.
 
 ## Route and data boundaries
 
-- `/api/site` returns the primary church's published site or `404`.
+- `/api/site` returns the primary church's published site or `404`. Websites
+  use the paged, versioned [public website contract](website-contract.md)
+  instead.
 - `/api/church-settings/:churchId` and its preview/image/mutation routes require
   `church.write`. Owners have this permission; the Worker checks every request.
 - Settings and preview responses are private and not cached. Public site JSON

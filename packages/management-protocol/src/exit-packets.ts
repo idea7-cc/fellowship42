@@ -4,6 +4,7 @@ import {
   cutoverApprovalSchema,
   importExecutionReportSchema,
   importPlanSchema,
+  websiteCredentialDispositionSchema,
 } from './imports.js'
 import {
   deploymentReleaseSchema,
@@ -80,6 +81,11 @@ export type ManagementExitDisposition = z.output<
   typeof managementExitDispositionSchema
 >
 
+/**
+ * Every exit resource class in handoff order. Website classes appear only when
+ * the installation includes a website; `domains` is always last and covers
+ * every instance and website hostname.
+ */
 export const exitResourceKindSchema = z.enum([
   'd1-database',
   'r2-bucket',
@@ -88,8 +94,32 @@ export const exitResourceKindSchema = z.enum([
   'dead-letter-queue',
   'durable-object-namespace',
   'access-policy',
+  'website-d1-database',
+  'website-r2-bucket',
+  'website-worker',
+  'website-session-kv',
   'domains',
 ])
+
+export type ExitResourceKind = z.output<typeof exitResourceKindSchema>
+
+export const websiteExitResourceKinds = [
+  'website-d1-database',
+  'website-r2-bucket',
+  'website-worker',
+  'website-session-kv',
+] as const satisfies readonly ExitResourceKind[]
+
+export function exitResourceKindsFor(
+  website: boolean,
+): readonly ExitResourceKind[] {
+  return website
+    ? exitResourceKindSchema.options
+    : exitResourceKindSchema.options.filter(
+        (kind) =>
+          !(websiteExitResourceKinds as readonly string[]).includes(kind),
+      )
+}
 
 const destinationCustodySchema = z
   .object({
@@ -108,9 +138,25 @@ const exitResourceSchema = z
       'routing-retired',
       'access-revoked',
       'not-applicable',
+      'disposed',
     ]),
   })
   .strict()
+  .superRefine((resource, context) => {
+    // The website session store is disposable: never exported, recreated at
+    // the destination, and discarded at the source. No data class is disposed
+    // by an exit; source data disposal is a separate retention operation.
+    if (
+      (resource.kind === 'website-session-kv') !==
+      (resource.sourceDisposition === 'disposed')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Only the disposable website session store is disposed',
+        path: ['sourceDisposition'],
+      })
+    }
+  })
 
 const exitDomainSchema = z
   .object({
@@ -138,9 +184,68 @@ const exitCredentialAttestationSchema = z
     deployment: z.literal('rotated'),
     applicationSecrets: z.literal('rotated'),
     management: z.literal('disconnected'),
+    website: websiteCredentialDispositionSchema.optional(),
     attestedAt: z.iso.datetime({ offset: true }),
   })
   .strict()
+
+function orderedExitResources(
+  resources: Array<{ kind: string; sourceDisposition: string }>,
+  hasWebsiteAttestation: boolean,
+  subject: string,
+  context: z.RefinementCtx,
+) {
+  const website = resources.some((resource) =>
+    (websiteExitResourceKinds as readonly string[]).includes(resource.kind),
+  )
+  const expectedKinds = exitResourceKindsFor(website)
+  for (const [index, kind] of expectedKinds.entries()) {
+    if (resources[index]?.kind !== kind) {
+      context.addIssue({
+        code: 'custom',
+        message: `Expected ordered exit resource ${kind}`,
+        path: ['resources', index, 'kind'],
+      })
+    }
+  }
+  if (resources.length !== expectedKinds.length) {
+    context.addIssue({
+      code: 'custom',
+      message: `${subject} must cover every resource class exactly once`,
+      path: ['resources'],
+    })
+  }
+  if (resources.at(-1)?.sourceDisposition !== 'routing-retired') {
+    context.addIssue({
+      code: 'custom',
+      message: `${subject} must record retired source domain routing`,
+      path: ['resources', expectedKinds.length - 1],
+    })
+  }
+  if (website !== hasWebsiteAttestation) {
+    context.addIssue({
+      code: 'custom',
+      message: `${subject} website resources and website credential attestation must agree`,
+      path: ['credentialAttestation', 'website'],
+    })
+  }
+}
+
+/** Eight instance domains at most; a website adds at most eight more. */
+function boundedExitDomains(
+  domainCount: number,
+  hasWebsiteAttestation: boolean,
+  subject: string,
+  context: z.RefinementCtx,
+) {
+  if (!hasWebsiteAttestation && domainCount > 8) {
+    context.addIssue({
+      code: 'custom',
+      message: `${subject} for an instance-only installation covers at most eight domains`,
+      path: ['domains'],
+    })
+  }
+}
 
 const unresolvedExitRiskSchema = z
   .object({
@@ -158,7 +263,7 @@ export const exitHandoffSchema = z
     instanceId: portableInstanceIdSchema,
     destinationCustody: destinationCustodySchema,
     resources: z.array(exitResourceSchema),
-    domains: z.array(exitDomainSchema).min(1).max(8),
+    domains: z.array(exitDomainSchema).min(1).max(16),
     operators: z.array(exitOperatorSchema).min(1).max(25),
     credentialAttestation: exitCredentialAttestationSchema,
     independentOperationVerifiedAt: z.iso.datetime({ offset: true }),
@@ -168,29 +273,18 @@ export const exitHandoffSchema = z
   })
   .strict()
   .superRefine((handoff, context) => {
-    for (const [index, kind] of exitResourceKindSchema.options.entries()) {
-      if (handoff.resources[index]?.kind !== kind) {
-        context.addIssue({
-          code: 'custom',
-          message: `Expected ordered exit resource ${kind}`,
-          path: ['resources', index, 'kind'],
-        })
-      }
-    }
-    if (handoff.resources.length !== exitResourceKindSchema.options.length) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Exit handoff must cover every resource class exactly once',
-        path: ['resources'],
-      })
-    }
-    if (handoff.resources.at(-1)?.sourceDisposition !== 'routing-retired') {
-      context.addIssue({
-        code: 'custom',
-        message: 'Domain source routing must be retired',
-        path: ['resources', exitResourceKindSchema.options.length - 1],
-      })
-    }
+    orderedExitResources(
+      handoff.resources,
+      handoff.credentialAttestation.website !== undefined,
+      'Exit handoff',
+      context,
+    )
+    boundedExitDomains(
+      handoff.domains.length,
+      handoff.credentialAttestation.website !== undefined,
+      'Exit handoff',
+      context,
+    )
     if (
       new Set(handoff.domains.map((domain) => domain.hostname)).size !==
       handoff.domains.length
@@ -269,7 +363,7 @@ export const exitPacketSchema = z
     managementDisposition: managementExitDispositionSchema,
     destinationCustody: destinationCustodySchema,
     resources: z.array(exitResourceSchema),
-    domains: z.array(exitDomainSchema).min(1).max(8),
+    domains: z.array(exitDomainSchema).min(1).max(16),
     operators: z.array(exitOperatorSchema).min(1).max(25),
     credentialAttestation: exitCredentialAttestationSchema,
     independentOperationVerifiedAt: z.iso.datetime({ offset: true }),
@@ -299,29 +393,18 @@ export const exitPacketSchema = z
         })
       }
     }
-    for (const [index, kind] of exitResourceKindSchema.options.entries()) {
-      if (packet.resources[index]?.kind !== kind) {
-        context.addIssue({
-          code: 'custom',
-          message: `Expected ordered exit resource ${kind}`,
-          path: ['resources', index, 'kind'],
-        })
-      }
-    }
-    if (packet.resources.length !== exitResourceKindSchema.options.length) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Exit packet must cover every resource class exactly once',
-        path: ['resources'],
-      })
-    }
-    if (packet.resources.at(-1)?.sourceDisposition !== 'routing-retired') {
-      context.addIssue({
-        code: 'custom',
-        message: 'Exit packet must record retired source domain routing',
-        path: ['resources', exitResourceKindSchema.options.length - 1],
-      })
-    }
+    orderedExitResources(
+      packet.resources,
+      packet.credentialAttestation.website !== undefined,
+      'Exit packet',
+      context,
+    )
+    boundedExitDomains(
+      packet.domains.length,
+      packet.credentialAttestation.website !== undefined,
+      'Exit packet',
+      context,
+    )
     if (
       new Set(packet.domains.map((domain) => domain.hostname)).size !==
       packet.domains.length

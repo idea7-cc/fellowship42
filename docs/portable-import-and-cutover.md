@@ -23,12 +23,38 @@ pnpm f42ctl plan-import \
 Planning re-runs the complete offline export verifier and binds the resulting
 manifest digest to the canonical destination-manifest digest. It fails if the
 portable identity or release drifts, if a production destination has no domain,
-or if any export artifact is invalid.
+or if any export artifact is invalid. The destination must declare a website
+exactly when the export contains one, with the same EmDash name and version.
 
-The ordered plan contains 17 steps. New-empty D1 and R2 checks happen before
-any restore. The Worker deploys without domains before credential rotation and
-runtime checks. Domain cutover and source-routing retirement are the only
-approval-bearing steps.
+The ordered plan contains 17 steps for an instance-only installation. New-empty
+D1 and R2 checks happen before any restore. The Worker deploys without domains
+before credential rotation and runtime checks. Domain cutover and
+source-routing retirement are the only approval-bearing steps.
+
+With a website the plan contains 23 steps. Six website steps are interleaved
+with their instance counterparts so that every restore still precedes every
+credential change and every runtime check precedes cutover:
+
+| # | Step | Risk |
+| --- | --- | --- |
+| 01–05 | `verify-export` … `verify-new-empty-r2` | read-only |
+| 06 | `verify-new-empty-website-d1` | read-only |
+| 07 | `verify-new-empty-website-r2` | read-only |
+| 08–09 | `restore-d1`, `restore-r2` | writes-destination |
+| 10 | `restore-website-d1` | writes-destination |
+| 11 | `restore-website-r2` | writes-destination |
+| 12–13 | `apply-forward-migrations`, `deploy-without-domains` | writes-destination |
+| 14 | `deploy-website-without-domains` | writes-destination |
+| 15–17 | `rotate-deployment-credentials` … `rotate-management-credentials` | credential-change |
+| 18–19 | `verify-restored-identity`, `verify-runtime` | read-only |
+| 20 | `verify-website-runtime` | read-only |
+| 21 | `cutover-domains` | cutover, approval |
+| 22 | `verify-independent-operation` | read-only |
+| 23 | `retire-source-routing` | source-change, approval |
+
+The website deploy depends on both website restores and on the domainless
+instance deploy, because its optional `FELLOWSHIP42` service binding targets
+the instance Worker. A plan contains either every website step or none.
 
 ## Execute through an adapter
 
@@ -42,6 +68,21 @@ applies forward migrations, deploys without domains, rotates deployment,
 application-secret, and management credentials, verifies the restored portable
 identity, and verifies the destination runtime. Failure stops later steps and
 returns a bounded report with no raw provider error or church payload.
+
+With a website the preflight adds a `website` object: the website D1 and R2
+are `empty` or `occupied` with creation times after the plan, and the website
+Worker and session KV namespace are `absent`. The preflight must include the
+`website` object exactly when the plan has website steps. The adapter also
+implements `restoreWebsiteD1`, `restoreWebsiteR2Object`,
+`deployWebsiteWithoutDomains`, and `verifyWebsiteRuntime`. These methods are
+optional for instance-only adapters. If a website plan meets an adapter
+without them, the executor fails at `verify-destination-manifest` with
+`website-adapter-unsupported` before any provider call. The website deploy
+creates a fresh, empty `SESSION` namespace, configures the preserved
+`EMDASH_ENCRYPTION_KEY`, and pins `FELLOWSHIP42_INSTANCE_SHA256` to the
+restored identity. `verifyWebsiteRuntime` succeeds only when the website runs
+and pins that identity. EmDash applies any pending core migrations itself at
+runtime.
 
 The public repository intentionally does not infer “empty” from a new resource
 name or an operator checkbox. Current Wrangler supports D1 SQL execution and
@@ -59,10 +100,43 @@ A cutover approval binds all of these fields:
 
 - operation, portable instance, export-manifest, and destination-manifest IDs;
 - source and destination runtime verification times;
-- intended domains;
+- intended domains: the instance domains followed by the website domains,
+  exactly as in the destination manifest (at most eight, or sixteen with a
+  website);
 - confirmation that deployment credentials and application secrets were
-  rotated and management credentials were rotated or disconnected; and
+  rotated and management credentials were rotated or disconnected;
+- with a website, the website credential disposition described below; and
 - a future rollback deadline.
+
+### Credential disposition
+
+The approval's credential classes apply to the whole installation, not to
+one Worker:
+
+| Class | Instance | Website |
+| --- | --- | --- |
+| `deployment: rotated` | scoped Cloudflare deployment token | the same authority deploys the website Worker, D1, R2, and KV |
+| `applicationSecrets: rotated` | instance Worker secrets such as `PAYMENT_WEBHOOK_SECRET`; the [deployment guide](deployment.md) names keys preserved for migration | see `website` below |
+| `management` | `rotated` or `disconnected` | not applicable |
+
+With a website, `credentialDisposition.website` is required and strict:
+
+- `encryptionKey: "preserved"`: `EMDASH_ENCRYPTION_KEY` decrypts EmDash
+  plugin secret settings stored in the website D1 export. Carry it through
+  the church-authorized secret store like `MANAGEMENT_KEY_ENCRYPTION_KEY`,
+  never through the bundle. After cutover, rotate it with EmDash's
+  prepend-and-resave procedure, and rotate any third-party plugin secrets the
+  former operator could read.
+- `setupSecret: "removed" | "rotated"`: `WEBSITE_SETUP_SECRET` is shared by
+  both Workers only until the first EmDash administrator is claimed. It is
+  `removed` from both Workers when setup is complete. If setup is still
+  pending, it is `rotated` to a new value on both Workers.
+- `sessionStore: "recreated"`: the `SESSION` KV namespace is new and empty;
+  every website editor signs in again.
+
+EmDash stores its preview secret, IP salt, and hashed API and auth tokens in
+D1, so they travel with the export. Revoke and reissue website API tokens
+after a hosted exit.
 
 Verify a prepared approval offline:
 
@@ -73,8 +147,12 @@ pnpm f42ctl verify-cutover \
   --approval ./cutover-approval.json
 ```
 
-`executePortableCutover` then calls the adapter to attach the exact domains,
-verify independent operation, and retire only the source routing. It does not
+`executePortableCutover` first requires the execution report to carry exactly
+the plan's ordered step IDs and kinds, so a report that skipped the website
+cannot complete a website plan, nor the reverse; rehearsal evidence and exit
+packets apply the same check. It then calls the adapter to attach the exact domains
+(instance routes to the instance Worker, website routes to the website
+Worker), verify independent operation, and retire only the source routing. It does not
 delete source D1/R2 data. Source disposal is a later retention-controlled,
 separately authorized operation.
 

@@ -1,0 +1,68 @@
+---
+import { dayName, formatWallTime } from '@fellowship42/website-contract'
+import {
+  BLOCK_TYPES,
+  blockHeading,
+  type BlockSettings,
+} from '../shared/blocks'
+import { headingId, loadChurch, VISITOR_MESSAGES } from './data'
+import Notice from './Notice.astro'
+import Section from './Section.astro'
+
+interface Props {
+  node: BlockSettings
+}
+const { node } = Astro.props
+const heading = blockHeading(node, 'Service times')
+const result = await loadChurch(Astro.request)
+const church = result.ok ? result.data.church : null
+const locale = Astro.currentLocale ?? 'en-US'
+function zoneName(timeZone: string) {
+  return (
+    new Intl.DateTimeFormat(locale, { timeZone, timeZoneName: 'longGeneric' })
+      .formatToParts(new Date())
+      .find((part) => part.type === 'timeZoneName')?.value ?? timeZone
+  )
+}
+const id = headingId(Astro.request, BLOCK_TYPES.serviceTimes, node._key)
+---
+
+<Section id={id} heading={heading} kind="services">
+  {
+    !church ? (
+      <Notice
+        message={VISITOR_MESSAGES[result.ok ? 'unavailable' : result.state]}
+        tone="unavailable"
+      />
+    ) : church.serviceTimes.length === 0 ? (
+      <Notice message="Service times have not been published yet." />
+    ) : (
+      <>
+        <ul class="f42-list" role="list">
+          {church.serviceTimes.map((service) => (
+            <li class="f42-card">
+              <h3>{service.label}</h3>
+              <p class="f42-meta">
+                {dayName(service.day, locale)} ·{' '}
+                <time datetime={service.time}>
+                  {formatWallTime(service.time, locale)}
+                </time>
+              </p>
+            </li>
+          ))}
+        </ul>
+        <p class="f42-services__zone">
+          Times are {zoneName(church.timezone)}.
+        </p>
+      </>
+    )
+  }
+</Section>
+
+<style>
+  .f42-services__zone {
+    color: var(--f42-muted, #4f4a45);
+    font-size: 0.925rem;
+    margin: 0.75rem 0 0;
+  }
+</style>

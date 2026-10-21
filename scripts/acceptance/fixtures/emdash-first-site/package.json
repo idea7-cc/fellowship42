@@ -1,0 +1,29 @@
+{
+  "name": "emdash-first-church-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An independently operated EmDash 1.0.1 Cloudflare site (modeled on the upstream starter-cloudflare template) that adds the Fellowship42 integration from npm tarballs.",
+  "emdash": {
+    "seed": "seed/seed.json"
+  },
+  "scripts": {
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "14.3.3",
+    "@astrojs/react": "6.0.6",
+    "@emdash-cms/cloudflare": "1.0.1",
+    "@fellowship42/emdash": "file:__F42_EMDASH_TARBALL__",
+    "@fellowship42/website-contract": "file:__F42_WEBSITE_CONTRACT_TARBALL__",
+    "astro": "^7.3.3",
+    "emdash": "1.0.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.133.0"
+  }
+}

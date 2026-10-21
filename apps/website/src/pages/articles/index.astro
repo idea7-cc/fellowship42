@@ -1,0 +1,69 @@
+---
+import { getEmDashCollection } from 'emdash'
+import Base from '../../layouts/Base.astro'
+import { isInvalidCursorError } from '../../lib/errors'
+
+const cursor = Astro.url.searchParams.get('cursor') || undefined
+const { entries: posts, nextCursor, error } = await getEmDashCollection('posts', {
+  orderBy: { published_at: 'desc' },
+  limit: 12,
+  cursor,
+})
+// A stale or edited `cursor` is the visitor's link, not a server failure.
+const invalidCursor = cursor !== undefined && isInvalidCursorError(error)
+if (error && !invalidCursor) throw error
+if (invalidCursor) Astro.response.status = 400
+const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
+  dateStyle: 'long',
+})
+---
+
+<Base
+  title="Articles"
+  description="News and articles from the church."
+  canonical={invalidCursor ? null : undefined}
+>
+  <h1>Articles</h1>
+  {
+    invalidCursor ? (
+      <>
+        <p>That page of articles is no longer available.</p>
+        <p>
+          <a href="/articles">Start again from the newest articles</a>
+        </p>
+      </>
+    ) : posts.length === 0 ? (
+      <p>No articles have been published yet.</p>
+    ) : (
+      <ul class="article-list" role="list">
+        {posts.map((post) => (
+          <li>
+            <h2>
+              <a href={`/articles/${post.id}`}>{post.data.title}</a>
+            </h2>
+            {post.data.publishedAt && (
+              <p class="meta">
+                <time datetime={post.data.publishedAt.toISOString()}>
+                  {dateFormat.format(post.data.publishedAt)}
+                </time>
+              </p>
+            )}
+            {post.data.excerpt && <p>{post.data.excerpt}</p>}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  {
+    !invalidCursor && (cursor || nextCursor) && (
+      <nav class="pager" aria-label="More articles">
+        {cursor && <a href="/articles">First page</a>}
+        {nextCursor && (
+          <a href={`/articles?cursor=${encodeURIComponent(nextCursor)}`} rel="next">
+            Older articles
+          </a>
+        )}
+      </nav>
+    )
+  }
+</Base>

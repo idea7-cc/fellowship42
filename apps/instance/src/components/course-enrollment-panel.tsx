@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Plus, UserMinus, Users, UsersRound } from 'lucide-react'
 
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { formatDay } from '@/lib/format'
 import type {
   CourseEnrollment,
   CourseEnrollmentStatus,
@@ -159,6 +160,11 @@ export function CourseEnrollmentPanel({
                     {entry.subjectName}
                   </span>
                   <StatusBadge size="sm" status={entry.status} />
+                  {entry.completedAt ? (
+                    <span className="text-xs text-muted-foreground">
+                      Completed {formatDay(entry.completedAt)}
+                    </span>
+                  ) : null}
                   <div className="ml-auto flex items-center gap-1.5">
                     <label
                       className="sr-only"

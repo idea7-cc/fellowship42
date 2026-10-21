@@ -1,0 +1,252 @@
+/*
+ * Church website presentation. Colors, fonts, and radius come from the
+ * church's Fellowship42 preset (--church-* and the surface-scoped semantic
+ * tokens set on <html>). Church blocks read the --f42-* aliases below.
+ */
+:root {
+  --f42-accent: var(--church-accent-strong, #1f3a63);
+  --f42-ink: var(--church-ink, #1f1a16);
+  --f42-muted: var(--muted-foreground, #4f4a45);
+  --f42-card: var(--card, #ffffff);
+  --f42-border: var(--border, #d9d2c8);
+  --f42-radius: var(--church-radius, 0.75rem);
+  --f42-heading-font: var(--church-heading-font, ui-serif, Georgia, serif);
+  --site-width: 72rem;
+  --site-gutter: clamp(1rem, 4vw, 2rem);
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background, #faf7f2);
+  color: var(--f42-ink);
+  font-family: var(--church-body-font, ui-sans-serif, system-ui, sans-serif);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--f42-heading-font);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin: 0 0 1rem;
+}
+
+a {
+  color: var(--f42-accent);
+  text-underline-offset: 0.15em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--f42-accent);
+  outline-offset: 2px;
+}
+
+img {
+  height: auto;
+  max-width: 100%;
+}
+
+.skip-link {
+  background: var(--f42-card);
+  border-radius: var(--f42-radius);
+  left: 1rem;
+  padding: 0.75rem 1rem;
+  position: absolute;
+  top: -10rem;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.site-header {
+  background: var(--f42-card);
+  border-bottom: 1px solid var(--f42-border);
+}
+
+.site-header__inner,
+.site-main,
+.site-footer__inner {
+  margin: 0 auto;
+  max-width: var(--site-width);
+  padding-inline: var(--site-gutter);
+}
+
+.site-header__inner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  justify-content: space-between;
+  padding-block: 0.75rem;
+}
+
+.site-title {
+  align-items: center;
+  color: var(--f42-ink);
+  display: inline-flex;
+  font-family: var(--f42-heading-font);
+  font-size: 1.25rem;
+  font-weight: 700;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  text-decoration: none;
+}
+
+.site-title img {
+  display: block;
+  height: 2.5rem;
+  width: auto;
+}
+
+.site-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.site-nav a {
+  align-items: center;
+  border-radius: var(--f42-radius);
+  color: var(--f42-ink);
+  display: inline-flex;
+  font-weight: 500;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  background: var(--accent, rgba(0, 0, 0, 0.05));
+}
+
+.site-nav a[aria-current='page'] {
+  color: var(--f42-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.site-main {
+  padding-block: 2rem 4rem;
+}
+
+.preview-banner {
+  margin: 0;
+  background: var(--f42-accent);
+  color: var(--church-accent-contrast, #ffffff);
+  font-weight: 600;
+  padding: 0.75rem var(--site-gutter);
+  text-align: center;
+}
+
+.hero {
+  background: var(--f42-card);
+  border: 1px solid var(--f42-border);
+  border-radius: calc(var(--f42-radius) + 0.25rem);
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+@media (min-width: 48rem) {
+  .hero--with-image {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.hero__text {
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.hero__tagline {
+  color: var(--f42-muted);
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.hero__image {
+  display: block;
+  height: 100%;
+  min-height: 14rem;
+  object-fit: cover;
+  width: 100%;
+}
+
+.prose {
+  max-width: 44rem;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.article-list {
+  display: grid;
+  gap: 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.article-list h2 {
+  font-size: 1.35rem;
+  margin: 0 0 0.25rem;
+}
+
+.meta {
+  color: var(--f42-muted);
+  font-size: 0.95rem;
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.pager a {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 600;
+  min-height: 2.75rem;
+}
+
+.site-footer {
+  background: var(--f42-card);
+  border-top: 1px solid var(--f42-border);
+  color: var(--f42-muted);
+  font-size: 0.95rem;
+}
+
+.site-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  justify-content: space-between;
+  padding-block: 2rem;
+}
+
+.site-footer address {
+  font-style: normal;
+}

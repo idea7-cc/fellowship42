@@ -1,0 +1,54 @@
+---
+import { decodeSlug, getEmDashEntry, getSeoMeta } from 'emdash'
+import { Image, PortableText } from 'emdash/ui'
+import Base from '../../layouts/Base.astro'
+
+let slug: string | undefined
+try {
+  slug = decodeSlug(Astro.params.slug)
+} catch {
+  // A malformed percent-encoding names no article.
+}
+if (!slug) return Astro.rewrite('/404')
+const { entry: post, isPreview, error } = await getEmDashEntry('posts', slug)
+if (error) throw error
+if (!post) return Astro.rewrite('/404')
+const seo = getSeoMeta(post)
+const dateFormat = new Intl.DateTimeFormat(Astro.currentLocale ?? 'en-US', {
+  dateStyle: 'long',
+})
+---
+
+<Base
+  title={seo.ogTitle}
+  description={seo.description}
+  preview={isPreview}
+  content={{ collection: 'posts', id: post.data.id, slug }}
+  pageType="article"
+  articleMeta={{
+    publishedTime: post.data.publishedAt?.toISOString() ?? null,
+    modifiedTime: post.data.updatedAt?.toISOString() ?? null,
+    author: post.data.byline?.displayName ?? null,
+  }}
+>
+  <article class="prose">
+    <h1 {...post.edit.title}>{post.data.title}</h1>
+    {
+      post.data.publishedAt && (
+        <p class="meta">
+          <time datetime={post.data.publishedAt.toISOString()}>
+            {dateFormat.format(post.data.publishedAt)}
+          </time>
+        </p>
+      )
+    }
+    {
+      post.data.featured_image && (
+        <div {...post.edit.featured_image}>
+          <Image image={post.data.featured_image} />
+        </div>
+      )
+    }
+    <PortableText value={post.data.content} />
+  </article>
+</Base>

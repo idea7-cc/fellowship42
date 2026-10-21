@@ -100,6 +100,49 @@ test('owner recovery preserves existing files and rejects conflicting targets be
     rmSync(output)
     assert.equal(exec(['--local']).status, 1)
     assert.equal(existsSync(capture), false)
+    assert.equal(exec(['--persist-to', '/tmp/state']).status, 1)
+    assert.equal(existsSync(capture), false)
+  }))
+test('owner recovery can target an isolated local state directory', () =>
+  fixture(({ dir, capture, output }) => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        script,
+        '--config',
+        join(dir, 'wrangler.jsonc'),
+        '--database',
+        'synthetic',
+        '--origin',
+        'http://localhost:5173',
+        '--email',
+        'owner@example.test',
+        '--output',
+        output,
+        '--local',
+        '--persist-to',
+        join(dir, 'state'),
+        '--confirm-reset-owner',
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${dir}:${process.env.PATH}`,
+          CAPTURE: capture,
+        },
+      },
+    )
+    assert.equal(result.status, 0)
+    const request = JSON.parse(readFileSync(capture, 'utf8'))
+    assert.deepEqual(
+      request.args.slice(
+        request.args.indexOf('--persist-to'),
+        request.args.indexOf('--persist-to') + 2,
+      ),
+      ['--persist-to', join(dir, 'state')],
+    )
+    assert.ok(request.args.includes('--local'))
   }))
 test('owner recovery sanitizes provider failures and removes unusable link files', () =>
   fixture(({ capture, output, exec }) => {

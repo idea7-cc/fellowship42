@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import {
   deployPlanStepKindSchema,
+  deployPlanStepKindsFor,
+  isWebsiteDeployPlanStepKind,
   portableInstanceIdSchema,
 } from './lifecycle.js'
 import { sha256DigestSchema } from './releases.js'
@@ -75,11 +77,18 @@ export const reconciliationStepObservationSchema = z
     }
   })
 
+function expectedStepKinds(steps: Array<{ kind: string }>) {
+  return deployPlanStepKindsFor(
+    steps.some((step) => isWebsiteDeployPlanStepKind(step.kind)),
+  )
+}
+
 function exactOrderedSteps(
   steps: Array<{ stepId: string; kind: string }>,
   context: z.RefinementCtx,
 ) {
-  if (steps.length !== deployPlanStepKindSchema.options.length) {
+  const expectedKinds = expectedStepKinds(steps)
+  if (steps.length !== expectedKinds.length) {
     context.addIssue({
       code: 'custom',
       message: 'Reconciliation evidence must contain every lifecycle step',
@@ -95,7 +104,7 @@ function exactOrderedSteps(
         path: ['steps', index, 'stepId'],
       })
     }
-    if (step.kind !== deployPlanStepKindSchema.options[index]) {
+    if (step.kind !== expectedKinds[index]) {
       context.addIssue({
         code: 'custom',
         message: 'Reconciliation step kind is out of order',
@@ -255,7 +264,9 @@ export const reconciliationReportSchema = z
     status: z.enum(['succeeded', 'failed']),
     startedAt: z.iso.datetime({ offset: true }),
     completedAt: z.iso.datetime({ offset: true }),
-    steps: z.array(reconciliationStepResultSchema).max(11),
+    steps: z
+      .array(reconciliationStepResultSchema)
+      .max(deployPlanStepKindSchema.options.length),
   })
   .strict()
   .superRefine((report, context) => {
@@ -266,12 +277,10 @@ export const reconciliationReportSchema = z
         path: ['completedAt'],
       })
     }
+    const expectedKinds = expectedStepKinds(report.steps)
     for (const [index, step] of report.steps.entries()) {
       const expectedId = `step-${String(index + 1).padStart(2, '0')}`
-      if (
-        step.stepId !== expectedId ||
-        step.kind !== deployPlanStepKindSchema.options[index]
-      ) {
+      if (step.stepId !== expectedId || step.kind !== expectedKinds[index]) {
         context.addIssue({
           code: 'custom',
           message: 'Reconciliation results must remain in lifecycle order',
@@ -299,7 +308,7 @@ export const reconciliationReportSchema = z
     }
     if (
       report.status === 'succeeded' &&
-      report.steps.length !== deployPlanStepKindSchema.options.length
+      report.steps.length !== expectedKinds.length
     ) {
       context.addIssue({
         code: 'custom',

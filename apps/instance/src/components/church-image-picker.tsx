@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, ImagePlus, Upload, X } from 'lucide-react'
 import type { MediaRecord } from '@/lib/api-types'
-import { useApiQuery } from '@/lib/api'
+import { apiRequest, useApiQuery } from '@/lib/api'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import { Button } from './ui/button'
 
 export function ChurchImagePicker({
@@ -24,6 +25,7 @@ export function ChurchImagePicker({
   const dialog = useRef<HTMLDialogElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const active = useRef(false)
+  const uploadEntry = useEntryKey('image')
   const base = `/api/church-settings/${encodeURIComponent(churchId)}/images`
   const cursor = pages.at(-1)
   const query = useApiQuery<{
@@ -70,19 +72,24 @@ export function ChurchImagePicker({
     }
     setBusy(true)
     setError(null)
+    // Picking the same file again after an unconfirmed upload reuses its key.
+    const key = uploadEntry.current(
+      `${file.name}:${file.size}:${file.lastModified}:${file.type}`,
+    )
     try {
-      const response = await fetch(
+      const result = await apiRequest<{ media: MediaRecord }>(
         `/api/media/${encodeURIComponent(churchId)}?visibility=private&altText=${encodeURIComponent(label)}`,
-        { method: 'POST', headers: { 'Content-Type': file.type }, body: file },
+        {
+          method: 'POST',
+          headers: { 'Content-Type': file.type, 'Idempotency-Key': key },
+          body: file,
+        },
       )
-      if (!response.ok) throw new Error('Image upload failed. Try again.')
-      const result = (await response.json()) as { media: MediaRecord }
+      uploadEntry.reset()
       if (active.current) choose(result.media.id)
     } catch (reason) {
       if (active.current)
-        setError(
-          reason instanceof Error ? reason.message : 'Image upload failed.',
-        )
+        setError(describeEntryFailure(reason, 'image upload').message)
     } finally {
       if (active.current) setBusy(false)
     }

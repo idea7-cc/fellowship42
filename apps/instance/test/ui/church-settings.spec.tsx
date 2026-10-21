@@ -353,7 +353,13 @@ it('shows agent attribution and reviewed fields and restores only the observed s
       changedBy: { kind: 'agent', name: 'Writing assistant', at: 1 },
     },
   }
-  const fetch = vi.fn(async (_path: string, init?: RequestInit) => {
+  const fetch = vi.fn(async (path: string, init?: RequestInit) => {
+    if (path.startsWith('/api/website-setup/'))
+      return Response.json({
+        origin: null,
+        editorUrl: null,
+        setupAvailable: false,
+      })
     expect(JSON.parse(String(init?.body))).toEqual({ version: 5 })
     return Response.json({ ...initial, version: 6, hasDraft: true })
   })
@@ -370,7 +376,10 @@ it('shows agent attribution and reviewed fields and restores only the observed s
   expect(container.querySelector('del')?.textContent).toBe('A place to belong')
   expect(container.querySelector('ins')?.textContent).toBe('Agent welcome')
   await click('Restore previous')
-  expect(fetch.mock.calls[0][0]).toBe('/api/church-settings/church/restore')
+  const settingsCalls = fetch.mock.calls.filter(
+    ([path]) => !path.startsWith('/api/website-setup/'),
+  )
+  expect(settingsCalls[0][0]).toBe('/api/church-settings/church/restore')
   expect(container.querySelector('[role="status"]')?.textContent).toBe(
     'Previous draft restored',
   )
@@ -425,4 +434,105 @@ it('requires deliberate review of a newer clean draft without claiming unsaved e
   )
   await click('Reload saved draft')
   expect(confirm).not.toHaveBeenCalled()
+})
+
+it('shows where the website lives and lets an owner start website setup', async () => {
+  const navigate = vi.fn()
+  const fetch = vi.fn(async (path: string, init?: RequestInit) => {
+    if (path === '/api/website-setup/church/claim' && init?.method === 'POST')
+      return Response.json({
+        url: 'https://www.grace.example/fellowship42/setup#claim=f42ws1.a.b',
+        expiresAt: 1,
+      })
+    throw new Error(`unexpected ${path}`)
+  })
+  vi.stubGlobal('fetch', fetch)
+  const { WebsiteCard } = await import('../../src/components/website-card')
+  await act(async () =>
+    root.render(
+      <MemoryRouter>
+        <WebsiteCard
+          churchId="church"
+          owner
+          website={{
+            origin: 'https://www.grace.example',
+            editorUrl: 'https://www.grace.example/_emdash/admin',
+            setupAvailable: true,
+          }}
+          navigate={navigate}
+        />
+      </MemoryRouter>,
+    ),
+  )
+  expect(container.textContent).toContain('www.grace.example')
+  expect(container.textContent).toContain(
+    'Website editor accounts are separate and grant no access to people, giving, or settings here.',
+  )
+  const editor = container.querySelector<HTMLAnchorElement>(
+    'a[href="https://www.grace.example/_emdash/admin"]',
+  )
+  expect(editor?.textContent).toContain('Open website editor')
+  await click('Set up website editor')
+  expect(navigate).toHaveBeenCalledWith(
+    'https://www.grace.example/fellowship42/setup#claim=f42ws1.a.b',
+  )
+})
+
+it('offers staff without owner authority no website setup', async () => {
+  vi.stubGlobal('fetch', vi.fn())
+  const { WebsiteCard } = await import('../../src/components/website-card')
+  await act(async () =>
+    root.render(
+      <MemoryRouter>
+        <WebsiteCard
+          churchId="church"
+          owner={false}
+          website={{
+            origin: 'https://www.grace.example',
+            editorUrl: 'https://www.grace.example/_emdash/admin',
+            setupAvailable: true,
+          }}
+        />
+      </MemoryRouter>,
+    ),
+  )
+  expect(container.textContent).toContain('Open website editor')
+  expect(container.textContent).not.toContain('Set up website editor')
+})
+
+async function renderEditorWithWebsite(origin: string | null) {
+  const fetch = vi.fn(async (path: string) => {
+    if (path === '/api/website-setup/church')
+      return Response.json({
+        origin,
+        editorUrl: origin && `${origin}/_emdash/admin`,
+        setupAvailable: false,
+      })
+    throw new Error(`unexpected ${path}`)
+  })
+  vi.stubGlobal('fetch', fetch)
+  await renderEditor()
+  return container.querySelector<HTMLAnchorElement>('a[href="/app/preview"]')!
+}
+
+it('labels the profile preview and explains it when a church website is connected', async () => {
+  const preview = await renderEditorWithWebsite('https://www.grace.example')
+  expect(preview.textContent).toBe('Preview profile')
+  const note = document.getElementById(
+    preview.getAttribute('aria-describedby') ?? '',
+  )
+  expect(note?.textContent).toBe(
+    "Preview profile shows your saved church details on Fellowship42's own page, not in your website's design. The website shows church details only after you publish them.",
+  )
+  expect(note?.closest('[aria-labelledby="website-card-title"]')).not.toBeNull()
+})
+
+it('keeps the plain preview when the instance serves the public page itself', async () => {
+  const preview = await renderEditorWithWebsite(null)
+  expect(preview.textContent).toBe('Preview')
+  expect(preview.hasAttribute('aria-describedby')).toBe(false)
+  expect(container.textContent).toContain(
+    'No church website is connected to this installation. Visitors see the page at this address',
+  )
+  expect(container.textContent).not.toContain('Preview profile')
 })

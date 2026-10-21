@@ -479,6 +479,7 @@ export interface AttendanceEntryRow {
   first_name: string
   last_name: string
   membership_status: string
+  roster_status: AttendanceEntry['rosterStatus'] | null
   status: AttendanceEntry['status'] | null
   checked_in_at: number | null
   notes: string | null
@@ -491,6 +492,7 @@ export function mapAttendanceEntry(row: AttendanceEntryRow): AttendanceEntry {
     firstName: row.first_name,
     lastName: row.last_name,
     membershipStatus: row.membership_status,
+    rosterStatus: row.roster_status ?? undefined,
     status: row.status ?? undefined,
     checkedInAt: row.checked_in_at ?? undefined,
     notes: row.notes ?? undefined,

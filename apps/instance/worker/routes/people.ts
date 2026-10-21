@@ -2,7 +2,9 @@ import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import { AppError } from '../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import { mapPerson, mapPersonDetail, type PersonRow } from '../lib/records'
+import type { CreateOutcome, Person } from '../../contracts/api'
 import type { ChurchChangeEvent } from '../realtime'
 
 type AppEnv = {
@@ -146,6 +148,23 @@ function broadcast(
   )
 }
 
+const createdOutcome = z.object({ personId: z.string() })
+
+async function respondWithPerson(
+  c: AppContext,
+  churchId: string,
+  personId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      person: mapPerson(await findPerson(c.env.DB, churchId, personId)),
+      replayed,
+    } satisfies { person: Person } & CreateOutcome,
+    201,
+  )
+}
+
 export const peopleRoutes = new Hono<AppEnv>()
 
 peopleRoutes.get('/:churchId', async (c) => {
@@ -222,67 +241,92 @@ peopleRoutes.post('/:churchId', async (c) => {
   const parsed = personCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
 
+  const person = parsed.data
+  const email = person.email?.toLowerCase() ?? null
+  const claim = await idempotencyClaim(c, {
+    operation: 'people:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      person.firstName,
+      person.lastName,
+      email,
+      person.phone ?? null,
+      person.membershipStatus,
+      person.volunteerReady,
+      person.notes ?? null,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdOutcome))
+  if (replay) return respondWithPerson(c, churchId, replay.personId, true)
+
   const id = `person_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
-  const person = parsed.data
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
-          INSERT INTO people (
-            id, church_id, first_name, last_name, sort_name, email, phone,
-            membership_status, volunteer_ready, notes, version,
-            created_at, updated_at, last_operation_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-        `,
-      ).bind(
-        id,
-        churchId,
-        person.firstName,
-        person.lastName,
-        `${person.lastName}, ${person.firstName}`,
-        person.email?.toLowerCase() ?? null,
-        person.phone ?? null,
-        person.membershipStatus,
-        person.volunteerReady ? 1 : 0,
-        person.notes ?? null,
-        now,
-        now,
-        operationId,
-      ),
-      c.env.DB.prepare(
-        `
-          INSERT INTO audit_events (
-            id, church_id, actor_user_id, action, entity_type, entity_id,
-            request_id, after_json, occurred_at
-          ) VALUES (?, ?, ?, 'people.created', 'person', ?, ?, ?, ?)
-        `,
-      ).bind(
-        crypto.randomUUID(),
-        churchId,
-        actor.id,
-        id,
-        c.get('requestId'),
-        JSON.stringify(personSnapshot(person)),
-        now,
-      ),
-      c.env.DB.prepare(
-        `
-          INSERT INTO outbox_events (
-            id, church_id, topic, aggregate_type, aggregate_id, payload_json,
-            status, available_at, created_at
-          ) VALUES (?, ?, 'people.created', 'person', ?, ?, 'pending', ?, ?)
-        `,
-      ).bind(
-        crypto.randomUUID(),
-        churchId,
-        id,
-        JSON.stringify({ personId: id }),
-        now,
-        now,
-      ),
-    ])
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { personId: id },
+      outcomeSchema: createdOutcome,
+      proof: { table: 'people', churchId, id },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
+            INSERT INTO people (
+              id, church_id, first_name, last_name, sort_name, email, phone,
+              membership_status, volunteer_ready, notes, version,
+              created_at, updated_at, last_operation_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+          `,
+        ).bind(
+          id,
+          churchId,
+          person.firstName,
+          person.lastName,
+          `${person.lastName}, ${person.firstName}`,
+          email,
+          person.phone ?? null,
+          person.membershipStatus,
+          person.volunteerReady ? 1 : 0,
+          person.notes ?? null,
+          now,
+          now,
+          operationId,
+        ),
+        c.env.DB.prepare(
+          `
+            INSERT INTO audit_events (
+              id, church_id, actor_user_id, action, entity_type, entity_id,
+              request_id, after_json, occurred_at
+            ) VALUES (?, ?, ?, 'people.created', 'person', ?, ?, ?, ?)
+          `,
+        ).bind(
+          crypto.randomUUID(),
+          churchId,
+          actor.id,
+          id,
+          c.get('requestId'),
+          JSON.stringify(personSnapshot(person)),
+          now,
+        ),
+        c.env.DB.prepare(
+          `
+            INSERT INTO outbox_events (
+              id, church_id, topic, aggregate_type, aggregate_id, payload_json,
+              status, available_at, created_at
+            ) VALUES (?, ?, 'people.created', 'person', ?, ?, 'pending', ?, ?)
+          `,
+        ).bind(
+          crypto.randomUUID(),
+          churchId,
+          id,
+          JSON.stringify({ personId: id }),
+          now,
+          now,
+        ),
+      ],
+    })
   } catch (error) {
     if (isEmailConflict(error)) {
       throw new AppError(
@@ -293,12 +337,12 @@ peopleRoutes.post('/:churchId', async (c) => {
     }
     throw error
   }
+  if (committed.replayed) {
+    return respondWithPerson(c, churchId, committed.outcome.personId, true)
+  }
 
   broadcast(c, churchId, id, 'created')
-  return c.json(
-    { person: mapPerson(await findPerson(c.env.DB, churchId, id)) },
-    201,
-  )
+  return respondWithPerson(c, churchId, id, false)
 })
 
 peopleRoutes.get('/:churchId/:personId', async (c) => {

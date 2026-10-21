@@ -1,0 +1,25 @@
+---
+/** A deliberate state: nothing to show yet, or the source cannot be used. */
+interface Props {
+  message: string
+  tone?: 'empty' | 'unavailable'
+}
+const { message, tone = 'empty' } = Astro.props
+---
+
+<p class:list={['f42-notice', `f42-notice--${tone}`]} role="status">
+  {message}
+</p>
+
+<style>
+  .f42-notice {
+    border: 1px dashed var(--f42-border, rgba(0, 0, 0, 0.2));
+    border-radius: var(--f42-radius, 0.75rem);
+    color: var(--f42-muted, #4f4a45);
+    margin: 0;
+    padding: 1rem 1.1rem;
+  }
+  .f42-notice--unavailable {
+    border-style: solid;
+  }
+</style>

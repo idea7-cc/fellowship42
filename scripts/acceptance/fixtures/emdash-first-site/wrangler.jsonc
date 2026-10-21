@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "emdash-first-church-site",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "emdash-first-church-site"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "emdash-first-church-media"
+    }
+  ],
+  // General maintenance cron trigger (scheduled publishing, cleanup).
+  "triggers": {
+    "crons": ["* * * * *"]
+  }
+  // No FELLOWSHIP42_URL here: on this site an EmDash Administrator sets the
+  // connection in Plugins -> Fellowship42 -> Settings. The acceptance run
+  // passes FELLOWSHIP42_ALLOW_PRIVATE_HOSTS=true in its env file because its
+  // instance runs on localhost.
+}

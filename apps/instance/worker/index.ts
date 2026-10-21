@@ -8,6 +8,8 @@ import { agentRoutes } from './features/agents/routes'
 import { agentFetch } from './features/agents/oauth'
 import { Hono } from 'hono'
 import { churchSettingsRoutes, siteRoutes } from './features/church/routes'
+import { websiteContractRoutes } from './features/website/routes'
+import { websiteSetupRoutes } from './features/website/setup'
 import { bodyLimit } from 'hono/body-limit'
 import { secureHeaders } from 'hono/secure-headers'
 import { HTTPException } from 'hono/http-exception'
@@ -37,6 +39,7 @@ import { managementRoutes } from './routes/management'
 import { teamRoutes } from './routes/team'
 import { runScheduledManagementSync } from './management/sync'
 import { inspectInstanceRuntimeHealth } from './lib/runtime-health'
+import { websiteOrigin } from './lib/website'
 
 export { ChurchRoom } from './realtime'
 
@@ -51,13 +54,26 @@ type AppEnv = {
 const app = new Hono<AppEnv>()
 
 const secureHttpHeaders = secureHeaders()
+// The website contract and public media are read by church websites on other
+// origins; they carry no credentials and must be embeddable cross-origin.
+const crossOriginPublicHeaders = secureHeaders({
+  crossOriginResourcePolicy: 'cross-origin',
+})
+const isCrossOriginPublic = (path: string) =>
+  path === '/api/website/v1' ||
+  path.startsWith('/api/website/v1/') ||
+  path.startsWith('/media/')
 const isWebSocket = (request: Request) =>
   request.headers.get('Upgrade')?.toLowerCase() === 'websocket' &&
   /^\/api\/churches\/[^/]+\/live$/.test(new URL(request.url).pathname)
 // Upgrade responses carry an immutable WebSocket handshake. HTTP header
 // middleware must not reconstruct or mutate it; authorization still runs.
 app.use('*', (c, next) =>
-  isWebSocket(c.req.raw) ? next() : secureHttpHeaders(c, next),
+  isWebSocket(c.req.raw)
+    ? next()
+    : isCrossOriginPublic(c.req.path)
+      ? crossOriginPublicHeaders(c, next)
+      : secureHttpHeaders(c, next),
 )
 app.use('/api/*', async (c, next) => {
   if (!isWebSocket(c.req.raw)) c.header('Cache-Control', 'private, no-store')
@@ -77,9 +93,11 @@ app.use('*', async (c, next) => {
   const startedAt = Date.now()
   c.set('requestId', requestId)
   if (!isWebSocket(c.req.raw)) c.header('X-Request-Id', requestId)
-  const identity =
-    (await resolveLocalIdentity(c.req.raw, c.env)) ??
-    (await resolveAccessIdentity(c.req.raw, c.env))
+  // The public website contract never depends on who is asking.
+  const identity = isCrossOriginPublic(c.req.path)
+    ? null
+    : ((await resolveLocalIdentity(c.req.raw, c.env)) ??
+      (await resolveAccessIdentity(c.req.raw, c.env)))
   c.set('identity', identity)
   if (
     identity?.provider === 'passkey' &&
@@ -166,6 +184,8 @@ app.get('/oauth/authorize', (c) =>
 app.route('/api/auth', signInRoutes)
 app.route('/api/agents', agentRoutes)
 app.route('/api/site', siteRoutes)
+app.route('/api/website/v1', websiteContractRoutes)
+app.route('/api/website-setup', websiteSetupRoutes)
 app.route('/api/church-settings', churchSettingsRoutes)
 app.route('/api/session', sessionRoutes)
 app.route('/api/bootstrap', bootstrapRoutes)
@@ -182,6 +202,15 @@ app.route('/api/management', managementRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/media', mediaRoutes)
 app.route('/webhooks/payments', paymentWebhookRoutes)
+
+// The church's website is the public front door when one is configured.
+app.get('/', async (c) => {
+  const website = websiteOrigin(c.env)
+  if (website) return c.redirect(website, 302)
+  // Asset responses have immutable headers; security headers are added later.
+  const asset = await c.env.ASSETS.fetch(c.req.raw)
+  return new Response(asset.body, asset)
+})
 
 app.all('/api/*', (_c) => {
   throw new AppError(404, 'route_not_found', 'API route not found')

@@ -101,7 +101,6 @@ export function ManagementPage() {
   const [disconnectConfirmation, setDisconnectConfirmation] = useState('')
   const [disconnectReason, setDisconnectReason] = useState('')
   const [updateConfirmation, setUpdateConfirmation] = useState('')
-  const [supportDecisionReason, setSupportDecisionReason] = useState('')
 
   const currentUpdate: UpdatePreparation | undefined =
     updates.data?.preparations[0]
@@ -270,8 +269,10 @@ export function ManagementPage() {
   async function decideSupport(
     requestId: string,
     decision: 'approve' | 'reject' | 'revoke',
+    reason: string,
   ) {
-    if (decision !== 'approve' && !supportDecisionReason.trim()) return
+    if (decision !== 'approve' && !reason.trim()) return false
+    let decided = false
     await action(`support-${requestId}-${decision}`, async () => {
       await apiRequest(
         `/api/management/support-sessions/${requestId}/decision`,
@@ -279,13 +280,11 @@ export function ManagementPage() {
           method: 'POST',
           body: JSON.stringify({
             action: decision,
-            ...(decision === 'approve'
-              ? {}
-              : { reason: supportDecisionReason.trim() }),
+            ...(decision === 'approve' ? {} : { reason: reason.trim() }),
           }),
         },
       )
-      setSupportDecisionReason('')
+      decided = true
       setNotice(
         decision === 'approve'
           ? 'The diagnostic support session is active for its requested window.'
@@ -295,6 +294,7 @@ export function ManagementPage() {
       )
       await status.refetch()
     })
+    return decided
   }
 
   return (
@@ -579,111 +579,14 @@ export function ManagementPage() {
                           ),
                         )
                         .map((session) => (
-                          <Card key={session.requestId}>
-                            <CardHeader>
-                              <Badge
-                                variant={
-                                  session.state === 'approved'
-                                    ? 'pill'
-                                    : 'outline'
-                                }
-                              >
-                                {session.state === 'approved'
-                                  ? 'Active support'
-                                  : 'Approval requested'}
-                              </Badge>
-                              <CardTitle>
-                                {session.supportOperator.displayName}
-                              </CardTitle>
-                              <CardDescription>
-                                {session.reason}
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent className="mt-4">
-                              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                                <div>
-                                  <dt className="text-muted-foreground">
-                                    Scope
-                                  </dt>
-                                  <dd>Operational diagnostics only</dd>
-                                </div>
-                                <div>
-                                  <dt className="text-muted-foreground">
-                                    {session.state === 'approved'
-                                      ? 'Automatic expiry'
-                                      : 'Requested duration'}
-                                  </dt>
-                                  <dd>
-                                    {session.state === 'approved'
-                                      ? displayTime(session.expiresAt)
-                                      : `${session.requestedMinutes} minutes`}
-                                  </dd>
-                                </div>
-                              </dl>
-                              {session.state === 'awaiting-local-approval' ? (
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={busy !== null}
-                                    onClick={() =>
-                                      void decideSupport(
-                                        session.requestId,
-                                        'approve',
-                                      )
-                                    }
-                                  >
-                                    Approve session
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={
-                                      busy !== null ||
-                                      !supportDecisionReason.trim()
-                                    }
-                                    onClick={() =>
-                                      void decideSupport(
-                                        session.requestId,
-                                        'reject',
-                                      )
-                                    }
-                                  >
-                                    Reject request
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="destructive"
-                                  disabled={
-                                    busy !== null ||
-                                    !supportDecisionReason.trim()
-                                  }
-                                  onClick={() =>
-                                    void decideSupport(
-                                      session.requestId,
-                                      'revoke',
-                                    )
-                                  }
-                                >
-                                  Revoke now
-                                </Button>
-                              )}
-                              <label className="grid gap-1 text-sm font-semibold">
-                                Reason for rejection or revocation
-                                <Input
-                                  value={supportDecisionReason}
-                                  onChange={(event) =>
-                                    setSupportDecisionReason(event.target.value)
-                                  }
-                                  maxLength={240}
-                                />
-                              </label>
-                            </CardContent>
-                          </Card>
+                          <SupportSessionCard
+                            key={session.requestId}
+                            busy={busy !== null}
+                            onDecide={(decision, reason) =>
+                              decideSupport(session.requestId, decision, reason)
+                            }
+                            session={session}
+                          />
                         ))}
                     </div>
                   </Section>
@@ -929,5 +832,101 @@ export function ManagementPage() {
         ) : null}
       </Section>
     </PageShell>
+  )
+}
+
+type SupportSession = ManagementStatusResponse['supportSessions'][number]
+
+/**
+ * One support request. Its decision reason is its own: a reason typed for one
+ * request must never enable or be sent with another request's decision.
+ */
+function SupportSessionCard({
+  session,
+  busy,
+  onDecide,
+}: {
+  session: SupportSession
+  busy: boolean
+  onDecide: (
+    decision: 'approve' | 'reject' | 'revoke',
+    reason: string,
+  ) => Promise<boolean>
+}) {
+  const [reason, setReason] = useState('')
+  async function decide(decision: 'approve' | 'reject' | 'revoke') {
+    if (await onDecide(decision, reason)) setReason('')
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <Badge variant={session.state === 'approved' ? 'pill' : 'outline'}>
+          {session.state === 'approved'
+            ? 'Active support'
+            : 'Approval requested'}
+        </Badge>
+        <CardTitle>{session.supportOperator.displayName}</CardTitle>
+        <CardDescription>{session.reason}</CardDescription>
+      </CardHeader>
+      <CardContent className="mt-4">
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-muted-foreground">Scope</dt>
+            <dd>Operational diagnostics only</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">
+              {session.state === 'approved'
+                ? 'Automatic expiry'
+                : 'Requested duration'}
+            </dt>
+            <dd>
+              {session.state === 'approved'
+                ? displayTime(session.expiresAt)
+                : `${session.requestedMinutes} minutes`}
+            </dd>
+          </div>
+        </dl>
+        {session.state === 'awaiting-local-approval' ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => void decide('approve')}
+            >
+              Approve session
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || !reason.trim()}
+              onClick={() => void decide('reject')}
+            >
+              Reject request
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={busy || !reason.trim()}
+            onClick={() => void decide('revoke')}
+          >
+            Revoke now
+          </Button>
+        )}
+        <label className="grid gap-1 text-sm font-semibold">
+          Reason for rejection or revocation
+          <Input
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={240}
+          />
+        </label>
+      </CardContent>
+    </Card>
   )
 }

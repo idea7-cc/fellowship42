@@ -1,0 +1,170 @@
+---
+import { getMenuWithCacheHint, getSiteSettingsWithCacheHint } from 'emdash'
+import { createPublicPageContext } from 'emdash/page'
+import { EmDashBodyEnd, EmDashBodyStart, EmDashHead } from 'emdash/ui'
+import { loadChurch } from '@fellowship42/emdash/data'
+import { canonicalUrl, publicOrigin } from '../lib/canonical'
+import { runtimeEnv } from '../lib/env'
+import { composeTitle, siteIdentity } from '../lib/site-identity'
+import { churchThemeStyle } from '../lib/theme'
+import '../styles/site.css'
+
+interface Props {
+  /** The page's own title, without the site name. Omit on the home page. */
+  title?: string | null
+  description?: string | null
+  image?: string | null
+  /** Omit for this page's own URL; `null` for none (error pages). */
+  canonical?: string | null
+  preview?: boolean
+  /** Content reference for plugin page contributions on content pages. */
+  content?: { collection: string; id: string; slug?: string | null }
+  /** `article` for posts: og:type, article times, and BlogPosting JSON-LD. */
+  pageType?: 'article'
+  articleMeta?: {
+    publishedTime?: string | null
+    modifiedTime?: string | null
+    author?: string | null
+  }
+}
+
+const {
+  title,
+  description,
+  image,
+  canonical,
+  preview,
+  content,
+  pageType,
+  articleMeta,
+} = Astro.props
+const [settingsResult, menuResult, churchResult] = await Promise.all([
+  getSiteSettingsWithCacheHint(),
+  getMenuWithCacheHint('primary'),
+  loadChurch(Astro.request),
+])
+const settings = settingsResult.data
+const church = churchResult.ok ? churchResult.data.church : null
+const identity = siteIdentity(church, settings)
+const fullTitle = composeTitle(
+  title,
+  identity.name,
+  settings?.seo?.titleSeparator,
+)
+const origin = publicOrigin(runtimeEnv(), Astro.url, settings?.url)
+const path = Astro.url.pathname.replace(/\/$/, '') || '/'
+const pageContext = createPublicPageContext({
+  Astro,
+  kind: content ? 'content' : 'custom',
+  pageType: pageType ?? (path === '/' ? 'home' : 'website'),
+  title: fullTitle,
+  pageTitle: title?.trim() || identity.name,
+  description: description ?? (identity.tagline || null),
+  canonical:
+    canonical === undefined ? canonicalUrl(origin, Astro.url) : canonical,
+  image: image ?? church?.cover?.url ?? null,
+  content,
+  articleMeta,
+  siteName: identity.name,
+  siteUrl: origin,
+})
+const items = menuResult.data?.items ?? []
+const isCurrent = (url: string) => {
+  try {
+    const target = new URL(url, Astro.url)
+    if (target.origin !== Astro.url.origin) return false
+    const targetPath = target.pathname.replace(/\/$/, '') || '/'
+    return targetPath === path
+  } catch {
+    return false
+  }
+}
+const address = church
+  ? [church.address.street, church.address.city, church.address.region]
+      .filter(Boolean)
+      .join(', ')
+  : ''
+---
+
+<!doctype html>
+<html lang={Astro.currentLocale ?? 'en'} style={churchThemeStyle(church?.theme.preset)}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {
+      !settings?.favicon?.url && (
+        <>
+          <link rel="icon" href="/favicon.ico" sizes="32x32" />
+          <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+          <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        </>
+      )
+    }
+    <EmDashHead page={pageContext} />
+  </head>
+  <body>
+    <EmDashBodyStart page={pageContext} />
+    <a class="skip-link" href="#main">Skip to content</a>
+    {
+      preview && (
+        <p class="preview-banner" role="status">
+          Preview — this draft is not public.
+        </p>
+      )
+    }
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="site-title" href="/">
+          {identity.logo && <img src={identity.logo.url} alt="" width="40" height="40" />}
+          <span>{identity.name}</span>
+        </a>
+        {
+          items.length > 0 && (
+            <nav class="site-nav" aria-label="Main">
+              <ul role="list">
+                {items.map((item) => (
+                  <li>
+                    <a
+                      href={item.url}
+                      target={item.target || undefined}
+                      rel={
+                        item.target === '_blank'
+                          ? 'noopener noreferrer'
+                          : undefined
+                      }
+                      aria-current={isCurrent(item.url) ? 'page' : undefined}
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )
+        }
+      </div>
+    </header>
+    <main id="main" class="site-main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <div>
+          <strong>{identity.name}</strong>
+          {address && <address>{address}</address>}
+        </div>
+        <p>
+          {
+            church?.contact.email && (
+              <a href={`mailto:${church.contact.email}`}>
+                {church.contact.email}
+              </a>
+            )
+          }
+        </p>
+      </div>
+    </footer>
+    <EmDashBodyEnd page={pageContext} />
+  </body>
+</html>

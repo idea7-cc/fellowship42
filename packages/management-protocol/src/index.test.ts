@@ -7,7 +7,6 @@ import {
   instanceHealthObservationSchema,
   managementCommandSchema,
   deploymentManifestSchema,
-  doctorCheckIdSchema,
   doctorReportSchema,
   exportEvidenceSchema,
   portableConfigurationSchema,
@@ -31,6 +30,25 @@ import {
   partnerCompatibilityProfile,
   operatorReferenceDefinitionsSchema,
   operatorReferenceCatalogSchema,
+  deployPlanSchema,
+  deployPlanStepKindSchema,
+  deployPlanStepKindsFor,
+  destinationImportPreflightSchema,
+  doctorCheckIdSchema,
+  doctorCheckIdsFor,
+  exitResourceKindSchema,
+  exitResourceKindsFor,
+  importExecutionReportSchema,
+  importStepKindSchema,
+  importStepKindsFor,
+  importStepRisks,
+  instanceDoctorCheckIds,
+  migrationRehearsalAssertionIdSchema,
+  migrationRehearsalAssertionIdsFor,
+  portableRestoreConformanceScenarioIdSchema,
+  portableRestoreConformanceScenarioIdsFor,
+  reconciliationObservationSetSchema,
+  reconciliationReportSchema,
 } from './index'
 
 const deploymentManifest = {
@@ -71,6 +89,702 @@ const deploymentManifest = {
     paymentWebhookProvider: null,
   },
 } as const
+
+const websiteManifest = {
+  ...deploymentManifest,
+  target: { environment: 'staging', accountAlias: 'church-staging' },
+  worker: { name: 'fellowship42', domains: ['app.example.org'] },
+  website: {
+    cms: { name: 'emdash', version: '1.0.1' },
+    worker: { name: 'fellowship42-website', domains: ['www.example.org'] },
+    resources: {
+      d1: { binding: 'DB', name: 'fellowship42-website' },
+      r2: { binding: 'MEDIA', name: 'fellowship42-website-media' },
+      sessionKv: { binding: 'SESSION', name: 'fellowship42-website-session' },
+      instanceService: { binding: 'FELLOWSHIP42' },
+      schedules: ['* * * * *'],
+    },
+  },
+} as const
+
+const websiteDisposition = {
+  encryptionKey: 'preserved',
+  setupSecret: 'removed',
+  sessionStore: 'recreated',
+} as const
+
+describe('optional website component', () => {
+  it('exports website-inclusive enum options and instance-only shapes only through the For helpers', () => {
+    // Consumers that need instance-only lengths or order must call the
+    // `...For(false)` helpers; an enum's `.options` is the full vocabulary.
+    const vocabularies = [
+      [deployPlanStepKindSchema.options, deployPlanStepKindsFor, 11, 17],
+      [doctorCheckIdSchema.options, doctorCheckIdsFor, 14, 23],
+      [importStepKindSchema.options, importStepKindsFor, 17, 23],
+      [exitResourceKindSchema.options, exitResourceKindsFor, 8, 12],
+      [
+        migrationRehearsalAssertionIdSchema.options,
+        migrationRehearsalAssertionIdsFor,
+        10,
+        13,
+      ],
+      [
+        portableRestoreConformanceScenarioIdSchema.options,
+        portableRestoreConformanceScenarioIdsFor,
+        9,
+        10,
+      ],
+    ] as const
+    for (const [
+      options,
+      shapeFor,
+      instanceCount,
+      websiteCount,
+    ] of vocabularies) {
+      const instanceOnly: readonly string[] = shapeFor(false)
+      const withWebsite: readonly string[] = shapeFor(true)
+      expect(withWebsite).toEqual(options)
+      expect(withWebsite).toHaveLength(websiteCount)
+      expect(instanceOnly).toHaveLength(instanceCount)
+      expect(instanceOnly).toEqual(
+        withWebsite.filter((id) => !id.includes('website')),
+      )
+    }
+  })
+
+  it('keeps an instance-only manifest free of any website key', () => {
+    const parsed = deploymentManifestSchema.parse(deploymentManifest)
+    expect('website' in parsed).toBe(false)
+    expect(deploymentManifestSchema.parse(websiteManifest).website).toEqual(
+      websiteManifest.website,
+    )
+  })
+
+  it('rejects a website that shares instance resources, hostnames, or topology', () => {
+    const website = websiteManifest.website
+    for (const invalid of [
+      {
+        ...websiteManifest,
+        worker: { ...websiteManifest.worker, domains: [] },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          worker: { ...website.worker, name: websiteManifest.worker.name },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          worker: { ...website.worker, domains: ['app.example.org'] },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: { ...website, worker: { ...website.worker, domains: [] } },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          worker: {
+            ...website.worker,
+            domains: ['www.example.org', 'www.example.org'],
+          },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: {
+            ...website.resources,
+            d1: { binding: 'DB', name: deploymentManifest.resources.d1.name },
+          },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: {
+            ...website.resources,
+            r2: {
+              binding: 'MEDIA',
+              name: deploymentManifest.resources.r2.name,
+            },
+          },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: { ...website.resources, schedules: ['*/5 * * * *'] },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: { ...website, cms: { name: 'wordpress', version: '1.0.1' } },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: { ...website.resources, sessionKvId: 'provider-id' },
+        },
+      },
+      {
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: {
+            ...website.resources,
+            sessionKv: { binding: 'SESSION' },
+          },
+        },
+      },
+    ]) {
+      expect(deploymentManifestSchema.safeParse(invalid).success).toBe(false)
+    }
+    expect(
+      deploymentManifestSchema.parse({
+        ...websiteManifest,
+        website: {
+          ...website,
+          resources: { ...website.resources, instanceService: null },
+        },
+      }).website?.resources.instanceService,
+    ).toBeNull()
+  })
+
+  it('accepts exactly the instance or instance-plus-website deploy plan and evidence', () => {
+    const planFor = (kinds: readonly string[]) => ({
+      formatVersion: 1,
+      manifestSha256: 'a'.repeat(64),
+      instanceId: deploymentManifest.instance.id,
+      environment: 'staging',
+      steps: kinds.map((kind, index) => ({
+        id: `step-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        resourceName: null,
+        dependsOn: index === 0 ? [] : ['step-01'],
+        destructive: false,
+      })),
+    })
+    expect(deployPlanStepKindsFor(false)).toHaveLength(11)
+    expect(deployPlanStepKindsFor(true)).toHaveLength(17)
+    expect(deployPlanStepKindsFor(true).slice(11)).toEqual([
+      'ensure-website-d1',
+      'ensure-website-r2',
+      'ensure-website-session-kv',
+      'deploy-website-worker',
+      'configure-website-domains',
+      'verify-website',
+    ])
+    expect(
+      deployPlanSchema.safeParse(planFor(deployPlanStepKindsFor(false)))
+        .success,
+    ).toBe(true)
+    expect(
+      deployPlanSchema.safeParse(planFor(deployPlanStepKindsFor(true))).success,
+    ).toBe(true)
+    expect(
+      deployPlanSchema.safeParse(
+        planFor(deployPlanStepKindsFor(true).slice(0, -1)),
+      ).success,
+    ).toBe(false)
+    expect(
+      deployPlanSchema.safeParse(
+        planFor([
+          ...deployPlanStepKindsFor(false),
+          ...deployPlanStepKindsFor(true).slice(11).reverse(),
+        ]),
+      ).success,
+    ).toBe(false)
+
+    const observation = (kinds: readonly string[]) => ({
+      formatVersion: 1,
+      manifestSha256: 'a'.repeat(64),
+      instanceId: deploymentManifest.instance.id,
+      environment: 'staging',
+      accountAlias: 'church-staging',
+      observedAt: '2026-07-20T03:30:00.000Z',
+      steps: kinds.map((kind, index) => ({
+        stepId: `step-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        state: 'absent',
+        ownership: 'not-applicable',
+        actualFingerprint: null,
+        code: 'resource-absent',
+      })),
+    })
+    expect(
+      reconciliationObservationSetSchema.safeParse(
+        observation(deployPlanStepKindsFor(true)),
+      ).success,
+    ).toBe(true)
+    expect(
+      reconciliationObservationSetSchema.safeParse(
+        observation(deployPlanStepKindsFor(true).slice(0, 12)),
+      ).success,
+    ).toBe(false)
+
+    const report = (kinds: readonly string[]) => ({
+      formatVersion: 1,
+      operationId: '42424242-1234-4678-9abc-123456789abc',
+      idempotencyKeySha256: 'b'.repeat(64),
+      previewSha256: 'c'.repeat(64),
+      manifestSha256: 'a'.repeat(64),
+      instanceId: deploymentManifest.instance.id,
+      environment: 'staging',
+      accountAlias: 'church-staging',
+      status: 'succeeded',
+      startedAt: '2026-07-20T03:32:00.000Z',
+      completedAt: '2026-07-20T03:32:00.000Z',
+      steps: kinds.map((kind, index) => ({
+        stepId: `step-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        status: 'executed',
+        code: 'execute-succeeded',
+        resultingFingerprint: 'd'.repeat(64),
+        completedAt: '2026-07-20T03:32:00.000Z',
+      })),
+    })
+    expect(
+      reconciliationReportSchema.safeParse(report(deployPlanStepKindsFor(true)))
+        .success,
+    ).toBe(true)
+    expect(
+      reconciliationReportSchema.safeParse(
+        report(deployPlanStepKindsFor(true).slice(0, 14)),
+      ).success,
+    ).toBe(false)
+  })
+
+  it('requires every website doctor check exactly when any is present', () => {
+    const report = (ids: readonly string[]) => ({
+      formatVersion: 1,
+      checkedAt: '2026-07-19T19:30:00.000Z',
+      manifestSha256: 'a'.repeat(64),
+      instanceId: deploymentManifest.instance.id,
+      release: deploymentManifest.instance.release,
+      status: 'healthy',
+      checks: ids.map((id) => ({ id, status: 'pass', code: `${id}-ok` })),
+    })
+    expect(doctorCheckIdsFor(false)).toEqual(instanceDoctorCheckIds)
+    expect(doctorCheckIdsFor(true)).toHaveLength(23)
+    expect(
+      doctorReportSchema.safeParse(report(doctorCheckIdsFor(true))).success,
+    ).toBe(true)
+    expect(
+      doctorReportSchema.safeParse(
+        report(
+          doctorCheckIdsFor(true).filter((id) => id !== 'website-origins'),
+        ),
+      ).success,
+    ).toBe(false)
+  })
+
+  it('binds website export artifacts in fixed order beside the instance artifacts', () => {
+    const artifact = (kind: string, file: string) => ({
+      kind,
+      file,
+      bytes: 1,
+      sha256: 'a'.repeat(64),
+    })
+    const base = {
+      formatVersion: 1,
+      instanceId: deploymentManifest.instance.id,
+      sourceRelease: deploymentManifest.instance.release,
+      exportedAt: '2026-07-19T21:01:00.000Z',
+      consistency: {
+        mode: 'operator-quiesced',
+        quiescedAt: '2026-07-19T21:00:00.000Z',
+      },
+    }
+    const instanceArtifacts = [
+      artifact('d1-sql', 'd1/database.sql'),
+      artifact('portable-configuration', 'config/portable.json'),
+      artifact('r2-index', 'r2/index.json'),
+    ]
+    const websiteArtifacts = [
+      artifact('website-d1-sql', 'website/d1/database.sql'),
+      artifact('website-r2-index', 'website/r2/index.json'),
+    ]
+    expect(
+      portableExportManifestSchema.safeParse({
+        ...base,
+        artifacts: [...instanceArtifacts, ...websiteArtifacts],
+      }).success,
+    ).toBe(true)
+    for (const artifacts of [
+      [...instanceArtifacts, websiteArtifacts[0]],
+      [...instanceArtifacts, ...[...websiteArtifacts].reverse()],
+      [
+        ...instanceArtifacts,
+        artifact('website-d1-sql', 'd1/website.sql'),
+        websiteArtifacts[1],
+      ],
+    ]) {
+      expect(
+        portableExportManifestSchema.safeParse({ ...base, artifacts }).success,
+      ).toBe(false)
+    }
+    expect(
+      portableConfigurationSchema.parse({
+        formatVersion: 1,
+        instanceId: deploymentManifest.instance.id,
+        settings: { paymentWebhookProvider: null },
+        website: { cms: { name: 'emdash', version: '1.0.1' } },
+      }).website,
+    ).toEqual({ cms: { name: 'emdash', version: '1.0.1' } })
+  })
+
+  it('orders website import steps, risks, preflight, and cutover disposition', () => {
+    const kinds = importStepKindsFor(true)
+    expect(importStepKindsFor(false)).toHaveLength(17)
+    expect(kinds).toHaveLength(23)
+    const plan = {
+      formatVersion: 1,
+      operationId: '42424242-1234-4678-9abc-123456789abc',
+      generatedAt: '2026-07-19T22:00:00.000Z',
+      instanceId: deploymentManifest.instance.id,
+      exportManifestSha256: 'a'.repeat(64),
+      destinationManifestSha256: 'b'.repeat(64),
+      sourceRelease: deploymentManifest.instance.release,
+      destinationRelease: deploymentManifest.instance.release,
+      destinationEnvironment: 'production',
+      steps: kinds.map((kind, index) => ({
+        id: `import-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        risk: importStepRisks[kind],
+        resourceName: null,
+        dependsOn:
+          index === 0 ? [] : [`import-${String(index).padStart(2, '0')}`],
+        approvalRequired:
+          kind === 'cutover-domains' || kind === 'retire-source-routing',
+      })),
+    }
+    expect(importPlanSchema.parse(plan).steps.map((step) => step.kind)).toEqual(
+      kinds,
+    )
+    expect(
+      importPlanSchema.safeParse({
+        ...plan,
+        steps: plan.steps.filter(
+          (step) => step.kind !== 'verify-website-runtime',
+        ),
+      }).success,
+    ).toBe(false)
+    expect(
+      importPlanSchema.safeParse({
+        ...plan,
+        steps: plan.steps.map((step) =>
+          step.kind === 'restore-website-r2'
+            ? { ...step, risk: 'read-only' }
+            : step,
+        ),
+      }).success,
+    ).toBe(false)
+
+    const cutover = kinds.indexOf('cutover-domains')
+    const awaiting = importExecutionReportSchema.parse({
+      formatVersion: 1,
+      operationId: plan.operationId,
+      instanceId: plan.instanceId,
+      exportManifestSha256: plan.exportManifestSha256,
+      destinationManifestSha256: plan.destinationManifestSha256,
+      startedAt: '2026-07-19T22:01:00.000Z',
+      updatedAt: '2026-07-19T22:10:00.000Z',
+      status: 'awaiting-cutover',
+      steps: kinds.map((kind, index) => ({
+        id: `import-${String(index + 1).padStart(2, '0')}`,
+        kind,
+        status: index < cutover ? 'succeeded' : 'pending',
+        code: index < cutover ? `${kind}-succeeded` : 'not-run',
+        completedAt: index < cutover ? '2026-07-19T22:10:00.000Z' : null,
+      })),
+    })
+    expect(awaiting.steps[cutover - 1]?.kind).toBe('verify-website-runtime')
+
+    const preflight = {
+      formatVersion: 1,
+      operationId: plan.operationId,
+      instanceId: plan.instanceId,
+      destinationManifestSha256: plan.destinationManifestSha256,
+      observedAt: '2026-07-19T22:01:00.000Z',
+      d1: { state: 'empty', createdAt: '2026-07-19T22:00:30.000Z' },
+      r2: { state: 'empty', createdAt: '2026-07-19T22:00:30.000Z' },
+      worker: 'absent',
+      outboxQueue: 'absent',
+      deadLetterQueue: 'absent',
+      durableObjectNamespace: 'absent',
+      website: {
+        d1: { state: 'empty', createdAt: '2026-07-19T22:00:30.000Z' },
+        r2: { state: 'empty', createdAt: '2026-07-19T22:00:30.000Z' },
+        worker: 'absent',
+        sessionKv: 'absent',
+      },
+    }
+    expect(destinationImportPreflightSchema.parse(preflight)).toEqual(preflight)
+    expect(
+      destinationImportPreflightSchema.safeParse({
+        ...preflight,
+        website: { ...preflight.website, sessionKv: 'present' },
+      }).success,
+    ).toBe(false)
+
+    const approval = {
+      formatVersion: 1,
+      operationId: plan.operationId,
+      instanceId: plan.instanceId,
+      exportManifestSha256: plan.exportManifestSha256,
+      destinationManifestSha256: plan.destinationManifestSha256,
+      approvedAt: '2026-07-19T22:30:00.000Z',
+      approvedBy: 'user:operator_42',
+      sourceVerifiedAt: '2026-07-19T22:20:00.000Z',
+      destinationVerifiedAt: '2026-07-19T22:25:00.000Z',
+      credentialDisposition: {
+        deployment: 'rotated',
+        applicationSecrets: 'rotated',
+        management: 'disconnected',
+        website: websiteDisposition,
+      },
+      domains: ['app.example.org', 'www.example.org'],
+      rollbackDeadline: '2026-07-20T22:30:00.000Z',
+    }
+    expect(cutoverApprovalSchema.parse(approval)).toEqual(approval)
+    // Eight instance domains plus up to eight website domains; an
+    // instance-only approval keeps the eight-domain cap.
+    const domains = (count: number) =>
+      Array.from({ length: count }, (_, index) => `host-${index}.example.org`)
+    expect(
+      cutoverApprovalSchema.safeParse({ ...approval, domains: domains(16) })
+        .success,
+    ).toBe(true)
+    const { website: _website, ...instanceDisposition } =
+      approval.credentialDisposition
+    for (const [count, success] of [
+      [8, true],
+      [9, false],
+    ] as const) {
+      expect(
+        cutoverApprovalSchema.safeParse({
+          ...approval,
+          credentialDisposition: instanceDisposition,
+          domains: domains(count),
+        }).success,
+        `${count} instance-only domains`,
+      ).toBe(success)
+    }
+    for (const website of [
+      { ...websiteDisposition, encryptionKey: 'rotated' },
+      { ...websiteDisposition, setupSecret: 'retained' },
+      { ...websiteDisposition, sessionStore: 'exported' },
+    ]) {
+      expect(
+        cutoverApprovalSchema.safeParse({
+          ...approval,
+          credentialDisposition: {
+            ...approval.credentialDisposition,
+            website,
+          },
+        }).success,
+      ).toBe(false)
+    }
+  })
+
+  it('requires website exit resources, disposed sessions, and website attestation together', () => {
+    const handoff = {
+      formatVersion: 1,
+      operationId: '42424242-1234-4678-9abc-123456789abc',
+      instanceId: deploymentManifest.instance.id,
+      destinationCustody: {
+        infrastructureOwner: 'church',
+        infrastructureOwnerSubject: 'organization:new-example-church',
+        operatorSubject: null,
+      },
+      resources: exitResourceKindsFor(true).map((kind) => ({
+        kind,
+        destinationState: 'verified',
+        sourceDisposition:
+          kind === 'domains'
+            ? 'routing-retired'
+            : kind === 'website-session-kv'
+              ? 'disposed'
+              : 'access-revoked',
+      })),
+      domains: ['app.example.org', 'www.example.org'].map((hostname) => ({
+        hostname,
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      })),
+      operators: [
+        {
+          subject: 'organization:new-example-church',
+          role: 'infrastructure-owner',
+          disposition: 'church-controlled',
+        },
+      ],
+      credentialAttestation: {
+        deployment: 'rotated',
+        applicationSecrets: 'rotated',
+        management: 'disconnected',
+        website: websiteDisposition,
+        attestedAt: '2026-07-19T22:31:00.000Z',
+      },
+      independentOperationVerifiedAt: '2026-07-19T22:31:00.000Z',
+      sourceRoutingRetiredAt: '2026-07-19T22:31:00.000Z',
+      supportExpiresAt: '2026-08-19T22:31:00.000Z',
+      unresolvedRisks: [],
+    }
+    expect(exitResourceKindsFor(false)).toHaveLength(8)
+    expect(exitResourceKindsFor(true)).toHaveLength(12)
+    expect(exitResourceKindsFor(true).at(-1)).toBe('domains')
+    expect(exitHandoffSchema.parse(handoff)).toEqual(handoff)
+    const instanceAttestation = {
+      deployment: 'rotated',
+      applicationSecrets: 'rotated',
+      management: 'disconnected',
+      attestedAt: handoff.credentialAttestation.attestedAt,
+    }
+    const exitDomains = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        hostname: `host-${index}.example.org`,
+        destinationRouting: 'active',
+        sourceRouting: 'retired',
+      }))
+    expect(
+      exitHandoffSchema.safeParse({ ...handoff, domains: exitDomains(16) })
+        .success,
+    ).toBe(true)
+    const instanceHandoff = {
+      ...handoff,
+      resources: handoff.resources.filter(
+        (resource) => !resource.kind.startsWith('website-'),
+      ),
+      credentialAttestation: instanceAttestation,
+    }
+    for (const [count, success] of [
+      [8, true],
+      [9, false],
+    ] as const) {
+      expect(
+        exitHandoffSchema.safeParse({
+          ...instanceHandoff,
+          domains: exitDomains(count),
+        }).success,
+        `${count} instance-only exit domains`,
+      ).toBe(success)
+    }
+    for (const invalid of [
+      { ...handoff, credentialAttestation: instanceAttestation },
+      {
+        ...handoff,
+        resources: handoff.resources.map((resource) =>
+          resource.kind === 'website-session-kv'
+            ? { ...resource, sourceDisposition: 'retained-under-policy' }
+            : resource,
+        ),
+      },
+      {
+        ...handoff,
+        resources: handoff.resources.map((resource) =>
+          resource.kind === 'website-d1-database'
+            ? { ...resource, sourceDisposition: 'disposed' }
+            : resource,
+        ),
+      },
+      {
+        ...handoff,
+        resources: handoff.resources.filter(
+          (resource) => resource.kind !== 'website-r2-bucket',
+        ),
+      },
+    ]) {
+      expect(exitHandoffSchema.safeParse(invalid).success).toBe(false)
+    }
+  })
+
+  it('orders website rehearsal assertions and restore conformance scenarios', () => {
+    expect(migrationRehearsalAssertionIdsFor(false)).toHaveLength(10)
+    expect(migrationRehearsalAssertionIdsFor(true)).toHaveLength(13)
+    const evidence = (ids: readonly string[]) => ({
+      formatVersion: 1,
+      evidenceId: '42424242-1234-4678-9abc-123456789abc',
+      scenario: 'hosted-to-church-owned',
+      operationId: '42424242-1234-4678-9abc-123456789abd',
+      instanceId: deploymentManifest.instance.id,
+      sourceCustody: 'fellowship42-hosted',
+      destinationCustody: 'church-owned',
+      sourceRelease: deploymentManifest.instance.release,
+      destinationRelease: deploymentManifest.instance.release,
+      exportManifestSha256: 'a'.repeat(64),
+      destinationManifestSha256: 'b'.repeat(64),
+      planSha256: 'c'.repeat(64),
+      restoreReportSha256: 'd'.repeat(64),
+      cutoverApprovalSha256: 'e'.repeat(64),
+      completionReportSha256: 'f'.repeat(64),
+      startedAt: '2026-07-19T22:00:00.000Z',
+      restoreVerifiedAt: '2026-07-19T22:10:00.000Z',
+      cutoverApprovedAt: '2026-07-19T22:30:00.000Z',
+      completedAt: '2026-07-19T22:31:00.000Z',
+      status: 'verified',
+      assertions: ids.map((id) => ({
+        id,
+        status: 'pass',
+        code: `${id}-passed`,
+      })),
+    })
+    expect(
+      migrationRehearsalEvidenceSchema.safeParse(
+        evidence(migrationRehearsalAssertionIdsFor(true)),
+      ).success,
+    ).toBe(true)
+    expect(
+      migrationRehearsalEvidenceSchema.safeParse(
+        evidence(
+          migrationRehearsalAssertionIdsFor(true).filter(
+            (id) => id !== 'website-runtime-healthy',
+          ),
+        ),
+      ).success,
+    ).toBe(false)
+
+    expect(portableRestoreConformanceScenarioIdsFor(false)).toHaveLength(9)
+    const conformance = {
+      formatVersion: 1,
+      profile: 'f42-portable-restore-v1',
+      release: {
+        applicationVersion: '0.17.0',
+        schemaVersion: 6,
+        managementProtocolPackageVersion: '1.5.0',
+        lifecycleCliVersion: '0.8.0',
+        exportFormatVersion: 1,
+        importFormatVersion: 1,
+      },
+      scenarios: portableRestoreConformanceScenarioIdsFor(true).map((id) => ({
+        id,
+        status: 'passed',
+      })),
+    }
+    expect(portableRestoreConformanceReportSchema.parse(conformance)).toEqual(
+      conformance,
+    )
+    expect(
+      portableRestoreConformanceReportSchema.safeParse({
+        ...conformance,
+        scenarios: [
+          ...conformance.scenarios,
+          { id: 'website-restored', status: 'passed' },
+        ],
+      }).success,
+    ).toBe(false)
+  })
+})
 
 describe('management protocol contracts', () => {
   it('publishes bounded operator references pinned to one exact release', async () => {
@@ -295,7 +1009,7 @@ describe('management protocol contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts the immutable portable restore conformance fixture', async () => {
+  it('accepts the synthetic portable restore conformance fixture', async () => {
     const fixture = JSON.parse(
       await readFile(
         new URL(
@@ -639,7 +1353,25 @@ describe('management protocol contracts', () => {
     ).toBe(false)
   })
 
-  it('accepts the immutable hosted-to-church-owned rehearsal fixture', async () => {
+  it('accepts the instance-only hosted-to-church-owned rehearsal fixture', async () => {
+    const evidence = migrationRehearsalEvidenceSchema.parse(
+      JSON.parse(
+        await readFile(
+          new URL(
+            '../fixtures/migration-rehearsal.instance-only.v1.json',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      ),
+    )
+    expect(evidence.assertions.map(({ id }) => id)).toEqual(
+      migrationRehearsalAssertionIdsFor(false),
+    )
+    expect(JSON.stringify(evidence)).not.toContain('rehearsal.example.org')
+  })
+
+  it('accepts the synthetic hosted-to-church-owned rehearsal fixture', async () => {
     const fixture = JSON.parse(
       await readFile(
         new URL('../fixtures/migration-rehearsal.v1.json', import.meta.url),
@@ -649,8 +1381,18 @@ describe('management protocol contracts', () => {
     const evidence = migrationRehearsalEvidenceSchema.parse(fixture)
 
     expect(evidence.status).toBe('verified')
-    expect(evidence.assertions).toHaveLength(10)
-    expect(JSON.stringify(evidence)).not.toContain('rehearsal.example.org')
+    expect(evidence.assertions).toHaveLength(13)
+    expect(evidence.assertions.map(({ id }) => id)).toEqual(
+      migrationRehearsalAssertionIdsFor(true),
+    )
+    for (const privateValue of [
+      'rehearsal.example.org',
+      'fellowship42-church-website',
+      'uploads/',
+      'ec_pages',
+    ]) {
+      expect(JSON.stringify(evidence)).not.toContain(privateValue)
+    }
     expect(
       migrationRehearsalEvidenceSchema.safeParse({
         ...evidence,
@@ -742,7 +1484,7 @@ describe('management protocol contracts', () => {
       instanceId: deploymentManifest.instance.id,
       release: deploymentManifest.instance.release,
       status: 'healthy',
-      checks: doctorCheckIdSchema.options.map((id) => ({
+      checks: instanceDoctorCheckIds.map((id) => ({
         id,
         status: 'pass',
         code: `${id}-verified`,

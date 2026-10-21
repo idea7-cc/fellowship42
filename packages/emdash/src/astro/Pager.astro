@@ -1,0 +1,49 @@
+---
+/** Links to the next page of one block and back to its first page. */
+interface Props {
+  param: string
+  nextCursor: string | null
+  label: string
+}
+const { param, nextCursor, label } = Astro.props
+const current = Astro.url.searchParams.get(param)
+function href(cursor: string | null) {
+  const url = new URL(Astro.url)
+  if (cursor) url.searchParams.set(param, cursor)
+  else url.searchParams.delete(param)
+  return `${url.pathname}${url.search}`
+}
+---
+
+{
+  (nextCursor || current) && (
+    <nav class="f42-pager" aria-label={label}>
+      {current && <a href={href(null)}>First page</a>}
+      {nextCursor && (
+        <a href={href(nextCursor)} rel="next">
+          More<span class="f42-pager__hint"> {label.toLowerCase()}</span>
+        </a>
+      )}
+    </nav>
+  )
+}
+
+<style>
+  .f42-pager {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .f42-pager a {
+    align-items: center;
+    color: var(--f42-accent, #2a4a7c);
+    display: inline-flex;
+    font-weight: 600;
+    min-height: 2.75rem;
+  }
+  .f42-pager a:focus-visible {
+    outline: 2px solid var(--f42-accent, #2a4a7c);
+    outline-offset: 2px;
+  }
+</style>

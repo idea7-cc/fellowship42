@@ -19,6 +19,7 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -28,7 +29,7 @@ function can(permissions: string[], permission: string) {
 }
 
 function GroupForm({
-  group,
+  group: record,
   onCancel,
   onSaved,
 }: {
@@ -39,6 +40,8 @@ function GroupForm({
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // The group as shown when this editor opened; the save is checked against it.
+  const [group] = useState(record)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -73,9 +76,7 @@ function GroupForm({
       await onSaved()
     } catch (caught) {
       setError(
-        caught instanceof ApiError
-          ? caught.message
-          : 'The group could not be saved.',
+        describeSaveFailure(caught, 'group', 'The group could not be saved.'),
       )
       setSaving(false)
     }
@@ -229,7 +230,8 @@ export function GroupsPage() {
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
   const [cursors, setCursors] = useState<Array<string | null>>([null])
-  const [editor, setEditor] = useState<Group | 'new' | null>(null)
+  const editor = useRecordEditor<Group>()
+  const editorSession = editor.session
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
   const [sessionsGroup, setSessionsGroup] = useState<Group | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -318,7 +320,7 @@ export function GroupsPage() {
             <Button type="submit" size="sm">
               Search
             </Button>
-            <Button type="button" size="sm" onClick={() => setEditor('new')}>
+            <Button type="button" size="sm" onClick={() => editor.open('new')}>
               Add group
             </Button>
           </form>
@@ -330,18 +332,20 @@ export function GroupsPage() {
             onChange={(event) => setSearch(event.target.value)}
           />
         )}
-        {editor ? (
+        {editorSession ? (
           <GroupForm
-            group={editor === 'new' ? null : editor}
-            onCancel={() => setEditor(null)}
+            key={editorSession.key}
+            group={editorSession.value === 'new' ? null : editorSession.value}
+            onCancel={editor.close}
             onSaved={async () => {
-              setEditor(null)
+              editor.closeIf(editorSession.key)
               await groupQuery.refetch()
             }}
           />
         ) : null}
         {rosterGroup && churchId ? (
           <GroupRosterPanel
+            key={rosterGroup.id}
             churchId={churchId}
             group={rosterGroup}
             onClose={() => setRosterGroup(null)}
@@ -349,6 +353,7 @@ export function GroupsPage() {
         ) : null}
         {sessionsGroup && churchId ? (
           <GroupSessionsPanel
+            key={sessionsGroup.id}
             churchId={churchId}
             group={sessionsGroup}
             onClose={() => setSessionsGroup(null)}
@@ -406,7 +411,7 @@ export function GroupsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditor(group)}
+                        onClick={() => editor.open(group)}
                       >
                         Edit
                       </Button>

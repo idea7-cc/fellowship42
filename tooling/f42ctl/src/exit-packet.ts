@@ -9,6 +9,7 @@ import {
   type ExitPacketVerificationEvidence,
 } from '@fellowship42/management-protocol'
 import { canonicalJson } from './canonical.js'
+import { importReportBindsToPlan } from './portable-import.js'
 
 function sha256Canonical(value: unknown): string {
   return createHash('sha256').update(canonicalJson(value)).digest('hex')
@@ -34,7 +35,12 @@ function validateBindings(inputs: ExitPacketBuildInputs) {
   ) {
     throw new Error('Exit packet requires a fully succeeded portable import')
   }
-  for (const evidence of [report, approval, handoff]) {
+  if (!importReportBindsToPlan(plan, report)) {
+    throw new Error(
+      'Exit packet execution report does not bind to the import plan and its steps',
+    )
+  }
+  for (const evidence of [approval, handoff]) {
     if (
       evidence.operationId !== plan.operationId ||
       evidence.instanceId !== plan.instanceId
@@ -52,15 +58,13 @@ function validateBindings(inputs: ExitPacketBuildInputs) {
       'Exit packet evidence does not preserve the portable instance identity',
     )
   }
-  for (const evidence of [report, approval]) {
-    if (
-      evidence.exportManifestSha256 !== plan.exportManifestSha256 ||
-      evidence.destinationManifestSha256 !== plan.destinationManifestSha256
-    ) {
-      throw new Error(
-        'Exit packet evidence does not bind to the import plan manifests',
-      )
-    }
+  if (
+    approval.exportManifestSha256 !== plan.exportManifestSha256 ||
+    approval.destinationManifestSha256 !== plan.destinationManifestSha256
+  ) {
+    throw new Error(
+      'Exit packet evidence does not bind to the import plan manifests',
+    )
   }
   if (exportEvidence.exportManifestSha256 !== plan.exportManifestSha256) {
     throw new Error(
@@ -88,14 +92,33 @@ function validateBindings(inputs: ExitPacketBuildInputs) {
     approval.domains,
     'Handoff domains do not match the approved cutover domains',
   )
+  const planHasWebsite = plan.steps.some(
+    (step) => step.kind === 'restore-website-d1',
+  )
+  if (
+    planHasWebsite !==
+      handoff.resources.some(
+        (resource) => resource.kind === 'website-worker',
+      ) ||
+    canonicalJson(handoff.credentialAttestation.website ?? null) !==
+      canonicalJson(approval.credentialDisposition.website ?? null)
+  ) {
+    throw new Error(
+      'Handoff website resources and credentials do not match the imported installation',
+    )
+  }
   if (
     Date.parse(handoff.credentialAttestation.attestedAt) <
     Date.parse(approval.approvedAt)
   ) {
     throw new Error('Credential attestation predates cutover approval')
   }
-  const independentStep = report.steps[15]
-  const sourceRetirementStep = report.steps[16]
+  const independentStep = report.steps.find(
+    (step) => step.kind === 'verify-independent-operation',
+  )
+  const sourceRetirementStep = report.steps.find(
+    (step) => step.kind === 'retire-source-routing',
+  )
   if (
     independentStep?.kind !== 'verify-independent-operation' ||
     independentStep.completedAt !== handoff.independentOperationVerifiedAt ||

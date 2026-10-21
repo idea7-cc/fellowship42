@@ -9,6 +9,8 @@ export default [
       '**/artifacts/**',
       '**/.wrangler/**',
       '**/*.d.ts',
+      '**/.astro/**',
+      'scripts/acceptance/fixtures/**',
     ],
   },
   {

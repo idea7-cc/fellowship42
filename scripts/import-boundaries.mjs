@@ -42,10 +42,25 @@ export async function inspectImportBoundaries(root, kind) {
   const allowed =
     kind === 'public'
       ? {
-          'apps/instance': ['packages/brand', 'packages/management-protocol'],
+          'apps/instance': [
+            'packages/brand',
+            'packages/management-protocol',
+            'packages/website-contract',
+          ],
           'apps/project-site': ['packages/brand'],
+          'apps/website': [
+            'packages/brand',
+            'packages/emdash',
+            'packages/website-contract',
+          ],
+          'packages/emdash': ['packages/website-contract'],
+          'packages/emdash-connect': [
+            'packages/emdash',
+            'packages/website-contract',
+          ],
           'packages/brand': [],
           'packages/management-protocol': [],
+          'packages/website-contract': [],
           'tooling/f42ctl': ['packages/management-protocol'],
         }
       : {

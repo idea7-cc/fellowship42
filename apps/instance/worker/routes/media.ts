@@ -1,4 +1,4 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import {
@@ -9,7 +9,8 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
-import type { MediaRecord } from '../../contracts/api'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
+import type { CreateOutcome, MediaRecord } from '../../contracts/api'
 
 type AppEnv = {
   Bindings: Env
@@ -159,6 +160,95 @@ async function requireNotPublished(
   }
 }
 
+// Public media follows RFC 9110 conditional and range rules for GET and HEAD.
+const PRECONDITIONS = [
+  'If-Match',
+  'If-None-Match',
+  'If-Modified-Since',
+  'If-Unmodified-Since',
+] as const
+
+/** Entity tags listed in a header value, or null for `*`. */
+function entityTags(value: string) {
+  if (value.trim() === '*') return null
+  return [...value.matchAll(/(W\/)?"([^"]*)"/g)].map(([, weak, tag]) => ({
+    weak: Boolean(weak),
+    tag: tag ?? '',
+  }))
+}
+
+/** An HTTP-date in whole seconds, or null when absent or invalid. */
+function httpDateSeconds(value: string | null) {
+  if (value === null) return null
+  const time = Date.parse(value)
+  return Number.isNaN(time) ? null : Math.floor(time / 1000)
+}
+
+/** RFC 9110 §13.2.2 for GET and HEAD: 412, 304, or null to continue. */
+function failedPrecondition(request: Headers, stored: R2Object) {
+  const modified = Math.floor(stored.uploaded.getTime() / 1000)
+  const ifMatch = request.get('If-Match')
+  if (ifMatch !== null) {
+    const tags = entityTags(ifMatch)
+    if (tags && !tags.some(({ weak, tag }) => !weak && tag === stored.etag))
+      return 412
+  } else {
+    const since = httpDateSeconds(request.get('If-Unmodified-Since'))
+    if (since !== null && modified > since) return 412
+  }
+  const ifNoneMatch = request.get('If-None-Match')
+  if (ifNoneMatch !== null) {
+    const tags = entityTags(ifNoneMatch)
+    if (!tags || tags.some(({ tag }) => tag === stored.etag)) return 304
+  } else {
+    const since = httpDateSeconds(request.get('If-Modified-Since'))
+    if (since !== null && modified <= since) return 304
+  }
+  return null
+}
+
+/**
+ * The one byte range to send (RFC 9110 §14), `unsatisfiable` for a 416, or
+ * null to send the whole object. A missing or invalid Range, another unit,
+ * several ranges, and an If-Range that is not this object's strong entity tag
+ * all mean the whole object. If-Range dates never match: no Last-Modified is
+ * sent, so a date cannot be a strong validator.
+ */
+function requestedRange(request: Headers, stored: R2Object) {
+  const value = request.get('Range')
+  if (value === null) return null
+  const ifRange = request.get('If-Range')
+  if (ifRange !== null) {
+    const tags = entityTags(ifRange)
+    if (tags?.length !== 1 || tags[0]!.weak || tags[0]!.tag !== stored.etag)
+      return null
+  }
+  const match = /^bytes=\s*(\d*)-(\d*)\s*$/i.exec(value.trim())
+  if (!match || (!match[1] && !match[2])) return null
+  const size = stored.size
+  if (!match[1]) {
+    const suffix = Number(match[2])
+    if (suffix === 0 || size === 0) return 'unsatisfiable'
+    const length = Math.min(suffix, size)
+    return { offset: size - length, length }
+  }
+  const first = Number(match[1])
+  const last = match[2] ? Number(match[2]) : Number.POSITIVE_INFINITY
+  if (last < first) return null
+  if (first >= size) return 'unsatisfiable'
+  return { offset: first, length: Math.min(last, size - 1) - first + 1 }
+}
+
+function mediaHeaders(stored: R2Object, contentType: string) {
+  const headers = new Headers()
+  stored.writeHttpMetadata(headers)
+  headers.set('Content-Type', contentType)
+  headers.set('ETag', stored.httpEtag)
+  headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
+  headers.set('Accept-Ranges', 'bytes')
+  return headers
+}
+
 export const mediaRoutes = new Hono<AppEnv>()
 
 mediaRoutes.get('/:mediaId', async (c) => {
@@ -171,44 +261,61 @@ mediaRoutes.get('/:mediaId', async (c) => {
   )
     .bind(c.req.param('mediaId'))
     .first<{ r2_key: string; content_type: string }>()
-  if (!media) throw new AppError(404, 'media_not_found', 'Media not found')
+  const notFound = () => new AppError(404, 'media_not_found', 'Media not found')
+  if (!media) throw notFound()
 
-  const object = await c.env.MEDIA.get(media.r2_key, {
-    onlyIf: c.req.raw.headers,
-    range: c.req.raw.headers,
-  })
-  if (!object) throw new AppError(404, 'media_not_found', 'Media not found')
+  const request = c.req.raw.headers
+  const head = c.req.method === 'HEAD'
+  // A plain GET reads the object once.
+  if (
+    !head &&
+    !request.has('Range') &&
+    !PRECONDITIONS.some((name) => request.has(name))
+  ) {
+    const object = await c.env.MEDIA.get(media.r2_key)
+    if (!object) throw notFound()
+    return new Response(object.body, {
+      headers: mediaHeaders(object, media.content_type),
+    })
+  }
 
-  const headers = new Headers()
-  object.writeHttpMetadata(headers)
-  headers.set('Content-Type', media.content_type)
-  headers.set('ETag', object.httpEtag)
-  headers.set('Cache-Control', 'public, max-age=300, must-revalidate')
-  headers.set('Accept-Ranges', 'bytes')
-  if (object.range) {
-    const range = object.range as {
-      offset?: number
-      length?: number
-      suffix?: number
-    }
-    const offset =
-      typeof range.suffix === 'number'
-        ? Math.max(0, object.size - range.suffix)
-        : (range.offset ?? 0)
-    const length =
-      typeof range.suffix === 'number'
-        ? Math.min(object.size, range.suffix)
-        : (range.length ?? object.size - offset)
+  // Conditional, ranged, and HEAD requests decide from the stored metadata
+  // first. A media id's R2 key never changes, so the bytes read next match.
+  const stored = await c.env.MEDIA.head(media.r2_key)
+  if (!stored) throw notFound()
+  const headers = mediaHeaders(stored, media.content_type)
+  const failed = failedPrecondition(request, stored)
+  if (failed === 304) return new Response(null, { status: 304, headers })
+  if (failed === 412)
+    return new Response(null, {
+      status: 412,
+      headers: { 'Cache-Control': 'no-store' },
+    })
+  const range = requestedRange(request, stored)
+  if (range === 'unsatisfiable')
+    return new Response(null, {
+      status: 416,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Range': `bytes */${stored.size}`,
+      },
+    })
+  if (range)
     headers.set(
       'Content-Range',
-      `bytes ${offset}-${offset + length - 1}/${object.size}`,
+      `bytes ${range.offset}-${range.offset + range.length - 1}/${stored.size}`,
     )
+  const status = range ? 206 : 200
+  if (head) {
+    headers.set('Content-Length', String(range ? range.length : stored.size))
+    return new Response(null, { status, headers })
   }
-  if (!('body' in object)) return new Response(null, { status: 412, headers })
-  return new Response(object.body, {
-    status: object.range ? 206 : 200,
-    headers,
-  })
+  const object = await c.env.MEDIA.get(
+    media.r2_key,
+    range ? { range } : undefined,
+  )
+  if (!object) throw notFound()
+  return new Response(object.body, { status, headers })
 })
 
 export const mediaManagementRoutes = new Hono<AppEnv>()
@@ -260,6 +367,23 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdMedia = z.object({ mediaId: z.string() })
+
+async function respondWithMedia(
+  c: Context<AppEnv>,
+  churchId: string,
+  mediaId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      media: mapMedia(await findMedia(c.env.DB, churchId, mediaId)),
+      replayed,
+    } satisfies { media: MediaRecord } & CreateOutcome,
+    201,
+  )
+}
+
 mediaManagementRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'media.write')
@@ -304,6 +428,22 @@ mediaManagementRoutes.post('/:churchId', async (c) => {
     )
   }
 
+  // Check the key before storing bytes, so a retried upload stores nothing.
+  const claim = await idempotencyClaim(c, {
+    operation: 'media:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      contentType,
+      checksum,
+      body.byteLength,
+      metadata.data.visibility,
+      metadata.data.altText,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdMedia))
+  if (replay) return respondWithMedia(c, churchId, replay.mediaId, true)
+
   const mediaId = `media_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
@@ -319,57 +459,66 @@ mediaManagementRoutes.post('/:churchId', async (c) => {
     sha256: checksum,
   })
 
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { mediaId },
+      outcomeSchema: createdMedia,
+      proof: { table: 'media', churchId, id: mediaId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
           INSERT INTO media (
             id, church_id, r2_key, media_type, content_type, byte_size, checksum,
             alt_text, visibility, created_by_user_id, created_at, updated_at,
             version, last_operation_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         `,
-      ).bind(
-        mediaId,
-        churchId,
-        r2Key,
-        mediaTypeFor(contentType),
-        contentType,
-        body.byteLength,
-        checksum,
-        metadata.data.altText,
-        metadata.data.visibility,
-        actor.id,
-        now,
-        now,
-        operationId,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'media',
-        entityId: mediaId,
-        eventName: 'media.created',
-        operationId,
-        table: 'media',
-        now,
-        metadata: {
-          mediaType: mediaTypeFor(contentType),
-          visibility: metadata.data.visibility,
-          byteSize: body.byteLength,
-        },
-      }),
-    ])
+        ).bind(
+          mediaId,
+          churchId,
+          r2Key,
+          mediaTypeFor(contentType),
+          contentType,
+          body.byteLength,
+          checksum,
+          metadata.data.altText,
+          metadata.data.visibility,
+          actor.id,
+          now,
+          now,
+          operationId,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'media',
+          entityId: mediaId,
+          eventName: 'media.created',
+          operationId,
+          table: 'media',
+          now,
+          metadata: {
+            mediaType: mediaTypeFor(contentType),
+            visibility: metadata.data.visibility,
+            byteSize: body.byteLength,
+          },
+        }),
+      ],
+    })
   } catch (error) {
     await c.env.MEDIA.delete(r2Key)
     throw error
   }
+  if (committed.replayed) {
+    // A concurrent attempt with this key stored the upload first.
+    await c.env.MEDIA.delete(r2Key)
+    return respondWithMedia(c, churchId, committed.outcome.mediaId, true)
+  }
   broadcastContent(c, churchId, 'media', mediaId, 'created')
-  return c.json(
-    { media: mapMedia(await findMedia(c.env.DB, churchId, mediaId)) },
-    201,
-  )
+  return respondWithMedia(c, churchId, mediaId, false)
 })
 
 mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {

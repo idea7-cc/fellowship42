@@ -1,0 +1,48 @@
+{
+  "$schema": "https://emdashcms.com/seed.schema.json",
+  "version": "1",
+  "meta": {
+    "name": "EmDash-first church site",
+    "description": "A minimal independent EmDash site with pages and posts",
+    "author": "Fellowship42 acceptance fixture"
+  },
+  "settings": {
+    "title": "Riverside Church",
+    "tagline": "An EmDash site the church already runs"
+  },
+  "collections": [
+    {
+      "slug": "posts",
+      "label": "Posts",
+      "labelSingular": "Post",
+      "urlPattern": "/posts/{slug}",
+      "supports": ["drafts", "revisions", "preview", "scheduling", "search", "seo"],
+      "fields": [
+        { "slug": "title", "label": "Title", "type": "string", "required": true, "searchable": true },
+        { "slug": "content", "label": "Content", "type": "portableText", "searchable": true },
+        { "slug": "excerpt", "label": "Excerpt", "type": "text" }
+      ]
+    },
+    {
+      "slug": "pages",
+      "label": "Pages",
+      "labelSingular": "Page",
+      "urlPattern": "/{slug}",
+      "supports": ["drafts", "revisions", "preview", "search", "seo"],
+      "fields": [
+        { "slug": "title", "label": "Title", "type": "string", "required": true, "searchable": true },
+        { "slug": "content", "label": "Content", "type": "portableText", "searchable": true }
+      ]
+    }
+  ],
+  "menus": [
+    {
+      "name": "primary",
+      "label": "Primary Navigation",
+      "items": [
+        { "type": "custom", "label": "Home", "url": "/" },
+        { "type": "custom", "label": "Church", "url": "/church" }
+      ]
+    }
+  ]
+}

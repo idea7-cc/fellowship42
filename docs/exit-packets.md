@@ -26,6 +26,32 @@ The independent-operation and source-routing timestamps must be the completion
 times recorded by the public import executor. Hosted exit requires management
 to be `disconnected`, not merely rotated.
 
+## Resource classes
+
+The handoff covers every resource class exactly once, in this order:
+`d1-database`, `r2-bucket`, `worker`, `outbox-queue`, `dead-letter-queue`,
+`durable-object-namespace`, `access-policy`, then `domains`. When the imported
+installation has a website, four classes precede `domains`:
+
+| Class | Source disposition |
+| --- | --- |
+| `website-d1-database` | as for instance data, e.g. `retained-under-policy` |
+| `website-r2-bucket` | as for instance data, e.g. `retained-under-policy` |
+| `website-worker` | typically `access-revoked` |
+| `website-session-kv` | always `disposed`: sessions are never exported and the destination starts with a new namespace |
+
+`disposed` is valid only for the website session store; source data is never
+disposed by an exit. `domains` stays last and lists every instance and website
+hostname, which must equal the approved cutover domains (at most eight, or
+sixteen with a website). With a
+website, the handoff's `credentialAttestation.website` must repeat the
+approval's website disposition exactly (`EMDASH_ENCRYPTION_KEY` preserved,
+`WEBSITE_SETUP_SECRET` removed or rotated, session store recreated). A website
+plan without website resources or attestation, or the reverse, is rejected,
+as is an execution report whose steps differ from the plan's.
+The twelve packet checks are unchanged; `destination-restored` covers every
+restored component.
+
 Every source record is canonicalized and SHA-256 bound into the packet. The
 packet contains no Cloudflare account ID, resource ID, API token, private key,
 database payload, R2 key, donor/member data, or private support note.

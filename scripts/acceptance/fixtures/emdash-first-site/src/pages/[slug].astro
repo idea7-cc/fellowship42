@@ -1,0 +1,31 @@
+---
+import { decodeSlug, getEmDashEntry, getSeoMeta, getSiteSettings } from 'emdash'
+import { PortableText } from 'emdash/ui'
+import Base from '../layouts/Base.astro'
+
+const slug = decodeSlug(Astro.params.slug)
+if (!slug) return Astro.redirect('/404')
+
+const { entry: page, error } = await getEmDashEntry('pages', slug)
+if (error) return new Response('Content is temporarily unavailable', { status: 500 })
+if (!page) return Astro.redirect('/404')
+
+const settings = await getSiteSettings()
+const seo = getSeoMeta(page, {
+  siteTitle: settings?.title ?? 'My Site',
+  siteUrl: Astro.url.origin,
+  path: Astro.url.pathname.replace(/\/$/, ''),
+})
+---
+
+<Base
+  title={page.data.title}
+  description={seo.description}
+  canonical={seo.canonical}
+  content={{ collection: 'pages', id: page.data.id, slug }}
+>
+  <article>
+    <h1 {...page.edit.title}>{page.data.title}</h1>
+    <PortableText value={page.data.content} />
+  </article>
+</Base>

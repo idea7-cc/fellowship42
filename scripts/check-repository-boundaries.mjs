@@ -24,7 +24,12 @@ async function sourceFiles(relativePath) {
   const files = []
 
   for (const entry of entries) {
-    if (['dist', 'node_modules', '.wrangler'].includes(entry.name)) continue
+    if (
+      ['dist', 'node_modules', '.wrangler', '.astro', '.emdash'].includes(
+        entry.name,
+      )
+    )
+      continue
     const child = path.join(relativePath, entry.name)
     if (entry.isDirectory()) files.push(...(await sourceFiles(child)))
     if (entry.isFile() && /\.(?:[cm]?[jt]sx?|json)$/.test(entry.name))
@@ -40,6 +45,8 @@ if (manifest.repositoryType !== 'public-portable-instance') {
 
 const requiredPaths = [
   manifest.deployableInstance,
+  manifest.deployableWebsite,
+  'docs/adr/0027-emdash-church-websites.md',
   manifest.projectSite,
   ...manifest.publicContracts,
   ...manifest.publicSharedPackages,
@@ -50,6 +57,7 @@ const requiredPaths = [
   'scripts/rehearse-hosted-to-church-owned.mjs',
   'packages/management-protocol/src/rehearsals.ts',
   'packages/management-protocol/fixtures/migration-rehearsal.v1.json',
+  'packages/management-protocol/fixtures/migration-rehearsal.instance-only.v1.json',
   'packages/management-protocol/src/conformance.ts',
   'packages/management-protocol/fixtures/management-adapter-conformance.v1.json',
   'packages/management-protocol/src/reconciliation.ts',
@@ -92,7 +100,12 @@ for (const forbiddenPath of manifest.forbiddenPrivatePaths) {
   }
 }
 
-const scannedRoots = [manifest.deployableInstance, ...manifest.publicContracts]
+const scannedRoots = [
+  manifest.deployableInstance,
+  manifest.deployableWebsite,
+  ...manifest.publicContracts,
+  ...manifest.publicSharedPackages,
+]
 for (const scannedRoot of scannedRoots) {
   for (const file of await sourceFiles(scannedRoot)) {
     const source = await readFile(path.join(root, file), 'utf8')
