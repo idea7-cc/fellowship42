@@ -115,8 +115,8 @@ tables speculatively.
 Staff passkeys, first-owner setup, team roles, people/households, ministry and
 publishing workflows, manual contributions, normalized payment-event ingestion,
 and durable outbox delivery exist. The EmDash website and both setup journeys
-have local synthetic acceptance evidence, with independent review and public
-distribution still pending. See the [website build handoff](emdash-build-handoff.md).
+have local synthetic acceptance evidence and an independent review; public
+distribution is still pending. See the [website build handoff](emdash-build-handoff.md).
 
 Management enrollment, scoped grants, rotation, disconnect, health, update
 authorization, and diagnostic support approval exist. Export/import, restore,
@@ -128,7 +128,7 @@ Backup command execution and live provider adapters are still follow-up work.
 
 | Stage | Required outcome | Current evidence / next work |
 |---|---|---|
-| Working alpha | A repeatable staff and website evaluation with synthetic data | Working source and local journeys; finish independent website review, staff reliability and larger-dataset checks, then explicitly declare alpha |
+| Working alpha | A repeatable staff and website evaluation with synthetic data | Working source, local journeys and a reviewed website change; finish staff reliability and larger-dataset checks, then explicitly declare alpha |
 | Church beta / first live pilot | Staff can rely on the agreed workflows, with reviewed access and recoverable records | Browser/mobile/multi-user coverage, security/privacy review, real deployment and backup/restore proof, pilot findings |
 | Hosted service | Managed provisioning, monitoring, updates, recovery, support, billing, and exit actually work | Public contracts exist; private implementation and live service evidence must be assessed separately |
 | Hosted phone service | A supported church phone system with calling, messaging, numbers, emergency calling, and a tested exit | Planned; SignalWire spike, open phone app, private operations, and a separate phone pilot |
@@ -136,8 +136,9 @@ Backup command execution and live provider adapters are still follow-up work.
 
 ### 1. Working alpha — next delivery gate
 
-- [ ] Complete the independent review of the EmDash change and resolve blocking
-      findings; retain the evidence for both setup paths.
+- [x] Complete the independent review of the EmDash change and resolve blocking
+      findings; retain the evidence for both setup paths. Reviewed 2026-10-21
+      by GPT-6.1 Sol: no blocking findings; its one should-fix is fixed.
 - [ ] Verify the everyday staff journeys: first owner and invitation, people
       and households, group roster and attendance, courses, publishing, and
       manual contributions, including denied access and uncertain save outcomes.

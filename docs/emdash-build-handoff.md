@@ -5,6 +5,14 @@ review. Plan: [emdash-website-plan.md](emdash-website-plan.md). Decision:
 [ADR 0027](adr/0027-emdash-church-websites.md). Nothing here is published or
 deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
 
+**Review outcome (2026-10-21).** GPT-6.1 Sol (Codex, xhigh) reviewed
+`61d4ff7...ef9ee59` in pull request #57 and found no blocking authority,
+disclosure, boundary or lifecycle findings. Its one should-fix finding, a
+title-only edit moving an event in the repeated daylight-saving hour an hour
+earlier, is fixed in `6b4191b` with a regression test. A deliberately entered
+time in that repeated hour still resolves to its first occurrence, as
+`fromZonedInputValue` documents.
+
 ## Revision under review
 
 - Branch `build/emdash-church-websites`, based on `61d4ff7` (the plan commit).

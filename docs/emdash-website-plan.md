@@ -1,6 +1,6 @@
 # EmDash church websites and Fellowship42 Connect
 
-Status: implemented on `build/emdash-church-websites`; awaiting independent review.  
+Status: implemented and independently reviewed (2026-10-21); not yet published.  
 Prepared: 2026-09-30. Builder: Claude Opus 5.5. Independent reviewer: Codex.
 
 ## Outcome

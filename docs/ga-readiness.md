@@ -8,8 +8,8 @@ service objective, live restore, successful exit, or church/partner outcome.
 ## Current assessment and delivery order
 
 Assessed for planning: 2026-10-02. The source has working staff features and local
-synthetic website acceptance evidence. The website change still awaits its
-independent review and public distribution. Member identity, STEP Bible study,
+synthetic website acceptance evidence. The website change passed its independent
+review on 2026-10-21 and still awaits public distribution. Member identity, STEP Bible study,
 and SignalWire communications/phone service remain planned. This public
 repository does not establish the private hosted service's implementation state.
 

@@ -125,7 +125,7 @@ configuration, and hostnames.
 > **Not yet published.** `@fellowship42/emdash`,
 > `@fellowship42/website-contract`, and the `fellowship42-connect` registry
 > artifact are not yet on npm or the EmDash registry, so `pnpm add` and a
-> registry install fail today. Publication follows independent review. Until
+> registry install fail today. Publication is the next step. Until
 > then, evaluate this path from packed tarballs as described under
 > [Evaluate before publication](#evaluate-before-publication).
 
