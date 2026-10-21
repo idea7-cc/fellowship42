@@ -190,6 +190,8 @@ through [SECURITY.md](SECURITY.md).
 
 Additional documentation:
 
+- [Product plan and readiness stages](docs/fellowship42-product-plan.md),
+  including planned STEP Bible study and SignalWire church phone service
 - [Church setup and website publishing](docs/church-setup-and-publishing.md)
 - [EmDash church websites](docs/emdash-church-websites.md) and the
   [public website contract](docs/website-contract.md)

@@ -29,6 +29,13 @@ drafts, previews, and publishing live under `worker/features/church`.
 See [Church setup and website publishing](church-setup-and-publishing.md).
 The management protocol remains separate from ordinary application API types.
 
+The [product plan](fellowship42-product-plan.md) now separates working-alpha,
+church-beta, hosted-service, and hosted-phone readiness. STEP Bible integration
+and native study, SignalWire communications, and the integrated church phone app
+are planned, not implemented. Their proposed custody and public/private
+boundaries are recorded in
+[ADR 0028](adr/0028-optional-bible-and-signalwire-integrations.md).
+
 Run `pnpm verify`. Release and live-readiness requirements are described in
 [Releases](releases.md), [GA readiness](ga-readiness.md), and
 [Maintenance](maintenance.md).

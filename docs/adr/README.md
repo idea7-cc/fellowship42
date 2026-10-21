@@ -33,6 +33,7 @@ directory names alone.
 - [0025 — Scoped agent event drafts](0025-scoped-agent-event-drafts.md)
 - [0026 — Client-owned agent disconnect](0026-client-owned-agent-disconnect.md)
 - [0027 — EmDash church websites and the public website contract](0027-emdash-church-websites.md)
+- [0028 — Optional Bible study and SignalWire church communications (proposed)](0028-optional-bible-and-signalwire-integrations.md)
 
 Use the next sequential number. Record context, decision, consequences, status,
 and date. Supersede an ADR with a new ADR instead of rewriting history.
