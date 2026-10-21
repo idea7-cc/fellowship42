@@ -22,8 +22,9 @@ system shape.
 
 ## Stage: iterate
 
-Fellowship42 has no deployed instances and no users. Until a working alpha is
-declared and early testing starts, speed wins over compatibility:
+This is the pre-alpha policy other documents refer to. Fellowship42 has no
+deployed instances and no users. Until a working alpha is declared and early
+testing starts, speed wins over compatibility:
 
 - `apps/instance/migrations/0001_initial.sql` is the whole schema and is edited
   in place. Do not add numbered migrations, expand/contract steps, or data
