@@ -1,0 +1,123 @@
+# Proportional verification
+
+The working defaults list the everyday checks. This explains where the expensive
+checks go and how proof grows as a project moves through its stages. A project
+states its stage in its own instructions; nothing here changes it.
+
+## Per change and at checkpoints
+
+Check what a change could break, with the cheapest check that would catch it.
+A well-structured project can take many changes quickly and then find and fix
+the few that broke something. Proving that nothing broke after every change
+costs more than it saves, so the checks split in two:
+
+- **Every code change** gets the fast gate: lint, types, the unit tests and the
+  tests for the code it touched, in minutes rather than hours. The main branch
+  stays green on it, so parallel work never builds on a broken base. A change
+  the code's tests can't reach, such as docs or comments, gets the check that
+  can: its syntax and links.
+- **Checkpoints** get the rest: slow and installed-app suites, other platforms,
+  live runtimes and the review seat. A checkpoint is a release, a build someone
+  will use, the end of a batch, or a spike whose experiment is the test.
+
+Checkpoint failures stay cheap to fix only while each change is its own commit
+or merge, so the batch can be bisected, and while tests pin contracts rather
+than restating the code. Find the change that broke the checkpoint and fix
+exactly that.
+
+These are defaults. When you predict a cheaper way to the same confidence, take
+it and say so.
+
+## Breaks you can't take back
+
+Some breaks can't be fixed after the fact by finding and reverting a change:
+lost content, a leaked secret, a bypassed authority check, a message already
+sent. Protect against them in one of two ways:
+
+- Make the effect reversible and check that the undo works: keep the previous
+  copy and test its restore, ship to a channel whose users want the bleeding
+  edge and can roll back, queue sends so they can be cancelled.
+- Prove before it takes effect that it won't break.
+
+Both protect adequately. Predict which is cheaper and faster for this change
+and take that path; don't build both, and don't take the costlier one out of
+habit. An undo nobody has exercised is a claim, not protection, so check the
+undo itself, and check it again at checkpoints. Say which path you chose and why
+in one line where you report the change. When the prediction turns out wrong,
+note it in the project's evidence notes.
+
+## The review seat
+
+The review seat is an independent, adversarial review: a reviewer that didn't
+build the change reads it and tries to break it, using the
+[reviewer role](../roles/reviewer.md). It sits at checkpoints and on changes
+whose mistakes would be expensive: a new module boundary, a pattern others will
+copy, or anything touching content, secrets or authority. One review of a batch
+can cover many small changes.
+
+The reviewer reports; whoever leads the change decides what to fix, and says
+why for any finding it leaves. Who fills the seat is a preference
+([review-seat](../preferences/review-seat.md)). A project that needs a
+different occupant overrides that item with a reason.
+
+## CI budget
+
+Each project has a monthly CI budget: US$7 unless its manifest sets `ci_budget`
+in `.agent-guidance/project.json`. Sync shows it to the project's agents, and
+the inventory shows it beside the project. Count a project's CI at its runners'
+list price; the free minutes a provider includes for the whole account are a
+shared cushion, not part of any project's budget.
+
+Checks run locally cost no CI budget, and a project may name a local command as
+its fast gate. Keep per-change CI to the fast gate, and run jobs that cost a
+multiple, such as other platforms or long installed-app suites, at checkpoints
+or on demand. When you expect work to take the month's CI past the budget, say
+so before you start, with your estimate.
+
+## What a project declares
+
+In its own instructions, a project names what differs from these defaults: its
+fast gate, its checkpoints, any release channels, and who may merge. Its CI
+budget goes in its manifest. Without them, an agent uses the defaults above.
+
+## Iterate: nobody relies on it yet
+
+The question is whether the change is useful and its code is clear.
+
+- Checkpoints are few: usually a build someone is about to use.
+- Add a test when it pins down an important contract or a failure you just fixed.
+- Delete tests for behavior you removed. Change a test when the intended
+  behavior changed, and say so.
+- Fix structural problems before spending time on rare edge cases. Problems that
+  could lose real content, leak a secret or bypass an authority check still
+  need a working fix.
+- Don't build release machinery, migration paths or compatibility suites.
+
+## Validate: a capability is chosen for real use
+
+The question is whether it works across its real boundaries.
+
+- The capability's run in its real runtime, with its providers, packaging and
+  platforms, is a checkpoint.
+- Check the failures it depends on: interruption, retry, concurrency, recovery.
+- Measure performance or accessibility where the capability claims them.
+- Fix important structural problems before investing in expensive proof.
+
+## Support: customers rely on a release
+
+The question is whether identified consumers can rely on this artifact.
+
+- Every release candidate is a checkpoint. Run the project's declared release
+  checks against the artifact you will ship, and promote that same artifact.
+- Channels let the risk-tolerant take a build sooner: a bleeding-edge channel
+  can ship on the fast gate with a tested rollback, while the stable channel
+  waits for the full checkpoint.
+- Keep supported contracts working for their declared window, or ship an
+  explicit migration exercised against existing data.
+- Check upgrade, rollback and recovery on the supported environments.
+
+## Honest results
+
+A claim covers only what was actually checked. A skipped, blocked or failed
+check stays exactly that. A pass obtained by hiding a defect or quietly dropping
+promised behavior is not a pass.

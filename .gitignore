@@ -14,7 +14,8 @@ artifacts
 
 # IDE
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
 *.swp
 *.swo
 *~

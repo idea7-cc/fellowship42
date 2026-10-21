@@ -1,0 +1,452 @@
+{
+  "format": 1,
+  "preferences": [
+    {
+      "source": "preferences/technology.md",
+      "table": "Area",
+      "aliases": {
+        "runtime": "language-and-runtime",
+        "ui": "application-ui",
+        "desktop": "desktop-framework",
+        "api": "api-framework",
+        "effect": "service-workflows",
+        "storage": "data-and-storage",
+        "hosting": "hosting-and-deployment",
+        "lint": "formatting-and-lint",
+        "dependencies": "dependency-maintenance"
+      },
+      "related": {
+        "data-and-storage": "Storage by workload",
+        "dependency-maintenance": "Dependency choices"
+      }
+    },
+    {
+      "source": "preferences/models.md",
+      "table": "Work",
+      "prefix": "model-",
+      "related": {
+        "*": "Selection and updates"
+      }
+    },
+    {
+      "source": "preferences/review-seat.md",
+      "table": "Seat"
+    }
+  ],
+  "routes": [
+    {
+      "id": "guidance-review-change",
+      "source": "skills/guidance-review-change/SKILL.md",
+      "match": [
+        [
+          "review",
+          "assess",
+          "audit",
+          "look over"
+        ],
+        [
+          "code",
+          "diff",
+          "pr",
+          "pull request",
+          "commit",
+          "branch",
+          "patch",
+          "function",
+          "module",
+          "api",
+          "worker",
+          "binding",
+          "schema",
+          "tests"
+        ]
+      ],
+      "exclude": [
+        "code of conduct"
+      ],
+      "kinds": [
+        "code",
+        "review"
+      ]
+    },
+    {
+      "id": "guidance-design-change",
+      "source": "skills/guidance-design-change/SKILL.md",
+      "match": [
+        [
+          "design",
+          "architect",
+          "plan"
+        ],
+        [
+          "module",
+          "modules",
+          "boundary",
+          "boundaries",
+          "architecture",
+          "public interface",
+          "api",
+          "service",
+          "schema",
+          "technology"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "choice"
+      ]
+    },
+    {
+      "id": "feature-ownership",
+      "source": "guidance/code-design.md",
+      "section": "Give behavior a clear home",
+      "when": "Deciding where code belongs or how a feature should be organized.",
+      "match": [
+        [
+          "ownership",
+          "where",
+          "organize",
+          "structure",
+          "home",
+          "placement"
+        ],
+        [
+          "code",
+          "function",
+          "feature",
+          "module",
+          "behavior"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "interfaces",
+      "source": "guidance/code-design.md",
+      "section": "Expose a small, useful interface",
+      "when": "Changing a public interface, module boundary or contract.",
+      "match": [
+        [
+          "interface",
+          "interfaces",
+          "public api",
+          "module boundary",
+          "contract",
+          "contracts"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "effects",
+      "source": "guidance/code-design.md",
+      "section": "Make effects visible",
+      "when": "Working on side effects, retries, cancellation or uncertain external outcomes.",
+      "match": [
+        [
+          "side effect",
+          "side effects",
+          "retry",
+          "retries",
+          "timeout",
+          "timed out",
+          "cancellation",
+          "idempotency",
+          "durable operation",
+          "payment"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "contracts",
+      "source": "guidance/code-design.md",
+      "section": "Keep context close and truthful",
+      "when": "Changing schemas, generated types, clients or Worker bindings.",
+      "match": [
+        [
+          "schema",
+          "schemas",
+          "generated types",
+          "generated client",
+          "generated clients",
+          "binding",
+          "bindings",
+          "source of truth"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "stack-choices",
+      "source": "preferences/technology.md",
+      "when": "Choosing a new stack or provider; preserve the project's adopted choices.",
+      "match": [
+        [
+          "choose",
+          "select",
+          "compare",
+          "default",
+          "new project"
+        ],
+        [
+          "stack",
+          "technology",
+          "framework",
+          "provider",
+          "package manager",
+          "runtime"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "choice"
+      ]
+    },
+    {
+      "id": "testing",
+      "preference": "testing",
+      "when": "Choosing relevant test tools or verifying runtime-specific behavior.",
+      "match": [
+        [
+          "test",
+          "tests",
+          "testing",
+          "vitest",
+          "verify",
+          "verification",
+          "binding",
+          "bindings"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "verification",
+      "source": "guidance/proportional-verification.md",
+      "when": "Deciding what to check before merging, what waits for a checkpoint, or how to protect against a break you can't take back.",
+      "match": [
+        [
+          "verify",
+          "verification",
+          "check",
+          "checks",
+          "ci",
+          "merge",
+          "merging",
+          "release",
+          "rollback",
+          "undo"
+        ],
+        [
+          "checkpoint",
+          "checkpoints",
+          "before merging",
+          "gate",
+          "suite",
+          "release",
+          "channel",
+          "reversible",
+          "irreversible",
+          "budget",
+          "rollback"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "service-workflows",
+      "preference": "service-workflows",
+      "when": "Choosing Effect or structuring a substantial TypeScript service workflow.",
+      "match": [
+        [
+          "effect",
+          "typed failures",
+          "typed failure",
+          "concurrency",
+          "cancellation"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "dependencies",
+      "preference": "dependency-maintenance",
+      "when": "Selecting, curating or cleaning up dependencies.",
+      "match": [
+        [
+          "dependency",
+          "dependencies",
+          "knip",
+          "catalog",
+          "catalogs"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "models",
+      "source": "preferences/models.md",
+      "when": "Choosing a coding model or considering a successor to a saved choice.",
+      "match": [
+        [
+          "model",
+          "models"
+        ],
+        [
+          "choose",
+          "select",
+          "compare",
+          "default",
+          "upgrade",
+          "newer",
+          "latest"
+        ]
+      ],
+      "exclude": [
+        "3d",
+        "data model",
+        "database model"
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "review-seat",
+      "source": "preferences/review-seat.md",
+      "when": "Choosing who reviews a change independently, or overriding that for a project.",
+      "match": [
+        [
+          "review",
+          "reviewer",
+          "adversarial",
+          "second opinion"
+        ],
+        [
+          "who",
+          "model",
+          "seat",
+          "independent",
+          "checkpoint",
+          "override"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "web-app",
+      "source": "blueprints/web-app.md",
+      "when": "Starting or designing a web application or content website.",
+      "match": [
+        [
+          "start",
+          "new",
+          "scaffold",
+          "design",
+          "build"
+        ],
+        [
+          "web app",
+          "web application",
+          "website",
+          "react",
+          "astro"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "choice"
+      ]
+    },
+    {
+      "id": "worker-tools",
+      "capability": "Cloudflare Workers development and Wrangler operations",
+      "when": "Changing Worker runtime behavior, bindings, configuration or deployment.",
+      "match": [
+        [
+          "cloudflare",
+          "worker",
+          "workers",
+          "wrangler",
+          "durable object",
+          "durable objects"
+        ],
+        [
+          "binding",
+          "bindings",
+          "queue",
+          "queues",
+          "deploy",
+          "deployment",
+          "debug",
+          "implement",
+          "build",
+          "runtime",
+          "configure",
+          "configuration",
+          "config",
+          "test",
+          "tests"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    }
+  ]
+}

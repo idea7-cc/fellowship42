@@ -13,3 +13,7 @@ For UI work, also read `docs/ui-design-system.md`. For binding changes,
 regenerate `apps/instance/worker-configuration.d.ts` with `pnpm cf-typegen`.
 
 Run `pnpm verify` before handoff. Its task list in `package.json` is authoritative.
+
+<!-- agent-guidance:start -->
+@AGENTS.md
+<!-- agent-guidance:end -->

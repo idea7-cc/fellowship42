@@ -4,7 +4,19 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - ".agent-guidance/**"
+      - ".agents/skills/**"
+      - ".claude/skills/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
   pull_request:
+    paths-ignore:
+      - ".agent-guidance/**"
+      - ".agents/skills/**"
+      - ".claude/skills/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
 
 jobs:
   validate:
