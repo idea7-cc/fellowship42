@@ -5,7 +5,6 @@
   "claude": true,
   "tags": ["stack:cloudflare"],
   "include": ["web-app"],
-  "exclude": ["order-feature"],
   "local": [
     {"id": "product-invariants", "path": "AGENTS.md", "section": "Non-negotiable product invariants",
      "kind": "boundaries", "nature": "normative",

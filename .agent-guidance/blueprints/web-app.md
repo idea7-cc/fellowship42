@@ -26,9 +26,7 @@ feature demonstrate what should be shared. Avoid creating a general framework
 inside the application.
 
 If agents are intended clients, their tools should call the same feature
-operations as the UI. The [API guide](api-service.md) gives a cancellation
-example and explains the adapter responsibilities.
+operations as the UI. Each adapter validates its own input and identity; the
+feature keeps the rules and the storage authority.
 
 Use [code design](../guidance/code-design.md) to decide where a new function belongs.
-The [order example](../examples/order-feature/README.md) illustrates the boundary
-between a feature and an application entry point, independent of a web framework.

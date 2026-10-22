@@ -1,6 +1,6 @@
 {
   "blocks": {
-    "AGENTS.md": "eea29f42aad33bbe71ff8db04ad12cedb267bb0db59a706c7e52519583153b98",
+    "AGENTS.md": "06827c1536896a9b7188a26a47772bd154d1c1bce8701e08f7029121e803eb17",
     "CLAUDE.md": "748858214ae65941507d56b4be4abd2679a2e2717c1bd3442c4fc34252deb205"
   },
   "dirty": false,
@@ -8,9 +8,9 @@
     ".agent-guidance/LICENSE": "787ba071c81093009f4b4cfbe391de34fb9775941978d84bac52be8781d65a7f",
     ".agent-guidance/README.md": "f0a0a45dbfdf8fb7941649d24b33487c99645ee43daadd529969fdd6f3e983b5",
     ".agent-guidance/REFERENCES.md": "60202540989ec8471038f7e34c63d2626e8bef428bac39e3e93f88029bd4fb7d",
-    ".agent-guidance/blueprints/web-app.md": "a05630223f65679d3ca8a2703ca0dec926508b877d34982eb1ad8cd038bbc1e4",
+    ".agent-guidance/blueprints/web-app.md": "0dab61c9e64983c71159be9ad20f01fac17ae2053926ed177af5a8b5ce05585a",
     ".agent-guidance/catalog.json": "5341f6ea9db189dae610e0ed7ca0e52c49e29e72e7fdbf64fd8a00563b9868bd",
-    ".agent-guidance/guidance/code-design.md": "6df3472a8b99ca92297381aef58a1e4158bc33cd0c03d294766cb9334c1de094",
+    ".agent-guidance/guidance/code-design.md": "1d31efed1c11bda919012805e4b9d1bcc2b11823fa0bc584c42cbb2246535ad6",
     ".agent-guidance/guidance/proportional-verification.md": "2ec6d2f830d93cc985ea2d237e773be1b78c99b3fb5a586eba10b7e1f18d49e5",
     ".agent-guidance/guidance/working.md": "be1da71245a324d7246608be4af8ee5607342d8c61c5bf6cc8154e79b64938b1",
     ".agent-guidance/preferences/cloudflare.md": "68085f79ae32f07c4b847b468aec5b778467cc25b71887a500fb6f0cdaa192a5",
@@ -32,7 +32,7 @@
   "items": {
     "builder": "f47006bf67f176b66eb1026400104874b9783620ea06711b79d072e1b571ecbf",
     "cloudflare": "1957d7eece55295d1b25500e3daea90e4cb95d6d75d5a38bc0872f83d8e22fc7",
-    "code-design": "ad82088d9b67f5a88f4d0bb7955adbc43714569571517d468e929bed798084c2",
+    "code-design": "a093ae82df6675ae695feec16cbb941ef72b4dcc368fb5d0cb5057ee6453b243",
     "guidance-design-change": "1a8a101496e76b7044d36a3a41c226a310f2a546b00d28e5fee69907b20a60c9",
     "guidance-review-change": "a4cc3cc7530e67d08e81313c76284b0eba3e34a358539136f198ecc5940576f7",
     "models": "1e6a23af9ae8a96672ac22712b9127f87e0a5b373bab07ade266549635be1f9b",
@@ -42,7 +42,7 @@
     "review-seat": "55c2971796fcab1c5d13c1100d24373f5312a7aa6fb8f73e14d2d7d5eace587e",
     "reviewer": "d835b12edc2b864a546a22de7f9d341d47e5f09ff91175b43db2b6eaa7cfb472",
     "technology": "03e7258753ef202f615b8fe00ba52000438f3a065fdb2d701243632d7aebd2e9",
-    "web-app": "c26db7e0e25d6113db79c4c2ef3517af55e707657414fe7b61a3982ba50993bd",
+    "web-app": "c82b277424137db61b1a9b377ce45ca9ef0b8968e86d5b983affa8ccc6536951",
     "working": "3c9e99d6822462a691912a28f1a0212af5ce86d4e5c741b46c52a88911d2144c"
   },
   "library": "wayof7",
@@ -51,5 +51,5 @@
   },
   "overridden": {},
   "project": "fellowship42",
-  "revision": "9a32d1c4ad1995db9864398604f3859d57f21113"
+  "revision": "ab4fadf5e8e3d0e9ef1f2e9011500fa3cf99b83d"
 }
