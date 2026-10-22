@@ -117,16 +117,6 @@ database access or unpublished application internals.
   returns only published, allowlisted fields. Adding a field there is a public
   disclosure; review it like one.
 
-## Cloudflare implementation rules
-
-- Use generated binding types from `pnpm cf-typegen` after Wrangler changes.
-- Prefer bindings over Cloudflare REST APIs inside the instance Worker.
-- Use structured logs, Web Crypto, handled promises, and `waitUntil` for work
-  that safely continues after a response.
-- Keep `wrangler.jsonc` current, observable, and free of secrets.
-- Use Queues or Workflows for durable background delivery when that work is
-  implemented.
-
 ## Working here
 
 - Before changing the system shape, read `README.md`, `docs/architecture.md`
@@ -134,6 +124,9 @@ database access or unpublished application internals.
   feature change starts. Read `docs/management-protocol.md` for management
   changes and `docs/ui-design-system.md` for UI work. Folder rules live in
   `apps/instance/src/AGENTS.md` and `apps/instance/worker/AGENTS.md`.
+- Cloudflare work follows the shared Cloudflare preferences. Here,
+  `pnpm cf-typegen` regenerates binding types after a Wrangler change, and the
+  instance's background delivery goes through its outbox Queue.
 - Run `pnpm verify` before handing off a code change; CI runs the same on every
   pull request. Its task list in `package.json` is authoritative.
 - Tagged releases and management-protocol packages follow `docs/releases.md`.
