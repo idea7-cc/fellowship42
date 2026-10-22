@@ -1,21 +1,22 @@
 {
   "blocks": {
-    "AGENTS.md": "d4618f28c6498582b5bcb95ecddab5acf84179c231a9c0b8a8115bfe6d8449cc",
+    "AGENTS.md": "eea29f42aad33bbe71ff8db04ad12cedb267bb0db59a706c7e52519583153b98",
     "CLAUDE.md": "748858214ae65941507d56b4be4abd2679a2e2717c1bd3442c4fc34252deb205"
   },
   "dirty": false,
   "files": {
     ".agent-guidance/LICENSE": "787ba071c81093009f4b4cfbe391de34fb9775941978d84bac52be8781d65a7f",
-    ".agent-guidance/README.md": "f7b0d9686a46d64c671016a101b46ed912625adbea9d3f1261d2d53693a4118d",
+    ".agent-guidance/README.md": "f0a0a45dbfdf8fb7941649d24b33487c99645ee43daadd529969fdd6f3e983b5",
     ".agent-guidance/REFERENCES.md": "60202540989ec8471038f7e34c63d2626e8bef428bac39e3e93f88029bd4fb7d",
     ".agent-guidance/blueprints/web-app.md": "a05630223f65679d3ca8a2703ca0dec926508b877d34982eb1ad8cd038bbc1e4",
-    ".agent-guidance/catalog.json": "63e3929f1cb1809f6ead0dfcdb7b25cb8b6e7d177bf9b5a5d72e2ffce4179fac",
+    ".agent-guidance/catalog.json": "5341f6ea9db189dae610e0ed7ca0e52c49e29e72e7fdbf64fd8a00563b9868bd",
     ".agent-guidance/guidance/code-design.md": "6df3472a8b99ca92297381aef58a1e4158bc33cd0c03d294766cb9334c1de094",
     ".agent-guidance/guidance/proportional-verification.md": "2ec6d2f830d93cc985ea2d237e773be1b78c99b3fb5a586eba10b7e1f18d49e5",
     ".agent-guidance/guidance/working.md": "be1da71245a324d7246608be4af8ee5607342d8c61c5bf6cc8154e79b64938b1",
+    ".agent-guidance/preferences/cloudflare.md": "68085f79ae32f07c4b847b468aec5b778467cc25b71887a500fb6f0cdaa192a5",
     ".agent-guidance/preferences/models.md": "d6fa912808f40b0f0011a1811bb8cddb28c46b783eace280f4ef5260e15be2d3",
     ".agent-guidance/preferences/review-seat.md": "3c0d0b1886b65892941fa3a79fde9fef3e0e07abbd63c785d362077a57fac1da",
-    ".agent-guidance/preferences/technology.md": "6712fb292f62c5985c593d60a554e5cb54f44a05b61bc7b4bcaff66f46cca947",
+    ".agent-guidance/preferences/technology.md": "914b281fbebb3b9a6014a49c7ab466dda731c1424afa943817b5834f017eec27",
     ".agent-guidance/query.py": "5977ea646fc242096cf50ff3a8af59301462cc21c3ac78b458dcf539d569959f",
     ".agent-guidance/roles/builder.md": "a2200bd216d6e2c1258e23e8d1b5c969aac2291c76425294a4c524b9082222ae",
     ".agent-guidance/roles/planner.md": "c0857afc366af414d66cfeaf67468135ac4a0825b94ff876a0205ee65d2be855",
@@ -30,6 +31,7 @@
   "format": 1,
   "items": {
     "builder": "f47006bf67f176b66eb1026400104874b9783620ea06711b79d072e1b571ecbf",
+    "cloudflare": "1957d7eece55295d1b25500e3daea90e4cb95d6d75d5a38bc0872f83d8e22fc7",
     "code-design": "ad82088d9b67f5a88f4d0bb7955adbc43714569571517d468e929bed798084c2",
     "guidance-design-change": "1a8a101496e76b7044d36a3a41c226a310f2a546b00d28e5fee69907b20a60c9",
     "guidance-review-change": "a4cc3cc7530e67d08e81313c76284b0eba3e34a358539136f198ecc5940576f7",
@@ -39,7 +41,7 @@
     "references": "dbbb7b29d1fb5b358e81c825049a3147f70bd630ec394c2e8e53b0c2c0c5b663",
     "review-seat": "55c2971796fcab1c5d13c1100d24373f5312a7aa6fb8f73e14d2d7d5eace587e",
     "reviewer": "d835b12edc2b864a546a22de7f9d341d47e5f09ff91175b43db2b6eaa7cfb472",
-    "technology": "66600594398beb4862ccbf49d30f15bef0b5b6b79f8bab7b13c34782ae24bad8",
+    "technology": "03e7258753ef202f615b8fe00ba52000438f3a065fdb2d701243632d7aebd2e9",
     "web-app": "c26db7e0e25d6113db79c4c2ef3517af55e707657414fe7b61a3982ba50993bd",
     "working": "3c9e99d6822462a691912a28f1a0212af5ce86d4e5c741b46c52a88911d2144c"
   },
@@ -49,5 +51,5 @@
   },
   "overridden": {},
   "project": "fellowship42",
-  "revision": "458b00aca8bf7f92679cc1f7979b1c2d3eb7ca94"
+  "revision": "9a32d1c4ad1995db9864398604f3859d57f21113"
 }

@@ -213,6 +213,7 @@ This project's CI budget is US$7 a month (wayof7's default).
 
 - `.agent-guidance/guidance/code-design.md`: Where code belongs, small interfaces, visible effects, replacing old paths and truthful contracts.
 - `.agent-guidance/guidance/proportional-verification.md` (trial): Where expensive checks go (a fast gate per change, the rest at checkpoints), how to protect against breaks you can't take back, the review seat, and how proof grows by stage.
+- `.agent-guidance/preferences/cloudflare.md`: Cloudflare Workers choices, where Cloudflare's current docs and skills live, and the date they were checked.
 - `.agent-guidance/preferences/models.md`: Preferred models for kinds of work.
 - `.agent-guidance/preferences/review-seat.md` (trial): Who fills the independent, adversarial review seat.
 - `.agent-guidance/preferences/technology.md`: Preferred stacks and providers.
