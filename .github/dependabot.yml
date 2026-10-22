@@ -19,13 +19,11 @@ updates:
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
-      # @cloudflare/vitest-pool-workers needs vitest ^4.1. It is renamed
-      # @cloudflare/vitest-plugin; move to that before taking vitest 5.
+      # @emdash-cms/plugin-test (emdash-connect's tests) needs vitest ^4.1;
+      # revisit when it accepts vitest 5.
       - dependency-name: vitest
         update-types:
           - version-update:semver-major
-      # Deprecated in favour of @cloudflare/vitest-plugin (see above).
-      - dependency-name: '@cloudflare/vitest-pool-workers'
   - package-ecosystem: github-actions
     directory: /
     schedule:
