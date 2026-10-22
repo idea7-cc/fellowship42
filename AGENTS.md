@@ -177,15 +177,16 @@ Check what the change could break, with the cheapest check that would catch it.
   when it's user-visible. Keep the main branch green on that gate. Add a test
   for a meaningful failure, not one that restates the implementation.
 - Slow suites, other platforms, live runtimes and the review seat belong at
-  checkpoints: a release, a build someone will use, the end of a batch, a spike
-  whose experiment is the test, and any the project declares. Keep CI within
-  the project's budget. When a checkpoint fails, find the change that broke it
-  and fix exactly that.
+  checkpoints: a release, a build others will use, the end of a batch, a spike
+  whose experiment is the test, and any the project declares. Run those its
+  changes bear on. A build for whoever directs the work, which they can undo, is
+  tested by their use. Keep CI within budget. When a checkpoint fails, fix the
+  change that broke it, and move a check that would have caught it sooner into
+  the fast gate.
 - Breaks you can't take back: either make the effect reversible and check that
-  the undo works, or prove before it takes effect that it won't break. Predict
-  which is cheaper and faster for this change and take that path; don't build
-  both, and don't take the costlier one out of habit. Say which you chose and
-  why in one line where you report the change.
+  the undo works, or prove before it takes effect that it won't break. Take
+  whichever is cheaper and faster for this change, never both, and say which and
+  why.
 - A failure the change can't cause doesn't hold it up: confirm it's unrelated,
   report it so it gets fixed, and carry on.
 

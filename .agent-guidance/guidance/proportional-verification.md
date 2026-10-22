@@ -6,27 +6,17 @@ states its stage in its own instructions; nothing here changes it.
 
 ## Per change and at checkpoints
 
-Check what a change could break, with the cheapest check that would catch it.
-A well-structured project can take many changes quickly and then find and fix
-the few that broke something. Proving that nothing broke after every change
-costs more than it saves, so the checks split in two:
+The working defaults put the fast gate on every change and the rest at
+checkpoints. That works because a well-structured project can take many changes
+quickly, then find and fix the few that broke something; proving nothing broke
+after every change costs more than it saves. The fast gate takes minutes, not
+hours, so parallel work never builds on a broken base. A checkpoint failure
+stays cheap to fix while each change is its own commit or merge, so the batch
+can be bisected, and while tests pin contracts rather than restating the code.
 
-- **Every code change** gets the fast gate: lint, types, the unit tests and the
-  tests for the code it touched, in minutes rather than hours. The main branch
-  stays green on it, so parallel work never builds on a broken base. A change
-  the code's tests can't reach, such as docs or comments, gets the check that
-  can: its syntax and links.
-- **Checkpoints** get the rest: slow and installed-app suites, other platforms,
-  live runtimes and the review seat. A checkpoint is a release, a build someone
-  will use, the end of a batch, or a spike whose experiment is the test.
-
-Checkpoint failures stay cheap to fix only while each change is its own commit
-or merge, so the batch can be bisected, and while tests pin contracts rather
-than restating the code. Find the change that broke the checkpoint and fix
-exactly that.
-
-These are defaults. When you predict a cheaper way to the same confidence, take
-it and say so.
+When a build is tested by the use of whoever directs the work but the undo
+can't protect what that use touches (real content, accounts, messages sent),
+try it first in a sandbox with its own data and development accounts.
 
 ## Breaks you can't take back
 
@@ -39,12 +29,9 @@ sent. Protect against them in one of two ways:
   edge and can roll back, queue sends so they can be cancelled.
 - Prove before it takes effect that it won't break.
 
-Both protect adequately. Predict which is cheaper and faster for this change
-and take that path; don't build both, and don't take the costlier one out of
-habit. An undo nobody has exercised is a claim, not protection, so check the
-undo itself, and check it again at checkpoints. Say which path you chose and why
-in one line where you report the change. When the prediction turns out wrong,
-note it in the project's evidence notes.
+An undo nobody has exercised is a claim, not protection, so check the undo
+itself, and check it again at checkpoints. When your prediction of the cheaper
+path turns out wrong, note it in the project's evidence notes.
 
 ## The review seat
 
@@ -84,7 +71,7 @@ budget goes in its manifest. Without them, an agent uses the defaults above.
 
 The question is whether the change is useful and its code is clear.
 
-- Checkpoints are few: usually a build someone is about to use.
+- Checkpoints are few: usually a build others are about to use.
 - Add a test when it pins down an important contract or a failure you just fixed.
 - Delete tests for behavior you removed. Change a test when the intended
   behavior changed, and say so.
