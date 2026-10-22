@@ -6,8 +6,24 @@ updates:
       interval: weekly
     open-pull-requests-limit: 3
     groups:
+      # Majors arrive as their own pull requests so one blocked upgrade
+      # doesn't hold back the rest of the tooling.
       development-tooling:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # typescript-eslint supports TypeScript < 6.1; revisit when it widens.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      # @emdash-cms/plugin-test (emdash-connect's tests) needs vitest ^4.1;
+      # revisit when it accepts vitest 5.
+      - dependency-name: vitest
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:
