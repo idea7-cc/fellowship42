@@ -3,6 +3,7 @@
   "id": "fellowship42",
   "skills": true,
   "claude": true,
+  "tags": ["stack:cloudflare"],
   "include": ["web-app"],
   "exclude": ["order-feature"],
   "local": [
@@ -11,13 +12,6 @@
      "local_reason": "Fellowship42's ownership, portability and optional-management promises."},
     {"id": "data-security", "path": "AGENTS.md", "section": "Data and security rules",
      "kind": "boundaries", "nature": "normative",
-     "local_reason": "This instance's tenancy, identity, custody and public-disclosure rules."},
-    {"id": "cloudflare", "path": "AGENTS.md", "section": "Cloudflare implementation rules",
-     "kind": "working", "nature": "normative"},
-    {"id": "change-checklist", "path": "AGENTS.md", "section": "Change checklist",
-     "kind": "working", "nature": "normative",
-     "local_reason": "This repository's handoff gate, release pinning and ADR triggers."},
-    {"id": "claude-context", "path": "CLAUDE.md", "kind": "working", "nature": "normative",
-     "local_reason": "The reading order and binding-typegen step for this repository."}
+     "local_reason": "This instance's tenancy, identity, custody and public-disclosure rules."}
   ]
 }

@@ -1,8 +1,8 @@
 # Fellowship42 repository instructions
 
-This is the public Fellowship42 repository. Read this file, `README.md`,
-`docs/architecture.md`, and `docs/repository-strategy.md` before changing the
-system shape.
+This is the public Fellowship42 repository. The product invariants and
+boundaries below are authoritative; `Working here` says what to read for a
+given change.
 
 ## Non-negotiable product invariants
 
@@ -40,8 +40,8 @@ testing starts, speed wins over compatibility:
 - Deterministic lifecycle contracts and their fixtures stay green because they
   are synthetic; do not invest in live upgrade, restore, or exit evidence for
   pre-alpha changes.
-- ADRs are still required for changes to ownership, custody, management trust,
-  authentication, or repository boundaries. Everything else needs none.
+- The ADR rule under `Working here` still applies. Nothing else needs a
+  decision record.
 
 Revisit this section when the alpha is declared.
 
@@ -117,31 +117,24 @@ database access or unpublished application internals.
   returns only published, allowlisted fields. Adding a field there is a public
   disclosure; review it like one.
 
-## Cloudflare implementation rules
+## Working here
 
-- Use generated binding types from `pnpm cf-typegen` after Wrangler changes.
-- Prefer bindings over Cloudflare REST APIs inside the instance Worker.
-- Use structured logs, Web Crypto, handled promises, and `waitUntil` for work
-  that safely continues after a response.
-- Keep `wrangler.jsonc` current, observable, and free of secrets.
-- Use Queues or Workflows for durable background delivery when that work is
-  implemented.
-
-## Change checklist
-
-Run the following before handoff:
-
-```bash
-pnpm verify
-```
-
-Tagged releases and management-protocol packages follow `docs/releases.md`.
-The private repository must pin a published artifact and checksum; it must not
-consume a relative checkout or an unpublished public branch.
-
-Any change to ownership, deployment topology, management trust, repository
-boundaries, portability, authentication, or data custody requires an ADR in
-`docs/adr`.
+- Before changing the system shape, read `README.md`, `docs/architecture.md`
+  and `docs/repository-strategy.md`. `docs/handover.md` says where a normal
+  feature change starts. Read `docs/management-protocol.md` for management
+  changes and `docs/ui-design-system.md` for UI work. Folder rules live in
+  `apps/instance/src/AGENTS.md` and `apps/instance/worker/AGENTS.md`.
+- Cloudflare work follows the shared Cloudflare preferences. Here,
+  `pnpm cf-typegen` regenerates binding types after a Wrangler change, and the
+  instance's background delivery goes through its outbox Queue.
+- Run `pnpm verify` before handing off a code change; CI runs the same on every
+  pull request. Its task list in `package.json` is authoritative.
+- Tagged releases and management-protocol packages follow `docs/releases.md`.
+  The private repository must pin a published artifact and checksum; it must
+  not consume a relative checkout or an unpublished public branch.
+- Any change to ownership, deployment topology, management trust, repository
+  boundaries, portability, authentication, or data custody requires an ADR in
+  `docs/adr`.
 
 <!-- agent-guidance:start -->
 ## Shared agent guidance
