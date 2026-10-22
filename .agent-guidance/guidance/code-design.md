@@ -110,6 +110,5 @@ interfaces, hidden effects, scattered feature logic, old paths beside their
 replacements, and stale documentation. Improve the specific difficulty instead
 of applying a blanket rewrite.
 
-The wayof7 library's `examples/order-feature/` demonstrates these choices in a
-small runnable Python project. A project's own instructions may name a better
-example in its own code.
+A project's own instructions should name one feature in its own code that shows
+these choices well; copy that rather than a generic example.

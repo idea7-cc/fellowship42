@@ -226,7 +226,8 @@ This project's CI budget is US$7 a month (wayof7's default).
 - `.agent-guidance/REFERENCES.md`: The sources these ideas build on.
 
 `python3 .agent-guidance/query.py find --task "<the task>"` suggests guidance for a task,
-and `pref <key>` reads one preference. Run them from the project root.
+and `python3 .agent-guidance/query.py pref <key>` reads one preference. Run them from the
+project root.
 
 ### Keeping guidance current
 
