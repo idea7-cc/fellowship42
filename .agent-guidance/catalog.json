@@ -31,6 +31,11 @@
     {
       "source": "preferences/review-seat.md",
       "table": "Seat"
+    },
+    {
+      "source": "preferences/cloudflare.md",
+      "table": "Area",
+      "prefix": "cloudflare-"
     }
   ],
   "routes": [
@@ -411,8 +416,54 @@
       ]
     },
     {
+      "id": "cloudflare",
+      "source": "preferences/cloudflare.md",
+      "when": "Building, configuring, testing or reviewing a Cloudflare Worker, or choosing among its products.",
+      "match": [
+        [
+          "cloudflare",
+          "worker",
+          "workers",
+          "wrangler",
+          "durable object",
+          "durable objects",
+          "d1",
+          "r2"
+        ],
+        [
+          "binding",
+          "bindings",
+          "queue",
+          "queues",
+          "workflow",
+          "workflows",
+          "deploy",
+          "deployment",
+          "implement",
+          "build",
+          "configure",
+          "configuration",
+          "config",
+          "observability",
+          "logs",
+          "logging",
+          "traces",
+          "test",
+          "tests",
+          "choose",
+          "review"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
       "id": "worker-tools",
-      "capability": "Cloudflare Workers development and Wrangler operations",
+      "capability": "Cloudflare's Workers skills (cloudflare/skills: workers-best-practices, wrangler, durable-objects) and documentation MCP server",
       "when": "Changing Worker runtime behavior, bindings, configuration or deployment.",
       "match": [
         [

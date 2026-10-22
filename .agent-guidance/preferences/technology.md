@@ -15,7 +15,7 @@ update is not a request to migrate it.
 | API framework | Hono on Cloudflare Workers | A small HTTP surface for human and agent clients | An adopted Convex backend or other existing API |
 | Service workflows | Effect 4 for substantial TypeScript services | Typed failures, explicit dependencies, cancellation and concurrency; keep durable operation state explicit | Plain TypeScript for small operations; native framework transactions |
 | Data and storage | See the workload map below | Choose by authority, data shape and coordination needs | Preserve the project's adopted store |
-| Hosting and deployment | Cloudflare Workers for new web projects when the workload fits | Account for Worker runtime and provider constraints | Existing hosting; other runtimes when the workload warrants them |
+| Hosting and deployment | Cloudflare Workers for new web projects when the workload fits | Account for Worker runtime and provider constraints; tag the project `stack:cloudflare` to receive the Cloudflare preferences | Existing hosting; other runtimes when the workload warrants them |
 | Validation | Native framework validators; Effect Schema for Effect-owned contracts; Zod for other general TypeScript boundaries | Infer types from the authoritative schema; avoid parallel definitions of the same contract | Existing validation with one clear source of truth |
 | Authentication | Unset | Include managed versus self-hosted preference | Unset |
 | Email and notifications | Unset | Include delivery needs and provider boundary | Unset |
@@ -23,8 +23,8 @@ update is not a request to migrate it.
 | Formatting and lint | Biome by default; framework tooling where needed | Check supported file types and required rules; keep responsibilities clear when combining tools | ESLint and Prettier when framework support or specific rules warrant them; existing project tooling |
 | Package manager | pnpm for new TypeScript apps and workspaces | Shared dependency storage and explicit package boundaries; pin its version and commit the lockfile | npm when minimal setup matters; an existing project's package manager |
 | Dependency maintenance | Knip for periodic dependency cleanup; a small preferred dependency set | Review unused-dependency findings, especially around dynamic loading; use the choices in this catalog before adding another library | Existing cleanup tooling; native framework capabilities |
-| Testing | Vitest for apps and services; Node's built-in test runner for small Node utilities | Use Worker-runtime integration for Worker behavior; choose versions compatible with the runtime and test integrations | Existing test suites; browser checks for relevant user flows |
-| Logging and observability | Unset | Include operational needs and data ownership | Unset |
+| Testing | Vitest for apps and services; Node's built-in test runner for small Node utilities | Run Worker behavior in the Workers runtime; choose versions compatible with the runtime and test integrations | Existing test suites; browser checks for relevant user flows |
+| Logging and observability | Workers Logs and Traces on Cloudflare; otherwise unset | Include operational needs and data ownership | Unset |
 
 ## Storage by workload
 
@@ -32,7 +32,7 @@ update is not a request to migrate it.
 | --- | --- | --- |
 | Relational authority in a Cloudflare app | D1 | Drizzle is an option for SQL schema and migrations |
 | File bytes and media | R2 | Keep authorization and record metadata in the owning data store |
-| Realtime state or coordination needing one owner | Durable Objects | Add when coordination warrants them |
+| Realtime state or coordination needing one owner | Durable Objects | Add when coordination warrants them, one per coordinated unit |
 | An adopted reactive Convex backend | Convex | Preserve native transactions, validators and generated API references |
 | Core7's embedded local store | Turso Database engine | Adopted in Core7; evaluate elsewhere. This means the embedded engine, not Turso Cloud |
 

@@ -11,6 +11,7 @@ The marked section of the project's AGENTS.md says when to read each item.
 - `code-design` (principle, on-demand): Where code belongs, small interfaces, visible effects, replacing old paths and truthful contracts. Read it when designing or reviewing code.
 - `proportional-verification` (principle, on-demand): Where expensive checks go (a fast gate per change, the rest at checkpoints), how to protect against breaks you can't take back, the review seat, and how proof grows by stage. Read it when deciding what to check before merging or at a release.
 - `working` (principle, always): How agents work by default.
+- `cloudflare` (preference, on-demand): Cloudflare Workers choices, where Cloudflare's current docs and skills live, and the date they were checked. Read it before building, configuring or testing a Worker.
 - `models` (preference, on-demand): Preferred models for kinds of work. Read it when choosing a model.
 - `review-seat` (preference, on-demand): Who fills the independent, adversarial review seat. Read it when a change needs that review; a project may override it.
 - `technology` (preference, on-demand): Preferred stacks and providers. Read it before choosing a technology.
