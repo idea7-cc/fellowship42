@@ -14,6 +14,10 @@ hours, so parallel work never builds on a broken base. A checkpoint failure
 stays cheap to fix while each change is its own commit or merge, so the batch
 can be bisected, and while tests pin contracts rather than restating the code.
 
+A delegated builder's brief names the checks it may run: the tests for the code
+it touches while it works, and the fast gate once at the end. Checkpoint suites
+run once, at the checkpoint, not in every change of the batch.
+
 When a build is tested by the use of whoever directs the work but the undo
 can't protect what that use touches (real content, accounts, messages sent),
 try it first in a sandbox with its own data and development accounts.
@@ -42,8 +46,14 @@ whose mistakes would be expensive: a new module boundary, a pattern others will
 copy, or anything touching content, secrets or authority. One review of a batch
 can cover many small changes.
 
+The review seat doesn't hold the work. Merge on the fast gate and keep going
+while it reads the batch, then fold its findings into the next change. Hold a
+merge for it only when the change could lose content, leak a secret or bypass an
+authority check.
+
 The reviewer reports; whoever leads the change decides what to fix, and says
-why for any finding it leaves. Who fills the seat is a preference
+why for any finding it leaves. The lead checks that each fix landed; send it
+back for another review only when the fix is as large as the change. Who fills the seat is a preference
 ([review-seat](../preferences/review-seat.md)). A project that needs a
 different occupant overrides that item with a reason.
 
@@ -73,6 +83,7 @@ The question is whether the change is useful and its code is clear.
 
 - Checkpoints are few: usually a build others are about to use.
 - Add a test when it pins down an important contract or a failure you just fixed.
+  Don't hold a merge to prove that the test would have failed on the old code.
 - Delete tests for behavior you removed. Change a test when the intended
   behavior changed, and say so.
 - Fix structural problems before spending time on rare edge cases. Problems that
