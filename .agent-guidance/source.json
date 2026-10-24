@@ -14,7 +14,7 @@
     ".agent-guidance/guidance/proportional-verification.md": "e6f27c9460799e11fe3afe0b2d98f0ab73c6f96698cc2808f2e57e1dc90fa04b",
     ".agent-guidance/guidance/working.md": "b851491a829dd32c8d5f8220716039aef6dc789b11ce34f6a88215f68f078864",
     ".agent-guidance/preferences/cloudflare.md": "68085f79ae32f07c4b847b468aec5b778467cc25b71887a500fb6f0cdaa192a5",
-    ".agent-guidance/preferences/models.md": "d46ecab54c47240814eb13620b349ba6211774907cbaee76e24de76b5961ae1c",
+    ".agent-guidance/preferences/models.md": "25d3aceb3b991dbae22b745b25331db6653d6ce88e45849e11cb177d6cc88f86",
     ".agent-guidance/preferences/review-seat.md": "6b6f84ca49cc2cae3a8b702d0c748bcb47b4fff841a9b608060274d544c7fb46",
     ".agent-guidance/preferences/technology.md": "914b281fbebb3b9a6014a49c7ab466dda731c1424afa943817b5834f017eec27",
     ".agent-guidance/query.py": "5977ea646fc242096cf50ff3a8af59301462cc21c3ac78b458dcf539d569959f",
@@ -35,7 +35,7 @@
     "code-design": "a093ae82df6675ae695feec16cbb941ef72b4dcc368fb5d0cb5057ee6453b243",
     "guidance-design-change": "1a8a101496e76b7044d36a3a41c226a310f2a546b00d28e5fee69907b20a60c9",
     "guidance-review-change": "a4cc3cc7530e67d08e81313c76284b0eba3e34a358539136f198ecc5940576f7",
-    "models": "669ebd89d4230919e26bf711ed5fe0e8e8f75d545df72e898abcf29fb1ec59cb",
+    "models": "55d2609ffffd999b37b75f0fd1266ecac562c6a5034dceec5ee4b9b3c62a27f7",
     "planner": "2683b08c75f28067cfe236b15edee7313b3529c74de613deca0a728cc1dab382",
     "proportional-verification": "064046e20a6b61b57041a140aba998bbb01985eefdd59df89bd327fbca70835a",
     "references": "dbbb7b29d1fb5b358e81c825049a3147f70bd630ec394c2e8e53b0c2c0c5b663",
@@ -51,5 +51,5 @@
   },
   "overridden": {},
   "project": "fellowship42",
-  "revision": "3462fae7dc72fdac6f9c775eae0595e1503c5dfa"
+  "revision": "cd9026e9804c2cedf77f082953981d39d0d55016"
 }
