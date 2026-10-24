@@ -1,6 +1,6 @@
 {
   "blocks": {
-    "AGENTS.md": "eacaf7ef2845aa990dca86cee0962b2a016c323c20190cc5b3d438476165d4ab",
+    "AGENTS.md": "f724e0383424eccf858fe99b19a9c4364dbf5c27719c8ab6acd75661b7c0d7c8",
     "CLAUDE.md": "748858214ae65941507d56b4be4abd2679a2e2717c1bd3442c4fc34252deb205"
   },
   "dirty": false,
@@ -12,7 +12,7 @@
     ".agent-guidance/catalog.json": "5341f6ea9db189dae610e0ed7ca0e52c49e29e72e7fdbf64fd8a00563b9868bd",
     ".agent-guidance/guidance/code-design.md": "1d31efed1c11bda919012805e4b9d1bcc2b11823fa0bc584c42cbb2246535ad6",
     ".agent-guidance/guidance/proportional-verification.md": "e6f27c9460799e11fe3afe0b2d98f0ab73c6f96698cc2808f2e57e1dc90fa04b",
-    ".agent-guidance/guidance/working.md": "b851491a829dd32c8d5f8220716039aef6dc789b11ce34f6a88215f68f078864",
+    ".agent-guidance/guidance/working.md": "b8ab1df269bb5dfe2b62e2865baef6d34fc8297861607123f95c1c512299b7cd",
     ".agent-guidance/preferences/cloudflare.md": "68085f79ae32f07c4b847b468aec5b778467cc25b71887a500fb6f0cdaa192a5",
     ".agent-guidance/preferences/models.md": "25d3aceb3b991dbae22b745b25331db6653d6ce88e45849e11cb177d6cc88f86",
     ".agent-guidance/preferences/review-seat.md": "6b6f84ca49cc2cae3a8b702d0c748bcb47b4fff841a9b608060274d544c7fb46",
@@ -43,7 +43,7 @@
     "reviewer": "d835b12edc2b864a546a22de7f9d341d47e5f09ff91175b43db2b6eaa7cfb472",
     "technology": "03e7258753ef202f615b8fe00ba52000438f3a065fdb2d701243632d7aebd2e9",
     "web-app": "c82b277424137db61b1a9b377ce45ca9ef0b8968e86d5b983affa8ccc6536951",
-    "working": "437f3fe463cda6eaeb56b3683e4f67d04dc9d7c23682fcbd10783177aa085368"
+    "working": "95f9827eaac2e340071cf75f5a6d15887755f9ee7075a4127ab55484b72fb0b2"
   },
   "library": "wayof7",
   "options": {
@@ -51,5 +51,5 @@
   },
   "overridden": {},
   "project": "fellowship42",
-  "revision": "cd9026e9804c2cedf77f082953981d39d0d55016"
+  "revision": "cbcf93df90d2f0e0f5e4ea567e86493d151488d8"
 }

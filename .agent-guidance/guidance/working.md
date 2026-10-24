@@ -19,8 +19,10 @@ task and the project's own instructions come first; these are defaults.
 - Make routine reversible decisions and keep going. Ask before changing product
   direction, authority or a support promise. Protect other people's work,
   secrets and real content.
-- Remove each worktree you create once its branch merges or is dropped, after
-  pushing what isn't merged; build output can reach tens of gigabytes.
+- Work on a branch, never main; push every commit so a broken machine loses
+  nothing. Merge once the owner accepts: in GitHub, in chat or by an approved
+  plan once checks pass. Remove a worktree once its branch is merged or dropped;
+  builds reach tens of gigabytes.
 
 ## Verify in proportion
 
@@ -28,7 +30,7 @@ Check what the change could break, with the cheapest check that would catch it.
 
 - Code changes: the project's fast gate (lint, types and unit tests unless it
   names another) and the tests for the code you touched, and look at the result
-  when it's user-visible. Keep the main branch green on that gate. Add a test
+  when it's user-visible. Keep main green on that gate. Add a test
   for a meaningful failure, not one that restates the implementation.
 - Slow suites, other platforms, live runtimes and the review seat belong at
   checkpoints: a release, a build others will use, the end of a batch, a spike
@@ -43,8 +45,7 @@ Check what the change could break, with the cheapest check that would catch it.
 - A failure the change can't cause doesn't hold it up: confirm it's unrelated,
   report it and carry on.
 
-These are defaults. When you predict a cheaper way to the same confidence, take
-it and say so.
+When you predict a cheaper way to the same confidence, take it and say so.
 
 ## Examples
 
@@ -53,7 +54,6 @@ it and say so.
   what it breaks. A CI change: check which events and jobs will run.
 - A new operation used by two interfaces: one definition and implementation,
   thin callers, focused tests.
-- A confusing internal API: replace it, update the callers, delete the old one.
 - A data format no supported consumer relies on: change it, update readers and
   writers, rebuild fixtures and test data. No compatibility layer.
 - Replacing stored data in place: keeping the previous copy and testing its
