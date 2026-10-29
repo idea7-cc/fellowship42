@@ -40,9 +40,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.64.0",
-    "@cloudflare/vitest-plugin": "^1.4.6",
-    "@modelcontextprotocol/client": "2.3.1",
+    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/vitest-plugin": "^1.4.7",
+    "@modelcontextprotocol/client": "2.4.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -51,7 +51,7 @@
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "~4.1.11",
     "wrangler": "^4.151.3"
   }
