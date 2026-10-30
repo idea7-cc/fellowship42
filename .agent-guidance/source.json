@@ -1,6 +1,6 @@
 {
   "blocks": {
-    "AGENTS.md": "f724e0383424eccf858fe99b19a9c4364dbf5c27719c8ab6acd75661b7c0d7c8",
+    "AGENTS.md": "972baaadefbe0075fe945acff9543db80a0f0fda1b09055448515c690933c2bd",
     "CLAUDE.md": "748858214ae65941507d56b4be4abd2679a2e2717c1bd3442c4fc34252deb205"
   },
   "dirty": false,
@@ -11,8 +11,8 @@
     ".agent-guidance/blueprints/web-app.md": "0dab61c9e64983c71159be9ad20f01fac17ae2053926ed177af5a8b5ce05585a",
     ".agent-guidance/catalog.json": "5341f6ea9db189dae610e0ed7ca0e52c49e29e72e7fdbf64fd8a00563b9868bd",
     ".agent-guidance/guidance/code-design.md": "1d31efed1c11bda919012805e4b9d1bcc2b11823fa0bc584c42cbb2246535ad6",
-    ".agent-guidance/guidance/proportional-verification.md": "e6f27c9460799e11fe3afe0b2d98f0ab73c6f96698cc2808f2e57e1dc90fa04b",
-    ".agent-guidance/guidance/working.md": "b8ab1df269bb5dfe2b62e2865baef6d34fc8297861607123f95c1c512299b7cd",
+    ".agent-guidance/guidance/proportional-verification.md": "78df911ea9f48081797d0caa43835282981f9215d12d0b4366878c22bf83b89f",
+    ".agent-guidance/guidance/working.md": "11ecb0ed9b262ecbee83c774f965ca4f0517bb889b303acdafe2779c70678262",
     ".agent-guidance/preferences/cloudflare.md": "68085f79ae32f07c4b847b468aec5b778467cc25b71887a500fb6f0cdaa192a5",
     ".agent-guidance/preferences/models.md": "25d3aceb3b991dbae22b745b25331db6653d6ce88e45849e11cb177d6cc88f86",
     ".agent-guidance/preferences/review-seat.md": "6b6f84ca49cc2cae3a8b702d0c748bcb47b4fff841a9b608060274d544c7fb46",
@@ -37,13 +37,13 @@
     "guidance-review-change": "a4cc3cc7530e67d08e81313c76284b0eba3e34a358539136f198ecc5940576f7",
     "models": "55d2609ffffd999b37b75f0fd1266ecac562c6a5034dceec5ee4b9b3c62a27f7",
     "planner": "2683b08c75f28067cfe236b15edee7313b3529c74de613deca0a728cc1dab382",
-    "proportional-verification": "064046e20a6b61b57041a140aba998bbb01985eefdd59df89bd327fbca70835a",
+    "proportional-verification": "7880236c05d1a3911960b9635b1146ad81776c61a87cf68b75194763e132afb8",
     "references": "dbbb7b29d1fb5b358e81c825049a3147f70bd630ec394c2e8e53b0c2c0c5b663",
     "review-seat": "cf9a9da153f80734526cd2a4f1f31918231d24483489b4bbe9ea530b4f57751a",
     "reviewer": "d835b12edc2b864a546a22de7f9d341d47e5f09ff91175b43db2b6eaa7cfb472",
     "technology": "03e7258753ef202f615b8fe00ba52000438f3a065fdb2d701243632d7aebd2e9",
     "web-app": "c82b277424137db61b1a9b377ce45ca9ef0b8968e86d5b983affa8ccc6536951",
-    "working": "95f9827eaac2e340071cf75f5a6d15887755f9ee7075a4127ab55484b72fb0b2"
+    "working": "00abc0cfe6507a8d9ef48eb7d0218ab006c40977827e5d8fdcb7844c621628a5"
   },
   "library": "wayof7",
   "options": {
@@ -51,5 +51,5 @@
   },
   "overridden": {},
   "project": "fellowship42",
-  "revision": "cbcf93df90d2f0e0f5e4ea567e86493d151488d8"
+  "revision": "c21c249c2d0a52eb1fd02e7b3c651127af02d756"
 }

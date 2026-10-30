@@ -14,8 +14,8 @@ task and the project's own instructions come first; these are defaults.
   same change. Keep compatibility only for consumers the project's stage
   statement names; without one, ask before breaking something people use.
 - Treat confusing ownership, duplicated policy and leftover old paths as defects
-  when they would make the next likely change harder, even if tests pass. Name
-  the consequence and the fix; a different taste is not a defect.
+  when they'd make the next likely change harder, even if tests pass. Name the
+  consequence and the fix; a different taste is not a defect.
 - Make routine reversible decisions and keep going. Ask before changing product
   direction, authority or a support promise. Protect other people's work,
   secrets and real content.
@@ -28,10 +28,10 @@ task and the project's own instructions come first; these are defaults.
 
 Check what the change could break, with the cheapest check that would catch it.
 
-- Code changes: the project's fast gate (lint, types and unit tests unless it
-  names another) and the tests for the code you touched, and look at the result
-  when it's user-visible. Keep main green on that gate. Add a test
-  for a meaningful failure, not one that restates the implementation.
+- Code changes: pick the tests your diff reaches before running any, rerun only
+  failures, then run the fast gate (lint, types and unit tests by default) once.
+  Look at user-visible results. Keep main green on that gate. Add a test for a
+  meaningful failure, not one that restates the implementation.
 - Slow suites, other platforms, live runtimes and the review seat belong at
   checkpoints: a release, a build others will use, the end of a batch, a spike
   whose experiment is the test, and any the project declares. Run those its
@@ -59,10 +59,9 @@ When you predict a cheaper way to the same confidence, take it and say so.
 - Replacing stored data in place: keeping the previous copy and testing its
   restore is often cheaper than proving every import path is safe.
 
-Later stages add checkpoints when a project declares them: real-runtime checks
-for a capability being validated, and the declared release checks before
-customers rely on it.
+Later stages add the checkpoints a project declares: real-runtime checks for a
+capability being validated, release checks before customers rely on it.
 
-Report what changed, what you checked and what remains unproved. Don't create
-plans, contracts or decision records for routine work; leave a short note only
-when another session will need it.
+Report what changed, what you checked and what's unproved, linking files by
+absolute path. Don't create plans, contracts or decision records for routine
+work; leave a short note only when another session needs it.
