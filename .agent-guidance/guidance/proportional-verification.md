@@ -22,6 +22,35 @@ When a build is tested by the use of whoever directs the work but the undo
 can't protect what that use touches (real content, accounts, messages sent),
 try it first in a sandbox with its own data and development accounts.
 
+## Choosing what to run
+
+Most wasted test time comes from running the wrong thing, not from running too
+little.
+
+- Choose from the diff before running anything: the tests its imports reach, and
+  the tests in the slower tiers (live, end-to-end, installed-app) that call a
+  contract it changed. Prefer a project command that lists them over judgement:
+  an agent tends to pick the tests that confirm its patch. Static selection
+  misses a test that reaches the change through a process, a dynamic import or a
+  fixture, which is what the fast gate, run once at the end, is for.
+- Update a slower tier's tests in the change that breaks them. A suite nobody
+  runs per change rots quietly, and the next change to run it pays for the
+  debugging.
+- While fixing, rerun only what failed; run the full gate once, when the change
+  is ready.
+- Before debugging a slow suite's failure, run that test on main. A failure
+  there isn't the change's: report it and fix it apart.
+- A skipped test is not a pass. Know which tests the gate skips, and where: a CI
+  runner or a worktree without the inputs they need.
+- Put build order in scripts, not memory: a test that needs a built output
+  builds it or says it is stale, and a packaging chain is one command.
+- Run one heavy job at a time on a shared machine: parallel suites fail timing
+  tests, and a build that rewrites outputs breaks the other run. Record a test
+  known to fail only under load, so nobody diagnoses it again.
+- A backlog of stale tests suits a delegated builder in its own worktree while
+  the lead carries on. Its brief names the tests to repair; it doesn't choose
+  what proves the lead's change.
+
 ## Breaks you can't take back
 
 Some breaks can't be fixed after the fact by finding and reverting a change:
