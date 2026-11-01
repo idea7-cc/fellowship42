@@ -32,3 +32,27 @@ This file records the choices those sources leave open or that matter most.
 
 Record a project's actual bindings, commands and compatibility date in the
 project.
+
+## Running outside Cloudflare
+
+Checked 2026-10-31. Cloudflare plans to make self-hosting workerd a supported
+path by merging in Deno's celld, with no date yet
+([announcement](https://blog.cloudflare.com/deno-joins-cloudflare), 2026-10-09).
+Today:
+
+- workerd alone runs Workers, service bindings, static assets and single-node
+  Durable Objects (on-disk storage is marked experimental). It has no D1, and its
+  Queue binding only forwards to a service you supply.
+- [celld](https://github.com/denoland/celld/blob/main/docs/cloudflare-compat.md)
+  (beta) adds D1, KV, R2, Queues, Workflows and Cron. Its Queues have no pull
+  consumers or HTTP API and keep messages four days; its Workflows have no REST
+  API or `wrangler workflows` commands and keep instances 30 days. It has no rate
+  limiting binding.
+- Wrangler's local Queues and Workflows are development emulators, not
+  production engines.
+
+celld is the target for running outside Cloudflare, accepted while it is in
+beta (CT, 2026-10-31). Where portability matters, stay within the bindings celld
+supports, keep Queue consumers and Workflow steps idempotent with their record in
+the project's own database, and put rate limiting in a Durable Object. Record the
+target in the project.
