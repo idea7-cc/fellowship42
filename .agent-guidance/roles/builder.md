@@ -14,7 +14,11 @@ code in the area you touch; leave unrelated areas alone.
 
 If the work is split across agents, give each a bounded piece in its own
 worktree, keep one owner for each shared contract, and judge the combined result.
-Remove each worktree once its work is merged.
+Remove each worktree once its work is merged or dropped and saved, with
+`git worktree remove <path>`: it takes dependency symlinks inside with it, so
+don't delete them first. Add `--force` only when `git status` there shows
+nothing but disposable untracked files, such as `node_modules` symlinks a
+`node_modules/` ignore rule doesn't match; it discards uncommitted changes.
 
 Keep each change its own commit or merge, with a message that says why, so a
 failing checkpoint can be traced to it. Finish with checks proportionate to the

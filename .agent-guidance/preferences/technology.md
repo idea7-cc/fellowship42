@@ -4,9 +4,18 @@ These are personal defaults for new choices, selected from the project review
 on 2026-10-13. Use an existing project's adopted stack first. A shared preference
 update is not a request to migrate it.
 
+The value of a small shared stack falls on the portfolio more than on any one
+feature: one owner directs agents across many projects, so guidance, skills,
+agents' familiarity and operating habits carry from one project to the next, with
+fewer providers to run and pay. Each row's "why" says what that choice adds.
+Judge an exception by whether it serves the same value better, not by whether it
+matches the row.
+
 | Area | Preferred choice | Why / tradeoff | Acceptable alternatives |
 | --- | --- | --- | --- |
-| Language and runtime | TypeScript for web apps and APIs; Workers for web APIs, Node for local tooling | Keep the tooling runtime distinct from the deployed runtime | An existing project's adopted runtime |
+| Systems language | Rust wherever performance, concurrency, memory safety or a long-lived process matter: engines, runtimes, servers, CLIs, data processing and native hosts | Speed and safe concurrency without a garbage collector, and one core that builds native or to WebAssembly | TypeScript when the code is mostly interface or thin glue |
+| WebAssembly | Rust compiled to WebAssembly to share one core across native, browser and Workers | One implementation of the hard logic everywhere it runs; weigh bundle size, startup and the JavaScript boundary | A native Rust process when the target allows it |
+| Web language and runtime | TypeScript for web interfaces and thin APIs; Workers for web APIs, Node for small local scripts | One language from interface to Worker, so code, types and agents' familiarity carry across projects. Keep the tooling runtime distinct from the deployed runtime | An existing project's adopted runtime |
 | Application UI | React + Vite | Interactive applications; follow the router's native conventions | Existing React Router or Svelte applications |
 | Content websites | Astro | Choose static or on-demand rendering from the content contract | An existing project's adopted framework |
 | Managed publishing | EmDash when a CMS is needed | Reuse its publishing capabilities | Static content when a CMS adds no value |
@@ -15,15 +24,15 @@ update is not a request to migrate it.
 | API framework | Hono on Cloudflare Workers | A small HTTP surface for human and agent clients | An adopted Convex backend or other existing API |
 | Service workflows | Effect 4 for substantial TypeScript services | Typed failures, explicit dependencies, cancellation and concurrency; keep durable operation state explicit | Plain TypeScript for small operations; native framework transactions |
 | Data and storage | See the workload map below | Choose by authority, data shape and coordination needs | Preserve the project's adopted store |
-| Hosting and deployment | Cloudflare Workers for new web projects when the workload fits | Account for Worker runtime and provider constraints; tag the project `stack:cloudflare` to receive the Cloudflare preferences | Existing hosting; other runtimes when the workload warrants them |
+| Hosting and deployment | Cloudflare Workers for new web projects when the workload fits; celld as the target for running the same code elsewhere | Little to operate, cheap isolation per tenant or site, and accounts an owner can hold themselves; the runtime is open source and celld runs it elsewhere, so leaving stays possible. Account for Worker runtime and provider constraints; tag the project `stack:cloudflare` to receive the Cloudflare preferences | Existing hosting; other runtimes when the workload warrants them |
 | Validation | Native framework validators; Effect Schema for Effect-owned contracts; Zod for other general TypeScript boundaries | Infer types from the authoritative schema; avoid parallel definitions of the same contract | Existing validation with one clear source of truth |
 | Authentication | Unset | Include managed versus self-hosted preference | Unset |
 | Email and notifications | Unset | Include delivery needs and provider boundary | Unset |
 | UI components and styling | Unset | Include accessibility and customization needs | Unset |
-| Formatting and lint | Biome by default; framework tooling where needed | Check supported file types and required rules; keep responsibilities clear when combining tools | ESLint and Prettier when framework support or specific rules warrant them; existing project tooling |
+| Formatting and lint | Biome by default; rustfmt and Clippy for Rust; framework tooling where needed | Check supported file types and required rules; keep responsibilities clear when combining tools | ESLint and Prettier when framework support or specific rules warrant them; existing project tooling |
 | Package manager | pnpm for new TypeScript apps and workspaces | Shared dependency storage and explicit package boundaries; pin its version and commit the lockfile | npm when minimal setup matters; an existing project's package manager |
 | Dependency maintenance | Knip for periodic dependency cleanup; a small preferred dependency set | Review unused-dependency findings, especially around dynamic loading; use the choices in this catalog before adding another library | Existing cleanup tooling; native framework capabilities |
-| Testing | Vitest for apps and services; Node's built-in test runner for small Node utilities | Run Worker behavior in the Workers runtime; choose versions compatible with the runtime and test integrations | Existing test suites; browser checks for relevant user flows |
+| Testing | Vitest for apps and services; Cargo's tests for Rust; Node's built-in test runner for small Node utilities | Run Worker behavior in the Workers runtime; choose versions compatible with the runtime and test integrations | Existing test suites; browser checks for relevant user flows |
 | Logging and observability | Workers Logs and Traces on Cloudflare; otherwise unset | Include operational needs and data ownership | Unset |
 
 ## Storage by workload

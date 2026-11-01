@@ -5,7 +5,10 @@
       "source": "preferences/technology.md",
       "table": "Area",
       "aliases": {
-        "runtime": "language-and-runtime",
+        "runtime": "web-language-and-runtime",
+        "typescript": "web-language-and-runtime",
+        "rust": "systems-language",
+        "wasm": "webassembly",
         "ui": "application-ui",
         "desktop": "desktop-framework",
         "api": "api-framework",
