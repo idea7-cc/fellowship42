@@ -14,6 +14,7 @@ The marked section of the project's AGENTS.md says when to read each item.
 - `cloudflare` (preference, on-demand): Cloudflare Workers choices, where Cloudflare's current docs and skills live, and the date they were checked. Read it before building, configuring or testing a Worker.
 - `models` (preference, on-demand): Preferred models for kinds of work. Read it when choosing a model.
 - `review-seat` (preference, on-demand): Who fills the independent, adversarial review seat. Read it when a change needs that review; a project may override it.
+- `t3code` (preference, on-demand): Which T3 Code feature serves which job. Read it before delegating, following a pull request, or setting up worktrees or project scripts in T3 Code.
 - `technology` (preference, on-demand): Preferred stacks and providers. Read it before choosing a technology.
 - `builder` (role, on-demand): What good building work looks like.
 - `planner` (role, on-demand): What a useful plan for a substantial or ambiguous request looks like.
@@ -21,4 +22,5 @@ The marked section of the project's AGENTS.md says when to read each item.
 - `web-app` (blueprint, on-demand): A starting shape for a web application or content site.
 - `guidance-design-change` (skill, on-demand): Design substantial code changes, new module boundaries or significant technology choices. Use for requested architecture or design; routine edits need no separate workflow.
 - `guidance-review-change` (skill, on-demand): Review code changes for defects, unclear ownership, hidden effects and leftover old paths. Use for a requested code review or assessment; not prose review or automatic review stages.
+- `ship` (skill, on-demand): Carry a change to a ready pull request or a merge and own what arrives after. Invoke it with ship, ship ready or ship merge.
 - `references` (reference, on-demand): The sources these ideas build on.

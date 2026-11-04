@@ -20,13 +20,19 @@ task and the project's own instructions come first; these are defaults.
   direction, authority or a support promise. Protect other people's work,
   secrets and real content.
 - Work on a branch, never main; push every commit so a broken machine loses
-  nothing. Merge once the owner accepts: in GitHub, in chat or by an approved
-  plan once checks pass. Remove a worktree once its branch is merged or dropped;
-  builds reach tens of gigabytes.
+  nothing. Finish at a ready pull request. Merge once checks pass if the owner
+  asked for a merge or approved your plan ("let's build it"), unless they said
+  they'd review or choose when. Remove a worktree once its branch is merged or
+  dropped; builds reach tens of gigabytes.
+- Whoever starts a check, review or watch owns its result until it is received
+  or handed on.
 
 ## Verify in proportion
 
 Check what the change could break, with the cheapest check that would catch it.
+Stage sets what must keep working; the diff sets the proof. A changed shared
+runtime path, process interaction or stored format gets one direct run of that
+path before merging, by the project's command where one exists.
 
 - Code changes: pick the tests your diff reaches before running any, rerun only
   failures, then run the fast gate (lint, types and unit tests by default) once.
@@ -50,17 +56,10 @@ When you predict a cheaper way to the same confidence, take it and say so.
 ## Examples
 
 - A button label: check the rendered wording. No plan document, no extra reviewer.
-- A docs or comment change: check its syntax and links; code tests can't catch
-  what it breaks. A CI change: check which events and jobs will run.
-- A new operation used by two interfaces: one definition and implementation,
-  thin callers, focused tests.
+- A session-routing rewrite while iterating: the fast gate plus one real
+  session through the new route. No full end-to-end suite.
 - A data format no supported consumer relies on: change it, update readers and
   writers, rebuild fixtures and test data. No compatibility layer.
-- Replacing stored data in place: keeping the previous copy and testing its
-  restore is often cheaper than proving every import path is safe.
-
-Later stages add the checkpoints a project declares: real-runtime checks for a
-capability being validated, release checks before customers rely on it.
 
 Report what changed, what you checked and what's unproved, linking files by
 absolute path. Don't create plans, contracts or decision records for routine

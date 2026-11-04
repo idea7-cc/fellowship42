@@ -39,6 +39,11 @@
       "source": "preferences/cloudflare.md",
       "table": "Area",
       "prefix": "cloudflare-"
+    },
+    {
+      "source": "preferences/t3code.md",
+      "table": "Job",
+      "prefix": "t3-"
     }
   ],
   "routes": [
@@ -295,6 +300,31 @@
       ]
     },
     {
+      "id": "ship",
+      "source": "skills/ship/SKILL.md",
+      "when": "Taking a change through to a ready pull request or a merge, and handling what arrives after.",
+      "match": [
+        [
+          "ship",
+          "finish",
+          "land",
+          "merge",
+          "merging"
+        ],
+        [
+          "pr",
+          "pull request",
+          "branch",
+          "all the way",
+          "through merge"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "review"
+      ]
+    },
+    {
       "id": "service-workflows",
       "preference": "service-workflows",
       "when": "Choosing Effect or structuring a substantial TypeScript service workflow.",
@@ -493,6 +523,42 @@
           "config",
           "test",
           "tests"
+        ]
+      ],
+      "kinds": [
+        "code",
+        "design",
+        "review",
+        "choice"
+      ]
+    },
+    {
+      "id": "t3code",
+      "source": "preferences/t3code.md",
+      "when": "Delegating, watching a pull request, setting up worktrees or project scripts, or scheduling a report in T3 Code.",
+      "match": [
+        [
+          "t3",
+          "t3 code",
+          "t3code",
+          "harness"
+        ],
+        [
+          "delegate",
+          "delegating",
+          "subagent",
+          "watch",
+          "watcher",
+          "worktree",
+          "worktrees",
+          "setup",
+          "script",
+          "scripts",
+          "schedule",
+          "scheduled",
+          "skill",
+          "skills",
+          "review guide"
         ]
       ],
       "kinds": [

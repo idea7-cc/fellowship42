@@ -19,8 +19,10 @@ problems usually outrank rare edge cases. Follow the affected paths far enough
 to support each finding, and distinguish evidence from uncertainty. Do not use
 line counts or prescribed layers as a substitute for this assessment.
 
-For each material finding, give the location, consequence, and a practical
-correction, and say whether it belongs in this change or can follow. Do not
+Number the material findings. For each, give the location, consequence, and a
+practical correction, and say whether it belongs in this change or can follow.
+If a finding repeats one raised before about an earlier fix, say so: the design
+may be producing it. Do not
 report stylistic preferences as defects. If there are no material findings,
 say so and describe any meaningful limits of the review.
 
