@@ -36,6 +36,9 @@ that owns them; put application sequencing at the entry point. Extend the
 existing owner before creating another generic bucket. Extract shared code
 when its meaning and actual reuse are clear.
 
+A new operation used by two interfaces gets one definition and
+implementation, thin callers and focused tests.
+
 A small feature can be one file. Split it when distinct responsibilities make
 navigation easier, not to satisfy a file-size target or a prescribed set of layers.
 

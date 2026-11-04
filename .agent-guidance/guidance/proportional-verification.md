@@ -36,6 +36,8 @@ little.
 - Update a slower tier's tests in the change that breaks them. A suite nobody
   runs per change rots quietly, and the next change to run it pays for the
   debugging.
+- Check what code tests can't reach by its own means: a docs or comment change by
+  its syntax and links, a CI change by which events and jobs will run.
 - While fixing, rerun only what failed; run the full gate once, when the change
   is ready.
 - Before debugging a slow suite's failure, run that test on main. A failure
@@ -51,6 +53,28 @@ little.
   the lead carries on. Its brief names the tests to repair; it doesn't choose
   what proves the lead's change.
 
+## Direct checks
+
+Stage decides what must keep working; it can't tell you what this diff could
+break. A change to a shared runtime path, an interaction between processes or a
+stored format gets one direct run of that path before it merges, at any stage:
+a real session through a rewritten route, one round trip through a changed
+protocol, one read of data written in the new format. That is one narrow run,
+not the slow suite the path belongs to.
+
+A project names the paths where this matters and gives each a command (see
+[What a project declares](#what-a-project-declares)). Without a command, make
+the narrowest run you can and say what it covered; when the same path needs it
+again, propose the command.
+
+## Before merging
+
+Fetch the current target branch. If it moved into the change's dependencies
+since the checks ran, update the branch and rerun the checks the combination
+reaches; a clean merge status says nothing about whether the combined code
+works. Confirm that earlier unresolved findings were fixed or answered: a new
+push doesn't settle them.
+
 ## Breaks you can't take back
 
 Some breaks can't be fixed after the fact by finding and reverting a change:
@@ -58,7 +82,8 @@ lost content, a leaked secret, a bypassed authority check, a message already
 sent. Protect against them in one of two ways:
 
 - Make the effect reversible and check that the undo works: keep the previous
-  copy and test its restore, ship to a channel whose users want the bleeding
+  copy and test its restore (often cheaper than proving every import path is
+  safe when replacing stored data in place), ship to a channel whose users want the bleeding
   edge and can roll back, queue sends so they can be cancelled.
 - Prove before it takes effect that it won't break.
 
@@ -80,9 +105,20 @@ while it reads the batch, then fold its findings into the next change. Hold a
 merge for it only when the change could lose content, leak a secret or bypass an
 authority check.
 
-The reviewer reports; whoever leads the change decides what to fix, and says
-why for any finding it leaves. The lead checks that each fix landed; send it
-back for another review only when the fix is as large as the change. Who fills the seat is a preference
+A review that runs alongside still has an owner: whoever started it. Receive
+its findings before reporting the work done. If the session will end first,
+hand them to someone who will act on them (the owner, an issue, the project's
+evidence notes) and say where they went.
+
+The reviewer reports, numbering its findings so each fix can name the one it
+answers; whoever leads the change decides what to fix, and says why for any
+finding it leaves. The lead checks that each fix landed. A checkpoint gets one
+review and one round of fixes; send it back for a second pass only when a fix
+is as large as the change or a concrete correctness, security, data or
+architecture blocker remains. When the same kind of finding comes back after
+a fix, stop patching and reconsider the design that keeps producing it.
+
+Who fills the seat is a preference
 ([review-seat](../preferences/review-seat.md)). A project that needs a
 different occupant overrides that item with a reason.
 
@@ -105,6 +141,14 @@ so before you start, with your estimate.
 In its own instructions, a project names what differs from these defaults: its
 fast gate, its checkpoints, any release channels, and who may merge. Its CI
 budget goes in its manifest. Without them, an agent uses the defaults above.
+
+Give repeated choices a command rather than leaving them to judgement each
+time: the fast gate, the tests a diff reaches, a direct check for each path
+that needs one, and the setup a fresh worktree needs before an agent starts.
+Put them in the project's own runner and name them in its instructions; where
+the agent's tool has a project script menu or worktree hook, expose them there
+too ([T3 Code](../preferences/t3code.md)). An agent
+that finds a check it keeps assembling by hand proposes the command.
 
 ## Iterate: nobody relies on it yet
 

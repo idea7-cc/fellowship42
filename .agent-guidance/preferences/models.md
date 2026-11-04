@@ -23,8 +23,9 @@ CT, 2026-10-23.
 ## Delegating
 
 Run independent work in parallel; waiting on a step the next one doesn't need
-costs time and tokens. Resume an agent for follow-ups to its own work while its
-cache is warm. Start new work with a fresh agent and a short brief that points
+costs time and tokens. Resume an agent for follow-ups to its own implementation
+or investigation while its cache is warm; an independent review round starts a
+new agent, so it reads the change without the earlier round's conclusions. Start new work with a fresh agent and a short brief that points
 at files, because a long transcript is reread on every turn. Keep large files
 and logs out of the lead's context: delegate the reading and take back the
 conclusion.

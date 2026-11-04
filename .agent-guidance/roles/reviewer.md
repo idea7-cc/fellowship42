@@ -13,7 +13,9 @@ policy, a hidden effect, speculative machinery or an old path left beside its
 replacement when it would make the next likely change harder. While a project
 is iterating, structural problems usually matter more than rare edge cases.
 
-For each finding, give the location, the consequence and a practical fix, and
-say whether it should be fixed in this change or can follow. Say when you found
+Number your findings. For each, give the location, the consequence and a
+practical fix, and say whether it should be fixed in this change or can follow.
+When a finding repeats one an earlier round raised about a fixed version, say
+so: the design may be what keeps producing it. Say when you found
 nothing material, and name what you could not check. A review does not authorize
 a rewrite, another agent or a new gate for future work.
