@@ -198,7 +198,7 @@ async function membersFor(
 ) {
   const byHousehold = new Map<string, HouseholdMember[]>()
   if (householdIds.length === 0) return byHousehold
-  const placeholders = householdIds.map(() => '?').join(', ')
+  // One bound JSON array keeps a full page under D1's bound-parameter limit.
   const result = await db
     .prepare(
       `
@@ -206,12 +206,12 @@ async function membersFor(
              hp.relationship, hp.is_primary
       FROM household_people hp
       JOIN people p ON p.church_id = hp.church_id AND p.id = hp.person_id
-      WHERE hp.church_id = ? AND hp.household_id IN (${placeholders})
+      WHERE hp.church_id = ? AND hp.household_id IN (SELECT value FROM json_each(?))
         AND p.deleted_at IS NULL
       ORDER BY hp.household_id, hp.is_primary DESC, p.sort_name COLLATE NOCASE, p.id
     `,
     )
-    .bind(churchId, ...householdIds)
+    .bind(churchId, JSON.stringify(householdIds))
     .all<MemberRow>()
   for (const row of result.results) {
     const members = byHousehold.get(row.household_id) ?? []
@@ -227,15 +227,15 @@ async function requirePeople(
   personIds: string[],
 ) {
   if (personIds.length === 0) return
-  const placeholders = personIds.map(() => '?').join(', ')
   const result = await db
     .prepare(
       `
       SELECT id FROM people
-      WHERE church_id = ? AND deleted_at IS NULL AND id IN (${placeholders})
+      WHERE church_id = ? AND deleted_at IS NULL
+        AND id IN (SELECT value FROM json_each(?))
     `,
     )
-    .bind(churchId, ...personIds)
+    .bind(churchId, JSON.stringify(personIds))
     .all<{ id: string }>()
   if (result.results.length !== personIds.length) {
     throw new AppError(
