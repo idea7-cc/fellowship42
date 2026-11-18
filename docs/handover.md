@@ -1,8 +1,10 @@
 # Fellowship42 handover
 
-Updated: 2026-09-05.
+Updated: 2026-11-17.
 
-Start with [Current state](current-state.md), [Architecture](architecture.md),
+Run the project first: [README "Run locally"](../README.md#run-locally) takes a
+clean checkout to a signed-in staff workspace with synthetic data. Then read
+[Current state](current-state.md), [Architecture](architecture.md),
 [Repository strategy](repository-strategy.md), and [Maintenance](maintenance.md).
 `AGENTS.md` remains authoritative for invariants; `pnpm verify` owns validation.
 
