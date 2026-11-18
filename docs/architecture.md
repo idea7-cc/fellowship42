@@ -70,7 +70,7 @@ Visitor ──► EmDash website Worker (apps/website, own hostname)
               `-- GET /api/website/v1/* ──► instance Worker (published records)
 ```
 
-The default public website is an EmDash 1.0.1 site, deployed as a second Worker
+The default public website is an EmDash 1.5.0 site, deployed as a second Worker
 inside the same installation. It is a component of the installation, not a
 second instance: it uses the same `instance_metadata` identity, the same
 deployment authority, and the `single-church` topology, and the deployment
