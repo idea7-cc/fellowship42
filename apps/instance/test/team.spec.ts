@@ -474,7 +474,26 @@ describe('team membership management', () => {
 
     // A second owner unlocks every change to the first. This case runs last
     // because the bootstrapped owner loses their membership here.
+    // An invited owner who has not signed in yet does not count: removing
+    // the only usable owner would leave nobody who can issue enrollment links.
     const second = await invite(inviteeEmail, ['owner'])
+    const pending = await asOwner('DELETE', ownerPath, { version: 1 })
+    expect(pending.status).toBe(409)
+    const pendingError = ((await pending.json()) as {
+      error: { code: string; message: string }
+    }).error
+    expect(pendingError.code).toBe('last_owner_required')
+    expect(pendingError.message).toContain('must finish enrolling')
+    expect(
+      (await asOwner('PATCH', ownerPath, { version: 1, roleKeys: ['member'] }))
+        .status,
+    ).toBe(409)
+    expect(await membershipEvidence('membership_demo_owner')).toEqual({
+      audit: [],
+      outbox: [],
+    })
+
+    expect((await requestAs(invitee)('GET', '/api/session')).status).toBe(200)
     const removed = await asOwner('DELETE', ownerPath, { version: 1 })
     expect(removed.status).toBe(204)
 

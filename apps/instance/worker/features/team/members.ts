@@ -15,6 +15,7 @@ import {
   TEAM_PERMISSION,
   findTeamMember,
   findTeamMemberByOperation,
+  hasPendingOwner,
   mapTeamMember,
   otherActiveOwnerGuard,
   readTeam,
@@ -406,6 +407,8 @@ async function rejectFailedChange(
   throw new AppError(
     409,
     'last_owner_required',
-    'At least one active owner must remain. Give someone else the owner role first.',
+    (await hasPendingOwner(db, churchId, membershipId))
+      ? 'At least one owner who can sign in must remain. The invited owner must finish enrolling before you can make this change.'
+      : 'At least one active owner must remain. Give someone else the owner role first.',
   )
 }

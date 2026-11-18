@@ -181,21 +181,43 @@ export async function resolveRoleIds(
   return new Map(unique.map((key) => [key, byKey.get(key)!]))
 }
 
+const otherOwnerMemberships = `
+  SELECT 1 FROM church_memberships other
+  JOIN membership_roles mr ON mr.church_id = other.church_id AND mr.membership_id = other.id
+  JOIN roles r ON r.church_id = mr.church_id AND r.id = mr.role_id
+  JOIN users ou ON ou.id = other.user_id
+  WHERE other.church_id = ? AND other.status = 'active' AND other.id <> ?
+    AND r.key = '${OWNER_ROLE_KEY}'
+`
+// An owner counts only once they can sign in: an invited owner who has not
+// enrolled yet cannot exercise owner authority or issue enrollment links.
+const ownerCanSignIn = `
+  ou.status = 'active'
+  AND EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id = ou.id)
+`
+
 /**
  * SQL fragment that blocks a change which would leave the church without an
- * active owner. Bind `1` as `removesOwner` when the change strips this
- * membership of an active owner role, `0` otherwise, followed by churchId and
- * the membership being changed.
+ * active owner who can sign in. Bind `1` as `removesOwner` when the change
+ * strips this membership of an active owner role, `0` otherwise, followed by
+ * churchId and the membership being changed.
  */
 export const otherActiveOwnerGuard = `
-  (? = 0 OR EXISTS (
-    SELECT 1 FROM church_memberships other
-    JOIN membership_roles mr ON mr.church_id = other.church_id AND mr.membership_id = other.id
-    JOIN roles r ON r.church_id = mr.church_id AND r.id = mr.role_id
-    WHERE other.church_id = ? AND other.status = 'active' AND other.id <> ?
-      AND r.key = '${OWNER_ROLE_KEY}'
-  ))
+  (? = 0 OR EXISTS (${otherOwnerMemberships} AND ${ownerCanSignIn}))
 `
+
+/** Whether another owner is waiting to enroll, to explain a guard rejection. */
+export async function hasPendingOwner(
+  db: D1Database,
+  churchId: string,
+  membershipId: string,
+): Promise<boolean> {
+  const row = await db
+    .prepare(`${otherOwnerMemberships} AND NOT (${ownerCanSignIn}) LIMIT 1`)
+    .bind(churchId, membershipId)
+    .first()
+  return row !== null
+}
 
 /** Audit and outbox rows conditioned on the membership operation winning. */
 export function teamMutationEvidence(
