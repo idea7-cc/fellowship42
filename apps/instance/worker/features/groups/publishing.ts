@@ -340,10 +340,12 @@ groupPublishingRoutes.patch('/:churchId/:groupId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
-    throw new AppError(
-      409,
-      'version_conflict',
-      'The group changed after it was loaded',
+    await rejectFailedGroupUpdate(
+      c.env.DB,
+      churchId,
+      groupId,
+      current.version,
+      next.capacity,
     )
   }
   broadcastContent(c, churchId, 'group', groupId, 'updated')
@@ -351,6 +353,52 @@ groupPublishingRoutes.patch('/:churchId/:groupId', async (c) => {
     group: mapGroup(await findGroup(c.env.DB, churchId, groupId)),
   })
 })
+
+/**
+ * The guarded group UPDATE changed nothing. Tell a capacity below the current
+ * active members apart from a stale version, so staff are not told to refresh
+ * when they need to lower the roster or raise the capacity.
+ */
+async function rejectFailedGroupUpdate(
+  db: D1Database,
+  churchId: string,
+  groupId: string,
+  observedVersion: number,
+  capacity: number | null,
+): Promise<never> {
+  const row = await db
+    .prepare(
+      `
+        SELECT g.version, (
+          SELECT COUNT(*) FROM group_memberships m
+          JOIN people p ON p.church_id = m.church_id AND p.id = m.person_id
+          WHERE m.church_id = g.church_id AND m.group_id = g.id
+            AND m.status = 'active' AND p.deleted_at IS NULL
+        ) AS active_members
+        FROM groups g
+        WHERE g.church_id = ? AND g.id = ? AND g.deleted_at IS NULL
+      `,
+    )
+    .bind(churchId, groupId)
+    .first<{ version: number; active_members: number }>()
+  if (
+    row &&
+    row.version === observedVersion &&
+    capacity !== null &&
+    capacity < row.active_members
+  ) {
+    throw new AppError(
+      409,
+      'capacity_below_active_members',
+      `This group has ${row.active_members} active members. Set the capacity to at least ${row.active_members}, or change some members' status first.`,
+    )
+  }
+  throw new AppError(
+    409,
+    'version_conflict',
+    'The group changed after it was loaded',
+  )
+}
 
 groupPublishingRoutes.delete('/:churchId/:groupId', async (c) => {
   const churchId = c.req.param('churchId')

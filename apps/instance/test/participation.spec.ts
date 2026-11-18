@@ -259,6 +259,32 @@ describe('group rosters', () => {
     expect(roster.activeCount).toBe(1)
   })
 
+  it('explains a capacity below the active members instead of a stale edit', async () => {
+    const groupId = await createGroup('Shrinking Group', 'shrinking-group')
+    for (const name of ['One', 'Two']) {
+      const personId = await createPerson(name, 'Shrinking')
+      await request(
+        'PUT',
+        `/api/groups/church_demo/${groupId}/members/${personId}`,
+        { status: 'active' },
+      )
+    }
+    const shrink = await request('PATCH', `/api/groups/church_demo/${groupId}`, {
+      version: 1,
+      capacity: 1,
+    })
+    expect(shrink.status).toBe(409)
+    expect(
+      (await shrink.json<{ error: { code: string } }>()).error.code,
+    ).toBe('capacity_below_active_members')
+    const stored = await env.DB.prepare(
+      'SELECT capacity, version FROM groups WHERE id = ?',
+    )
+      .bind(groupId)
+      .first<{ capacity: number | null; version: number }>()
+    expect(stored).toEqual({ capacity: null, version: 1 })
+  })
+
   it('rejects a person from outside the church', async () => {
     const groupId = await createGroup('Scoped Group', 'scoped-group')
     const response = await request(
