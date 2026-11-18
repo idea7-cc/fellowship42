@@ -250,10 +250,12 @@ it('records and shows a manual contribution in the church timezone', async () =>
   expect(ui.text()).toContain("In America/New_York, the church's timezone.")
   const form = ui.form()
   await ui.type(ui.field('donorName', form), 'Late Donor')
-  await ui.type(ui.field('amountMinor', form), '2500')
+  await ui.type(ui.field('amount', form), '25.00')
   await ui.type(ui.field('donatedAt', form), '2026-09-20T23:00')
   await ui.submit(form)
   expect(api.requests('POST')[0]!.body).toMatchObject({
+    amountMinor: 2500,
+    currency: 'USD',
     donatedAt: '2026-09-21T03:00:00.000Z',
   })
 })

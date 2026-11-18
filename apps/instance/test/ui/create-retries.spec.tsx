@@ -141,7 +141,7 @@ describe('contributions', () => {
     const form = ui.form()
     async function fill(donorName: string, amount: string) {
       await ui.type(ui.field('donorName', form), donorName)
-      await ui.type(ui.field('amountMinor', form), amount)
+      await ui.type(ui.field('amount', form), amount)
       await ui.type(ui.field('donatedAt', form), '2026-09-20T10:00')
     }
     return { api, server, ui, form, fill }
@@ -150,7 +150,7 @@ describe('contributions', () => {
   it('reports a successful save as success and starts a clean entry', async () => {
     const { api, ui, form, fill } = await renderContributions()
     const listReads = api.requests('GET', '/api/contributions/').length
-    await fill('Ada Donor', '2500')
+    await fill('Ada Donor', '25.00')
     await ui.submit(form)
     expect(ui.alert()).toBeNull()
     expect(ui.status()).toContain('Contribution recorded')
@@ -163,7 +163,7 @@ describe('contributions', () => {
 
   it('retries a lost response with the same key and records one contribution', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Lost Response', '4000')
+    await fill('Lost Response', '40')
     server.loseNextResponse()
     await ui.submit(form)
     expect(ui.alert()).toMatch(/will not be recorded twice/)
@@ -185,7 +185,7 @@ describe('contributions', () => {
         .length
     const shellReads = () => [reads('/api/bootstrap'), reads('/api/session')]
     const before = shellReads()
-    await fill('Offline Gift', '2500')
+    await fill('Offline Gift', '25')
     // The gift commits, its response is lost, and the network stays down.
     server.loseNextResponse(() => api.setOffline(true))
     await ui.submit(form)
@@ -235,9 +235,9 @@ describe('contributions', () => {
 
   it('uses a new key for the next entry after a confirmed save', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Same Gift', '1000')
+    await fill('Same Gift', '10')
     await ui.submit(form)
-    await fill('Same Gift', '1000')
+    await fill('Same Gift', '10')
     await ui.submit(form)
     expect(server.rows).toHaveLength(2)
     expect(server.seenKeys[1]).not.toBe(server.seenKeys[0])
@@ -245,17 +245,17 @@ describe('contributions', () => {
 
   it('explains a changed retry and lets staff start a new entry', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Changed Mind', '1000')
+    await fill('Changed Mind', '10')
     server.loseNextResponse()
     await ui.submit(form)
-    await ui.type(ui.field('amountMinor', form), '1500')
+    await ui.type(ui.field('amount', form), '15')
     await ui.submit(form)
     expect(ui.alert()).toMatch(/different details/)
     expect(server.rows).toHaveLength(1)
     await ui.click(ui.button('Start a new entry'))
     expect(ui.alert()).toBeNull()
     expect(ui.field('donorName', form).value).toBe('')
-    await fill('Changed Mind', '1500')
+    await fill('Changed Mind', '15')
     await ui.submit(form)
     expect(server.rows).toHaveLength(2)
     expect(new Set(server.seenKeys).size).toBe(2)

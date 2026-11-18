@@ -38,17 +38,41 @@ const contributionStatuses = [
   { value: 'failed', label: 'Failed' },
 ]
 
-function formatMoney(amountMinor: number, currency: string) {
+/** Decimal places of a currency's amounts, or undefined for an unknown code. */
+function currencyDigits(currency: string) {
   try {
-    const formatter = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency,
-    })
-    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2
-    return formatter.format(amountMinor / 10 ** digits)
+    return (
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+      }).resolvedOptions().maximumFractionDigits ?? 2
+    )
   } catch {
-    return `${amountMinor} ${currency} minor units`
+    return undefined
   }
+}
+
+function formatMoney(amountMinor: number, currency: string) {
+  const digits = currencyDigits(currency)
+  if (digits === undefined) return `${amountMinor} ${currency}`
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+  }).format(amountMinor / 10 ** digits)
+}
+
+/**
+ * Staff type an amount as written (25.00); the API stores it in the
+ * currency's smallest unit (2500 cents). Undefined when it cannot be stored.
+ */
+function toMinorUnits(amount: string, currency: string) {
+  const digits = currencyDigits(currency)
+  const value = Number(amount)
+  if (digits === undefined || !Number.isFinite(value)) return undefined
+  const minor = Math.round(value * 10 ** digits)
+  return minor >= 1 && Math.abs(minor - value * 10 ** digits) < 1e-6
+    ? minor
+    : undefined
 }
 
 export function ContributionsPage() {
@@ -87,6 +111,21 @@ export function ContributionsPage() {
     // React clears currentTarget once the handler awaits; keep the form.
     const formElement = event.currentTarget
     const form = new FormData(formElement)
+    const currency = String(form.get('currency') ?? 'USD')
+      .trim()
+      .toUpperCase()
+    const amountMinor = toMinorUnits(String(form.get('amount') ?? ''), currency)
+    if (amountMinor === undefined) {
+      setError({
+        message:
+          currencyDigits(currency) === undefined
+            ? 'Enter a three-letter currency code, such as USD.'
+            : `Enter an amount above zero with no more decimal places than ${currency} uses.`,
+        uncertain: false,
+        keyConflict: false,
+      })
+      return
+    }
     setSaving(true)
     setError(null)
     setNotice(null)
@@ -96,8 +135,8 @@ export function ContributionsPage() {
         headers: { 'Idempotency-Key': entryKey.current() },
         body: JSON.stringify({
           donorName: String(form.get('donorName') ?? ''),
-          amountMinor: Number(form.get('amountMinor')),
-          currency: String(form.get('currency') ?? 'USD'),
+          amountMinor,
+          currency,
           fund: String(form.get('fund') ?? ''),
           paymentMethod: String(form.get('paymentMethod') ?? 'cash'),
           recurring: form.get('recurring') === 'on',
@@ -153,7 +192,7 @@ export function ContributionsPage() {
                   <CardTitle>Record an offline contribution</CardTitle>
                   <CardDescription>
                     Use this for cash, checks, or another manually reconciled
-                    payment. Amounts are stored as integer minor units.
+                    payment.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -164,12 +203,11 @@ export function ContributionsPage() {
                         <Input name="donorName" required maxLength={200} />
                       </label>
                       <label className="grid gap-1 text-sm font-semibold">
-                        Amount in minor units
+                        Amount
                         <Input
-                          name="amountMinor"
-                          type="number"
-                          min={1}
-                          step={1}
+                          inputMode="decimal"
+                          name="amount"
+                          placeholder="25.00"
                           required
                         />
                       </label>
