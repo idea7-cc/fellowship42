@@ -171,9 +171,12 @@ for (const [groupIndex, group] of groups.entries()) {
   add(
     `INSERT OR IGNORE INTO groups (id, church_id, ministry_id, slug, title, status,
        group_type, audience, schedule, location, enrollment_policy, capacity,
-       featured, summary, created_at, updated_at)
+       featured, summary, roster_sequence, created_at, updated_at)
      VALUES (?, ?, NULL, ?, ?, 'published', 'small-group', 'Adults', 'Sundays at 5:00 PM',
-       'Sample Hall', 'open', ?, 0, 'A synthetic group with a large roster.', ?, ?)`,
+       'Sample Hall', 'open', ?, 0, 'A synthetic group with a large roster.',
+       -- Memberships below start at version 1, which the roster sequence
+       -- must not trail (see nextRosterVersion in features/groups/shared.ts).
+       1, ?, ?)`,
     id,
     CHURCH,
     group.slug,
