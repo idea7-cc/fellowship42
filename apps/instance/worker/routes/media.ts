@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import {
   broadcastContent,
+  escapeLike,
   jsonBody,
   mutationEvidence,
   validationError,
@@ -86,6 +87,8 @@ const mediaUpdateInput = z
   })
 const listInput = z.object({
   visibility: z.enum(['public', 'private']).optional(),
+  mediaType: z.enum(['image', 'audio', 'video', 'document']).optional(),
+  query: z.string().trim().max(100).optional(),
   cursor: z.string().trim().min(1).max(128).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
@@ -341,6 +344,17 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
   if (parsed.data.visibility) {
     conditions.push('visibility = ?')
     bindings.push(parsed.data.visibility)
+  }
+  if (parsed.data.mediaType) {
+    conditions.push('media_type = ?')
+    bindings.push(parsed.data.mediaType)
+  }
+  if (parsed.data.query) {
+    const pattern = `%${escapeLike(parsed.data.query)}%`
+    conditions.push(
+      `(alt_text LIKE ? ESCAPE '\\' COLLATE NOCASE OR content_type LIKE ? ESCAPE '\\' COLLATE NOCASE)`,
+    )
+    bindings.push(pattern, pattern)
   }
   if (parsed.data.cursor) {
     const cursor = await c.env.DB.prepare(

@@ -1,4 +1,7 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
+import type { CursorPage } from '../../contracts/api'
+import { escapeLike, validationError } from '../lib/content'
 import { AppError } from '../lib/errors'
 import {
   requireChurchMembership,
@@ -61,6 +64,102 @@ async function serviceTimes(db: D1Database, churchId: string) {
     .bind(churchId)
     .all<ServiceTimeRow>()
   return result.results
+}
+
+const publishedListInput = z.object({
+  query: z.string().trim().max(100).optional(),
+  cursor: z.string().trim().min(1).max(128).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(200),
+})
+
+// Keyset order for each published list; the cursor is the last row's id.
+const publishedOrders = {
+  title: {
+    orderBy: 'title COLLATE NOCASE, id',
+    after:
+      '(title COLLATE NOCASE > ? COLLATE NOCASE OR (title = ? COLLATE NOCASE AND id > ?))',
+    key: 'title',
+  },
+  starts_at: {
+    orderBy: 'starts_at, id',
+    after: '(starts_at > ? OR (starts_at = ? AND id > ?))',
+    key: 'starts_at',
+  },
+  preached_at: {
+    orderBy: 'preached_at DESC, id',
+    after: '(preached_at < ? OR (preached_at = ? AND id > ?))',
+    key: 'preached_at',
+  },
+} as const
+
+/**
+ * One page of a church's published records, searched on the server. Readers
+ * without the write permission use these lists, so they page like the staff
+ * lists rather than stopping at a fixed number of rows.
+ */
+async function publishedPage<Row extends { id: string }>(
+  c: Parameters<typeof requirePermission>[0],
+  churchId: string,
+  spec: {
+    table: 'groups' | 'courses' | 'events' | 'sermons'
+    columns: string
+    search: string[]
+    order: keyof typeof publishedOrders
+    upcomingOnly?: boolean
+  },
+): Promise<{ rows: Row[]; page: CursorPage }> {
+  const parsed = publishedListInput.safeParse(c.req.query())
+  if (!parsed.success) throw validationError(parsed.error)
+  const order = publishedOrders[spec.order]
+  const conditions = [
+    'church_id = ?',
+    "status = 'published'",
+    'deleted_at IS NULL',
+  ]
+  const bindings: unknown[] = [churchId]
+  if (spec.upcomingOnly) {
+    conditions.push('starts_at >= ?')
+    bindings.push(Date.now())
+  }
+  const visible = conditions.join(' AND ')
+  const visibleBindings = [...bindings]
+  if (parsed.data.query) {
+    const pattern = `%${escapeLike(parsed.data.query)}%`
+    conditions.push(
+      `(${spec.search.map((column) => `${column} LIKE ? ESCAPE '\\' COLLATE NOCASE`).join(' OR ')})`,
+    )
+    bindings.push(...spec.search.map(() => pattern))
+  }
+  if (parsed.data.cursor) {
+    const cursor = await c.env.DB.prepare(
+      `SELECT ${order.key} AS key, id FROM ${spec.table} WHERE ${visible} AND id = ?`,
+    )
+      .bind(...visibleBindings, parsed.data.cursor)
+      .first<{ key: string | number; id: string }>()
+    if (!cursor)
+      throw new AppError(422, 'invalid_cursor', 'The list cursor is invalid')
+    conditions.push(order.after)
+    bindings.push(cursor.key, cursor.key, cursor.id)
+  }
+  const result = await c.env.DB.prepare(
+    `SELECT ${spec.columns} FROM ${spec.table}
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY ${order.orderBy}
+      LIMIT ?`,
+  )
+    .bind(...bindings, parsed.data.limit + 1)
+    .all<Row>()
+  const hasMore = result.results.length > parsed.data.limit
+  const rows = hasMore
+    ? result.results.slice(0, parsed.data.limit)
+    : result.results
+  return {
+    rows,
+    page: {
+      limit: parsed.data.limit,
+      nextCursor: hasMore ? rows.at(-1)!.id : null,
+    },
+  }
 }
 
 churchRoutes.get('/', async (c) => {
@@ -133,39 +232,28 @@ churchRoutes.get('/:identifier/ministries', async (c) => {
 
 churchRoutes.get('/:identifier/groups', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB.prepare(
-    `
-      SELECT id, church_id, ministry_id, slug, title, status, group_type, audience,
-             schedule, location, enrollment_policy, capacity, featured, summary, version
-      FROM groups
-      WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL
-      ORDER BY featured DESC, title
-      LIMIT 200
-    `,
-  )
-    .bind(church.id)
-    .all<GroupRow>()
-  return c.json({ groups: result.results.map(mapGroup) })
+  const { rows, page } = await publishedPage<GroupRow>(c, church.id, {
+    table: 'groups',
+    columns: `id, church_id, ministry_id, slug, title, status, group_type, audience,
+      schedule, location, enrollment_policy, capacity, featured, summary, version`,
+    search: ['title', 'summary', 'group_type', 'audience', 'location'],
+    order: 'title',
+  })
+  return c.json({ groups: rows.map(mapGroup), page })
 })
 
 churchRoutes.get('/:identifier/courses', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB.prepare(
-    `
-      SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
-             c.course_type, c.delivery_mode, c.audience, c.duration, c.featured,
-             c.certificate_offered, c.summary, c.version, COUNT(l.id) AS lesson_count
-      FROM courses c
-      LEFT JOIN lessons l ON l.course_id = c.id
-      WHERE c.church_id = ? AND c.status = 'published' AND c.deleted_at IS NULL
-      GROUP BY c.id
-      ORDER BY c.featured DESC, c.title
-      LIMIT 200
-    `,
-  )
-    .bind(church.id)
-    .all<CourseRow>()
-  return c.json({ courses: result.results.map(mapCourse) })
+  const { rows, page } = await publishedPage<CourseRow>(c, church.id, {
+    table: 'courses',
+    columns: `id, church_id, ministry_id, slug, title, status, course_type,
+      delivery_mode, audience, duration, featured, certificate_offered, summary,
+      version, (SELECT COUNT(*) FROM lessons l
+        WHERE l.church_id = courses.church_id AND l.course_id = courses.id) AS lesson_count`,
+    search: ['title', 'summary', 'course_type', 'audience'],
+    order: 'title',
+  })
+  return c.json({ courses: rows.map(mapCourse), page })
 })
 
 churchRoutes.get('/:identifier/courses/:slug', async (c) => {
@@ -215,36 +303,27 @@ churchRoutes.get('/:identifier/courses/:slug', async (c) => {
 
 churchRoutes.get('/:identifier/events', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB.prepare(
-    `
-      SELECT id, church_id, slug, title, status, summary, starts_at, ends_at,
-             timezone, location, registration_url, capacity, featured, version
-      FROM events
-      WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL AND starts_at >= ?
-      ORDER BY starts_at
-      LIMIT 200
-    `,
-  )
-    .bind(church.id, Date.now())
-    .all<EventRow>()
-  return c.json({ events: result.results.map(mapEvent) })
+  const { rows, page } = await publishedPage<EventRow>(c, church.id, {
+    table: 'events',
+    columns: `id, church_id, slug, title, status, summary, starts_at, ends_at,
+      timezone, location, registration_url, capacity, featured, version`,
+    search: ['title', 'summary', 'location'],
+    order: 'starts_at',
+    upcomingOnly: true,
+  })
+  return c.json({ events: rows.map(mapEvent), page })
 })
 
 churchRoutes.get('/:identifier/sermons', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const result = await c.env.DB.prepare(
-    `
-      SELECT id, church_id, slug, title, status, speaker, series, summary,
-             video_url, audio_media_id, preached_at, featured, version
-      FROM sermons
-      WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL
-      ORDER BY preached_at DESC
-      LIMIT 200
-    `,
-  )
-    .bind(church.id)
-    .all<SermonRow>()
-  return c.json({ sermons: result.results.map(mapSermon) })
+  const { rows, page } = await publishedPage<SermonRow>(c, church.id, {
+    table: 'sermons',
+    columns: `id, church_id, slug, title, status, speaker, series, summary,
+      video_url, audio_media_id, preached_at, featured, version`,
+    search: ['title', 'speaker', 'series', 'summary'],
+    order: 'preached_at',
+  })
+  return c.json({ sermons: rows.map(mapSermon), page })
 })
 
 churchRoutes.get('/:identifier/live', async (c) => {

@@ -627,4 +627,86 @@ describe('ministry and publishing workflows', () => {
       Date.UTC(2026, 9, 11, 12),
     )
   })
+
+  it('filters media on the server before paging', async () => {
+    const marker = `filter-${crypto.randomUUID()}`
+    const bytes = () => new TextEncoder().encode(crypto.randomUUID())
+    const first = await uploadMedia(
+      bytes(),
+      'audio/mpeg',
+      'public',
+      `${marker} one`,
+    )
+    await uploadMedia(bytes(), 'audio/mpeg', 'private', `${marker} private`)
+    await uploadMedia(bytes(), 'image/png', 'public', `${marker} image`)
+    const second = await uploadMedia(
+      bytes(),
+      'audio/mpeg',
+      'public',
+      `${marker} two`,
+    )
+
+    const ids: string[] = []
+    let cursor: string | null = null
+    do {
+      const params = new URLSearchParams({
+        visibility: 'public',
+        mediaType: 'audio',
+        query: marker,
+        limit: '1',
+      })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/media/church_demo?${params}`,
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json<{
+        media: MediaRecord[]
+        page: { nextCursor: string | null }
+      }>()
+      expect(body.media).toHaveLength(1)
+      ids.push(body.media[0].id)
+      cursor = body.page.nextCursor
+    } while (cursor)
+    expect(ids.sort()).toEqual([first.id, second.id].sort())
+  })
+
+  it('pages and searches published lists on the server for readers', async () => {
+    const marker = `reader${crypto.randomUUID().slice(0, 8)}`
+    for (const [index, status] of [
+      'published',
+      'published',
+      'published',
+      'draft',
+    ].entries()) {
+      const response = await jsonRequest('POST', '/api/groups/church_demo', {
+        slug: `${marker}-${index}`,
+        title: `${marker} group ${index}`,
+        groupType: 'small-group',
+        status,
+      })
+      expect(response.status).toBe(201)
+    }
+    const titles: string[] = []
+    let cursor: string | null = null
+    do {
+      const params = new URLSearchParams({ query: marker, limit: '2' })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/churches/church_demo/groups?${params}`,
+        undefined,
+        true,
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json<{
+        groups: Group[]
+        page: { nextCursor: string | null }
+      }>()
+      titles.push(...body.groups.map(({ title }) => title))
+      cursor = body.page.nextCursor
+    } while (cursor)
+    expect(titles).toEqual([0, 1, 2].map((index) => `${marker} group ${index}`))
+  })
 })
