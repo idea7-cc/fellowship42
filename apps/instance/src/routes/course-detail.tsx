@@ -207,7 +207,7 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'courses.write')
-  const editor = useRecordEditor<Lesson>()
+  const editor = useRecordEditor<Lesson>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId

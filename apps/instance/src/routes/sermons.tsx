@@ -271,7 +271,7 @@ export function SermonsPage() {
   const canWrite = can(permissions, 'sermons.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Sermon>()
+  const editor = useRecordEditor<Sermon>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId

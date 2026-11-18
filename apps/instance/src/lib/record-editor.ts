@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from './api'
 
 export interface EditorSession<T> {
@@ -23,8 +23,14 @@ export interface EditorSession<T> {
  *
  * Completions must use `closeIf(session.key)`: a save for a record the user
  * has since left must not close the editor they are now using.
+ *
+ * Pass whether the current user may still edit (`allowed`). When that
+ * permission is removed, an open editor closes instead of offering a save
+ * the server will refuse, and it stays closed if the permission returns.
  */
-export function useRecordEditor<T extends { id: string; version: number }>() {
+export function useRecordEditor<T extends { id: string; version: number }>(
+  allowed: boolean,
+) {
   const [session, setSession] = useState<
     (EditorSession<T> & { identity: string }) | null
   >(null)
@@ -42,13 +48,16 @@ export function useRecordEditor<T extends { id: string; version: number }>() {
     )
   }, [])
   const close = useCallback(() => setSession(null), [])
+  useEffect(() => {
+    if (!allowed) setSession(null)
+  }, [allowed])
   const closeIf = useCallback(
     (key: string) =>
       setSession((current) => (current?.key === key ? null : current)),
     [],
   )
 
-  return { session, open, close, closeIf }
+  return { session: allowed ? session : null, open, close, closeIf }
 }
 
 /**

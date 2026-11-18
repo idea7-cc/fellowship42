@@ -265,7 +265,7 @@ export function GroupsPage() {
   const canWrite = can(permissions, 'groups.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Group>()
+  const editor = useRecordEditor<Group>(canWrite)
   const editorSession = editor.session
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
   const [sessionsGroup, setSessionsGroup] = useState<Group | null>(null)
@@ -278,6 +278,13 @@ export function GroupsPage() {
     : sessionsGroup
       ? `sessions:${sessionsGroup.id}`
       : null
+  // A removed permission closes the panels rather than leaving their actions
+  // on screen.
+  useEffect(() => {
+    if (canWrite) return
+    setRosterGroup(null)
+    setSessionsGroup(null)
+  }, [canWrite])
   useEffect(() => {
     if (!openPanel) return
     panel.current?.focus({ preventScroll: true })
@@ -349,7 +356,7 @@ export function GroupsPage() {
           />
         ) : null}
         <div className="scroll-mt-20 outline-none" ref={panel} tabIndex={-1}>
-          {rosterGroup && churchId ? (
+          {canWrite && rosterGroup && churchId ? (
             <GroupRosterPanel
               key={rosterGroup.id}
               churchId={churchId}
@@ -357,7 +364,7 @@ export function GroupsPage() {
               onClose={() => setRosterGroup(null)}
             />
           ) : null}
-          {sessionsGroup && churchId ? (
+          {canWrite && sessionsGroup && churchId ? (
             <GroupSessionsPanel
               key={sessionsGroup.id}
               churchId={churchId}

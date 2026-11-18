@@ -328,7 +328,7 @@ export function EventsPage() {
   const canWrite = can(permissions, 'events.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<EventRecord>()
+  const editor = useRecordEditor<EventRecord>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId

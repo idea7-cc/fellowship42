@@ -253,7 +253,7 @@ export function CoursesPage() {
   const canWrite = can(permissions, 'courses.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Course>()
+  const editor = useRecordEditor<Course>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId

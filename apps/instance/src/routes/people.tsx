@@ -529,17 +529,6 @@ export function PeoplePage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const personEditor = useRecordEditor<PersonDetail>()
-  const personSession = personEditor.session
-  const householdEditor = useRecordEditor<Household>()
-  const householdSession = householdEditor.session
-  // Person details load before their editor opens; only the newest choice wins.
-  const personLoad = useRequestGuard()
-  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
-    null,
-  )
-  const [mutationError, setMutationError] = useState<string | null>(null)
-
   const membership = user?.memberships.find(
     (entry) => entry.churchId === churchId,
   )
@@ -547,6 +536,16 @@ export function PeoplePage() {
   const canWritePeople = can(permissions, 'people.write')
   const canReadHouseholds = can(permissions, 'households.read')
   const canWriteHouseholds = can(permissions, 'households.write')
+  const personEditor = useRecordEditor<PersonDetail>(canWritePeople)
+  const personSession = personEditor.session
+  const householdEditor = useRecordEditor<Household>(canWriteHouseholds)
+  const householdSession = householdEditor.session
+  // Person details load before their editor opens; only the newest choice wins.
+  const personLoad = useRequestGuard()
+  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
+    null,
+  )
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
   const churchQuery = useApiQuery<{ church: Church }>(
     churchId ? `/api/churches/${encodeURIComponent(churchId)}` : null,
