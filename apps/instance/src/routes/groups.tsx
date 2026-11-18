@@ -370,6 +370,8 @@ export function GroupsPage() {
               churchId={churchId}
               group={sessionsGroup}
               timeZone={churchQuery.data?.church.timezone}
+              timeZoneError={churchQuery.error}
+              onRetryTimeZone={() => void churchQuery.refetch()}
               onClose={() => setSessionsGroup(null)}
             />
           ) : null}

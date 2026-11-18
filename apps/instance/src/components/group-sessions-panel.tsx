@@ -69,12 +69,17 @@ export function GroupSessionsPanel({
   churchId,
   group,
   timeZone,
+  timeZoneError = null,
+  onRetryTimeZone = () => {},
   onClose,
 }: {
   churchId: string
   group: Group
   /** The church's IANA timezone; undefined until the church loads. */
   timeZone: string | undefined
+  /** Why the church (and so its timezone) could not be loaded. */
+  timeZoneError?: Error | null
+  onRetryTimeZone?: () => void
   onClose: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -292,7 +297,6 @@ export function GroupSessionsPanel({
                 defaultValue={
                   timeZone ? toZonedInputValue(Date.now(), timeZone) : ''
                 }
-                key={timeZone ?? 'zone-loading'}
                 name="startsAt"
                 required
                 type="datetime-local"
@@ -305,8 +309,13 @@ export function GroupSessionsPanel({
           <p className="text-xs text-muted-foreground">
             {timeZone
               ? `Times are in ${timeZone}, the church's timezone, whatever timezone this device uses.`
-              : "Loading the church's timezone…"}
+              : timeZoneError
+                ? "The church's timezone could not be loaded, so this meeting cannot be saved yet."
+                : "Loading the church's timezone…"}
           </p>
+          {!timeZone && timeZoneError ? (
+            <RequestError error={timeZoneError} onRetry={onRetryTimeZone} />
+          ) : null}
           <Field hint="Defaults to the group's usual location" label="Location">
             <Input defaultValue={group.location ?? ''} name="location" />
           </Field>

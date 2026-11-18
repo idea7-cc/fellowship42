@@ -294,3 +294,48 @@ it('enters and shows group meeting times in the church timezone', async () => {
     startsAt: Date.UTC(2026, 8, 28, 0),
   })
 })
+
+it('explains a failed church read on the contribution form and keeps the draft', async () => {
+  let churchFails = true
+  const api = stubApi((call) => {
+    if (call.method === 'POST')
+      return Response.json(
+        { contribution: {}, replayed: false },
+        { status: 201 },
+      )
+    if (call.path === '/api/churches/church')
+      return churchFails
+        ? Response.json(
+            { error: { code: 'unavailable', message: 'Church unavailable' } },
+            { status: 503 },
+          )
+        : Response.json({
+            church: { ...church.church, timezone: 'America/New_York' },
+          })
+    return Response.json({
+      contributions: [],
+      page: { limit: 25, nextCursor: null },
+    })
+  })
+  ui = await mountStaff(<ContributionsPage />)
+  const form = ui.form()
+  await ui.type(ui.field('donorName', form), 'Patient Donor')
+  await ui.type(ui.field('amount', form), '40')
+  await ui.type(ui.field('donatedAt', form), '2026-09-20T09:30')
+  expect(ui.alert()).toContain('Church unavailable')
+  expect(ui.text()).toContain('timezone could not be loaded')
+  expect(ui.text()).not.toContain('Loading the church')
+  const record = () => ui!.button('Record contribution')
+  expect(record().disabled).toBe(true)
+
+  churchFails = false
+  await ui.click(ui.button('Try again'))
+  expect(ui.alert()).toBeNull()
+  expect(ui.field('donorName', ui.form()).value).toBe('Patient Donor')
+  expect(record().disabled).toBe(false)
+  await ui.submit(ui.form())
+  expect(api.requests('POST')[0]!.body).toMatchObject({
+    amountMinor: 4000,
+    donatedAt: '2026-09-20T13:30:00.000Z',
+  })
+})

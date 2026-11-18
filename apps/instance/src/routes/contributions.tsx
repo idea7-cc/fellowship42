@@ -215,10 +215,19 @@ export function ContributionsPage() {
                         >
                           {timeZone
                             ? `In ${timeZone}, the church's timezone.`
-                            : "Loading the church's timezone…"}
+                            : churchQuery.error
+                              ? "The church's timezone could not be loaded, so the time cannot be recorded yet."
+                              : "Loading the church's timezone…"}
                         </span>
                       </label>
                     </div>
+                    {!timeZone && churchQuery.error ? (
+                      // The draft stays as typed while the read is retried.
+                      <RequestError
+                        error={churchQuery.error}
+                        onRetry={() => void churchQuery.refetch()}
+                      />
+                    ) : null}
                     <label className="flex items-center gap-2 text-sm font-semibold">
                       <input name="recurring" type="checkbox" />
                       Recurring contribution
