@@ -342,23 +342,21 @@ middleware was added would still be served.
 
 ## Local evaluation
 
-Synthetic data only; no production credentials. With the toolchain in
-[AGENTS.md](../AGENTS.md):
+Synthetic data only; no production credentials. With the toolchain in the
+[README](../README.md#run-locally):
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 cp apps/instance/.dev.vars.example apps/instance/.dev.vars
 cp apps/website/.dev.vars.example apps/website/.dev.vars
+# In apps/instance/.dev.vars, uncomment WEBSITE_ORIGIN and WEBSITE_SETUP_SECRET.
 # Use the same WEBSITE_SETUP_SECRET (32+ characters) in both files.
 # Start fresh: the instance's state and the website's EmDash state together.
 rm -rf apps/instance/.wrangler/state apps/website/.wrangler/state
 pnpm db:migrate && pnpm db:seed
-(cd apps/instance && node scripts/recover-owner.mjs --config wrangler.jsonc \
-  --database fellowship42 --origin http://localhost:5173 \
-  --email owner@example.test --output /tmp/owner-link.txt --local \
-  --confirm-reset-owner)
-pnpm dev            # instance: http://localhost:5173
-pnpm dev:website    # website:  http://www.localhost:4322
+pnpm dev            # instance: http://localhost:5173 (leave running)
+pnpm dev:website    # website:  http://www.localhost:4322 (second terminal)
+pnpm dev:owner-link # third terminal: prints the owner's one-time sign-in link
 ```
 
 Reset both states together. EmDash closes setup once its first administrator
@@ -368,8 +366,10 @@ exists, so if `apps/website/.wrangler/state` survives from an earlier run,
 The website uses `www.localhost` so that, as in production, the two apps have
 different hostnames and therefore separate passkeys. On a shared `localhost`
 both passkeys would be offered, and choosing the wrong one fails sign-in.
-Open the link in `/tmp/owner-link.txt`, create a passkey, and follow the owner
-journey above. The website reaches the local instance because
+Open the link `pnpm dev:owner-link` printed within ten minutes, create a
+passkey, and follow the owner journey above. With both servers running,
+`node scripts/acceptance/local-dev-journey.mjs` drives these browser steps.
+The website reaches the local instance because
 `apps/website/.dev.vars` pins `FELLOWSHIP42_URL=http://localhost:5173`, which
 is trusted as given, and the trusted plugin uses the runtime's `fetch`.
 Publish, edit, withdraw, and delete events or sermons in `/app`, and reload
@@ -382,6 +382,11 @@ production builds on isolated synthetic state:
 pnpm acceptance:fellowship42-first   # Chromium with virtual passkeys
 pnpm acceptance:emdash-first         # a separate EmDash site from packed tarballs
 ```
+
+Both drive Chromium at `/usr/bin/chromium` unless `CHROMIUM_PATH` names
+another Chromium or Chrome executable, and stop at once if it is missing. The
+EmDash-first journey needs network access to install the independent site's
+dependencies.
 
 The first writes `evidence.json` and screenshots to
 `/tmp/f42-acceptance/fellowship42-first`; the second writes

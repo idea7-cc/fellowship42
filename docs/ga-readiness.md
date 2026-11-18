@@ -15,7 +15,7 @@ repository does not establish the private hosted service's implementation state.
 
 The [product plan](fellowship42-product-plan.md) owns scope and sequencing. The
 [current-state record](current-state.md) and
-[website build handoff](emdash-build-handoff.md) describe the software and the
+[website review evidence](emdash-build-handoff.md) describe the software and the
 limits of existing evidence.
 
 | Gate | Evidence needed to call it ready |
@@ -28,9 +28,9 @@ limits of existing evidence.
 | GA / partner certification | The hosted GA evidence below and an independent partner pilot, with any offered add-on meeting its own gate |
 
 The pre-alpha policy in `AGENTS.md` remains authoritative until the working
-alpha is explicitly declared, regardless of "early alpha" language in the
-README. Keep schema version 1 and synthetic lifecycle fixtures; live upgrade,
-restore, and exit evidence belongs to the later gates, not pre-alpha changes.
+alpha is explicitly declared. Keep schema version 1 and synthetic lifecycle
+fixtures; live upgrade, restore, and exit evidence belongs to the later gates,
+not pre-alpha changes.
 Do not infer eligible upgrade sources from historical tags.
 
 STEP Bible and phone work do not block a staff-only alpha or beta. A native

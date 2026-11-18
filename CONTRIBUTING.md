@@ -14,14 +14,10 @@ private Fellowship42 Cloud control plane.
 
 ## Development setup
 
-Use Node.js 22 and the pnpm version declared in `package.json`.
-
-```bash
-pnpm install
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
-```
+Follow [Run locally](README.md#run-locally) in the README. It names the Node.js
+and pnpm versions and takes a clean checkout to a signed-in staff workspace
+with synthetic data. [The handover](docs/handover.md) says where a change
+starts.
 
 Before opening a change, run:
 

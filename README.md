@@ -2,10 +2,11 @@
 
 Open-source church software built around church ownership and portability.
 
-> **Early alpha — for development and evaluation with synthetic data.**
-> Fellowship42 has working application features and automated tests, but known
-> defects and incomplete workflows remain. It is not ready for production
-> church records, live donations, or reliance as a church's system of record.
+> **Pre-alpha — for evaluation with synthetic data only.** The working source
+> is being prepared for a [working alpha](docs/fellowship42-product-plan.md#readiness-stages),
+> which has not been declared. It has working features and automated tests, but
+> known defects and incomplete workflows remain. It is not ready for real
+> church records, live donations, or use as a church's system of record.
 
 Fellowship42 brings people, households, groups, attendance, courses, events,
 sermons, and contribution records into one church application. The project is
@@ -82,53 +83,81 @@ contain changes that are not in a published release. See
 Administrators can connect an external agent to read church information and
 save private church profile drafts (not EmDash website pages). The church
 grants and revokes access locally; publishing stays in the app. This
-early-alpha surface needs operator setup and a client supporting MCP
+pre-alpha surface needs operator setup and a client supporting MCP
 2026-07-28. See [agent connections](docs/agent-connections.md).
 
 ## Run locally
 
-Use the Node.js version in `.node-version` and the pnpm version declared in
-`package.json` (Node 26.9.0 and pnpm 12.4.2). TypeScript stays on 6.0
-until the Astro checker and ESLint integration support 7; Vitest stays on 4.1
-until Cloudflare's Worker test pool supports 5. Run `pnpm verify` for the same
-gate used by CI; `pnpm lint` and `pnpm format:check` provide focused feedback.
+You need Node.js 26 (26.9.0 or later, per `.node-version` and `engines`) and
+pnpm 12.4.2 (`packageManager` in `package.json`). From a clean checkout:
+
+1. Install dependencies and turn on local passkey sign-in. The example
+   configuration sets `SIGN_IN_ORIGIN=http://localhost:5173` and nothing else.
+
+   ```bash
+   pnpm install --frozen-lockfile
+   cp apps/instance/.dev.vars.example apps/instance/.dev.vars
+   ```
+
+2. Create the local database and load the synthetic demo church.
+
+   ```bash
+   pnpm db:migrate
+   pnpm db:seed
+   ```
+
+3. Start the instance at `http://localhost:5173` and leave it running.
+
+   ```bash
+   pnpm dev
+   ```
+
+4. In a second terminal, create a sign-in link for the seeded owner,
+   `owner@example.test`.
+
+   ```bash
+   pnpm dev:owner-link
+   ```
+
+   It prints a one-time link, also saved under
+   `apps/instance/.wrangler/owner-links/`, that expires in ten minutes. Each
+   run revokes the owner's existing passkeys and sessions, so run it again
+   whenever you need to sign in afresh.
+
+5. Open the link, choose **Create passkey**, and you are signed in to the staff
+   workspace at `http://localhost:5173/app` as the demo church's owner.
+
+To start again from nothing, stop `pnpm dev`, run
+`rm -rf apps/instance/.wrangler/state`, and repeat from step 2. Seed data is
+local demo data only and is not a sign-in bypass. For an empty instance or a
+deployed one, use first owner setup in [staff sign-in](docs/staff-sign-in.md)
+and the [deployment runbook](docs/deployment.md).
+
+Optional: the church's EmDash website. Copy `apps/website/.dev.vars.example`
+to `apps/website/.dev.vars`, uncomment `WEBSITE_ORIGIN` and
+`WEBSITE_SETUP_SECRET` in `apps/instance/.dev.vars`, give both files the same
+`WEBSITE_SETUP_SECRET`, restart `pnpm dev`, and run `pnpm dev:website`. Open it
+at `http://www.localhost:4322`, not `http://localhost:4322`: website setup and
+passkeys are bound to that origin, which keeps them apart from the instance's.
+[EmDash church websites](docs/emdash-church-websites.md#local-evaluation)
+describes the full local evaluation. `pnpm dev:site` starts the separate public
+project site.
+
+The acceptance journeys run both website setup paths against production builds
+on isolated synthetic state. They drive Chromium at `/usr/bin/chromium`; set
+`CHROMIUM_PATH` to use another Chromium or Chrome executable.
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm db:migrate
-pnpm db:seed
-pnpm dev
+pnpm acceptance:fellowship42-first
+pnpm acceptance:emdash-first
 ```
-
-The instance runs at `http://localhost:5173` (staff workspace at `/app`).
-To run the EmDash church website, copy `apps/website/.dev.vars.example` to
-`apps/website/.dev.vars` and `apps/instance/.dev.vars.example` to
-`apps/instance/.dev.vars`, give both the same `WEBSITE_SETUP_SECRET`, and start
-it with `pnpm dev:website`. Open it at `http://www.localhost:4322`, the origin
-the example configuration sets: website setup and passkeys are bound to it,
-which keeps them apart from the instance's, and fail at
-`http://localhost:4322`. Start the separate public project site with
-`pnpm dev:site`.
-[EmDash church websites](docs/emdash-church-websites.md#local-evaluation)
-describes the full local evaluation journey.
-`pnpm acceptance:fellowship42-first` and `pnpm acceptance:emdash-first` run
-both setup paths against production builds on isolated synthetic state.
-
-Public routes work without authentication. Protected workflows require a local
-staff session or valid Cloudflare Access JWT; seed data is not a sign-in bypass. Use
-`apps/instance/.dev.vars.example` as the configuration reference when testing
-the configured sign-in adapter.
-
-`seed.sql` contains local demo data only. For a fresh deployed installation,
-follow the passkey first-owner setup in [staff sign-in](docs/staff-sign-in.md) and the
-[deployment runbook](docs/deployment.md).
 
 ## Deployment and portability
 
 Deployment currently requires a technically capable operator and a Cloudflare
 account with dedicated resources for each church. The committed Wrangler
 configuration contains placeholders; it is not ready to deploy unchanged.
-Use disposable environments and synthetic data while evaluating this alpha.
+Use disposable environments and synthetic data while evaluating it.
 
 Start with the [deployment runbook](docs/deployment.md). To inspect the example
 manifest and its offline configuration evidence:
@@ -169,20 +198,13 @@ website together with the instance, as one installation.
 
 Contributions and reproducible bug reports are welcome. Read
 [AGENTS.md](AGENTS.md) and [CONTRIBUTING.md](CONTRIBUTING.md) before changing
-code. Use synthetic data in issues and examples, and include the exact release
-or commit you tested.
+code; [the handover](docs/handover.md) says where a change starts. Use
+synthetic data in issues and examples, and include the exact release or commit
+you tested.
 
-Run the repository checks before submitting a change:
-
-```bash
-pnpm check:architecture
-pnpm typecheck
-pnpm test
-pnpm test:migration-rehearsal
-pnpm build
-pnpm deploy:dry-run
-pnpm deploy:site:dry-run
-```
+Run `pnpm verify` before submitting a change; CI runs the same gate on every
+pull request. For quicker feedback, `pnpm lint`, `pnpm format:check`,
+`pnpm typecheck` and `pnpm test` each run one part of it.
 
 Community support is best effort; there is no response, uptime, or recovery
 SLA. See [SUPPORT.md](SUPPORT.md). Report suspected vulnerabilities privately
@@ -195,8 +217,6 @@ Additional documentation:
 - [Church setup and website publishing](docs/church-setup-and-publishing.md)
 - [EmDash church websites](docs/emdash-church-websites.md) and the
   [public website contract](docs/website-contract.md)
-- [EmDash church website build plan](docs/emdash-website-plan.md) and
-  [build handoff](docs/emdash-build-handoff.md)
 - [People and household workflows](docs/directory-workflows.md)
 - [Ministry and publishing workflows](docs/ministry-publishing-workflows.md)
 - [Team and roles](docs/team-and-roles.md)

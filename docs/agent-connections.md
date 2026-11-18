@@ -1,6 +1,6 @@
 # Connect your own agent
 
-Fellowship42's early-alpha church MCP endpoint lets a church administrator
+Fellowship42's pre-alpha church MCP endpoint lets a church administrator
 connect an external agent, edit the saved church profile draft, and prepare
 unpublished events. Review and publish changes in the church app. No Cloud
 subscription or management enrollment is needed.
