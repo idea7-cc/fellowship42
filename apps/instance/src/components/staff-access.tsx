@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { Church } from 'lucide-react'
 import { useAuthState, SignInButton, SignOutButton } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
@@ -33,9 +32,10 @@ export function StaffAccess({ children }: { children: ReactNode }) {
           <Button variant="ghost" size="sm" onClick={() => void refetch()}>
             Check access again
           </Button>
-          <Link className="text-sm text-muted-foreground" to="/">
+          {/* A full page load, so a connected website's redirect applies. */}
+          <a className="text-sm text-muted-foreground" href="/">
             Church website
-          </Link>
+          </a>
         </>
       )}
     </main>

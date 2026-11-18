@@ -109,10 +109,12 @@ export function PublicCoursePage() {
     >
       <main className="mx-auto max-w-3xl px-5 py-8">
         <Button asChild size="sm" variant="ghost">
-          <Link to="/">
+          {/* A full page load, so the Worker can send visitors back to the
+              church's connected website instead of the fallback page. */}
+          <a href="/">
             <ArrowLeft aria-hidden />
             {site.data.church.name}
-          </Link>
+          </a>
         </Button>
         {course.data ? (
           <>
