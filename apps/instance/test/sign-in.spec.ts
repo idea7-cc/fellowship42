@@ -407,6 +407,65 @@ it('revokes a pending enrollment link when the member is removed or suspended', 
   // A fresh link still works for the reinstated member.
   expect((await enroll(await invite(5))).response.status).toBe(200)
 })
+it('revokes links an owner issued when the owner loses the authority to issue them', async () => {
+  // A second owner who can sign in, so the issuing owner can be changed.
+  const second = token()
+  const secondCookie = `${cookieName(new URL(origin), 'session')}=${second}`
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO users (id,email,status,created_at,updated_at) VALUES ('user_second_owner','second-owner@example.test','active',1,1)",
+    ),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO auth_identities (id,user_id,provider,subject,created_at,updated_at) VALUES ('second-owner','user_second_owner','passkey','user_second_owner',1,1)",
+    ),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO church_memberships (id,church_id,user_id,status,created_at,updated_at) VALUES ('membership_second_owner','church_demo','user_second_owner','active',1,1)",
+    ),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO membership_roles (church_id,membership_id,role_id,assigned_at) VALUES ('church_demo','membership_second_owner','role_demo_owner',1)",
+    ),
+    env.DB.prepare('INSERT INTO local_auth_sessions VALUES (?,?,?)').bind(
+      await digest(second),
+      'user_second_owner',
+      Date.now() + 60_000,
+    ),
+  ])
+  const ownerVersion = async () =>
+    (await env.DB.prepare(
+      "SELECT version FROM church_memberships WHERE id='membership_demo_owner'",
+    ).first<{ version: number }>())!.version
+  const changeOwner = async (change: Record<string, unknown>) =>
+    request(
+      '/api/team/church_demo/membership_demo_owner',
+      { version: await ownerVersion(), ...change },
+      secondCookie,
+      origin,
+      'PATCH',
+    )
+
+  const suspendedIssuer = await invite()
+  expect((await changeOwner({ status: 'suspended' })).status).toBe(200)
+  expect((await changeOwner({ status: 'active' })).status).toBe(200)
+  expect(
+    (await request('/api/auth/enroll/start', { token: suspendedIssuer }))
+      .status,
+  ).toBe(400)
+
+  const demotedIssuer = await invite()
+  expect((await changeOwner({ roleKeys: ['member'] })).status).toBe(200)
+  expect((await changeOwner({ roleKeys: ['owner'] })).status).toBe(200)
+  expect(
+    (await request('/api/auth/enroll/start', { token: demotedIssuer })).status,
+  ).toBe(400)
+
+  // A role change that keeps owner authority leaves issued links alone.
+  const kept = await invite()
+  expect((await changeOwner({ roleKeys: ['owner', 'member'] })).status).toBe(
+    200,
+  )
+  expect((await enroll(kept)).response.status).toBe(200)
+  expect((await changeOwner({ roleKeys: ['owner'] })).status).toBe(200)
+})
 it('requires user verification and rejects forged origin, signature and challenge', async () => {
   const value = await invite()
   const start = await request('/api/auth/enroll/start', { token: value })

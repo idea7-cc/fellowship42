@@ -40,6 +40,24 @@ export function signInOrigin(env: Pick<SignInEnv, 'SIGN_IN_ORIGIN'>) {
     )
   }
 }
+/**
+ * Which sign-in providers this deployment accepts right now. An identity
+ * linked through a provider that is not configured cannot be used to sign in.
+ */
+export function configuredSignInProviders(
+  env: Pick<SignInEnv, 'SIGN_IN_ORIGIN' | 'ACCESS_TEAM_DOMAIN' | 'ACCESS_AUD'>,
+) {
+  let passkey = false
+  try {
+    passkey = Boolean(env.SIGN_IN_ORIGIN) && Boolean(signInOrigin(env))
+  } catch {
+    passkey = false
+  }
+  return {
+    access: Boolean(env.ACCESS_TEAM_DOMAIN?.trim() && env.ACCESS_AUD?.trim()),
+    passkey,
+  }
+}
 export function cookieName(origin: URL, kind: 'session' | 'challenge') {
   return `${origin.protocol === 'https:' ? '__Host-' : ''}f42-${kind}`
 }

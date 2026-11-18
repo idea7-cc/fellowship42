@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors'
+import { configuredSignInProviders } from '../sign-in/session'
 import type { TeamMember, TeamResponse, TeamRole } from '../../../contracts/api'
 
 export type AppEnv = {
@@ -190,31 +191,59 @@ const otherOwnerMemberships = `
     AND r.key = '${OWNER_ROLE_KEY}'
 `
 // An owner counts only once they can sign in: an invited owner who has not
-// enrolled yet cannot exercise owner authority or issue enrollment links.
+// enrolled yet, or one whose only identity belongs to a sign-in provider this
+// deployment no longer accepts, cannot exercise owner authority or issue
+// enrollment links. Binds whether Access and passkeys are configured (1/0).
 const ownerCanSignIn = `
   ou.status = 'active'
-  AND EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id = ou.id)
+  AND EXISTS (
+    SELECT 1 FROM auth_identities ai WHERE ai.user_id = ou.id
+      AND ((ai.provider = 'cloudflare-access' AND ? = 1)
+        OR (ai.provider = 'passkey' AND ? = 1))
+  )
 `
+
+function providerBindings(env: Env) {
+  const providers = configuredSignInProviders(env)
+  return [providers.access ? 1 : 0, providers.passkey ? 1 : 0]
+}
 
 /**
  * SQL fragment that blocks a change which would leave the church without an
- * active owner who can sign in. Bind `1` as `removesOwner` when the change
- * strips this membership of an active owner role, `0` otherwise, followed by
- * churchId and the membership being changed.
+ * active owner who can sign in. Bind it with `otherActiveOwnerBindings`.
  */
 export const otherActiveOwnerGuard = `
   (? = 0 OR EXISTS (${otherOwnerMemberships} AND ${ownerCanSignIn}))
 `
 
-/** Whether another owner is waiting to enroll, to explain a guard rejection. */
+/**
+ * Bindings for `otherActiveOwnerGuard`. `removesOwner` is true when the change
+ * strips this membership of an active owner role.
+ */
+export function otherActiveOwnerBindings(
+  env: Env,
+  removesOwner: boolean,
+  churchId: string,
+  membershipId: string,
+) {
+  return [
+    removesOwner ? 1 : 0,
+    churchId,
+    membershipId,
+    ...providerBindings(env),
+  ]
+}
+
+/** Whether another owner cannot sign in yet, to explain a guard rejection. */
 export async function hasPendingOwner(
-  db: D1Database,
+  env: Env,
   churchId: string,
   membershipId: string,
 ): Promise<boolean> {
-  const row = await db
-    .prepare(`${otherOwnerMemberships} AND NOT (${ownerCanSignIn}) LIMIT 1`)
-    .bind(churchId, membershipId)
+  const row = await env.DB.prepare(
+    `${otherOwnerMemberships} AND NOT (${ownerCanSignIn}) LIMIT 1`,
+  )
+    .bind(churchId, membershipId, ...providerBindings(env))
     .first()
   return row !== null
 }
@@ -237,6 +266,40 @@ export function revokePendingEnrollment(
         WHERE church_id = ? AND consumed_by IS NULL AND user_id = (
           SELECT user_id FROM church_memberships
           WHERE church_id = ? AND id = ? AND last_operation_id = ?
+        )
+      `,
+    )
+    .bind(churchId, churchId, membershipId, operationId)
+}
+
+/**
+ * Burns unconsumed enrollment links this membership's account issued in this
+ * church once the account no longer holds the authority to issue them
+ * (suspended, removed, or without the `*` permission). Run it after the
+ * membership and role writes of the same batch; reinstating the issuer later
+ * must not revive those links.
+ */
+export function revokeLinksIssuedWithoutAuthority(
+  db: D1Database,
+  churchId: string,
+  membershipId: string,
+  operationId: string,
+) {
+  return db
+    .prepare(
+      `
+        DELETE FROM local_auth_enrollments
+        WHERE church_id = ? AND consumed_by IS NULL AND issuer_user_id = (
+          SELECT user_id FROM church_memberships
+          WHERE church_id = ? AND id = ? AND last_operation_id = ?
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM church_memberships im
+          JOIN membership_roles mr ON mr.church_id = im.church_id AND mr.membership_id = im.id
+          JOIN role_permissions rp ON rp.role_id = mr.role_id
+          WHERE im.church_id = local_auth_enrollments.church_id
+            AND im.user_id = local_auth_enrollments.issuer_user_id
+            AND im.status = 'active' AND rp.permission = '*'
         )
       `,
     )

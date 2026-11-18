@@ -15,6 +15,7 @@ import {
   CHALLENGE_SECONDS,
   SESSION_SECONDS,
   cookie,
+  configuredSignInProviders,
   cookieName,
   digest,
   readCookie,
@@ -65,12 +66,10 @@ signInRoutes.use('*', async (c, next) => {
   await next()
 })
 
-signInRoutes.get('/status', (c) =>
-  c.json({
-    local: Boolean(c.env.SIGN_IN_ORIGIN),
-    access: Boolean(c.env.ACCESS_TEAM_DOMAIN && c.env.ACCESS_AUD),
-  }),
-)
+signInRoutes.get('/status', (c) => {
+  const providers = configuredSignInProviders(c.env)
+  return c.json({ local: providers.passkey, access: providers.access })
+})
 
 async function makeChallenge(
   db: D1Database,

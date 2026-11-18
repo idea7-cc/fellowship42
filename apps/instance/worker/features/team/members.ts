@@ -17,9 +17,11 @@ import {
   findTeamMemberByOperation,
   hasPendingOwner,
   mapTeamMember,
+  otherActiveOwnerBindings,
   otherActiveOwnerGuard,
   readTeam,
   resolveRoleIds,
+  revokeLinksIssuedWithoutAuthority,
   revokePendingEnrollment,
   splitKeys,
   teamMutationEvidence,
@@ -239,6 +241,9 @@ teamMemberRoutes.patch('/:churchId/:membershipId', async (c) => {
   const parsed = updateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
   const current = await findTeamMember(c.env.DB, churchId, membershipId)
+  // `removesOwner` below is computed from this read, so the write must apply
+  // only to this version of the membership.
+  if (current.version !== parsed.data.version) throw versionConflict()
   const roleIds = parsed.data.roleKeys
     ? await resolveRoleIds(c.env.DB, churchId, parsed.data.roleKeys)
     : null
@@ -270,10 +275,8 @@ teamMemberRoutes.patch('/:churchId/:membershipId', async (c) => {
       operationId,
       churchId,
       membershipId,
-      parsed.data.version,
-      removesOwner ? 1 : 0,
-      churchId,
-      membershipId,
+      current.version,
+      ...otherActiveOwnerBindings(c.env, removesOwner, churchId, membershipId),
     ),
     ...(nextStatus === 'suspended'
       ? [revokePendingEnrollment(c.env.DB, churchId, membershipId, operationId)]
@@ -288,6 +291,12 @@ teamMemberRoutes.patch('/:churchId/:membershipId', async (c) => {
           now,
         )
       : []),
+    revokeLinksIssuedWithoutAuthority(
+      c.env.DB,
+      churchId,
+      membershipId,
+      operationId,
+    ),
     ...teamMutationEvidence(c.env.DB, {
       churchId,
       actorId: actor.id,
@@ -304,12 +313,7 @@ teamMemberRoutes.patch('/:churchId/:membershipId', async (c) => {
     }),
   ])
   if ((results[0]?.meta.changes ?? 0) !== 1) {
-    await rejectFailedChange(
-      c.env.DB,
-      churchId,
-      membershipId,
-      parsed.data.version,
-    )
+    await rejectFailedChange(c.env, churchId, membershipId, current.version)
   }
 
   broadcastContent(c, churchId, 'membership', membershipId, 'updated')
@@ -327,6 +331,7 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
   const parsed = versionInputSchema.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
   const current = await findTeamMember(c.env.DB, churchId, membershipId)
+  if (current.version !== parsed.data.version) throw versionConflict()
   const removesOwner =
     current.membership_status !== 'suspended' &&
     splitKeys(current.role_keys).includes(OWNER_ROLE_KEY)
@@ -346,10 +351,8 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
       operationId,
       churchId,
       membershipId,
-      parsed.data.version,
-      removesOwner ? 1 : 0,
-      churchId,
-      membershipId,
+      current.version,
+      ...otherActiveOwnerBindings(c.env, removesOwner, churchId, membershipId),
     ),
     c.env.DB.prepare(
       `
@@ -361,6 +364,12 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
       `,
     ).bind(churchId, membershipId, churchId, membershipId, operationId),
     revokePendingEnrollment(c.env.DB, churchId, membershipId, operationId),
+    revokeLinksIssuedWithoutAuthority(
+      c.env.DB,
+      churchId,
+      membershipId,
+      operationId,
+    ),
     ...teamMutationEvidence(c.env.DB, {
       churchId,
       actorId: actor.id,
@@ -373,12 +382,7 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
     }),
   ])
   if ((results[0]?.meta.changes ?? 0) !== 1) {
-    await rejectFailedChange(
-      c.env.DB,
-      churchId,
-      membershipId,
-      parsed.data.version,
-    )
+    await rejectFailedChange(c.env, churchId, membershipId, current.version)
   }
 
   broadcastContent(c, churchId, 'membership', membershipId, 'deleted')
@@ -390,30 +394,32 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
  * last-owner guard so the editor knows whether to refresh or to add another
  * owner first.
  */
+const versionConflict = () =>
+  new AppError(
+    409,
+    'version_conflict',
+    'The team member changed after it was loaded. Refresh before trying again.',
+  )
+
 async function rejectFailedChange(
-  db: D1Database,
+  env: Env,
   churchId: string,
   membershipId: string,
   observedVersion: number,
 ): Promise<never> {
-  const row = await db
-    .prepare(
-      `SELECT version, status FROM church_memberships WHERE church_id = ? AND id = ?`,
-    )
+  const row = await env.DB.prepare(
+    `SELECT version, status FROM church_memberships WHERE church_id = ? AND id = ?`,
+  )
     .bind(churchId, membershipId)
     .first<{ version: number; status: string }>()
   if (!row || row.status === 'left' || row.version !== observedVersion) {
-    throw new AppError(
-      409,
-      'version_conflict',
-      'The team member changed after it was loaded. Refresh before trying again.',
-    )
+    throw versionConflict()
   }
   throw new AppError(
     409,
     'last_owner_required',
-    (await hasPendingOwner(db, churchId, membershipId))
-      ? 'At least one owner who can sign in must remain. The invited owner must finish enrolling before you can make this change.'
+    (await hasPendingOwner(env, churchId, membershipId))
+      ? 'At least one owner who can sign in must remain. The other owner must finish enrolling, or be able to use a sign-in method this church still accepts, before you can make this change.'
       : 'At least one active owner must remain. Give someone else the owner role first.',
   )
 }
