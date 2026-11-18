@@ -392,7 +392,7 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
                           </Button>
                           <Button
                             size="sm"
-                            variant="destructive"
+                            variant="destructive-outline"
                             onClick={() => void remove(lesson)}
                           >
                             Delete

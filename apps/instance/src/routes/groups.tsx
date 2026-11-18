@@ -439,7 +439,7 @@ export function GroupsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(group)}
                       >
                         Delete

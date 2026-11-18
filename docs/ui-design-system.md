@@ -239,7 +239,7 @@ Owned source code. Modify freely.
 
 | Component | File | Notes |
 |-----------|------|-------|
-| `Button` | `button.tsx` | `default`, `secondary`, `outline`, `subtle`, `ghost`, `link`, `destructive`, `destructive-ghost` × `xs`, `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-xs`. Defaults to `type="button"`. |
+| `Button` | `button.tsx` | `default`, `secondary`, `outline`, `subtle`, `ghost`, `link`, `destructive`, `destructive-outline`, `destructive-ghost` × `xs`, `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-xs`. Defaults to `type="button"`. A button that starts a destructive action which then asks for confirmation (Delete on a card) is `destructive-outline`, or `destructive-ghost` for an icon in a dense row; solid `destructive` is for the confirming action. |
 | `Card` | `card.tsx` | `elevation` (`flat`/`raised`/`floating`), `padding`, `interactive`. Plus `CardHeader/Title/Description/Content/Footer/Divider`. |
 | `Badge`, `StatusBadge` | `badge.tsx` | `StatusBadge` maps a domain status to a color via `statusVariants` — add statuses there, not at the call site. |
 | `Table` | `table.tsx` | `TableContainer` + `Table/Header/Body/Row/Head/Cell/Meta/Actions/Footer/Caption`. Sticky header; `TableActions` reveals on row hover (`group/row`). |

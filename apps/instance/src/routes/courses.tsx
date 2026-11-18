@@ -365,7 +365,7 @@ export function CoursesPage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="destructive"
+                          variant="destructive-outline"
                           onClick={() => void remove(course)}
                         >
                           Delete

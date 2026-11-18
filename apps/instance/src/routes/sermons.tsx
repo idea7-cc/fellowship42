@@ -395,7 +395,7 @@ export function SermonsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(sermon)}
                       >
                         Delete

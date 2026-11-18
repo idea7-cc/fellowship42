@@ -44,8 +44,14 @@ const buttonVariants = cva(
         ghost:
           'text-muted-foreground hover:bg-accent hover:text-accent-foreground active:bg-muted',
         link: 'h-auto rounded-xs px-0 text-brand-text underline-offset-4 hover:underline',
+        // The confirming step of a destructive action. A button that only
+        // starts one (Delete on a card, which then asks) is quieter.
         destructive:
           'bg-destructive text-destructive-foreground shadow-xs hover:brightness-[1.08] active:brightness-[0.95]',
+        // Starts a destructive action that asks for confirmation: same
+        // weight as the actions beside it, marked by its text color.
+        'destructive-outline':
+          'border border-border bg-transparent text-destructive hover:border-destructive/40 hover:bg-danger-soft hover:text-danger-soft-foreground active:bg-danger-soft',
         // Neutral until intent is shown. A red icon on every row of a
         // directory reads as twelve warnings rather than twelve delete
         // affordances; the color belongs on hover and focus, not at rest.

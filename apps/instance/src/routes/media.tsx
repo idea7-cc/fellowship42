@@ -271,7 +271,7 @@ export function MediaPage() {
                       <Button
                         type="button"
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(media)}
                       >
                         Delete
