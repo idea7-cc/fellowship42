@@ -45,6 +45,7 @@ import {
 } from './lib-emdash-first/instance.mjs'
 import { chromium } from 'playwright-core'
 import { run, stopAll } from './lib-emdash-first/process.mjs'
+import { chromiumPath } from './lib.mjs'
 import {
   ALLOW_PRIVATE_HOSTS,
   Site,
@@ -54,6 +55,7 @@ import {
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const fixture = path.join(repo, 'scripts/acceptance/fixtures/emdash-first-site')
+const CHROMIUM = chromiumPath()
 const SITE_PORT = 8799
 const INSTANCE_PORT = 8797
 const PNPM = { command: 'npx', args: ['-y', 'pnpm@12.4.2'] }
@@ -863,7 +865,7 @@ async function main() {
       async () => {
         // The Administrator's EmDash session, carried into a real browser.
         const browser = await chromium.launch({
-          executablePath: process.env.CHROMIUM_PATH ?? '/usr/bin/chromium',
+          executablePath: CHROMIUM,
         })
         let form
         try {

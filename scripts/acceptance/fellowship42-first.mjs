@@ -13,7 +13,7 @@ const option = (name, fallback) =>
 const out = path.resolve(
   option('--out', '/tmp/f42-acceptance/fellowship42-first'),
 )
-const chromiumPath = process.env.CHROMIUM_PATH ?? '/usr/bin/chromium'
+const chromiumPath = lib.chromiumPath()
 const INSTANCE = 'http://localhost:8787'
 // Separate hostnames, as in production: each app gets its own passkey
 // relying-party ID. *.localhost resolves to IPv6 loopback here.
