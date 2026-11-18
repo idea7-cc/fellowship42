@@ -13,6 +13,7 @@ import { AppError } from '../worker/lib/errors'
 import { courseRoutes } from '../worker/routes/courses'
 import { groupRoutes } from '../worker/routes/groups'
 import { peopleRoutes } from '../worker/routes/people'
+import { interleaveBeforeBatch } from './interleave'
 
 const owner: AccessIdentity = {
   provider: 'cloudflare-access',
@@ -85,29 +86,6 @@ function requestAs(identity: AccessIdentity, bindings: Env = env) {
 }
 
 const request = requestAs(owner)
-
-/**
- * Bindings whose D1 runs `beforeBatch` once, just before the route's first
- * write batch: a concurrent change that lands after the route's reads.
- */
-function interleaveBeforeBatch(beforeBatch: () => Promise<unknown>) {
-  let pending: (() => Promise<unknown>) | null = beforeBatch
-  const db = new Proxy(env.DB, {
-    get(target, property) {
-      if (property === 'batch') {
-        return async (statements: D1PreparedStatement[]) => {
-          const run = pending
-          pending = null
-          await run?.()
-          return target.batch(statements)
-        }
-      }
-      const value: unknown = Reflect.get(target, property)
-      return typeof value === 'function' ? value.bind(target) : value
-    },
-  })
-  return Object.assign(Object.create(env) as Env, { DB: db })
-}
 
 // The seed creates the owner user but no Access identity, because the worker
 // deliberately refuses to auto-link a new subject to an existing active user.

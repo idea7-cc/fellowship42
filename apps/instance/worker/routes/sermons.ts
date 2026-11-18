@@ -137,6 +137,17 @@ async function requireAudioMedia(
   }
 }
 
+/**
+ * The audio rule `requireAudioMedia` reports, checked again inside the write
+ * so media removed or made private after that read cannot be published.
+ * Binds audioMediaId, churchId, audioMediaId, status.
+ */
+const audioEligible = `(? IS NULL OR EXISTS (
+  SELECT 1 FROM media m
+  WHERE m.church_id = ? AND m.id = ? AND m.deleted_at IS NULL
+    AND m.media_type LIKE 'audio%' AND (? <> 'published' OR m.visibility = 'public')
+))`
+
 export const sermonRoutes = new Hono<AppEnv>()
 
 sermonRoutes.get('/:churchId', async (c) => {
@@ -207,15 +218,17 @@ sermonRoutes.post('/:churchId', async (c) => {
   const sermonId = `sermon_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let results: D1Result[]
   try {
-    await c.env.DB.batch([
+    results = await c.env.DB.batch([
       c.env.DB.prepare(
         `
           INSERT INTO sermons (
             id, church_id, slug, title, status, speaker, series, summary,
             video_url, audio_media_id, preached_at, featured,
             version, created_at, updated_at, last_operation_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+          ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?
+          WHERE ${audioEligible}
         `,
       ).bind(
         sermonId,
@@ -233,6 +246,10 @@ sermonRoutes.post('/:churchId', async (c) => {
         now,
         now,
         operationId,
+        parsed.data.audioMediaId,
+        churchId,
+        parsed.data.audioMediaId,
+        parsed.data.status,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -259,6 +276,20 @@ sermonRoutes.post('/:churchId', async (c) => {
       )
     }
     throw error
+  }
+  if ((results[0]?.meta.changes ?? 0) !== 1) {
+    // The audio changed after it was checked; report what is wrong with it now.
+    await requireAudioMedia(
+      c.env.DB,
+      churchId,
+      parsed.data.audioMediaId,
+      parsed.data.status === 'published',
+    )
+    throw new AppError(
+      422,
+      'invalid_media',
+      'The selected audio changed while saving. Choose it again.',
+    )
   }
   broadcastContent(c, churchId, 'sermon', sermonId, 'created')
   return c.json(
@@ -331,6 +362,7 @@ sermonRoutes.patch('/:churchId/:sermonId', async (c) => {
             video_url = ?, audio_media_id = ?, preached_at = ?, featured = ?,
             version = version + 1, updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
+            AND ${audioEligible}
         `,
       ).bind(
         next.slug,
@@ -348,6 +380,10 @@ sermonRoutes.patch('/:churchId/:sermonId', async (c) => {
         churchId,
         sermonId,
         current.version,
+        next.audioMediaId,
+        churchId,
+        next.audioMediaId,
+        next.status,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -379,6 +415,12 @@ sermonRoutes.patch('/:churchId/:sermonId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    await requireAudioMedia(
+      c.env.DB,
+      churchId,
+      next.audioMediaId,
+      next.status === 'published',
+    )
     throw new AppError(
       409,
       'version_conflict',

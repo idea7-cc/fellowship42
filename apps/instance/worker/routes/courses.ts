@@ -236,6 +236,30 @@ async function requireMedia(
   }
 }
 
+/**
+ * The lesson-media rules `requireMedia` and `requirePublishableLessons`
+ * report, checked again inside the write so media removed or made private
+ * after those reads cannot end up in a published course.
+ */
+// Binds churchId, courseId. True when no lesson of the course has media that
+// a published course cannot show.
+const lessonsPublishable = `NOT EXISTS (
+  SELECT 1 FROM lessons l
+  LEFT JOIN media m ON m.church_id = l.church_id AND m.id = l.media_id
+  WHERE l.church_id = ? AND l.course_id = ? AND l.media_id IS NOT NULL
+    AND (m.id IS NULL OR m.deleted_at IS NOT NULL OR m.visibility != 'public')
+)`
+// Binds mediaId, churchId, mediaId, churchId, courseId. True when the lesson
+// has no media, or media that exists and is public if the course is published.
+const lessonMediaEligible = `(? IS NULL OR EXISTS (
+  SELECT 1 FROM media m
+  WHERE m.church_id = ? AND m.id = ? AND m.deleted_at IS NULL
+    AND (m.visibility = 'public' OR NOT EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.church_id = ? AND c.id = ? AND c.status = 'published'
+    ))
+))`
+
 async function requirePublishableLessons(
   db: D1Database,
   churchId: string,
@@ -458,6 +482,7 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
             certificate_offered = ?, summary = ?, version = version + 1,
             updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
+            AND (? <> 'published' OR ${lessonsPublishable})
         `,
       ).bind(
         next.ministryId,
@@ -476,6 +501,9 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
         churchId,
         courseId,
         current.version,
+        next.status,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -506,6 +534,8 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    if (next.status === 'published')
+      await requirePublishableLessons(c.env.DB, churchId, courseId)
     throw new AppError(
       409,
       'version_conflict',
@@ -576,15 +606,17 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
   const lessonId = `lesson_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let results: D1Result[]
   try {
-    await c.env.DB.batch([
+    results = await c.env.DB.batch([
       c.env.DB.prepare(
         `
           INSERT INTO lessons (
             id, church_id, course_id, title, summary, content, media_id,
             estimated_minutes, required, sort_order, version,
             created_at, updated_at, last_operation_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+          ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?
+          WHERE ${lessonMediaEligible}
         `,
       ).bind(
         lessonId,
@@ -600,6 +632,11 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
         now,
         now,
         operationId,
+        parsed.data.mediaId,
+        churchId,
+        parsed.data.mediaId,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -626,6 +663,21 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
       )
     }
     throw error
+  }
+  if ((results[0]?.meta.changes ?? 0) !== 1) {
+    // The media or the course's status changed after they were read.
+    const latest = await findCourse(c.env.DB, churchId, courseId)
+    await requireMedia(
+      c.env.DB,
+      churchId,
+      parsed.data.mediaId,
+      latest.status === 'published',
+    )
+    throw new AppError(
+      422,
+      'invalid_media',
+      'The selected media changed while saving. Choose it again.',
+    )
   }
   broadcastContent(c, churchId, 'lesson', lessonId, 'created')
   return c.json(
@@ -695,6 +747,7 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
             required = ?, sort_order = ?, version = version + 1,
             updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND course_id = ? AND id = ? AND version = ?
+            AND ${lessonMediaEligible}
         `,
       ).bind(
         next.title,
@@ -710,6 +763,11 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
         courseId,
         lessonId,
         current.version,
+        next.mediaId,
+        churchId,
+        next.mediaId,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -743,6 +801,13 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    const latest = await findCourse(c.env.DB, churchId, courseId)
+    await requireMedia(
+      c.env.DB,
+      churchId,
+      next.mediaId,
+      latest.status === 'published',
+    )
     throw new AppError(
       409,
       'version_conflict',
