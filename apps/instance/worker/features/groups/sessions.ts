@@ -398,7 +398,14 @@ groupSessionRoutes.delete(
         // recorded attendance is cancelled rather than deleted.
         `COALESCE((SELECT version FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?), 0) = ?
           AND NOT EXISTS (SELECT 1 FROM attendance_records WHERE church_id = ? AND session_id = ?)`,
-        [churchId, groupId, sessionId, parsed.data.version, churchId, sessionId],
+        [
+          churchId,
+          groupId,
+          sessionId,
+          parsed.data.version,
+          churchId,
+          sessionId,
+        ],
       ),
       c.env.DB.prepare(
         `DELETE FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?

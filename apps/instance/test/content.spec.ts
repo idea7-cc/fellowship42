@@ -245,8 +245,16 @@ describe('publishing and media removal races', () => {
     )
     const course = await draftCourseWithLesson(handout.id)
     for (const [media, publish, owner] of [
-      [audio, "UPDATE sermons SET status = 'published' WHERE id = ?", sermon.id],
-      [handout, "UPDATE courses SET status = 'published' WHERE id = ?", course.id],
+      [
+        audio,
+        "UPDATE sermons SET status = 'published' WHERE id = ?",
+        sermon.id,
+      ],
+      [
+        handout,
+        "UPDATE courses SET status = 'published' WHERE id = ?",
+        course.id,
+      ],
     ] as const) {
       const path = `/api/media/church_demo/${media.id}`
       const deleted = await racing(publish, owner)('DELETE', path, {

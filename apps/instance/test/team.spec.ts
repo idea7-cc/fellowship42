@@ -479,9 +479,11 @@ describe('team membership management', () => {
     const second = await invite(inviteeEmail, ['owner'])
     const pending = await asOwner('DELETE', ownerPath, { version: 1 })
     expect(pending.status).toBe(409)
-    const pendingError = ((await pending.json()) as {
-      error: { code: string; message: string }
-    }).error
+    const pendingError = (
+      (await pending.json()) as {
+        error: { code: string; message: string }
+      }
+    ).error
     expect(pendingError.code).toBe('last_owner_required')
     expect(pendingError.message).toContain('must finish enrolling')
     expect(

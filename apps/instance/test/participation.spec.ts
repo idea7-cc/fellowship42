@@ -247,14 +247,18 @@ describe('group rosters', () => {
         { status: 'active' },
       )
     }
-    const shrink = await request('PATCH', `/api/groups/church_demo/${groupId}`, {
-      version: 1,
-      capacity: 1,
-    })
+    const shrink = await request(
+      'PATCH',
+      `/api/groups/church_demo/${groupId}`,
+      {
+        version: 1,
+        capacity: 1,
+      },
+    )
     expect(shrink.status).toBe(409)
-    expect(
-      (await shrink.json<{ error: { code: string } }>()).error.code,
-    ).toBe('capacity_below_active_members')
+    expect((await shrink.json<{ error: { code: string } }>()).error.code).toBe(
+      'capacity_below_active_members',
+    )
     const stored = await env.DB.prepare(
       'SELECT capacity, version FROM groups WHERE id = ?',
     )
@@ -789,9 +793,9 @@ describe('participation concurrency regressions', () => {
 
     const refused = await request('DELETE', path, { version: session.version })
     expect(refused.status).toBe(409)
-    expect(
-      (await refused.json<{ error: { code: string } }>()).error.code,
-    ).toBe('session_has_attendance')
+    expect((await refused.json<{ error: { code: string } }>()).error.code).toBe(
+      'session_has_attendance',
+    )
     const attendance = await (
       await request('GET', `${path}/attendance`)
     ).json<SessionAttendance>()

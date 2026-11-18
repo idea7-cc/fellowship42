@@ -19,12 +19,16 @@ const bindings = {
   ...env,
   ACCESS_TEAM_DOMAIN: issuer,
   ACCESS_AUD: audience,
-} as Env
+} as unknown as Env
 let assertion: string
 
 beforeAll(async () => {
   const { publicKey, privateKey } = await generateKeyPair('RS256')
-  const jwk = { ...(await exportJWK(publicKey)), kid: 'origin-test', alg: 'RS256' }
+  const jwk = {
+    ...(await exportJWK(publicKey)),
+    kid: 'origin-test',
+    alg: 'RS256',
+  }
   const realFetch = globalThis.fetch
   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
     String(input instanceof Request ? input.url : input) ===
@@ -111,7 +115,10 @@ it('accepts Access-authenticated writes from the instance or with no Origin', as
   expect((await send('POST', '/api/people/church_demo')).status).toBe(201)
   // Reads are not state-changing and stay available to any caller Access admits.
   expect(
-    (await send('GET', '/api/people/church_demo', { Origin: 'https://evil.test' }))
-      .status,
+    (
+      await send('GET', '/api/people/church_demo', {
+        Origin: 'https://evil.test',
+      })
+    ).status,
   ).toBe(200)
 })
