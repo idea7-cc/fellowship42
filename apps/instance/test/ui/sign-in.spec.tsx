@@ -84,6 +84,55 @@ it('clears an enrollment fragment and sends its capability only in the enrollmen
     },
   ])
 })
+it('offers the existing passkey when a lost enrollment answer is retried on a spent link', async () => {
+  const secret = 'B'.repeat(43)
+  window.history.replaceState(null, '', `/sign-in#enroll=${secret}`)
+  let linkUsed = false
+  const posts: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === 'POST') posts.push(path)
+      if (path.endsWith('/status'))
+        return Response.json({ local: true, access: false })
+      if (path === '/api/auth/enroll/start' && linkUsed)
+        return Response.json(
+          {
+            error: {
+              code: 'sign_in_failed',
+              message: 'Sign-in could not be completed. Please start again.',
+            },
+          },
+          { status: 400 },
+        )
+      if (path === '/api/auth/enroll/finish') {
+        // The passkey is saved and the link consumed; the answer is lost.
+        linkUsed = true
+        throw new TypeError('Failed to fetch')
+      }
+      return Response.json({ challenge: 'test' })
+    }),
+  )
+  vi.mocked(startRegistration).mockResolvedValue({} as never)
+  vi.mocked(startAuthentication).mockResolvedValue({} as never)
+  const assign = vi.fn()
+  vi.stubGlobal('location', { ...window.location, assign })
+  await act(async () => root.render(<SignInPage />))
+  await click('Create passkey')
+  const alert = () => container.querySelector('[role="alert"]')?.textContent
+  expect(alert()).toMatch(/could not confirm that your passkey was saved/)
+  await click('Create passkey again')
+  expect(alert()).toMatch(/ask your church administrator for a fresh link/)
+  const labels = [...container.querySelectorAll('button')].map(
+    (button) => button.textContent,
+  )
+  expect(labels).toContain('Use existing passkey')
+  expect(labels).not.toContain('Create passkey')
+  expect(labels).not.toContain('Create passkey again')
+  await click('Use existing passkey')
+  expect(posts.slice(-2)).toEqual(['/api/auth/start', '/api/auth/finish'])
+  expect(assign).toHaveBeenCalledWith('/app')
+})
 it('does not finish a registration after the screen has unmounted', async () => {
   window.history.replaceState(null, '', '/sign-in#enroll=' + 'B'.repeat(43))
   const fetchMock = vi.fn(async (path: string) =>

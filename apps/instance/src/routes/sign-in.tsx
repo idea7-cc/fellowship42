@@ -24,6 +24,11 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
   const [setup, setSetup] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A setup link is single-use. After the server refused it, or after its
+  // final step went unanswered, the passkey may already exist: offer it.
+  const [linkSpent, setLinkSpent] = useState<'refused' | 'unconfirmed' | null>(
+    null,
+  )
   const active = useRef(true)
   useEffect(() => {
     const stripFragment = () => {
@@ -61,6 +66,7 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
     if (busy) return
     setBusy(true)
     setError(null)
+    let finishing = false
     try {
       if (enrollToken) {
         const optionsJSON =
@@ -74,6 +80,7 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
         if (!active.current) return
         const credential = await startRegistration({ optionsJSON })
         if (!active.current) return
+        finishing = true
         await apiRequest('/api/auth/enroll/finish', {
           method: 'POST',
           body: JSON.stringify(credential),
@@ -94,12 +101,24 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
       }
       if (active.current) window.location.assign(destination())
     } catch (caught) {
-      if (active.current)
+      if (!active.current) return
+      if (enrollToken && caught instanceof ApiError) {
+        setLinkSpent('refused')
+        setError(
+          'This setup link can no longer be used. If you already created a passkey with it, use that passkey to sign in. If setup never finished, ask your church administrator for a fresh link.',
+        )
+      } else if (enrollToken && finishing) {
+        setLinkSpent('unconfirmed')
+        setError(
+          'We could not confirm that your passkey was saved. Try signing in with it first; if it is not offered, create it again.',
+        )
+      } else {
         setError(
           caught instanceof ApiError
             ? caught.message
             : 'Passkey sign-in was not completed. Try again.',
         )
+      }
     } finally {
       if (active.current) setBusy(false)
     }
@@ -142,6 +161,22 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
                     {busy ? 'Waiting for passkey…' : 'Create passkey'}
                   </Button>
                 </form>
+              ) : linkSpent ? (
+                <>
+                  <Button disabled={busy} onClick={() => void signIn()}>
+                    <Fingerprint aria-hidden />
+                    {busy ? 'Waiting for passkey…' : 'Use existing passkey'}
+                  </Button>
+                  {linkSpent === 'unconfirmed' && enrollment ? (
+                    <Button
+                      disabled={busy}
+                      onClick={() => void signIn(enrollment)}
+                      variant="secondary"
+                    >
+                      Create passkey again
+                    </Button>
+                  ) : null}
+                </>
               ) : (
                 <Button
                   disabled={busy}
@@ -171,6 +206,7 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
                 onClick={() => {
                   setSetup(!setup)
                   setError(null)
+                  setLinkSpent(null)
                 }}
               >
                 {setup ? 'Back to sign-in' : 'First owner setup'}
