@@ -129,6 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const drawerOpen = sidebarOpen && !desktop
   const opener = useRef<HTMLButtonElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
+  const drawer = useRef<HTMLElement>(null)
   const location = useLocation()
   const { isSignedIn, isLoading: authLoading, user } = useAuthState()
   const { churchId, churchName } = useChurch()
@@ -149,13 +150,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false)
   }, [location.pathname])
 
-  // Opening moves focus into the drawer; Escape closes it; closing returns
-  // focus to the menu button that opened it.
+  // Opening moves focus into the drawer; Tab wraps within it (the inert page
+  // alone would let focus leave for the browser's own controls); Escape
+  // closes it; closing returns focus to the menu button that opened it.
   useEffect(() => {
     if (!drawerOpen) return
     closeButton.current?.focus()
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setSidebarOpen(false)
+      if (event.key !== 'Tab' || !drawer.current) return
+      const stops = Array.from(
+        drawer.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+      const first = stops[0]
+      const last = stops.at(-1)
+      const active = document.activeElement
+      if (
+        event.shiftKey &&
+        (active === first || !drawer.current.contains(active))
+      ) {
+        event.preventDefault()
+        last?.focus()
+      } else if (
+        !event.shiftKey &&
+        (active === last || !drawer.current.contains(active))
+      ) {
+        event.preventDefault()
+        first?.focus()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     const menuButton = opener.current
@@ -209,6 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside
         aria-label="Main navigation"
         inert={!desktop && !sidebarOpen}
+        ref={drawer}
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar-background',
           SIDEBAR_WIDTH,

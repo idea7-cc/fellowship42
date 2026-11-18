@@ -83,3 +83,23 @@ it('returns focus to the menu button when the drawer is closed by its button', a
   expect(inert(drawer)).toBe(true)
   expect(document.activeElement).toBe(ui!.button('Open navigation'))
 })
+
+it('wraps Tab within the open drawer in both directions', async () => {
+  const { drawer } = await renderShell()
+  await ui!.click(ui!.button('Open navigation'))
+  const stops = Array.from(
+    drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
+  )
+  const tab = async (shiftKey: boolean) => {
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true }),
+      )
+    })
+  }
+  stops.at(-1)!.focus()
+  await tab(false)
+  expect(document.activeElement).toBe(stops[0])
+  await tab(true)
+  expect(document.activeElement).toBe(stops.at(-1))
+})
