@@ -831,9 +831,9 @@ export function PeoplePage() {
                         return (
                           <TableRow className="group/row" key={person.id}>
                             {/*
-                              Phones get one content column, not three. Contact
-                              and status fold into this cell below the name and
-                              their own columns are hidden, which leaves the
+                              Phones get one content column, not three. Status,
+                              email and phone fold into this cell below the name
+                              and their own columns are hidden, which leaves the
                               name room to breathe and the row actions room to
                               fit. The cell is still width-capped so a long
                               name ellipsizes rather than widening the table.
@@ -845,14 +845,29 @@ export function PeoplePage() {
                                   <span className="block truncate font-medium">
                                     {fullName}
                                   </span>
-                                  <div className="flex items-center gap-1.5 sm:hidden">
+                                  <div className="grid justify-items-start gap-0.5 sm:hidden">
                                     <StatusBadge
                                       size="sm"
                                       status={person.membershipStatus}
                                     />
-                                    <TableMeta className="truncate">
-                                      {person.email ?? person.phone ?? '—'}
-                                    </TableMeta>
+                                    {/* Both ways to reach someone: on a
+                                        phone the contact column is hidden. */}
+                                    {person.email ? (
+                                      <a
+                                        className="block max-w-full truncate text-xs text-brand-text hover:underline"
+                                        href={`mailto:${person.email}`}
+                                      >
+                                        {person.email}
+                                      </a>
+                                    ) : null}
+                                    {person.phone ? (
+                                      <a
+                                        className="block max-w-full truncate text-xs text-brand-text hover:underline"
+                                        href={`tel:${person.phone}`}
+                                      >
+                                        {person.phone}
+                                      </a>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>
