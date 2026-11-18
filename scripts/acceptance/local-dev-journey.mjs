@@ -1,16 +1,19 @@
 // Drives the browser part of the documented local evaluation in
 // docs/emdash-church-websites.md against `pnpm dev` and `pnpm dev:website`.
-// Follow the guide's commands first (fresh state, owner link, both dev
-// servers), then run:
-//   node scripts/acceptance/local-dev-journey.mjs [--link-file /tmp/owner-link.txt]
-import { readFileSync } from 'node:fs'
+// Follow the guide's commands first (fresh state, both dev servers, then
+// `pnpm dev:owner-link`), then run:
+//   node scripts/acceptance/local-dev-journey.mjs [--link-file FILE]
+// Without --link-file it uses the newest link `pnpm dev:owner-link` wrote.
+import { readFileSync, readdirSync } from 'node:fs'
+import path from 'node:path'
 import { chromium } from 'playwright-core'
-import { passkeyPage } from './lib.mjs'
+import { chromiumPath, instanceDir, passkeyPage } from './lib.mjs'
 
 const args = process.argv.slice(2)
+const links = path.join(instanceDir, '.wrangler/owner-links')
 const linkFile = args.includes('--link-file')
   ? args[args.indexOf('--link-file') + 1]
-  : '/tmp/owner-link.txt'
+  : path.join(links, readdirSync(links).sort().at(-1))
 const INSTANCE = 'http://localhost:5173'
 const WEBSITE = 'http://www.localhost:4322'
 const steps = []
@@ -19,9 +22,7 @@ const step = (name, observed) => {
   console.log(`  ✓ ${name}${observed ? ` (${observed})` : ''}`)
 }
 
-const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH ?? '/usr/bin/chromium',
-})
+const browser = await chromium.launch({ executablePath: chromiumPath() })
 try {
   const page = await passkeyPage(
     await browser.newContext({ timezoneId: 'Europe/London' }),
