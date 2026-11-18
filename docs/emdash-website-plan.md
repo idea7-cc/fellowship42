@@ -166,4 +166,4 @@ for Codex's independent review. Public release and deployment follow that review
   [rendering components](https://docs.emdashcms.com/plugins/creating-native-plugins/portable-text-components/),
   [publishing packages](https://docs.emdashcms.com/plugins/creating-plugins/publishing/),
   and [site transfer](https://docs.emdashcms.com/guides/site-transfer/).
-- [Copy-ready Opus build prompt](emdash-opus-build-prompt.md).
+- [Review evidence](emdash-build-handoff.md) for the implemented change.
