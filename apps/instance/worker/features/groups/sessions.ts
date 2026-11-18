@@ -394,10 +394,12 @@ groupSessionRoutes.delete(
         groupId,
         now,
         operationId,
-        `COALESCE((SELECT version FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?), 0) = ? AND (1 = 1)`,
-        [churchId, groupId, sessionId, parsed.data.version],
+        // attendance_records cascades on session delete, so a session with
+        // recorded attendance is cancelled rather than deleted.
+        `COALESCE((SELECT version FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?), 0) = ?
+          AND NOT EXISTS (SELECT 1 FROM attendance_records WHERE church_id = ? AND session_id = ?)`,
+        [churchId, groupId, sessionId, parsed.data.version, churchId, sessionId],
       ),
-      // attendance_records cascades on session delete.
       c.env.DB.prepare(
         `DELETE FROM group_sessions WHERE church_id = ? AND group_id = ? AND id = ?
           AND EXISTS (SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?)`,
@@ -415,6 +417,20 @@ groupSessionRoutes.delete(
         metadata: { sessionId },
       }),
     ])
+    if (results[0]?.meta.changes !== 1) {
+      const marked = await c.env.DB.prepare(
+        'SELECT 1 AS marked FROM attendance_records WHERE church_id = ? AND session_id = ? LIMIT 1',
+      )
+        .bind(churchId, sessionId)
+        .first()
+      if (marked) {
+        throw new AppError(
+          409,
+          'session_has_attendance',
+          'This session has recorded attendance, so it cannot be deleted. Cancel the session instead.',
+        )
+      }
+    }
     requireParticipationChange(results)
     broadcastContent(c, churchId, 'group', groupId, 'updated')
     return c.json({ sessions: await readSessions(c.env.DB, churchId, groupId) })

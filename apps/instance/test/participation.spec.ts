@@ -730,6 +730,55 @@ describe('participation concurrency regressions', () => {
     })
   })
 
+  it('keeps a session with recorded attendance and points staff to cancelling it', async () => {
+    const groupId = await createGroup('Recorded Sessions', 'recorded-sessions')
+    const personId = await createPerson('Recorded', 'Attendee')
+    await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${personId}`,
+      { status: 'active' },
+    )
+    const base = `/api/groups/church_demo/${groupId}/sessions`
+    const session = (
+      await (
+        await request('POST', base, { title: 'Marked', startsAt: Date.now() })
+      ).json<{ sessions: GroupSession[] }>()
+    ).sessions[0]
+    const path = `${base}/${session.id}`
+    expect(
+      (
+        await request('PUT', `${path}/attendance/${personId}`, {
+          status: 'present',
+        })
+      ).status,
+    ).toBe(200)
+
+    const refused = await request('DELETE', path, { version: session.version })
+    expect(refused.status).toBe(409)
+    expect(
+      (await refused.json<{ error: { code: string } }>()).error.code,
+    ).toBe('session_has_attendance')
+    const attendance = await (
+      await request('GET', `${path}/attendance`)
+    ).json<SessionAttendance>()
+    expect(attendance.entries[0]).toMatchObject({ status: 'present' })
+    const removals = await env.DB.prepare(
+      "SELECT COUNT(*) AS total FROM audit_events WHERE entity_id = ? AND action = 'groups.session.removed'",
+    )
+      .bind(groupId)
+      .first<{ total: number }>()
+    expect(removals?.total).toBe(0)
+
+    expect(
+      (
+        await request('PATCH', path, {
+          version: session.version,
+          status: 'cancelled',
+        })
+      ).status,
+    ).toBe(200)
+  })
+
   it('does not report an enrollment in a course deleted after it was read', async () => {
     const courseId = await createCourse('Vanishing Course', 'vanishing-course')
     const personId = await createPerson('Vanishing', 'Student')
