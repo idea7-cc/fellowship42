@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   CalendarDays,
@@ -96,6 +96,25 @@ const nav: NavItem[] = [
 ]
 
 const SIDEBAR_WIDTH = 'w-60'
+/** Tailwind's `lg` breakpoint, where the sidebar stops being a drawer. */
+const DESKTOP_QUERY = '(min-width: 64rem)'
+
+function useIsDesktop() {
+  const [desktop, setDesktop] = useState(
+    () =>
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(DESKTOP_QUERY).matches,
+  )
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(DESKTOP_QUERY)
+    const update = () => setDesktop(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  return desktop
+}
 
 // ---------------------------------------------------------------------------
 // AppShell
@@ -103,6 +122,12 @@ const SIDEBAR_WIDTH = 'w-60'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const desktop = useIsDesktop()
+  // Below lg the sidebar is a modal drawer: closed, it is inert; open, the
+  // page behind it is inert and focus stays inside until it closes.
+  const drawerOpen = sidebarOpen && !desktop
+  const opener = useRef<HTMLButtonElement>(null)
+  const closeButton = useRef<HTMLButtonElement>(null)
   const location = useLocation()
   const { isSignedIn, isLoading: authLoading, user } = useAuthState()
   const { churchId, churchName } = useChurch()
@@ -123,25 +148,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setSidebarOpen(false)
   }, [location.pathname])
 
-  // Escape closes the drawer.
+  // Opening moves focus into the drawer; Escape closes it; closing returns
+  // focus to the menu button that opened it.
   useEffect(() => {
-    if (!sidebarOpen) return
+    if (!drawerOpen) return
+    closeButton.current?.focus()
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setSidebarOpen(false)
     }
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [sidebarOpen])
+    const menuButton = opener.current
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      menuButton?.focus()
+    }
+  }, [drawerOpen])
 
   return (
     <div className="min-h-screen bg-background">
       {/* ── Mobile top bar ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface-chrome px-3 lg:hidden">
+      <header
+        className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-surface-chrome px-3 lg:hidden"
+        inert={drawerOpen}
+      >
         <Button
           aria-controls="app-sidebar"
           aria-expanded={sidebarOpen}
           aria-label="Open navigation"
           onClick={() => setSidebarOpen(true)}
+          ref={opener}
           size="icon-sm"
           variant="ghost"
         >
@@ -161,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* ── Drawer scrim ───────────────────────────────────────────────── */}
-      {sidebarOpen ? (
+      {drawerOpen ? (
         <div
           aria-hidden
           className="fixed inset-0 z-40 bg-black/40 lg:hidden"
@@ -172,6 +207,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <aside
         aria-label="Main navigation"
+        aria-modal={drawerOpen || undefined}
+        inert={!desktop && !sidebarOpen}
+        role={drawerOpen ? 'dialog' : undefined}
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar-background',
           SIDEBAR_WIDTH,
@@ -187,6 +225,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-label="Close navigation"
             className="lg:hidden"
             onClick={() => setSidebarOpen(false)}
+            ref={closeButton}
             size="icon-sm"
             variant="ghost"
           >
@@ -222,7 +261,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* ── Main content ───────────────────────────────────────────────── */}
-      <main className="lg:pl-60">{children}</main>
+      <main className="lg:pl-60" inert={drawerOpen}>
+        {children}
+      </main>
     </div>
   )
 }
