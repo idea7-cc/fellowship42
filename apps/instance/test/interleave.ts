@@ -20,5 +20,7 @@ export function interleaveBeforeBatch(beforeBatch: () => Promise<unknown>) {
       return typeof value === 'function' ? value.bind(target) : value
     },
   })
-  return Object.assign(Object.create(env) as Env, { DB: db })
+  // Define rather than assign: assigning through the `env` proxy prototype
+  // would replace the shared binding for every other test.
+  return Object.create(env, { DB: { value: db } }) as Env
 }
