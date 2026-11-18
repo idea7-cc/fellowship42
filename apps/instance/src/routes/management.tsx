@@ -23,6 +23,7 @@ import type {
 } from '@/lib/api-types'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { RequestError } from '@/components/request-error'
 
 const capabilityDetails: Record<
   ManagementCapability,
@@ -312,16 +313,23 @@ export function ManagementPage() {
               Church-owner management permission is required.
             </CardContent>
           </Card>
-        ) : status.isLoading ? (
+        ) : status.isLoading && !status.data ? (
           <p>Loading management state…</p>
-        ) : status.error ? (
-          <Card className="border-destructive/30">
-            <CardContent className="p-6 text-destructive">
-              {status.error.message}
-            </CardContent>
-          </Card>
+        ) : status.error && !status.data ? (
+          <RequestError
+            error={status.error}
+            onRetry={() => void status.refetch()}
+          />
         ) : status.data ? (
           <div className="grid gap-6">
+            {status.error ? (
+              // A failed refresh (for example right after a disconnect) is
+              // shown beside the status it could not replace.
+              <RequestError
+                error={status.error}
+                onRetry={() => void status.refetch()}
+              />
+            ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -337,6 +345,7 @@ export function ManagementPage() {
               <Card>
                 <CardHeader>
                   <Badge variant={status.data.enabled ? 'pill' : 'outline'}>
+                    {status.error ? 'Last known: ' : ''}
                     {status.data.enabled ? 'Connected' : 'Independent'}
                   </Badge>
                   <CardTitle>Connection</CardTitle>

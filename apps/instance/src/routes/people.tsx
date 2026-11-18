@@ -13,7 +13,7 @@ import {
 
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
 import { useRequestGuard } from '@/lib/request-guard'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { usePagedQuery } from '@/lib/paged-query'
@@ -94,10 +94,13 @@ function PersonForm({
   person: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   person: PersonDetail | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   // The person as shown when this editor opened; the save is checked against it.
@@ -107,6 +110,7 @@ function PersonForm({
   const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('person')
+  const describeEditFailure = useSaveFailure('person', onRefresh)
 
   function startNewEntry(form: HTMLFormElement | null) {
     entryKey.reset()
@@ -152,12 +156,8 @@ function PersonForm({
     } catch (caught) {
       setError(
         person
-          ? describeSaveFailure(
-              caught,
-              'person',
-              'The person could not be saved.',
-            )
-          : describeEntryFailure(caught, 'person').message,
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'person', onRefresh).message,
       )
       setEntryFailed(!person)
       setSaving(false)
@@ -276,10 +276,13 @@ function HouseholdForm({
   household: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   household: Household | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   // The household as shown when this editor opened; the save is checked against it.
@@ -289,6 +292,7 @@ function HouseholdForm({
   const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('household')
+  const describeEditFailure = useSaveFailure('household', onRefresh)
 
   function startNewEntry(form: HTMLFormElement | null) {
     entryKey.reset()
@@ -335,12 +339,8 @@ function HouseholdForm({
     } catch (caught) {
       setError(
         household
-          ? describeSaveFailure(
-              caught,
-              'household',
-              'The household could not be saved.',
-            )
-          : describeEntryFailure(caught, 'household').message,
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'household', onRefresh).message,
       )
       setEntryFailed(!household)
       setSaving(false)
@@ -529,17 +529,6 @@ export function PeoplePage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const personEditor = useRecordEditor<PersonDetail>()
-  const personSession = personEditor.session
-  const householdEditor = useRecordEditor<Household>()
-  const householdSession = householdEditor.session
-  // Person details load before their editor opens; only the newest choice wins.
-  const personLoad = useRequestGuard()
-  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
-    null,
-  )
-  const [mutationError, setMutationError] = useState<string | null>(null)
-
   const membership = user?.memberships.find(
     (entry) => entry.churchId === churchId,
   )
@@ -547,6 +536,16 @@ export function PeoplePage() {
   const canWritePeople = can(permissions, 'people.write')
   const canReadHouseholds = can(permissions, 'households.read')
   const canWriteHouseholds = can(permissions, 'households.write')
+  const personEditor = useRecordEditor<PersonDetail>(canWritePeople)
+  const personSession = personEditor.session
+  const householdEditor = useRecordEditor<Household>(canWriteHouseholds)
+  const householdSession = householdEditor.session
+  // Person details load before their editor opens; only the newest choice wins.
+  const personLoad = useRequestGuard()
+  const [expandedHousehold, setExpandedHousehold] = useState<string | null>(
+    null,
+  )
+  const [mutationError, setMutationError] = useState<string | null>(null)
 
   const churchQuery = useApiQuery<{ church: Church }>(
     churchId ? `/api/churches/${encodeURIComponent(churchId)}` : null,
@@ -787,6 +786,7 @@ export function PeoplePage() {
                     personEditor.closeIf(personSession.key)
                     await peopleQuery.refetch()
                   }}
+                  onRefresh={peopleQuery.refetch}
                 />
               ) : null}
 
@@ -802,7 +802,7 @@ export function PeoplePage() {
                 />
               ) : peopleQuery.error ? (
                 <RequestError
-                  message={peopleQuery.error.message}
+                  error={peopleQuery.error}
                   onRetry={() => void peopleQuery.refetch()}
                 />
               ) : peopleQuery.data?.people.length ? (
@@ -830,9 +830,9 @@ export function PeoplePage() {
                         return (
                           <TableRow className="group/row" key={person.id}>
                             {/*
-                              Phones get one content column, not three. Contact
-                              and status fold into this cell below the name and
-                              their own columns are hidden, which leaves the
+                              Phones get one content column, not three. Status,
+                              email and phone fold into this cell below the name
+                              and their own columns are hidden, which leaves the
                               name room to breathe and the row actions room to
                               fit. The cell is still width-capped so a long
                               name ellipsizes rather than widening the table.
@@ -844,14 +844,29 @@ export function PeoplePage() {
                                   <span className="block truncate font-medium">
                                     {fullName}
                                   </span>
-                                  <div className="flex items-center gap-1.5 sm:hidden">
+                                  <div className="grid justify-items-start gap-0.5 sm:hidden">
                                     <StatusBadge
                                       size="sm"
                                       status={person.membershipStatus}
                                     />
-                                    <TableMeta className="truncate">
-                                      {person.email ?? person.phone ?? '—'}
-                                    </TableMeta>
+                                    {/* Both ways to reach someone: on a
+                                        phone the contact column is hidden. */}
+                                    {person.email ? (
+                                      <a
+                                        className="block max-w-full truncate text-xs text-brand-text hover:underline"
+                                        href={`mailto:${person.email}`}
+                                      >
+                                        {person.email}
+                                      </a>
+                                    ) : null}
+                                    {person.phone ? (
+                                      <a
+                                        className="block max-w-full truncate text-xs text-brand-text hover:underline"
+                                        href={`tel:${person.phone}`}
+                                      >
+                                        {person.phone}
+                                      </a>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>
@@ -967,6 +982,7 @@ export function PeoplePage() {
                     householdEditor.closeIf(householdSession.key)
                     await householdQuery.refetch()
                   }}
+                  onRefresh={householdQuery.refetch}
                 />
               ) : null}
 
@@ -976,7 +992,7 @@ export function PeoplePage() {
                 </TableContainer>
               ) : householdQuery.error ? (
                 <RequestError
-                  message={householdQuery.error.message}
+                  error={householdQuery.error}
                   onRetry={() => void householdQuery.refetch()}
                 />
               ) : householdQuery.data?.households.length ? (

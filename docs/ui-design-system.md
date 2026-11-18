@@ -239,7 +239,7 @@ Owned source code. Modify freely.
 
 | Component | File | Notes |
 |-----------|------|-------|
-| `Button` | `button.tsx` | `default`, `secondary`, `outline`, `subtle`, `ghost`, `link`, `destructive`, `destructive-ghost` × `xs`, `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-xs`. Defaults to `type="button"`. |
+| `Button` | `button.tsx` | `default`, `secondary`, `outline`, `subtle`, `ghost`, `link`, `destructive`, `destructive-outline`, `destructive-ghost` × `xs`, `sm`, `default`, `lg`, `icon`, `icon-sm`, `icon-xs`. Defaults to `type="button"`. A button that starts a destructive action which then asks for confirmation (Delete on a card) is `destructive-outline`, or `destructive-ghost` for an icon in a dense row; solid `destructive` is for the confirming action. |
 | `Card` | `card.tsx` | `elevation` (`flat`/`raised`/`floating`), `padding`, `interactive`. Plus `CardHeader/Title/Description/Content/Footer/Divider`. |
 | `Badge`, `StatusBadge` | `badge.tsx` | `StatusBadge` maps a domain status to a color via `statusVariants` — add statuses there, not at the call site. |
 | `Table` | `table.tsx` | `TableContainer` + `Table/Header/Body/Row/Head/Cell/Meta/Actions/Footer/Caption`. Sticky header; `TableActions` reveals on row hover (`group/row`). |
@@ -261,7 +261,7 @@ Owned source code. Modify freely.
 | `AppShell` | `app-shell.tsx` | Sidebar navigation, church chip, theme toggle, user block, mobile drawer |
 | `PageShell` | `page-shell.tsx` | Working-area container. `width="narrow"` for reading-heavy pages. |
 | `PageHeader`, `Toolbar`, `ToolbarSpacer` | `page-header.tsx` | The standard head of every operator page |
-| `Section` | `section.tsx` | Titled region with optional actions |
+| `Section` | `section.tsx` | Titled region with optional actions. Its title is an `h2`, and `CardTitle`s inside a titled section render as `h3` (`h2` elsewhere), so headings under the page `h1` never skip a level |
 | `Metric`, `MetricRow` | `metric.tsx` | Stat tiles |
 | `CardGrid` | `card-grid.tsx` | Auto-fill responsive grid |
 | `Hero`, `HeroActions` | `hero.tsx` | Church-facing hero. Not for operator screens. |
@@ -270,7 +270,7 @@ Owned source code. Modify freely.
 | `ListSearch` | `list-search.tsx` | Search row and status filter above a paged list |
 | `ListPager` | `list-pager.tsx` | Previous/next for a list loaded with `usePagedQuery` (`lib/paged-query.ts`), which restarts at page 1 when a search or filter changes |
 | `RecordCombobox`, `PersonCombobox`, `PublicMediaCombobox` | `record-combobox.tsx` | Choose one record by server-side search, with **Show more results** for further pages. Use it instead of a `<select>` of a capped list |
-| `RequestError` | `request-error.tsx` | A failed load with **Try again**, so a failure never reads as an empty list |
+| `RequestError` | `request-error.tsx` | A failed load with **Try again**, rendered before any empty state so a failure never reads as an empty list. A 403 shows as denied access, with nothing to retry |
 
 ---
 

@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { HeadingLevel } from '@/components/ui/heading-level'
 
 interface SectionProps extends Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -37,7 +38,11 @@ export function Section({
           ) : null}
         </div>
       )}
-      {children}
+      {title ? (
+        <HeadingLevel.Provider value={3}>{children}</HeadingLevel.Provider>
+      ) : (
+        children
+      )}
     </section>
   )
 }

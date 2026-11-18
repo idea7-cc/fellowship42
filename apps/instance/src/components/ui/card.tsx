@@ -2,6 +2,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/cn'
+import { useHeadingLevel } from './heading-level'
 
 /**
  * A card is a value step above the page, not a pane of frosted glass. The
@@ -66,16 +67,19 @@ CardHeader.displayName = 'CardHeader'
 const CardTitle = React.forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
-    className={cn(
-      'text-[0.9375rem] leading-snug font-semibold tracking-tight',
-      className,
-    )}
-    ref={ref}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const Heading = `h${useHeadingLevel()}` as const
+  return (
+    <Heading
+      className={cn(
+        'text-[0.9375rem] leading-snug font-semibold tracking-tight',
+        className,
+      )}
+      ref={ref}
+      {...props}
+    />
+  )
+})
 CardTitle.displayName = 'CardTitle'
 
 const CardDescription = React.forwardRef<

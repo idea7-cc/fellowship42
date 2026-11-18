@@ -22,7 +22,8 @@ import { ListSearch } from '@/components/list-search'
 import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type { Church, Course, CursorPage } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -35,21 +36,35 @@ function CourseForm({
   course: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   course: Course | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The course as shown when this editor opened; the save is checked against it.
   const [course] = useState(record)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const entryKey = useEntryKey('course')
+  const describeEditFailure = useSaveFailure('course', onRefresh)
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       slug: String(form.get('slug') ?? ''),
@@ -70,16 +85,23 @@ function CourseForm({
           : `/api/courses/${encodeURIComponent(churchId)}`,
         {
           method: course ? 'PATCH' : 'POST',
+          headers: course
+            ? undefined
+            : { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(
             course ? { version: course.version, ...value } : value,
           ),
         },
       )
+      if (!course) entryKey.reset()
       await onSaved()
     } catch (caught) {
       setError(
-        describeSaveFailure(caught, 'course', 'The course could not be saved.'),
+        course
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'course', onRefresh).message,
       )
+      setEntryFailed(!course)
       setSaving(false)
     }
   }
@@ -196,6 +218,17 @@ function CourseForm({
             <Button type="submit" size="sm" disabled={saving}>
               {saving ? 'Saving…' : 'Save course'}
             </Button>
+            {entryFailed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={saving}
+                onClick={(click) => startNewEntry(click.currentTarget.form)}
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -220,7 +253,7 @@ export function CoursesPage() {
   const canWrite = can(permissions, 'courses.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Course>()
+  const editor = useRecordEditor<Course>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
@@ -284,6 +317,7 @@ export function CoursesPage() {
               editor.closeIf(editorSession.key)
               await courseQuery.refetch()
             }}
+            onRefresh={courseQuery.refetch}
           />
         ) : null}
         {error ? (
@@ -295,7 +329,7 @@ export function CoursesPage() {
           <p>Loading courses…</p>
         ) : courseQuery.error ? (
           <RequestError
-            message={courseQuery.error.message}
+            error={courseQuery.error}
             onRetry={() => void courseQuery.refetch()}
           />
         ) : displayed.length ? (
@@ -331,7 +365,7 @@ export function CoursesPage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="destructive"
+                          variant="destructive-outline"
                           onClick={() => void remove(course)}
                         >
                           Delete

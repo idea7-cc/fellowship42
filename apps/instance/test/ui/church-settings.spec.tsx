@@ -260,6 +260,7 @@ it('keeps empty content sections and operator controls out of the visitor page',
 
 it('keeps the editor mounted while bootstrap status refreshes after a save', async () => {
   const { BootstrapGate } = await import('../../src/components/bootstrap-gate')
+  const { AuthProvider } = await import('../../src/lib/auth-provider')
   let bootstrapReads = 0
   let finish: (response: Response) => void = () => {}
   const bootstrap = {
@@ -273,6 +274,7 @@ it('keeps the editor mounted while bootstrap status refreshes after a save', asy
   vi.stubGlobal(
     'fetch',
     vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/api/session') return Response.json({ user: null })
       if (path === '/api/bootstrap') {
         if (++bootstrapReads === 1) return Response.json(bootstrap)
         return new Promise<Response>((resolve) => {
@@ -291,9 +293,11 @@ it('keeps the editor mounted while bootstrap status refreshes after a save', asy
   await act(async () =>
     root.render(
       <MemoryRouter>
-        <BootstrapGate>
-          <ChurchSettingsEditor churchId="church" initial={initial} />
-        </BootstrapGate>
+        <AuthProvider>
+          <BootstrapGate>
+            <ChurchSettingsEditor churchId="church" initial={initial} />
+          </BootstrapGate>
+        </AuthProvider>
       </MemoryRouter>,
     ),
   )

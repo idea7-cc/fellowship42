@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
@@ -23,7 +23,8 @@ import { ListSearch } from '@/components/list-search'
 import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -36,21 +37,35 @@ function GroupForm({
   group: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   group: Group | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The group as shown when this editor opened; the save is checked against it.
   const [group] = useState(record)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const entryKey = useEntryKey('group')
+  const describeEditFailure = useSaveFailure('group', onRefresh)
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       slug: String(form.get('slug') ?? ''),
@@ -72,16 +87,23 @@ function GroupForm({
           : `/api/groups/${encodeURIComponent(churchId)}`,
         {
           method: group ? 'PATCH' : 'POST',
+          headers: group
+            ? undefined
+            : { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(
             group ? { version: group.version, ...value } : value,
           ),
         },
       )
+      if (!group) entryKey.reset()
       await onSaved()
     } catch (caught) {
       setError(
-        describeSaveFailure(caught, 'group', 'The group could not be saved.'),
+        group
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'group', onRefresh).message,
       )
+      setEntryFailed(!group)
       setSaving(false)
     }
   }
@@ -208,6 +230,17 @@ function GroupForm({
             <Button type="submit" size="sm" disabled={saving}>
               {saving ? 'Saving…' : 'Save group'}
             </Button>
+            {entryFailed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={saving}
+                onClick={(click) => startNewEntry(click.currentTarget.form)}
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -232,10 +265,31 @@ export function GroupsPage() {
   const canWrite = can(permissions, 'groups.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Group>()
+  const editor = useRecordEditor<Group>(canWrite)
   const editorSession = editor.session
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
   const [sessionsGroup, setSessionsGroup] = useState<Group | null>(null)
+  // The roster and sessions panels open above the list. On a phone the
+  // group's button can be screens below, so bring the panel into view and
+  // move focus to it.
+  const panel = useRef<HTMLDivElement>(null)
+  const openPanel = rosterGroup
+    ? `roster:${rosterGroup.id}`
+    : sessionsGroup
+      ? `sessions:${sessionsGroup.id}`
+      : null
+  // A removed permission closes the panels rather than leaving their actions
+  // on screen.
+  useEffect(() => {
+    if (canWrite) return
+    setRosterGroup(null)
+    setSessionsGroup(null)
+  }, [canWrite])
+  useEffect(() => {
+    if (!openPanel) return
+    panel.current?.focus({ preventScroll: true })
+    panel.current?.scrollIntoView?.({ block: 'start' })
+  }, [openPanel])
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -298,24 +352,30 @@ export function GroupsPage() {
               editor.closeIf(editorSession.key)
               await groupQuery.refetch()
             }}
+            onRefresh={groupQuery.refetch}
           />
         ) : null}
-        {rosterGroup && churchId ? (
-          <GroupRosterPanel
-            key={rosterGroup.id}
-            churchId={churchId}
-            group={rosterGroup}
-            onClose={() => setRosterGroup(null)}
-          />
-        ) : null}
-        {sessionsGroup && churchId ? (
-          <GroupSessionsPanel
-            key={sessionsGroup.id}
-            churchId={churchId}
-            group={sessionsGroup}
-            onClose={() => setSessionsGroup(null)}
-          />
-        ) : null}
+        <div className="scroll-mt-20 outline-none" ref={panel} tabIndex={-1}>
+          {canWrite && rosterGroup && churchId ? (
+            <GroupRosterPanel
+              key={rosterGroup.id}
+              churchId={churchId}
+              group={rosterGroup}
+              onClose={() => setRosterGroup(null)}
+            />
+          ) : null}
+          {canWrite && sessionsGroup && churchId ? (
+            <GroupSessionsPanel
+              key={sessionsGroup.id}
+              churchId={churchId}
+              group={sessionsGroup}
+              timeZone={churchQuery.data?.church.timezone}
+              timeZoneError={churchQuery.error}
+              onRetryTimeZone={() => void churchQuery.refetch()}
+              onClose={() => setSessionsGroup(null)}
+            />
+          ) : null}
+        </div>
         {error ? (
           <p role="alert" className="mb-4 text-sm text-destructive">
             {error}
@@ -325,7 +385,7 @@ export function GroupsPage() {
           <p>Loading groups…</p>
         ) : groupQuery.error ? (
           <RequestError
-            message={groupQuery.error.message}
+            error={groupQuery.error}
             onRetry={() => void groupQuery.refetch()}
           />
         ) : displayedGroups.length ? (
@@ -379,7 +439,7 @@ export function GroupsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(group)}
                       >
                         Delete

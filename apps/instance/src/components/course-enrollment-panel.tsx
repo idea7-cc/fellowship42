@@ -128,7 +128,9 @@ export function CourseEnrollmentPanel({
         <CardDescription>
           {enrollmentQuery.isLoading
             ? 'Loading enrollment…'
-            : `${enrollments.length} enrolled · ${activeCount} active in ${courseTitle}`}
+            : enrollmentQuery.error
+              ? 'Enrollment could not be loaded'
+              : `${enrollments.length} enrolled · ${activeCount} active in ${courseTitle}`}
         </CardDescription>
       </CardHeader>
 
@@ -146,9 +148,9 @@ export function CourseEnrollmentPanel({
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
         </div>
-      ) : enrollmentQuery.error && !enrollmentQuery.data ? (
+      ) : enrollmentQuery.error ? (
         <RequestError
-          message={enrollmentQuery.error.message}
+          error={enrollmentQuery.error}
           onRetry={() => void enrollmentQuery.refetch()}
         />
       ) : (

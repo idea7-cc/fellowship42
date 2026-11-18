@@ -8,7 +8,12 @@ import {
 
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { apiRequest, useApiQuery } from './api'
+import {
+  type ApiError,
+  apiRequest,
+  isTransientFailure,
+  useReconnectingQuery,
+} from './api'
 import { useLocation } from 'react-router-dom'
 import type { SessionResponse, SessionUser } from './api-types'
 
@@ -16,6 +21,14 @@ interface AuthState {
   isSignedIn: boolean
   isLoading: boolean
   user: SessionUser | null
+  /**
+   * The session could not be checked on the network or server. A user who
+   * was already loaded is kept; with none loaded, access is unknown, not
+   * signed out.
+   */
+  connectionLost: boolean
+  /** The server refused the session (such as a suspended account). */
+  refusal: ApiError | null
   refetch: () => Promise<void>
 }
 
@@ -25,19 +38,28 @@ const AuthStateContext = createContext<AuthState | null>(null)
  * An instance session or a configured Access adapter authenticates the request.
  * The session endpoint synchronizes that identity into D1 and returns scoped
  * church roles and permissions for the UI.
+ *
+ * A refresh that fails on the network or server keeps the last known user, so
+ * a dropped connection does not sign staff out of the screen they are using.
+ * A refusal (such as 401 or 403) discards it, and only a later successful
+ * session response brings a user back.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading, refetch } =
-    useApiQuery<SessionResponse>('/api/session')
+  const { data, error, isLoading, refetch, connectionLost } =
+    useReconnectingQuery<SessionResponse>('/api/session')
+  const refusal = error && !isTransientFailure(error) ? error : null
+  const user = data?.user ?? null
 
   const value = useMemo<AuthState>(
     () => ({
-      isSignedIn: Boolean(data?.user),
+      isSignedIn: Boolean(user),
       isLoading,
-      user: data?.user ?? null,
+      user,
+      connectionLost,
+      refusal,
       refetch,
     }),
-    [data, isLoading, refetch],
+    [user, isLoading, connectionLost, refusal, refetch],
   )
 
   if (error && error.status >= 500) {

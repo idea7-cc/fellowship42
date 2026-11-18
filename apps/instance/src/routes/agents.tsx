@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RequestError } from '@/components/request-error'
 
 export function AgentsPage() {
   const { churchId } = useChurch()
@@ -59,15 +60,18 @@ export function AgentConnectionsPanel({ churchId }: { churchId: string }) {
   return (
     <PageShell>
       <PageHeader title="Agents" />
-      {(error || query.error) && (
-        <p role="alert">{error || query.error?.message}</p>
-      )}
+      {error ? <p role="alert">{error}</p> : null}
+      {query.error ? (
+        <RequestError
+          className="mb-4"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : null}
       {!query.data ? (
         query.isLoading ? (
           <Skeleton className="h-48" />
-        ) : (
-          <Button onClick={() => void query.refetch()}>Try again</Button>
-        )
+        ) : null
       ) : (
         <div className="max-w-2xl space-y-6">
           <Card className="space-y-4">

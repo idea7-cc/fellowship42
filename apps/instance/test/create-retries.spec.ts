@@ -135,7 +135,9 @@ function watchMediaPuts(beforePut?: (key: string) => Promise<void>) {
       return typeof value === 'function' ? value.bind(target) : value
     },
   })
-  const bindings = Object.assign(Object.create(env) as Env, { MEDIA: bucket })
+  // Define rather than assign: assigning through the `env` proxy prototype
+  // would replace the shared binding for every other test.
+  const bindings = Object.create(env, { MEDIA: { value: bucket } }) as Env
   return { puts, bindings }
 }
 

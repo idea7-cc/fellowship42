@@ -11,7 +11,11 @@ import {
 
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
-import { formatTimestamp } from '@/lib/format'
+import {
+  formatInTimeZone,
+  fromZonedInputValue,
+  toZonedInputValue,
+} from '@/lib/time-zone'
 import type {
   AttendanceStatus,
   Group,
@@ -19,6 +23,7 @@ import type {
   GroupSessionStatus,
   SessionAttendance,
 } from '@/lib/api-types'
+import { RequestError } from '@/components/request-error'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge, StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,13 +53,6 @@ const attendanceStatuses: Array<{ value: AttendanceStatus; label: string }> = [
   { value: 'serving', label: 'Serving' },
 ]
 
-/** `datetime-local` wants `YYYY-MM-DDTHH:mm` in local time, not an ISO string. */
-function toLocalInputValue(timestamp: number): string {
-  const date = new Date(timestamp)
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(timestamp - offset).toISOString().slice(0, 16)
-}
-
 /**
  * Meeting occurrences for one group, and the register for each.
  *
@@ -63,14 +61,25 @@ function toLocalInputValue(timestamp: number): string {
  * current active and paused members as well as marked people, which is what
  * makes "not recorded yet" visibly different from "absent". People keep their
  * recorded marks after they complete or leave the group.
+ *
+ * Meeting times are entered and shown in the church's timezone, whatever zone
+ * the staff member's device uses.
  */
 export function GroupSessionsPanel({
   churchId,
   group,
+  timeZone,
+  timeZoneError = null,
+  onRetryTimeZone = () => {},
   onClose,
 }: {
   churchId: string
   group: Group
+  /** The church's IANA timezone; undefined until the church loads. */
+  timeZone: string | undefined
+  /** Why the church (and so its timezone) could not be loaded. */
+  timeZoneError?: Error | null
+  onRetryTimeZone?: () => void
   onClose: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -80,12 +89,16 @@ export function GroupSessionsPanel({
   // A failed create offers a fresh entry: its key may belong to another save.
   const [entryFailed, setEntryFailed] = useState(false)
   const sessionEntry = useEntryKey('session')
+  // A meeting with recorded attendance cannot be deleted; offer to cancel it.
+  // Kept by id: the cancel action uses the row as refreshed after the refusal.
+  const [undeletableId, setUndeletableId] = useState<string | null>(null)
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
   const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(
     `${base}/sessions`,
   )
   const sessions = sessionQuery.data?.sessions ?? []
+  const undeletable = sessions.find((session) => session.id === undeletableId)
 
   async function run(
     action: () => Promise<unknown>,
@@ -96,6 +109,7 @@ export function GroupSessionsPanel({
   ) {
     setBusy(true)
     setError(null)
+    setUndeletableId(null)
     try {
       await action()
       await sessionQuery.refetch()
@@ -113,12 +127,13 @@ export function GroupSessionsPanel({
 
   async function createSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!timeZone) return
     const formElement = event.currentTarget
     const form = new FormData(formElement)
-    const startsAt = new Date(String(form.get('startsAt'))).getTime()
+    const startsAt = fromZonedInputValue(String(form.get('startsAt')), timeZone)
     if (Number.isNaN(startsAt)) return
     const endsRaw = String(form.get('endsAt') ?? '')
-    const endsAt = endsRaw ? new Date(endsRaw).getTime() : null
+    const endsAt = endsRaw ? fromZonedInputValue(endsRaw, timeZone) : null
     const location = String(form.get('location') ?? '').trim()
     setEntryFailed(false)
     const saved = await run(
@@ -134,7 +149,8 @@ export function GroupSessionsPanel({
             status: String(form.get('status') ?? 'planned'),
           }),
         }),
-      (caught) => describeEntryFailure(caught, 'session').message,
+      (caught) =>
+        describeEntryFailure(caught, 'session', sessionQuery.refetch).message,
     )
     if (saved) {
       sessionEntry.reset()
@@ -143,6 +159,48 @@ export function GroupSessionsPanel({
     } else {
       setEntryFailed(true)
     }
+  }
+
+  function setStatus(session: GroupSession, status: GroupSessionStatus) {
+    return run(() =>
+      apiRequest(`${base}/sessions/${encodeURIComponent(session.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, version: session.version }),
+      }),
+    )
+  }
+
+  async function removeSession(session: GroupSession) {
+    const when = timeZone
+      ? ` on ${formatInTimeZone(session.startsAt, timeZone)}`
+      : ''
+    if (
+      !window.confirm(
+        `Delete ${session.title}${when}? This removes the meeting and its attendance register.`,
+      )
+    )
+      return
+    let refusedForAttendance = false
+    await run(
+      () =>
+        apiRequest(`${base}/sessions/${encodeURIComponent(session.id)}`, {
+          method: 'DELETE',
+          body: JSON.stringify({ version: session.version }),
+        }),
+      (caught) => {
+        if (
+          caught instanceof ApiError &&
+          caught.code === 'session_has_attendance'
+        ) {
+          refusedForAttendance = true
+          return `${session.title} has recorded attendance, so it cannot be deleted. Cancel the meeting instead: its attendance stays on record.`
+        }
+        return caught instanceof ApiError
+          ? caught.message
+          : 'The session could not be deleted.'
+      },
+    )
+    if (refusedForAttendance) setUndeletableId(session.id)
   }
 
   function toggleCreating(open: boolean) {
@@ -168,7 +226,9 @@ export function GroupSessionsPanel({
             <CardDescription>
               {sessionQuery.isLoading
                 ? 'Loading sessions…'
-                : `${sessions.length} ${sessions.length === 1 ? 'meeting' : 'meetings'} recorded`}
+                : sessionQuery.error
+                  ? 'Sessions could not be loaded'
+                  : `${sessions.length} ${sessions.length === 1 ? 'meeting' : 'meetings'} recorded${timeZone ? ` · times in ${timeZone}` : ''}`}
             </CardDescription>
           </div>
           <div className="flex items-center gap-1">
@@ -193,12 +253,25 @@ export function GroupSessionsPanel({
       </CardHeader>
 
       {error ? (
-        <p
-          className="mb-3 rounded-md bg-danger-soft p-2.5 text-sm text-danger-soft-foreground"
+        <div
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-danger-soft p-2.5 text-sm text-danger-soft-foreground"
           role="alert"
         >
-          {error}
-        </p>
+          <span className="min-w-0 flex-1">{error}</span>
+          {undeletable ? (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setUndeletableId(null)
+                void setStatus(undeletable, 'cancelled')
+              }}
+              size="xs"
+              variant="secondary"
+            >
+              Cancel {undeletable.title}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {creating ? (
@@ -221,7 +294,9 @@ export function GroupSessionsPanel({
             </Field>
             <Field label="Starts" required>
               <Input
-                defaultValue={toLocalInputValue(Date.now())}
+                defaultValue={
+                  timeZone ? toZonedInputValue(Date.now(), timeZone) : ''
+                }
                 name="startsAt"
                 required
                 type="datetime-local"
@@ -231,11 +306,21 @@ export function GroupSessionsPanel({
               <Input name="endsAt" type="datetime-local" />
             </Field>
           </FieldGrid>
+          <p className="text-xs text-muted-foreground">
+            {timeZone
+              ? `Times are in ${timeZone}, the church's timezone, whatever timezone this device uses.`
+              : timeZoneError
+                ? "The church's timezone could not be loaded, so this meeting cannot be saved yet."
+                : "Loading the church's timezone…"}
+          </p>
+          {!timeZone && timeZoneError ? (
+            <RequestError error={timeZoneError} onRetry={onRetryTimeZone} />
+          ) : null}
           <Field hint="Defaults to the group's usual location" label="Location">
             <Input defaultValue={group.location ?? ''} name="location" />
           </Field>
           <div className="flex gap-2">
-            <Button disabled={busy} size="sm" type="submit">
+            <Button disabled={busy || !timeZone} size="sm" type="submit">
               Save session
             </Button>
             {entryFailed ? (
@@ -265,6 +350,11 @@ export function GroupSessionsPanel({
           <Skeleton className="h-10" />
           <Skeleton className="h-10" />
         </div>
+      ) : sessionQuery.error ? (
+        <RequestError
+          error={sessionQuery.error}
+          onRetry={() => void sessionQuery.refetch()}
+        />
       ) : sessions.length ? (
         <ul className="grid gap-1.5">
           {sessions.map((session) => {
@@ -293,7 +383,9 @@ export function GroupSessionsPanel({
                       {session.title}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {formatTimestamp(session.startsAt)}
+                      {timeZone
+                        ? formatInTimeZone(session.startsAt, timeZone)
+                        : null}
                     </span>
                   </button>
                   {/* No status badge here: the select beside it already shows
@@ -303,17 +395,9 @@ export function GroupSessionsPanel({
                     containerClassName="w-32"
                     disabled={busy}
                     onChange={(event) =>
-                      void run(() =>
-                        apiRequest(
-                          `${base}/sessions/${encodeURIComponent(session.id)}`,
-                          {
-                            method: 'PATCH',
-                            body: JSON.stringify({
-                              status: event.target.value,
-                              version: session.version,
-                            }),
-                          },
-                        ),
+                      void setStatus(
+                        session,
+                        event.target.value as GroupSessionStatus,
                       )
                     }
                     selectSize="sm"
@@ -328,17 +412,7 @@ export function GroupSessionsPanel({
                   <Button
                     aria-label={`Delete ${session.title}`}
                     disabled={busy}
-                    onClick={() =>
-                      void run(() =>
-                        apiRequest(
-                          `${base}/sessions/${encodeURIComponent(session.id)}`,
-                          {
-                            method: 'DELETE',
-                            body: JSON.stringify({ version: session.version }),
-                          },
-                        ),
-                      )
-                    }
+                    onClick={() => void removeSession(session)}
                     size="icon-xs"
                     variant="destructive-ghost"
                   >
@@ -446,10 +520,21 @@ function SessionRegister({
     }
   }
 
-  if (attendanceQuery.isLoading) {
+  if (attendanceQuery.isLoading && !attendance) {
     return (
       <div className="border-t border-border p-3">
         <Skeleton className="h-8" />
+      </div>
+    )
+  }
+
+  if (attendanceQuery.error) {
+    return (
+      <div className="border-t border-border p-3">
+        <RequestError
+          error={attendanceQuery.error}
+          onRetry={() => void attendanceQuery.refetch()}
+        />
       </div>
     )
   }

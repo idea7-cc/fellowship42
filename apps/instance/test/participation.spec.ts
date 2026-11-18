@@ -137,6 +137,56 @@ async function createCourse(title: string, slug: string) {
   return body.course.id
 }
 
+// Runs before the suites below, which clear rosters, so the seeded rows are
+// still the ones `seed.sql` wrote.
+describe('seeded rosters', () => {
+  it('refuses a stale write after a seeded member or leader is removed and re-added', async () => {
+    const groupId = 'group_demo_young_adults'
+    const sequence = await env.DB.prepare(
+      `SELECT g.roster_sequence AS sequence,
+         MAX(COALESCE((SELECT MAX(version) FROM group_memberships
+           WHERE group_id = g.id), 0),
+         COALESCE((SELECT MAX(version) FROM group_leaders
+           WHERE group_id = g.id), 0)) AS highest
+       FROM groups g WHERE g.church_id = 'church_demo' AND g.id = ?`,
+    )
+      .bind(groupId)
+      .first<{ sequence: number; highest: number }>()
+    expect(sequence!.sequence).toBeGreaterThanOrEqual(sequence!.highest)
+    const roster = async () =>
+      (
+        await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+      ).json<GroupRoster>()
+    for (const [kind, personId] of [
+      ['members', 'person_demo_28'],
+      ['leaders', 'person_demo_15'],
+    ] as const) {
+      const path = `/api/groups/church_demo/${groupId}/${kind}/${personId}`
+      const seeded = (await roster())[kind].find(
+        (row) => row.personId === personId,
+      )
+      expect(seeded).toBeDefined()
+      const stale = seeded!.version
+      expect((await request('DELETE', path, { version: stale })).status).toBe(
+        200,
+      )
+      expect((await request('PUT', path, {})).status).toBe(200)
+      const replacement = (await roster())[kind].find(
+        (row) => row.personId === personId,
+      )!
+      expect(replacement.version).not.toBe(stale)
+      const staleEdit =
+        kind === 'members'
+          ? { version: stale, status: 'paused' }
+          : { version: stale, role: 'host' }
+      expect((await request('PUT', path, staleEdit)).status).toBe(409)
+      expect(
+        (await roster())[kind].find((row) => row.personId === personId),
+      ).toEqual(replacement)
+    }
+  })
+})
+
 describe('group rosters', () => {
   beforeEach(async () => {
     await env.DB.prepare('DELETE FROM group_memberships').run()

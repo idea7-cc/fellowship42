@@ -25,7 +25,8 @@ import {
 } from '@/components/record-combobox'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type { Church, CursorPage, Sermon } from '@/lib/api-types'
 import {
   calendarDateToEpoch,
@@ -43,16 +44,30 @@ function SermonForm({
   sermon: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   sermon: Sermon | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The sermon as shown when this editor opened; the save is checked against it.
   const [sermon] = useState(record)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const entryKey = useEntryKey('sermon')
+  const describeEditFailure = useSaveFailure('sermon', onRefresh)
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setAudio(null)
+    setError(null)
+    setEntryFailed(false)
+  }
   // Controlled, so the saved choice survives a media list that loads later.
   const [audio, setAudio] = useSavedMediaChoice(churchId, sermon?.audioMediaId)
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -60,6 +75,7 @@ function SermonForm({
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       slug: String(form.get('slug') ?? ''),
@@ -82,16 +98,23 @@ function SermonForm({
           : `/api/sermons/${encodeURIComponent(churchId)}`,
         {
           method: sermon ? 'PATCH' : 'POST',
+          headers: sermon
+            ? undefined
+            : { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(
             sermon ? { version: sermon.version, ...value } : value,
           ),
         },
       )
+      if (!sermon) entryKey.reset()
       await onSaved()
     } catch (caught) {
       setError(
-        describeSaveFailure(caught, 'sermon', 'The sermon could not be saved.'),
+        sermon
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'sermon', onRefresh).message,
       )
+      setEntryFailed(!sermon)
       setSaving(false)
     }
   }
@@ -213,6 +236,17 @@ function SermonForm({
             <Button size="sm" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save sermon'}
             </Button>
+            {entryFailed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={saving}
+                onClick={(click) => startNewEntry(click.currentTarget.form)}
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               size="sm"
               type="button"
@@ -237,7 +271,7 @@ export function SermonsPage() {
   const canWrite = can(permissions, 'sermons.write')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const editor = useRecordEditor<Sermon>()
+  const editor = useRecordEditor<Sermon>(canWrite)
   const editorSession = editor.session
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
@@ -301,6 +335,7 @@ export function SermonsPage() {
               editor.closeIf(editorSession.key)
               await sermonQuery.refetch()
             }}
+            onRefresh={sermonQuery.refetch}
           />
         ) : null}
         {error ? (
@@ -312,7 +347,7 @@ export function SermonsPage() {
           <p>Loading sermons…</p>
         ) : sermonQuery.error ? (
           <RequestError
-            message={sermonQuery.error.message}
+            error={sermonQuery.error}
             onRetry={() => void sermonQuery.refetch()}
           />
         ) : displayed.length ? (
@@ -360,7 +395,7 @@ export function SermonsPage() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(sermon)}
                       >
                         Delete

@@ -12,7 +12,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, useApiQuery } from '@/lib/api'
+import { formatInTimeZone, fromZonedInputValue } from '@/lib/time-zone'
+import { formatMoney, parseAmount } from '@/lib/money'
 import { usePagedQuery } from '@/lib/paged-query'
 import { ListPager } from '@/components/list-pager'
 import { ListSearch } from '@/components/list-search'
@@ -24,7 +26,7 @@ import {
 } from '@/lib/entry-key'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import type { Contribution, CursorPage } from '@/lib/api-types'
+import type { Church, Contribution, CursorPage } from '@/lib/api-types'
 
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
@@ -36,19 +38,6 @@ const contributionStatuses = [
   { value: 'refunded', label: 'Refunded' },
   { value: 'failed', label: 'Failed' },
 ]
-
-function formatMoney(amountMinor: number, currency: string) {
-  try {
-    const formatter = new Intl.NumberFormat(undefined, {
-      style: 'currency',
-      currency,
-    })
-    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2
-    return formatter.format(amountMinor / 10 ** digits)
-  } catch {
-    return `${amountMinor} ${currency} minor units`
-  }
-}
 
 export function ContributionsPage() {
   const { churchId } = useChurch()
@@ -69,6 +58,12 @@ export function ContributionsPage() {
       : null,
     { limit: 25, query: appliedSearch, status },
   )
+  // Gift times are entered and shown in the church's timezone, not the zone
+  // of whichever device staff use.
+  const churchQuery = useApiQuery<{ church: Church }>(
+    `/api/churches/${encodeURIComponent(churchId)}`,
+  )
+  const timeZone = churchQuery.data?.church.timezone
   const [error, setError] = useState<EntryFailure | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -76,10 +71,23 @@ export function ContributionsPage() {
 
   async function createContribution(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!churchId) return
+    if (!churchId || !timeZone) return
     // React clears currentTarget once the handler awaits; keep the form.
     const formElement = event.currentTarget
     const form = new FormData(formElement)
+    const currency = String(form.get('currency') ?? 'USD')
+      .trim()
+      .toUpperCase()
+    const amount = parseAmount(String(form.get('amount') ?? ''), currency)
+    if (!amount.ok) {
+      setError({
+        message: amount.message,
+        uncertain: false,
+        keyConflict: false,
+      })
+      return
+    }
+    const { amountMinor } = amount
     setSaving(true)
     setError(null)
     setNotice(null)
@@ -89,12 +97,14 @@ export function ContributionsPage() {
         headers: { 'Idempotency-Key': entryKey.current() },
         body: JSON.stringify({
           donorName: String(form.get('donorName') ?? ''),
-          amountMinor: Number(form.get('amountMinor')),
-          currency: String(form.get('currency') ?? 'USD'),
+          amountMinor,
+          currency,
           fund: String(form.get('fund') ?? ''),
           paymentMethod: String(form.get('paymentMethod') ?? 'cash'),
           recurring: form.get('recurring') === 'on',
-          donatedAt: new Date(String(form.get('donatedAt'))).toISOString(),
+          donatedAt: new Date(
+            fromZonedInputValue(String(form.get('donatedAt')), timeZone),
+          ).toISOString(),
         }),
       })
       entryKey.reset()
@@ -102,7 +112,14 @@ export function ContributionsPage() {
       setNotice('Contribution recorded.')
       void contributionsQuery.refetch()
     } catch (caught) {
-      setError(describeEntryFailure(caught, 'contribution', 'recorded'))
+      setError(
+        describeEntryFailure(
+          caught,
+          'contribution',
+          contributionsQuery.refetch,
+          'recorded',
+        ),
+      )
     } finally {
       setSaving(false)
     }
@@ -137,7 +154,7 @@ export function ContributionsPage() {
                   <CardTitle>Record an offline contribution</CardTitle>
                   <CardDescription>
                     Use this for cash, checks, or another manually reconciled
-                    payment. Amounts are stored as integer minor units.
+                    payment.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -148,12 +165,11 @@ export function ContributionsPage() {
                         <Input name="donorName" required maxLength={200} />
                       </label>
                       <label className="grid gap-1 text-sm font-semibold">
-                        Amount in minor units
+                        Amount
                         <Input
-                          name="amountMinor"
-                          type="number"
-                          min={1}
-                          step={1}
+                          inputMode="decimal"
+                          name="amount"
+                          placeholder="25.00"
                           required
                         />
                       </label>
@@ -188,12 +204,30 @@ export function ContributionsPage() {
                       <label className="grid gap-1 text-sm font-semibold">
                         Donated at
                         <Input
+                          aria-describedby="donated-at-zone"
                           name="donatedAt"
                           type="datetime-local"
                           required
                         />
+                        <span
+                          className="text-xs font-normal text-muted-foreground"
+                          id="donated-at-zone"
+                        >
+                          {timeZone
+                            ? `In ${timeZone}, the church's timezone.`
+                            : churchQuery.error
+                              ? "The church's timezone could not be loaded, so the time cannot be recorded yet."
+                              : "Loading the church's timezone…"}
+                        </span>
                       </label>
                     </div>
+                    {!timeZone && churchQuery.error ? (
+                      // The draft stays as typed while the read is retried.
+                      <RequestError
+                        error={churchQuery.error}
+                        onRetry={() => void churchQuery.refetch()}
+                      />
+                    ) : null}
                     <label className="flex items-center gap-2 text-sm font-semibold">
                       <input name="recurring" type="checkbox" />
                       Recurring contribution
@@ -212,7 +246,11 @@ export function ContributionsPage() {
                       </p>
                     ) : null}
                     <div className="flex flex-wrap gap-2">
-                      <Button type="submit" size="sm" disabled={saving}>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={saving || !timeZone}
+                      >
                         {saving ? 'Recording…' : 'Record contribution'}
                       </Button>
                       {error ? (
@@ -248,7 +286,7 @@ export function ContributionsPage() {
               <p>Loading contributions…</p>
             ) : contributionsQuery.error ? (
               <RequestError
-                message={contributionsQuery.error.message}
+                error={contributionsQuery.error}
                 onRetry={() => void contributionsQuery.refetch()}
               />
             ) : contributionsQuery.data?.contributions.length ? (
@@ -261,7 +299,9 @@ export function ContributionsPage() {
                           <CardTitle>{contribution.donorName}</CardTitle>
                           <CardDescription>
                             {contribution.fund} ·{' '}
-                            {new Date(contribution.donatedAt).toLocaleString()}
+                            {timeZone
+                              ? `${formatInTimeZone(contribution.donatedAt, timeZone)} (${timeZone})`
+                              : null}
                           </CardDescription>
                         </div>
                         <div className="text-right">

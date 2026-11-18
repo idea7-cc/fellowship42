@@ -3,9 +3,10 @@ import { act } from 'react'
 import { ChurchImagePicker } from '../../src/components/church-image-picker'
 import { GroupSessionsPanel } from '../../src/components/group-sessions-panel'
 import { ContributionsPage } from '../../src/routes/contributions'
+import { CoursesPage } from '../../src/routes/courses'
 import { MediaPage } from '../../src/routes/media'
 import { PeoplePage } from '../../src/routes/people'
-import type { Group } from '../../contracts/api'
+import type { Course, Group } from '../../contracts/api'
 import {
   apiError,
   mountStaff,
@@ -103,6 +104,11 @@ describe('contributions', () => {
           ),
         )
       }
+      if (call.path === '/api/churches/church') {
+        return Response.json({
+          church: { id: 'church', name: 'Grace', timezone: 'America/New_York' },
+        })
+      }
       return Response.json({
         contributions: server.rows.map((row) => ({
           id: row.id,
@@ -127,7 +133,7 @@ describe('contributions', () => {
     const form = ui.form()
     async function fill(donorName: string, amount: string) {
       await ui.type(ui.field('donorName', form), donorName)
-      await ui.type(ui.field('amountMinor', form), amount)
+      await ui.type(ui.field('amount', form), amount)
       await ui.type(ui.field('donatedAt', form), '2026-09-20T10:00')
     }
     return { api, server, ui, form, fill }
@@ -136,7 +142,7 @@ describe('contributions', () => {
   it('reports a successful save as success and starts a clean entry', async () => {
     const { api, ui, form, fill } = await renderContributions()
     const listReads = api.requests('GET', '/api/contributions/').length
-    await fill('Ada Donor', '2500')
+    await fill('Ada Donor', '25.00')
     await ui.submit(form)
     expect(ui.alert()).toBeNull()
     expect(ui.status()).toContain('Contribution recorded')
@@ -149,7 +155,7 @@ describe('contributions', () => {
 
   it('retries a lost response with the same key and records one contribution', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Lost Response', '4000')
+    await fill('Lost Response', '40')
     server.loseNextResponse()
     await ui.submit(form)
     expect(ui.alert()).toMatch(/will not be recorded twice/)
@@ -164,9 +170,9 @@ describe('contributions', () => {
 
   it('uses a new key for the next entry after a confirmed save', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Same Gift', '1000')
+    await fill('Same Gift', '10')
     await ui.submit(form)
-    await fill('Same Gift', '1000')
+    await fill('Same Gift', '10')
     await ui.submit(form)
     expect(server.rows).toHaveLength(2)
     expect(server.seenKeys[1]).not.toBe(server.seenKeys[0])
@@ -174,17 +180,17 @@ describe('contributions', () => {
 
   it('explains a changed retry and lets staff start a new entry', async () => {
     const { server, ui, form, fill } = await renderContributions()
-    await fill('Changed Mind', '1000')
+    await fill('Changed Mind', '10')
     server.loseNextResponse()
     await ui.submit(form)
-    await ui.type(ui.field('amountMinor', form), '1500')
+    await ui.type(ui.field('amount', form), '15')
     await ui.submit(form)
     expect(ui.alert()).toMatch(/different details/)
     expect(server.rows).toHaveLength(1)
     await ui.click(ui.button('Start a new entry'))
     expect(ui.alert()).toBeNull()
     expect(ui.field('donorName', form).value).toBe('')
-    await fill('Changed Mind', '1500')
+    await fill('Changed Mind', '15')
     await ui.submit(form)
     expect(server.rows).toHaveLength(2)
     expect(new Set(server.seenKeys).size).toBe(2)
@@ -319,6 +325,7 @@ it('keeps the group session entry key across a lost response', async () => {
     <GroupSessionsPanel
       churchId="church"
       group={{ id: 'group', title: 'Alpha', location: 'Hall' } as Group}
+      timeZone="America/Chicago"
       onClose={() => {}}
     />,
   )
@@ -351,6 +358,7 @@ describe('group session entries', () => {
       <GroupSessionsPanel
         churchId="church"
         group={{ id: 'group', title: 'Alpha', location: 'Hall' } as Group}
+        timeZone="America/Chicago"
         onClose={() => {}}
       />,
     )
@@ -386,6 +394,110 @@ describe('group session entries', () => {
     }
     expect(sessions.rows).toHaveLength(2)
     expect(sessions.seenKeys[1]).not.toBe(sessions.seenKeys[0])
+  })
+})
+
+describe('slug-keyed records', () => {
+  function course(overrides: Partial<Course> = {}): Course {
+    return {
+      id: 'course-1',
+      churchId: 'church',
+      slug: 'alpha',
+      title: 'Alpha',
+      status: 'draft',
+      courseType: 'Study',
+      deliveryMode: 'In person',
+      audience: '',
+      duration: '',
+      featured: false,
+      certificateOffered: false,
+      summary: 'First summary',
+      lessonCount: 0,
+      version: 3,
+      ...overrides,
+    }
+  }
+
+  it('replays a lost course create instead of reporting its slug as taken', async () => {
+    const courses = keyedServer('course')
+    stubApi(async (call) => {
+      if (call.method === 'POST') {
+        return courses.create(call, (id, replayed) =>
+          Response.json({ course: course({ id }), replayed }, { status: 201 }),
+        )
+      }
+      if (call.path.startsWith('/api/courses/church'))
+        return Response.json({
+          courses: courses.rows.map((row) => course({ id: row.id })),
+          page: { limit: 24, nextCursor: null },
+        })
+      return Response.json({ church: { id: 'church', name: 'Grace' } })
+    })
+    const ui = await mountStaff(<CoursesPage />)
+    cleanup = ui.unmount
+    await ui.click(ui.button('Add course'))
+    const form = ui.formWith('slug')
+    await ui.type(ui.field('title', form), 'Alpha')
+    await ui.type(ui.field('slug', form), 'alpha')
+    await ui.type(ui.field('courseType', form), 'Study')
+    await ui.type(ui.field('deliveryMode', form), 'In person')
+    courses.loseNextResponse()
+    await ui.submit(form)
+    expect(ui.alert()).toMatch(/will not be saved twice/)
+    expect(ui.buttons('Start a new entry')).toHaveLength(1)
+    await ui.submit(ui.formWith('slug'))
+    expect(courses.seenKeys[0]).toBeTruthy()
+    expect(courses.seenKeys[1]).toBe(courses.seenKeys[0])
+    expect(courses.rows).toHaveLength(1)
+    expect(ui.alert()).toBeNull()
+    expect(ui.text()).not.toContain('Add a course')
+  })
+
+  it('says an edit is unconfirmed when its retry meets its own earlier success', async () => {
+    let stored = course()
+    let loseNext = true
+    const api = stubApi(async (call) => {
+      if (call.method === 'PATCH') {
+        const body = call.body as { version: number; summary: string }
+        if (body.version !== stored.version)
+          return apiError(409, 'version_conflict', 'Version changed')
+        stored = {
+          ...stored,
+          summary: body.summary,
+          version: stored.version + 1,
+        }
+        if (loseNext) {
+          loseNext = false
+          throw new TypeError('Failed to fetch')
+        }
+        return Response.json({ course: stored })
+      }
+      if (call.path.startsWith('/api/courses/church'))
+        return Response.json({
+          courses: [stored],
+          page: { limit: 24, nextCursor: null },
+        })
+      return Response.json({ church: { id: 'church', name: 'Grace' } })
+    })
+    const ui = await mountStaff(<CoursesPage />)
+    cleanup = ui.unmount
+    await ui.click(ui.button('Edit'))
+    await ui.type(ui.field('summary', ui.formWith('slug')), 'Second summary')
+    await ui.submit(ui.formWith('slug'))
+    expect(ui.alert()).toMatch(/could not confirm whether your changes/)
+    const listReads = api.requests('GET', '/api/courses/church').length
+    await ui.submit(ui.formWith('slug'))
+    expect(ui.alert()).toMatch(
+      /possibly because your earlier save went through/,
+    )
+    expect(ui.alert()).not.toMatch(/your changes were not saved/)
+    expect(ui.field('summary', ui.formWith('slug')).value).toBe(
+      'Second summary',
+    )
+    expect(api.requests('GET', '/api/courses/church').length).toBeGreaterThan(
+      listReads,
+    )
+    expect(ui.text()).toContain('Second summary')
   })
 })
 

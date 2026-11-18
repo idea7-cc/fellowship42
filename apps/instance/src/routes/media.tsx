@@ -71,7 +71,9 @@ export function MediaPage() {
       formElement.reset()
       await mediaQuery.refetch()
     } catch (caught) {
-      setError(describeEntryFailure(caught, 'upload').message)
+      setError(
+        describeEntryFailure(caught, 'upload', mediaQuery.refetch).message,
+      )
     } finally {
       setUploading(false)
     }
@@ -131,7 +133,7 @@ export function MediaPage() {
   return (
     <PageShell>
       <PageHeader
-        description="Church-owned R2 objects with D1 authorization metadata and checksums."
+        description="Images, audio, video and documents that belong to this church. Public files can be used on the church website."
         eyebrow="Publishing"
         title="Media library"
       />
@@ -154,17 +156,23 @@ export function MediaPage() {
               </CardHeader>
               <CardContent>
                 <form className="grid gap-4" onSubmit={upload}>
-                  <Input
-                    name="file"
-                    type="file"
-                    required
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/avif,audio/*,video/mp4,video/webm,video/ogg,application/pdf"
-                  />
-                  <Input
-                    name="altText"
-                    maxLength={500}
-                    placeholder="Alternative text or a short media description"
-                  />
+                  <label className="grid gap-1 text-sm font-semibold">
+                    File
+                    <Input
+                      name="file"
+                      type="file"
+                      required
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif,audio/*,video/mp4,video/webm,video/ogg,application/pdf"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-semibold">
+                    Description
+                    <Input
+                      name="altText"
+                      maxLength={500}
+                      placeholder="Alternative text or a short media description"
+                    />
+                  </label>
                   <label className="grid gap-1 text-sm font-semibold">
                     Visibility
                     <select
@@ -219,7 +227,7 @@ export function MediaPage() {
               <p>Loading media…</p>
             ) : mediaQuery.error ? (
               <RequestError
-                message={mediaQuery.error.message}
+                error={mediaQuery.error}
                 onRetry={() => void mediaQuery.refetch()}
               />
             ) : (
@@ -263,7 +271,7 @@ export function MediaPage() {
                       <Button
                         type="button"
                         size="sm"
-                        variant="destructive"
+                        variant="destructive-outline"
                         onClick={() => void remove(media)}
                       >
                         Delete

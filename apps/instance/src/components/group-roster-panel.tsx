@@ -156,7 +156,9 @@ export function GroupRosterPanel({
                 ? roster.capacity !== undefined
                   ? `${roster.activeCount} of ${roster.capacity} active`
                   : `${roster.activeCount} active`
-                : 'Loading roster…'}
+                : rosterQuery.error
+                  ? 'The roster could not be loaded'
+                  : 'Loading roster…'}
               {roster?.leaders.length
                 ? ` · ${roster.leaders.length} ${roster.leaders.length === 1 ? 'leader' : 'leaders'}`
                 : null}
@@ -195,9 +197,9 @@ export function GroupRosterPanel({
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
         </div>
-      ) : rosterQuery.error && !roster ? (
+      ) : rosterQuery.error ? (
         <RequestError
-          message={rosterQuery.error.message}
+          error={rosterQuery.error}
           onRetry={() => void rosterQuery.refetch()}
         />
       ) : (

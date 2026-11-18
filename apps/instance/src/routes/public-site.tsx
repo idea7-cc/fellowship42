@@ -1,5 +1,6 @@
 import { ArrowLeft, Church as ChurchIcon } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+import { ConnectionNotice } from '@/components/bootstrap-gate'
 import type { ChurchSite } from '../../contracts/church-settings'
 import type { CourseDetailResponse } from '@/lib/api-types'
 import { useApiQuery } from '@/lib/api'
@@ -82,6 +83,7 @@ export function SitePreviewPage() {
           {query.error?.message ?? 'Preview unavailable'}
         </div>
       )}
+      <ConnectionNotice />
     </>
   )
 }
@@ -109,10 +111,12 @@ export function PublicCoursePage() {
     >
       <main className="mx-auto max-w-3xl px-5 py-8">
         <Button asChild size="sm" variant="ghost">
-          <Link to="/">
+          {/* A full page load, so the Worker can send visitors back to the
+              church's connected website instead of the fallback page. */}
+          <a href="/">
             <ArrowLeft aria-hidden />
             {site.data.church.name}
-          </Link>
+          </a>
         </Button>
         {course.data ? (
           <>
