@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
   type KeyboardEvent,
 } from 'react'
@@ -86,6 +87,7 @@ export function RecordCombobox<T>({
   const [active, setActive] = useState(-1)
   const [results, setResults] = useState<Results<T> | null>(null)
   const guard = useRequestGuard()
+  const input = useRef<HTMLInputElement>(null)
 
   const fixed = new URLSearchParams(params).toString()
   const key = `${path}?${fixed}#${query}`
@@ -154,7 +156,9 @@ export function RecordCombobox<T>({
     if (open && settled && results?.key !== key) void load(null)
   }, [open, settled, key, results?.key, load])
 
-  const loaded = results?.key === key ? results : null
+  // Results of an earlier search are never offered once the text has moved
+  // on: Down then Enter must not pick from a list the user typed over.
+  const loaded = settled && results?.key === key ? results : null
   const options = (loaded?.items ?? [])
     .filter((item) => !isExcluded?.(item))
     .map((item) => ({ ...toChoice(item), detail: describe?.(item) }))
@@ -162,25 +166,41 @@ export function RecordCombobox<T>({
   const statusText =
     !loaded || loaded.loading
       ? 'Searching…'
-      : loaded.failed || options.length
+      : loaded.failed
         ? null
-        : hiddenCount
-          ? 'Everyone found so far is already listed here.'
-          : 'No matches.'
+        : options.length
+          ? `${options.length} ${options.length === 1 ? 'result' : 'results'}${loaded.nextCursor ? ', more available' : ''}.`
+          : hiddenCount
+            ? 'Everyone found so far is already listed here.'
+            : 'No matches.'
 
-  function close() {
+  useEffect(() => {
+    if (open && active >= 0)
+      document
+        .getElementById(`${listId}-${active}`)
+        ?.scrollIntoView?.({ block: 'nearest' })
+  }, [open, active, listId])
+
+  // Closing discards the search: the next open starts unfiltered and fresh.
+  // The committed choice lives in `value` and is kept.
+  function reset() {
+    guard.invalidate()
     setOpen(false)
     setTyping(false)
+    setQuery('')
+    setResults(null)
     setActive(-1)
+  }
+
+  function close() {
+    reset()
     setText(value?.label ?? '')
   }
 
   function choose(choice: RecordChoice) {
     onChange({ id: choice.id, label: choice.label })
+    reset()
     setText(choice.label)
-    setTyping(false)
-    setOpen(false)
-    setActive(-1)
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -191,9 +211,10 @@ export function RecordCombobox<T>({
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
       setActive((index) => Math.max(index - 1, 0))
-    } else if (event.key === 'Enter' && open && options[active]) {
+    } else if (event.key === 'Enter' && open) {
+      // While the list is open Enter belongs to it, never to the form.
       event.preventDefault()
-      choose(options[active])
+      if (options[active]) choose(options[active])
     } else if (event.key === 'Escape' && open) {
       event.preventDefault()
       close()
@@ -237,10 +258,14 @@ export function RecordCombobox<T>({
             setTyping(true)
             setOpen(true)
             setActive(-1)
+            // Text that no longer names the choice means nothing is chosen;
+            // the form must not quietly submit the earlier record.
+            if (value && event.target.value !== value.label) onChange(null)
           }}
           onClick={() => setOpen(true)}
           onKeyDown={onKeyDown}
           placeholder={placeholder ?? `Search ${label.toLowerCase()}`}
+          ref={input}
           role="combobox"
           type="text"
           value={text}
@@ -304,11 +329,10 @@ export function RecordCombobox<T>({
                 </li>
               ))}
             </ul>
-            <div
-              aria-live="polite"
-              className="grid gap-1.5 border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground empty:hidden"
-            >
-              {statusText}
+            <div className="grid gap-1.5 border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground empty:hidden">
+              <p aria-live="polite" className="empty:hidden" role="status">
+                {statusText}
+              </p>
               {loaded?.failed ? (
                 <RequestError
                   message={loaded.failed.message}
@@ -317,7 +341,12 @@ export function RecordCombobox<T>({
               ) : loaded?.nextCursor && !loaded.loading ? (
                 <button
                   className="justify-self-start font-medium text-brand-text hover:underline"
-                  onClick={() => void load(loaded.nextCursor)}
+                  onClick={() => {
+                    // This button disappears while loading; keep focus in
+                    // the field so the keyboard user is not dropped.
+                    input.current?.focus()
+                    void load(loaded.nextCursor)
+                  }}
                   onMouseDown={(event) => event.preventDefault()}
                   type="button"
                 >

@@ -180,6 +180,134 @@ describe('record pickers', () => {
   })
 })
 
+async function press(input: HTMLElement, key: string) {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+  })
+  await act(async () => {
+    input.dispatchEvent(event)
+  })
+  await flush()
+  return event
+}
+
+describe('picker input that no longer names the choice', () => {
+  const people = (call: { path: string }) => {
+    const query = new URL(call.path, 'https://x.test').searchParams.get('query')
+    const names = query?.startsWith('Ana')
+      ? [{ id: 'ana', firstName: 'Ana', lastName: 'Powell' }]
+      : query?.startsWith('Ben')
+        ? [{ id: 'ben', firstName: 'Ben', lastName: 'Baker' }]
+        : []
+    return Response.json({
+      people: names,
+      page: { limit: 20, nextCursor: null },
+    })
+  }
+
+  it('Enter over replaced text submits nothing and clears the earlier choice', async () => {
+    const api = stubApi((call) => {
+      if (call.path.endsWith('/roster')) return Response.json(roster)
+      if (call.path.startsWith('/api/people/church?')) return people(call)
+      if (call.method === 'PUT') return Response.json(roster)
+    })
+    ui = await mountStaff(rosterPanel())
+    await ui.choose('Add member', 'Ana', 'Ana Powell')
+    const form = ui.formWith('status')
+    expect(ui.field('personId', form).value).toBe('ana')
+
+    const input = ui.combobox('Add member')
+    await ui.type(input, 'Someone else')
+    expect(ui.field('personId', form).value).toBe('')
+    // The list is open with nothing active: Enter is the list's, not the form's.
+    expect((await press(input, 'Enter')).defaultPrevented).toBe(true)
+    await ui.submit(form)
+    expect(api.requests('PUT')).toHaveLength(0)
+    expect(ui.alert()).toContain('Choose a person')
+  })
+
+  it('does not offer the previous search while a new one settles', async () => {
+    stubApi((call) => {
+      if (call.path.endsWith('/roster')) return Response.json(roster)
+      if (call.path.startsWith('/api/people/church?')) return people(call)
+    })
+    ui = await mountStaff(rosterPanel())
+    const input = ui.combobox('Add member')
+    await ui.type(input, 'Ana')
+    await waitForSearch()
+    expect(ui.options().map((option) => option.textContent)).toEqual([
+      'Ana Powell',
+    ])
+    await ui.type(input, 'Ben')
+    expect(ui.options()).toHaveLength(0)
+    await press(input, 'ArrowDown')
+    await press(input, 'Enter')
+    expect(ui.field('personId', ui.formWith('status')).value).toBe('')
+    expect(input.value).toBe('Ben')
+    await waitForSearch()
+    expect(ui.options().map((option) => option.textContent)).toEqual([
+      'Ben Baker',
+    ])
+  })
+
+  it('reopens with a fresh unfiltered search after Escape', async () => {
+    const api = stubApi((call) => {
+      if (call.path.endsWith('/roster')) return Response.json(roster)
+      if (call.path.startsWith('/api/people/church?'))
+        return call.path.includes('query=')
+          ? people(call)
+          : peoplePage(2, 3, null)
+    })
+    ui = await mountStaff(rosterPanel())
+    const input = ui.combobox('Add member')
+    await ui.type(input, 'Nobody')
+    await waitForSearch()
+    expect(ui.status()).toBe('No matches.')
+    await press(input, 'Escape')
+    expect(input.value).toBe('')
+    await ui.click(ui.button('Show add member options'))
+    expect(
+      api.requests('GET', '/api/people/church?').at(-1)!.path,
+    ).not.toContain('query=')
+    expect(ui.status()).toBe('2 results.')
+  })
+})
+
+describe('picker keyboard and announcements', () => {
+  it('scrolls the active option into view, keeps focus on Show more, and announces counts', async () => {
+    const scrolled: string[] = []
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.textContent ?? '')
+    }
+    try {
+      stubApi((call) => {
+        if (call.path.endsWith('/roster')) return Response.json(roster)
+        if (call.path.startsWith('/api/people/church?'))
+          return call.path.includes('cursor=')
+            ? peoplePage(22, 22, null)
+            : peoplePage(2, 21, 'person-21')
+      })
+      ui = await mountStaff(rosterPanel())
+      const input = ui.combobox('Add member')
+      await act(async () => input.focus())
+      await press(input, 'ArrowDown')
+      expect(ui.status()).toBe('20 results, more available.')
+      await press(input, 'ArrowDown')
+      await press(input, 'ArrowDown')
+      expect(scrolled.at(-1)).toContain('Person 003')
+
+      await ui.click(ui.button('Show more results'))
+      expect(document.activeElement).toBe(input)
+      expect(ui.status()).toBe('21 results.')
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+  })
+})
+
 const contribution = (index: number): Contribution => ({
   id: `contribution-${index}`,
   churchId: 'church',
