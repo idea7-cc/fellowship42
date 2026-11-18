@@ -7,6 +7,7 @@ import type {
 } from '../../contracts/api'
 import { requirePermission } from '../lib/auth'
 import { AppError } from '../lib/errors'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import type { ChurchChangeEvent } from '../realtime'
 
@@ -96,7 +97,7 @@ const memberUpdateInput = z
 const versionInput = z.object({ version: z.number().int().positive() }).strict()
 const listInput = z.object({
   query: z.string().trim().max(100).optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -308,22 +309,20 @@ householdRoutes.get('/:churchId', async (c) => {
     )`)
     bindings.push(pattern, pattern, pattern, pattern, pattern, pattern)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT name, id FROM households WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ name: string; id: string }>()
-    if (!cursor)
-      throw new AppError(
-        422,
-        'invalid_cursor',
-        'The household cursor is invalid',
-      )
-    conditions.push(
-      '(h.name COLLATE NOCASE > ? COLLATE NOCASE OR (h.name = ? COLLATE NOCASE AND h.id > ?))',
-    )
-    bindings.push(cursor.name, cursor.name, cursor.id)
+  const keyset = listKeyset(
+    'households',
+    {
+      column: 'h.name',
+      key: 'name',
+      type: 'text',
+      direction: 'asc',
+      idColumn: 'h.id',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
 
   const result = await c.env.DB.prepare(
@@ -332,16 +331,13 @@ householdRoutes.get('/:churchId', async (c) => {
              h.postal_code, h.country_code, h.version
       FROM households h
       WHERE ${conditions.join(' AND ')}
-      ORDER BY h.name COLLATE NOCASE, h.id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<HouseholdRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   const members = await membersFor(
     c.env.DB,
     churchId,
@@ -349,10 +345,7 @@ householdRoutes.get('/:churchId', async (c) => {
   )
   return c.json({
     households: rows.map((row) => mapHousehold(row, members.get(row.id) ?? [])),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 

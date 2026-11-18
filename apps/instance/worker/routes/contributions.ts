@@ -8,6 +8,7 @@ import {
   validationError,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import type { Contribution, CreateOutcome } from '../../contracts/api'
 
@@ -85,7 +86,7 @@ const listInput = z
   .object({
     status: z.enum(['pending', 'succeeded', 'refunded', 'failed']).optional(),
     query: z.string().trim().max(160).optional(),
-    cursor: z.string().trim().min(1).max(128).optional(),
+    cursor: cursorInput.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
   .strict()
@@ -255,43 +256,35 @@ contributionRoutes.get('/:churchId', async (c) => {
     )
     bindings.push(query, query)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT donated_at, id FROM contributions WHERE church_id = ? AND id = ?',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ donated_at: number; id: string }>()
-    if (!cursor) {
-      throw new AppError(
-        422,
-        'invalid_cursor',
-        'The contribution cursor is invalid',
-      )
-    }
-    conditions.push('(donated_at < ? OR (donated_at = ? AND id > ?))')
-    bindings.push(cursor.donated_at, cursor.donated_at, cursor.id)
+  const keyset = listKeyset(
+    'contributions',
+    {
+      column: 'donated_at',
+      key: 'donated_at',
+      type: 'number',
+      direction: 'desc',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
 
   const result = await c.env.DB.prepare(
     `
       ${contributionSelect}
       WHERE ${conditions.join(' AND ')}
-      ORDER BY donated_at DESC, id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<ContributionRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   return c.json({
     contributions: rows.map(mapContribution),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 

@@ -709,4 +709,41 @@ describe('ministry and publishing workflows', () => {
     } while (cursor)
     expect(titles).toEqual([0, 1, 2].map((index) => `${marker} group ${index}`))
   })
+
+  it('keeps paging a published list after the boundary row is unpublished', async () => {
+    const marker = `boundary${crypto.randomUUID().slice(0, 8)}`
+    const groups: Group[] = []
+    for (const index of [0, 1, 2]) {
+      const response = await jsonRequest('POST', '/api/groups/church_demo', {
+        slug: `${marker}-${index}`,
+        title: `${marker} group ${index}`,
+        groupType: 'small-group',
+        status: 'published',
+      })
+      groups.push((await response.json<{ group: Group }>()).group)
+    }
+    const page = async (cursor?: string) => {
+      const params = new URLSearchParams({ query: marker, limit: '1' })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/churches/church_demo/groups?${params}`,
+        undefined,
+        true,
+      )
+      expect(response.status).toBe(200)
+      return response.json<{
+        groups: Group[]
+        page: { nextCursor: string | null }
+      }>()
+    }
+    const first = await page()
+    expect(first.groups[0]!.id).toBe(groups[0]!.id)
+    await jsonRequest('PATCH', `/api/groups/church_demo/${groups[0]!.id}`, {
+      version: groups[0]!.version,
+      status: 'draft',
+    })
+    const next = await page(first.page.nextCursor!)
+    expect(next.groups[0]!.id).toBe(groups[1]!.id)
+  })
 })

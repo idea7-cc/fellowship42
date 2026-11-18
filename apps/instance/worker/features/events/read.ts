@@ -1,4 +1,5 @@
 import { AppError } from '../../lib/errors'
+import { listKeyset } from '../../lib/list-cursor'
 import { escapeLike } from '../../lib/content'
 import { mapEvent, type EventRow } from '../../lib/records'
 import { eventListInput } from '../../../contracts/events'
@@ -52,35 +53,25 @@ export async function listEvents(
     conditions.push('status = ?')
     bindings.push(input.status)
   }
-  if (input.cursor) {
-    const cursor = await db
-      .prepare(
-        'SELECT starts_at, id FROM events WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-      )
-      .bind(churchId, input.cursor)
-      .first<{ starts_at: number; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The event cursor is invalid')
-    conditions.push('(starts_at > ? OR (starts_at = ? AND id > ?))')
-    bindings.push(cursor.starts_at, cursor.starts_at, cursor.id)
+  const keyset = listKeyset(
+    'events',
+    { column: 'starts_at', key: 'starts_at', type: 'number', direction: 'asc' },
+    input.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
   const result = await db
     .prepare(
       `${eventSelect}
       WHERE ${conditions.join(' AND ')}
-      ORDER BY starts_at, id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
     )
     .bind(...bindings, input.limit + 1)
     .all<EventRow>()
-  const hasMore = result.results.length > input.limit
-  const rows = hasMore ? result.results.slice(0, input.limit) : result.results
-  return {
-    events: rows.map(mapEvent),
-    page: {
-      limit: input.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
-  }
+  const { rows, page } = keyset.page(result.results, input.limit)
+  return { events: rows.map(mapEvent), page }
 }

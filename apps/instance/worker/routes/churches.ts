@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { CursorPage } from '../../contracts/api'
 import { escapeLike, validationError } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { cursorInput, listKeyset, type ListOrder } from '../lib/list-cursor'
 import {
   requireChurchMembership,
   requirePermission,
@@ -68,29 +69,26 @@ async function serviceTimes(db: D1Database, churchId: string) {
 
 const publishedListInput = z.object({
   query: z.string().trim().max(100).optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(200),
 })
 
-// Keyset order for each published list; the cursor is the last row's id.
+// Keyset order for each published list.
 const publishedOrders = {
-  title: {
-    orderBy: 'title COLLATE NOCASE, id',
-    after:
-      '(title COLLATE NOCASE > ? COLLATE NOCASE OR (title = ? COLLATE NOCASE AND id > ?))',
-    key: 'title',
-  },
+  title: { column: 'title', key: 'title', type: 'text', direction: 'asc' },
   starts_at: {
-    orderBy: 'starts_at, id',
-    after: '(starts_at > ? OR (starts_at = ? AND id > ?))',
+    column: 'starts_at',
     key: 'starts_at',
+    type: 'number',
+    direction: 'asc',
   },
   preached_at: {
-    orderBy: 'preached_at DESC, id',
-    after: '(preached_at < ? OR (preached_at = ? AND id > ?))',
+    column: 'preached_at',
     key: 'preached_at',
+    type: 'number',
+    direction: 'desc',
   },
-} as const
+} as const satisfies Record<string, ListOrder>
 
 /**
  * One page of a church's published records, searched on the server. Readers
@@ -110,7 +108,11 @@ async function publishedPage<Row extends { id: string }>(
 ): Promise<{ rows: Row[]; page: CursorPage }> {
   const parsed = publishedListInput.safeParse(c.req.query())
   if (!parsed.success) throw validationError(parsed.error)
-  const order = publishedOrders[spec.order]
+  const keyset = listKeyset(
+    `published-${spec.table}`,
+    publishedOrders[spec.order],
+    parsed.data.cursor,
+  )
   const conditions = [
     'church_id = ?',
     "status = 'published'",
@@ -121,8 +123,6 @@ async function publishedPage<Row extends { id: string }>(
     conditions.push('starts_at >= ?')
     bindings.push(Date.now())
   }
-  const visible = conditions.join(' AND ')
-  const visibleBindings = [...bindings]
   if (parsed.data.query) {
     const pattern = `%${escapeLike(parsed.data.query)}%`
     conditions.push(
@@ -130,36 +130,19 @@ async function publishedPage<Row extends { id: string }>(
     )
     bindings.push(...spec.search.map(() => pattern))
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      `SELECT ${order.key} AS key, id FROM ${spec.table} WHERE ${visible} AND id = ?`,
-    )
-      .bind(...visibleBindings, parsed.data.cursor)
-      .first<{ key: string | number; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The list cursor is invalid')
-    conditions.push(order.after)
-    bindings.push(cursor.key, cursor.key, cursor.id)
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
   const result = await c.env.DB.prepare(
     `SELECT ${spec.columns} FROM ${spec.table}
       WHERE ${conditions.join(' AND ')}
-      ORDER BY ${order.orderBy}
+      ORDER BY ${keyset.orderBy}
       LIMIT ?`,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<Row>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
-  return {
-    rows,
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
-  }
+  return keyset.page(result.results, parsed.data.limit)
 }
 
 churchRoutes.get('/', async (c) => {

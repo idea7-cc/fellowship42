@@ -15,6 +15,7 @@ import {
 } from '../../lib/content'
 import { AppError } from '../../lib/errors'
 import { commitOnce, findReplay, idempotencyClaim } from '../../lib/idempotency'
+import { cursorInput, listKeyset } from '../../lib/list-cursor'
 import { mapGroup, type GroupRow } from '../../lib/records'
 
 import { type AppEnv, groupSelect, findGroup } from './shared'
@@ -70,7 +71,7 @@ const groupUpdateInput = z
 const listInput = z.object({
   query: z.string().trim().max(100).optional(),
   status: publishStatusSchema.optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -119,39 +120,34 @@ groupPublishingRoutes.get('/:churchId', async (c) => {
     conditions.push('status = ?')
     bindings.push(parsed.data.status)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT title, id FROM groups WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ title: string; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The group cursor is invalid')
-    conditions.push(
-      '(title COLLATE NOCASE > ? COLLATE NOCASE OR (title = ? COLLATE NOCASE AND id > ?))',
-    )
-    bindings.push(cursor.title, cursor.title, cursor.id)
+  const keyset = listKeyset(
+    'groups',
+    {
+      column: 'title',
+      key: 'title',
+      type: 'text',
+      direction: 'asc',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
 
   const result = await c.env.DB.prepare(
     `${groupSelect}
       WHERE ${conditions.join(' AND ')}
-      ORDER BY title COLLATE NOCASE, id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<GroupRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   return c.json({
     groups: rows.map(mapGroup),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 

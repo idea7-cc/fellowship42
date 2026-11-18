@@ -10,6 +10,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import type { CreateOutcome, MediaRecord } from '../../contracts/api'
 
@@ -89,7 +90,7 @@ const listInput = z.object({
   visibility: z.enum(['public', 'private']).optional(),
   mediaType: z.enum(['image', 'audio', 'video', 'document']).optional(),
   query: z.string().trim().max(100).optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -356,16 +357,19 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
     )
     bindings.push(pattern, pattern)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT created_at, id FROM media WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ created_at: number; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The media cursor is invalid')
-    conditions.push('(created_at < ? OR (created_at = ? AND id > ?))')
-    bindings.push(cursor.created_at, cursor.created_at, cursor.id)
+  const keyset = listKeyset(
+    'media',
+    {
+      column: 'created_at',
+      key: 'created_at',
+      type: 'number',
+      direction: 'desc',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
   const result = await c.env.DB.prepare(
     `
@@ -373,22 +377,16 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
              checksum, alt_text, visibility, created_at, version
       FROM media
       WHERE ${conditions.join(' AND ')}
-      ORDER BY created_at DESC, id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<MediaRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   return c.json({
     media: rows.map(mapMedia),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 

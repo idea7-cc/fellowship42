@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { requirePermission } from '../lib/auth'
 import { AppError } from '../lib/errors'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import { mapPerson, mapPersonDetail, type PersonRow } from '../lib/records'
 import type { CreateOutcome, Person } from '../../contracts/api'
@@ -60,7 +61,7 @@ const deleteInput = z.object({ version: z.number().int().positive() }).strict()
 const listInput = z.object({
   query: z.string().trim().max(100).optional(),
   status: membershipStatus.optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -190,50 +191,36 @@ peopleRoutes.get('/:churchId', async (c) => {
     conditions.push('p.membership_status = ?')
     bindings.push(parsed.data.status)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      `
-        SELECT sort_name, id FROM people
-        WHERE church_id = ? AND id = ? AND deleted_at IS NULL
-      `,
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ sort_name: string; id: string }>()
-    if (!cursor)
-      throw new AppError(
-        422,
-        'invalid_cursor',
-        'The directory cursor is invalid',
-      )
-    conditions.push(
-      '(p.sort_name COLLATE NOCASE > ? COLLATE NOCASE OR (p.sort_name = ? COLLATE NOCASE AND p.id > ?))',
-    )
-    bindings.push(cursor.sort_name, cursor.sort_name, cursor.id)
+  const keyset = listKeyset(
+    'people',
+    {
+      column: 'p.sort_name',
+      key: 'sort_name',
+      type: 'text',
+      direction: 'asc',
+      idColumn: 'p.id',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
 
   const result = await c.env.DB.prepare(
     `
       SELECT p.id, p.church_id, p.first_name, p.last_name, p.email, p.phone,
-             p.membership_status, p.volunteer_ready, p.version
+             p.membership_status, p.volunteer_ready, p.version, p.sort_name
       FROM people p
       WHERE ${conditions.join(' AND ')}
-      ORDER BY p.sort_name COLLATE NOCASE, p.id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
-    .all<PersonRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
-  return c.json({
-    people: rows.map(mapPerson),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
-  })
+    .all<PersonRow & { sort_name: string }>()
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
+  return c.json({ people: rows.map(mapPerson), page })
 })
 
 peopleRoutes.post('/:churchId', async (c) => {

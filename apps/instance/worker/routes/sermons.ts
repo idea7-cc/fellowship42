@@ -15,6 +15,7 @@ import {
 } from '../lib/content'
 import { AppError } from '../lib/errors'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import { mapSermon, type SermonRow } from '../lib/records'
 
 type AppEnv = {
@@ -80,7 +81,7 @@ const sermonUpdateInput = z
 const listInput = z.object({
   query: z.string().trim().max(100).optional(),
   status: publishStatusSchema.optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -173,36 +174,33 @@ sermonRoutes.get('/:churchId', async (c) => {
     conditions.push('status = ?')
     bindings.push(parsed.data.status)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT preached_at, id FROM sermons WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ preached_at: number; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The sermon cursor is invalid')
-    conditions.push('(preached_at < ? OR (preached_at = ? AND id > ?))')
-    bindings.push(cursor.preached_at, cursor.preached_at, cursor.id)
+  const keyset = listKeyset(
+    'sermons',
+    {
+      column: 'preached_at',
+      key: 'preached_at',
+      type: 'number',
+      direction: 'desc',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
   const result = await c.env.DB.prepare(
     `${sermonSelect}
       WHERE ${conditions.join(' AND ')}
-      ORDER BY preached_at DESC, id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<SermonRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   return c.json({
     sermons: rows.map(mapSermon),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 
