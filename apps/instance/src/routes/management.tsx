@@ -322,6 +322,14 @@ export function ManagementPage() {
           />
         ) : status.data ? (
           <div className="grid gap-6">
+            {status.error ? (
+              // A failed refresh (for example right after a disconnect) is
+              // shown beside the status it could not replace.
+              <RequestError
+                error={status.error}
+                onRetry={() => void status.refetch()}
+              />
+            ) : null}
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -337,6 +345,7 @@ export function ManagementPage() {
               <Card>
                 <CardHeader>
                   <Badge variant={status.data.enabled ? 'pill' : 'outline'}>
+                    {status.error ? 'Last known: ' : ''}
                     {status.data.enabled ? 'Connected' : 'Independent'}
                   </Badge>
                   <CardTitle>Connection</CardTitle>
