@@ -390,6 +390,17 @@ mediaManagementRoutes.get('/:churchId', async (c) => {
   })
 })
 
+// One file's metadata, so an editor can name the media it already references.
+mediaManagementRoutes.get('/:churchId/:mediaId', async (c) => {
+  const churchId = c.req.param('churchId')
+  await requirePermission(c, churchId, 'media.write')
+  return c.json({
+    media: mapMedia(
+      await findMedia(c.env.DB, churchId, c.req.param('mediaId')),
+    ),
+  } satisfies { media: MediaRecord })
+})
+
 const createdMedia = z.object({ mediaId: z.string() })
 
 async function respondWithMedia(

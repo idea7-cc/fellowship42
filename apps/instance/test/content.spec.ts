@@ -670,6 +670,17 @@ describe('ministry and publishing workflows', () => {
       cursor = body.page.nextCursor
     } while (cursor)
     expect(ids.sort()).toEqual([first.id, second.id].sort())
+
+    // An editor can name a file it references by reading it by id.
+    const one = await jsonRequest('GET', `/api/media/church_demo/${first.id}`)
+    expect(one.status).toBe(200)
+    expect((await one.json<{ media: MediaRecord }>()).media).toMatchObject({
+      id: first.id,
+      altText: `${marker} one`,
+    })
+    expect(
+      (await jsonRequest('GET', '/api/media/church_demo/media_missing')).status,
+    ).toBe(404)
   })
 
   it('pages and searches published lists on the server for readers', async () => {

@@ -1168,3 +1168,39 @@ describe('a realtime refresh keeps open editors', () => {
     expect(ui.combobox('Person').value).toBe('Ann Doe')
   })
 })
+
+describe('editors name the media they already reference', () => {
+  for (const found of [true, false]) {
+    it(`sermons: the saved audio shows ${found ? 'its description' : 'its id when it cannot be read'}`, async () => {
+      stubApi((call) => {
+        if (call.path.startsWith('/api/sermons/church?'))
+          return Response.json({
+            sermons: [sermon('sermon-a', 'Hope', { audioMediaId: 'aud-9' })],
+          })
+        if (call.path === '/api/media/church/aud-9')
+          return found
+            ? Response.json({
+                media: {
+                  id: 'aud-9',
+                  churchId: 'church',
+                  mediaType: 'audio',
+                  contentType: 'audio/mpeg',
+                  byteSize: 10,
+                  altText: 'Easter morning audio',
+                  visibility: 'public',
+                  createdAt: 0,
+                  version: 1,
+                },
+              })
+            : apiError(404, 'media_not_found', 'Media not found')
+        return Response.json(church)
+      })
+      ui = await mountStaff(<SermonsPage />)
+      await ui.click(ui.button('Edit'))
+      expect(ui.combobox('Public audio').value).toBe(
+        found ? 'Easter morning audio' : 'aud-9',
+      )
+      expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-9')
+    })
+  }
+})

@@ -21,7 +21,7 @@ import { ListSearch } from '@/components/list-search'
 import { RequestError } from '@/components/request-error'
 import {
   PublicMediaCombobox,
-  type RecordChoice,
+  useSavedMediaChoice,
 } from '@/components/record-combobox'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
@@ -54,11 +54,7 @@ function SermonForm({
   // The sermon as shown when this editor opened; the save is checked against it.
   const [sermon] = useState(record)
   // Controlled, so the saved choice survives a media list that loads later.
-  const [audio, setAudio] = useState<RecordChoice | null>(
-    sermon?.audioMediaId
-      ? { id: sermon.audioMediaId, label: 'Current audio file' }
-      : null,
-  )
+  const [audio, setAudio] = useSavedMediaChoice(churchId, sermon?.audioMediaId)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return

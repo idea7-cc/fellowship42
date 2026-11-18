@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 
-import { ApiError, apiRequest } from '@/lib/api'
+import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import type { CursorPage, MediaRecord, Person } from '@/lib/api-types'
 import { cn } from '@/lib/cn'
 import { useRequestGuard } from '@/lib/request-guard'
@@ -411,4 +411,30 @@ export function PublicMediaCombobox({
       toChoice={(media) => ({ id: media.id, label: media.altText || media.id })}
     />
   )
+}
+
+/**
+ * The media an editor opened with, as a picker choice. It starts labelled with
+ * the id and takes the file's description once its metadata loads, so a
+ * reopened sermon or lesson names its attachment even when that file is not
+ * in the picker's loaded results.
+ */
+export function useSavedMediaChoice(
+  churchId: string | null,
+  mediaId: string | undefined,
+) {
+  const [choice, setChoice] = useState<RecordChoice | null>(
+    mediaId ? { id: mediaId, label: mediaId } : null,
+  )
+  const saved = useApiQuery<{ media: MediaRecord }>(
+    churchId && mediaId
+      ? `/api/media/${encodeURIComponent(churchId)}/${encodeURIComponent(mediaId)}`
+      : null,
+  )
+  const description = saved.data?.media?.altText
+  const shown =
+    choice && choice.id === mediaId && choice.label === mediaId && description
+      ? { id: choice.id, label: description }
+      : choice
+  return [shown, setChoice] as const
 }

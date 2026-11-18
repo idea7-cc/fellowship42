@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/page-header'
 import { CourseEnrollmentPanel } from '@/components/course-enrollment-panel'
 import {
   PublicMediaCombobox,
-  type RecordChoice,
+  useSavedMediaChoice,
 } from '@/components/record-combobox'
 import { Section } from '@/components/section'
 import {
@@ -48,11 +48,7 @@ function LessonForm({
   // The lesson as shown when this editor opened; the save is checked against it.
   const [lesson] = useState(record)
   // Controlled, so the saved choice survives a media list that loads later.
-  const [media, setMedia] = useState<RecordChoice | null>(
-    lesson?.mediaId
-      ? { id: lesson.mediaId, label: 'Current media file' }
-      : null,
-  )
+  const [media, setMedia] = useSavedMediaChoice(churchId, lesson?.mediaId)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
