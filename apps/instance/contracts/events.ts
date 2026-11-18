@@ -59,7 +59,14 @@ export const eventUpdateInput = z
 export const eventListInput = z.object({
   query: z.string().trim().max(100).optional(),
   status: eventStatusSchema.optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  // An opaque keyset cursor from the previous page (see worker/lib/list-cursor).
+  cursor: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2048)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 

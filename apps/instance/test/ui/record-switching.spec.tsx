@@ -974,13 +974,12 @@ describe('editor fields that depend on later data', () => {
     })
     ui = await mountStaff(<SermonsPage />)
     await ui.click(ui.button('Edit'))
+    await ui.click(ui.combobox('Public audio'))
     api
       .held('GET', '/api/media/')
       .resolve(Response.json({ media: [audio('aud-1'), audio('aud-2')] }))
     await flushHeld()
-    expect(ui.field<HTMLSelectElement>('audioMediaId', ui.form()).value).toBe(
-      'aud-1',
-    )
+    expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-1')
     await ui.submit(ui.form())
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       audioMediaId: 'aud-1',
@@ -1000,9 +999,7 @@ describe('editor fields that depend on later data', () => {
     })
     ui = await mountStaff(<SermonsPage />)
     await ui.click(ui.button('Edit'))
-    expect(ui.field<HTMLSelectElement>('audioMediaId', ui.form()).value).toBe(
-      'aud-old',
-    )
+    expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-old')
     await ui.submit(ui.form())
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       audioMediaId: 'aud-old',
@@ -1031,6 +1028,7 @@ describe('editor fields that depend on later data', () => {
       route: '/app/courses/:slug',
     })
     await ui.click(ui.button('Edit'))
+    await ui.click(ui.combobox('Public media'))
     api.held('GET', '/api/media/').resolve(
       Response.json({
         media: [
@@ -1040,9 +1038,7 @@ describe('editor fields that depend on later data', () => {
       }),
     )
     await flushHeld()
-    expect(
-      ui.field<HTMLSelectElement>('mediaId', ui.formWith('mediaId')).value,
-    ).toBe('doc-1')
+    expect(ui.field('mediaId', ui.formWith('mediaId')).value).toBe('doc-1')
     await ui.submit(ui.formWith('mediaId'))
     expect(api.requests('PATCH')[0]!.body).toMatchObject({ mediaId: 'doc-1' })
   })
@@ -1072,9 +1068,7 @@ describe('editor fields that depend on later data', () => {
       route: '/app/courses/:slug',
     })
     await ui.click(ui.button('Edit'))
-    expect(
-      ui.field<HTMLSelectElement>('mediaId', ui.formWith('mediaId')).value,
-    ).toBe('doc-old')
+    expect(ui.field('mediaId', ui.formWith('mediaId')).value).toBe('doc-old')
     await ui.submit(ui.formWith('mediaId'))
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       mediaId: 'doc-old',
@@ -1101,3 +1095,112 @@ async function flushHeld() {
   await flush()
   await flush()
 }
+
+describe('a realtime refresh keeps open editors', () => {
+  const refresh = async () => {
+    window.dispatchEvent(new CustomEvent('f42:invalidate'))
+    await flush()
+  }
+
+  it('lessons: unsaved input survives a refresh of the course', async () => {
+    let courseReads = 0
+    const api = stubApi((call) => {
+      if (call.path === '/api/courses/church/course-a')
+        return ++courseReads > 1
+          ? 'defer'
+          : Response.json({
+              course: course('course-a', 'Course A'),
+              lessons: [lesson('l1', 'L1')],
+            })
+      if (call.path.endsWith('/enrollments'))
+        return Response.json({ enrollments: [] })
+      return Response.json(church)
+    })
+    ui = await mountStaff(<CourseDetailPage />, {
+      path: '/app/courses/course-a',
+      route: '/app/courses/:slug',
+    })
+    await ui.click(ui.button('Edit'))
+    const title = () => ui!.field('title', ui!.formWith('sortOrder'))
+    await ui.type(title(), 'Unsaved lesson title')
+    await refresh()
+    expect(title().value).toBe('Unsaved lesson title')
+    api.held('GET', '/api/courses/church/course-a').resolve(
+      Response.json({
+        course: course('course-a', 'Course A'),
+        lessons: [lesson('l1', 'L1')],
+      }),
+    )
+    await flush()
+    expect(title().value).toBe('Unsaved lesson title')
+  })
+
+  it('households: a chosen member survives a refresh of the household list', async () => {
+    let householdReads = 0
+    const api = stubApi((call) => {
+      if (call.path.startsWith('/api/households/church?'))
+        return ++householdReads > 1
+          ? 'defer'
+          : Response.json({
+              households: [household('h1', 'Lee Household', 'Raleigh', 2)],
+              page: { limit: 12, nextCursor: null },
+            })
+      if (call.path.startsWith('/api/people/church?'))
+        return Response.json({
+          people: [ann],
+          page: { limit: 20, nextCursor: null },
+        })
+      return Response.json(church)
+    })
+    ui = await mountStaff(<PeoplePage />)
+    await ui.click(ui.button('Households'))
+    await ui.click(ui.button('Lee Household'))
+    await ui.choose('Person', 'Ann', 'Ann Doe')
+    await refresh()
+    expect(ui.combobox('Person').value).toBe('Ann Doe')
+    api.held('GET', '/api/households/church?').resolve(
+      Response.json({
+        households: [household('h1', 'Lee Household', 'Raleigh', 2)],
+        page: { limit: 12, nextCursor: null },
+      }),
+    )
+    await flush()
+    expect(ui.combobox('Person').value).toBe('Ann Doe')
+  })
+})
+
+describe('editors name the media they already reference', () => {
+  for (const found of [true, false]) {
+    it(`sermons: the saved audio shows ${found ? 'its description' : 'its id when it cannot be read'}`, async () => {
+      stubApi((call) => {
+        if (call.path.startsWith('/api/sermons/church?'))
+          return Response.json({
+            sermons: [sermon('sermon-a', 'Hope', { audioMediaId: 'aud-9' })],
+          })
+        if (call.path === '/api/media/church/aud-9')
+          return found
+            ? Response.json({
+                media: {
+                  id: 'aud-9',
+                  churchId: 'church',
+                  mediaType: 'audio',
+                  contentType: 'audio/mpeg',
+                  byteSize: 10,
+                  altText: 'Easter morning audio',
+                  visibility: 'public',
+                  createdAt: 0,
+                  version: 1,
+                },
+              })
+            : apiError(404, 'media_not_found', 'Media not found')
+        return Response.json(church)
+      })
+      ui = await mountStaff(<SermonsPage />)
+      await ui.click(ui.button('Edit'))
+      expect(ui.combobox('Public audio').value).toBe(
+        found ? 'Easter morning audio' : 'aud-9',
+      )
+      expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-9')
+    })
+  }
+})

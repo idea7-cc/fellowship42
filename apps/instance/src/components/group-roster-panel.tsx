@@ -7,7 +7,6 @@ import type {
   GroupLeaderRole,
   GroupMembershipStatus,
   GroupRoster,
-  Person,
 } from '@/lib/api-types'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge, StatusBadge } from '@/components/ui/badge'
@@ -22,6 +21,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PersonCombobox, type RecordChoice } from '@/components/record-combobox'
+import { RequestError } from '@/components/request-error'
 
 const membershipStatuses: Array<{
   value: GroupMembershipStatus
@@ -57,16 +58,17 @@ export function GroupRosterPanel({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [memberChoice, setMemberChoice] = useState<RecordChoice | null>(null)
+  const [leaderChoice, setLeaderChoice] = useState<RecordChoice | null>(null)
 
   const rosterQuery = useApiQuery<GroupRoster>(
     `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}/roster`,
   )
-  const peopleQuery = useApiQuery<{ people: Person[] }>(
-    `/api/people/${encodeURIComponent(churchId)}?limit=100`,
-  )
 
   const roster = rosterQuery.data
-  const people = peopleQuery.data?.people ?? []
+  // Status changes for current members use their row; "Add member" is only
+  // for people who are not on the roster yet.
+  const memberIds = new Set(roster?.members.map((member) => member.personId))
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
 
   async function run(action: () => Promise<unknown>) {
@@ -95,29 +97,33 @@ export function GroupRosterPanel({
     event.preventDefault()
     const formElement = event.currentTarget
     const form = new FormData(formElement)
-    const personId = String(form.get('personId') ?? '')
-    if (!personId) return
+    if (!memberChoice) {
+      setError('Choose a person to add.')
+      return
+    }
+    const personId = memberChoice.id
     const status = String(form.get('status') ?? 'active')
     const saved = await run(() =>
       apiRequest(`${base}/members/${encodeURIComponent(personId)}`, {
         method: 'PUT',
-        body: JSON.stringify({
-          status,
-          version:
-            roster?.members.find((member) => member.personId === personId)
-              ?.version ?? 0,
-        }),
+        body: JSON.stringify({ status, version: 0 }),
       }),
     )
-    if (saved) formElement.reset()
+    if (saved) {
+      formElement.reset()
+      setMemberChoice(null)
+    }
   }
 
   async function addLeader(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const formElement = event.currentTarget
     const form = new FormData(formElement)
-    const personId = String(form.get('personId') ?? '')
-    if (!personId) return
+    if (!leaderChoice) {
+      setError('Choose a person to add as a leader.')
+      return
+    }
+    const personId = leaderChoice.id
     const role = String(form.get('role') ?? 'leader')
     const saved = await run(() =>
       apiRequest(`${base}/leaders/${encodeURIComponent(personId)}`, {
@@ -130,7 +136,10 @@ export function GroupRosterPanel({
         }),
       }),
     )
-    if (saved) formElement.reset()
+    if (saved) {
+      formElement.reset()
+      setLeaderChoice(null)
+    }
   }
 
   const atCapacity =
@@ -186,6 +195,11 @@ export function GroupRosterPanel({
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
         </div>
+      ) : rosterQuery.error && !roster ? (
+        <RequestError
+          message={rosterQuery.error.message}
+          onRetry={() => void rosterQuery.refetch()}
+        />
       ) : (
         <div className="grid gap-6">
           {/* ── Leaders ─────────────────────────────────────────────── */}
@@ -243,23 +257,15 @@ export function GroupRosterPanel({
               className="flex flex-wrap items-end gap-2"
               onSubmit={addLeader}
             >
-              <Field className="min-w-48 flex-1" label="Add leader">
-                <Select
-                  defaultValue=""
-                  name="personId"
-                  required
-                  selectSize="sm"
-                >
-                  <option disabled value="">
-                    Select a person
-                  </option>
-                  {people.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.firstName} {person.lastName}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <PersonCombobox
+                churchId={churchId}
+                className="min-w-48 flex-1"
+                label="Add leader"
+                name="personId"
+                onChange={setLeaderChoice}
+                required
+                value={leaderChoice}
+              />
               <Field className="w-36" label="Role">
                 <Select defaultValue="leader" name="role" selectSize="sm">
                   {leaderRoles.map((role) => (
@@ -379,23 +385,16 @@ export function GroupRosterPanel({
               className="flex flex-wrap items-end gap-2"
               onSubmit={addMember}
             >
-              <Field className="min-w-48 flex-1" label="Add member">
-                <Select
-                  defaultValue=""
-                  name="personId"
-                  required
-                  selectSize="sm"
-                >
-                  <option disabled value="">
-                    Select a person
-                  </option>
-                  {people.map((person) => (
-                    <option key={person.id} value={person.id}>
-                      {person.firstName} {person.lastName}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <PersonCombobox
+                churchId={churchId}
+                className="min-w-48 flex-1"
+                isExcluded={(person) => memberIds.has(person.id)}
+                label="Add member"
+                name="personId"
+                onChange={setMemberChoice}
+                required
+                value={memberChoice}
+              />
               <Field className="w-36" label="Status">
                 <Select
                   defaultValue={atCapacity ? 'interested' : 'active'}

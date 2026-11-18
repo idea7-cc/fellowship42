@@ -12,7 +12,11 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { apiRequest, useApiQuery } from '@/lib/api'
+import { apiRequest } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
 import {
   describeEntryFailure,
   useEntryKey,
@@ -25,6 +29,13 @@ import type { Contribution, CursorPage } from '@/lib/api-types'
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
 }
+
+const contributionStatuses = [
+  { value: 'succeeded', label: 'Succeeded' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'refunded', label: 'Refunded' },
+  { value: 'failed', label: 'Failed' },
+]
 
 function formatMoney(amountMinor: number, currency: string) {
   try {
@@ -47,13 +58,16 @@ export function ContributionsPage() {
       ?.permissions ?? []
   const canRead = can(permissions, 'contributions.read')
   const canWrite = can(permissions, 'contributions.write')
-  const contributionsQuery = useApiQuery<{
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const contributionsQuery = usePagedQuery<{
     contributions: Contribution[]
     page: CursorPage
   }>(
     churchId && canRead
-      ? `/api/contributions/${encodeURIComponent(churchId)}?limit=100`
+      ? `/api/contributions/${encodeURIComponent(churchId)}`
       : null,
+    { limit: 25, query: appliedSearch, status },
   )
   const [error, setError] = useState<EntryFailure | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -220,14 +234,23 @@ export function ContributionsPage() {
               </Card>
             ) : null}
 
-            {contributionsQuery.isLoading ? (
+            <ListSearch
+              label="Search donor or fund"
+              onSearch={setAppliedSearch}
+              status={{
+                value: status,
+                onChange: setStatus,
+                label: 'Contribution status',
+                options: contributionStatuses,
+              }}
+            />
+            {contributionsQuery.isLoading && !contributionsQuery.data ? (
               <p>Loading contributions…</p>
             ) : contributionsQuery.error ? (
-              <Card className="border-destructive/30">
-                <CardContent className="p-6 text-destructive">
-                  {contributionsQuery.error.message}
-                </CardContent>
-              </Card>
+              <RequestError
+                message={contributionsQuery.error.message}
+                onRetry={() => void contributionsQuery.refetch()}
+              />
             ) : contributionsQuery.data?.contributions.length ? (
               <div className="grid gap-3">
                 {contributionsQuery.data.contributions.map((contribution) => (
@@ -265,10 +288,16 @@ export function ContributionsPage() {
             ) : (
               <Card className="border-dashed">
                 <CardContent className="p-8 text-center text-muted-foreground">
-                  No contributions have been recorded.
+                  {appliedSearch || status
+                    ? 'No contributions match this search.'
+                    : 'No contributions have been recorded.'}
                 </CardContent>
               </Card>
             )}
+            <ListPager
+              label="Contribution pages"
+              {...contributionsQuery.pager}
+            />
           </>
         )}
       </Section>

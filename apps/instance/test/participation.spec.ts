@@ -198,6 +198,25 @@ describe('group rosters', () => {
     expect((await removedLeader.json<GroupRoster>()).leaders).toHaveLength(0)
   })
 
+  it('keeps a member note when an update omits it and clears it on null', async () => {
+    const groupId = await createGroup('Note Group', 'note-group')
+    const person = await createPerson('Nora', 'Noted')
+    const path = `/api/groups/church_demo/${groupId}/members/${person}`
+    await request('PUT', path, { status: 'active', notes: 'Met at the picnic' })
+
+    const paused = await request('PUT', path, { version: 1, status: 'paused' })
+    expect(paused.status).toBe(200)
+    expect((await paused.json<GroupRoster>()).members[0]).toMatchObject({
+      status: 'paused',
+      notes: 'Met at the picnic',
+    })
+
+    const cleared = await request('PUT', path, { version: 2, notes: null })
+    expect(
+      (await cleared.json<GroupRoster>()).members[0].notes ?? null,
+    ).toBeNull()
+  })
+
   it('enforces capacity against active members only', async () => {
     const groupId = await createGroup('Tiny Group', 'tiny-group', 1)
     const first = await createPerson('First', 'Seat')

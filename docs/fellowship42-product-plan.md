@@ -142,9 +142,10 @@ Backup command execution and live provider adapters are still follow-up work.
 - [ ] Verify the everyday staff journeys: first owner and invitation, people
       and households, group roster and attendance, courses, publishing, and
       manual contributions, including denied access and uncertain save outcomes.
-- [ ] Finish access beyond the first page in lists and selectors; improve retry
-      and conflict messages; check empty states, keyboard use, and mobile layouts
-      with realistic synthetic datasets.
+- [x] Finish access beyond the first page in lists and selectors, with a larger
+      synthetic dataset (`pnpm db:seed:large`).
+- [ ] Improve retry and conflict messages; check empty states, keyboard use,
+      and mobile layouts with realistic synthetic datasets.
 - [ ] Pass `pnpm verify` and both website acceptance journeys on the reviewed
       revision. Prepare immutable artifacts and a usable distribution path for
       the website integration; public package/registry claims need actual

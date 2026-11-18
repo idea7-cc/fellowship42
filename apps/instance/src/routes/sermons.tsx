@@ -15,10 +15,18 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
+import {
+  PublicMediaCombobox,
+  useSavedMediaChoice,
+} from '@/components/record-combobox'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
-import type { Church, CursorPage, MediaRecord, Sermon } from '@/lib/api-types'
+import type { Church, CursorPage, Sermon } from '@/lib/api-types'
 import {
   calendarDateToEpoch,
   epochToCalendarDate,
@@ -33,12 +41,10 @@ function can(permissions: string[], permission: string) {
 
 function SermonForm({
   sermon: record,
-  media,
   onCancel,
   onSaved,
 }: {
   sermon: Sermon | null
-  media: MediaRecord[]
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
@@ -48,10 +54,7 @@ function SermonForm({
   // The sermon as shown when this editor opened; the save is checked against it.
   const [sermon] = useState(record)
   // Controlled, so the saved choice survives a media list that loads later.
-  const [audioMediaId, setAudioMediaId] = useState(sermon?.audioMediaId ?? '')
-  const audioOptions = media.filter(
-    (item) => item.visibility === 'public' && item.mediaType === 'audio',
-  )
+  const [audio, setAudio] = useSavedMediaChoice(churchId, sermon?.audioMediaId)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -159,30 +162,17 @@ function SermonForm({
                 defaultValue={sermon?.videoUrl}
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Public audio
-              <select
+            {churchId ? (
+              <PublicMediaCombobox
+                churchId={churchId}
+                label="Public audio"
+                mediaType="audio"
                 name="audioMediaId"
-                className={fieldClass}
-                value={audioMediaId}
-                onChange={(event) => setAudioMediaId(event.target.value)}
-              >
-                <option value="">No audio</option>
-                {sermon?.audioMediaId &&
-                !audioOptions.some(
-                  (item) => item.id === sermon.audioMediaId,
-                ) ? (
-                  <option value={sermon.audioMediaId}>
-                    Current audio ({sermon.audioMediaId})
-                  </option>
-                ) : null}
-                {audioOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.altText || item.id}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setAudio}
+                placeholder="No audio · search by description"
+                value={audio}
+              />
+            ) : null}
             <label className="grid gap-1 text-sm font-semibold">
               Status
               <select
@@ -245,7 +235,6 @@ export function SermonsPage() {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'sermons.write')
-  const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
   const editor = useRecordEditor<Sermon>()
@@ -255,20 +244,13 @@ export function SermonsPage() {
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(publicBase)
-  const params = new URLSearchParams({ limit: '100' })
-  if (appliedSearch) params.set('query', appliedSearch)
-  if (status) params.set('status', status)
-  const sermonQuery = useApiQuery<{ sermons: Sermon[]; page?: CursorPage }>(
+  const sermonQuery = usePagedQuery<{ sermons: Sermon[]; page?: CursorPage }>(
     churchId
       ? canWrite
-        ? `/api/sermons/${encodeURIComponent(churchId)}?${params}`
+        ? `/api/sermons/${encodeURIComponent(churchId)}`
         : `${publicBase}/sermons`
       : null,
-  )
-  const mediaQuery = useApiQuery<{ media: MediaRecord[] }>(
-    churchId && canWrite
-      ? `/api/media/${encodeURIComponent(churchId)}?limit=100`
-      : null,
+    { limit: 24, query: appliedSearch, status: canWrite ? status : undefined },
   )
   async function remove(sermon: Sermon) {
     if (!churchId || !window.confirm(`Delete ${sermon.title}?`)) return
@@ -286,15 +268,7 @@ export function SermonsPage() {
       )
     }
   }
-  const sermons = sermonQuery.data?.sermons ?? []
-  const displayed = canWrite
-    ? sermons
-    : sermons.filter((sermon) =>
-        [sermon.title, sermon.speaker, sermon.series, sermon.summary]
-          .join(' ')
-          .toLowerCase()
-          .includes(search.trim().toLowerCase()),
-      )
+  const displayed = sermonQuery.data?.sermons ?? []
   return (
     <PageShell>
       <PageHeader
@@ -307,52 +281,21 @@ export function SermonsPage() {
         title="Messages &amp; media"
       />
       <Section>
-        {canWrite ? (
-          <form
-            role="search"
-            className="mb-6 flex flex-wrap gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setAppliedSearch(search.trim())
-            }}
-          >
-            <Input
-              className="max-w-sm"
-              placeholder="Search sermons"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              aria-label="Publishing status"
-              className={fieldClass}
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-            <Button size="sm" type="submit">
-              Search
-            </Button>
+        <ListSearch
+          label={canWrite ? 'Search sermons' : 'Search sermons'}
+          onSearch={setAppliedSearch}
+          status={canWrite ? { value: status, onChange: setStatus } : undefined}
+        >
+          {canWrite ? (
             <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add sermon
             </Button>
-          </form>
-        ) : (
-          <Input
-            className="mb-6 max-w-sm"
-            placeholder="Search sermons"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        )}
+          ) : null}
+        </ListSearch>
         {editorSession ? (
           <SermonForm
             key={editorSession.key}
             sermon={editorSession.value === 'new' ? null : editorSession.value}
-            media={mediaQuery.data?.media ?? []}
             onCancel={editor.close}
             onSaved={async () => {
               editor.closeIf(editorSession.key)
@@ -365,8 +308,13 @@ export function SermonsPage() {
             {error}
           </p>
         ) : null}
-        {sermonQuery.isLoading ? (
+        {sermonQuery.isLoading && !sermonQuery.data ? (
           <p>Loading sermons…</p>
+        ) : sermonQuery.error ? (
+          <RequestError
+            message={sermonQuery.error.message}
+            onRetry={() => void sermonQuery.refetch()}
+          />
         ) : displayed.length ? (
           <CardGrid minWidth="300px">
             {displayed.map((sermon) => (
@@ -430,6 +378,7 @@ export function SermonsPage() {
             </CardContent>
           </Card>
         )}
+        <ListPager label="Sermon pages" {...sermonQuery.pager} />
       </Section>
     </PageShell>
   )

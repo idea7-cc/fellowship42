@@ -17,6 +17,10 @@ import { GroupRosterPanel } from '@/components/group-roster-panel'
 import { GroupSessionsPanel } from '@/components/group-sessions-panel'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
@@ -226,10 +230,8 @@ export function GroupsPage() {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'groups.write')
-  const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [cursors, setCursors] = useState<Array<string | null>>([null])
   const editor = useRecordEditor<Group>()
   const editorSession = editor.session
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
@@ -239,16 +241,13 @@ export function GroupsPage() {
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(publicBase)
-  const params = new URLSearchParams({ limit: '24' })
-  if (appliedSearch) params.set('query', appliedSearch)
-  if (status) params.set('status', status)
-  if (cursors.at(-1)) params.set('cursor', cursors.at(-1)!)
-  const groupQuery = useApiQuery<{ groups: Group[]; page?: CursorPage }>(
+  const groupQuery = usePagedQuery<{ groups: Group[]; page?: CursorPage }>(
     churchId
       ? canWrite
-        ? `/api/groups/${encodeURIComponent(churchId)}?${params}`
+        ? `/api/groups/${encodeURIComponent(churchId)}`
         : `${publicBase}/groups`
       : null,
+    { limit: 24, query: appliedSearch, status: canWrite ? status : undefined },
   )
   async function remove(group: Group) {
     if (!churchId || !window.confirm(`Delete ${group.title}?`)) return
@@ -266,15 +265,7 @@ export function GroupsPage() {
       )
     }
   }
-  const groups = groupQuery.data?.groups ?? []
-  const displayedGroups = canWrite
-    ? groups
-    : groups.filter((group) =>
-        [group.title, group.summary, group.groupType]
-          .join(' ')
-          .toLowerCase()
-          .includes(search.trim().toLowerCase()),
-      )
+  const displayedGroups = groupQuery.data?.groups ?? []
   return (
     <PageShell>
       <PageHeader
@@ -287,51 +278,17 @@ export function GroupsPage() {
         title="Groups &amp; teams"
       />
       <Section>
-        {canWrite ? (
-          <form
-            role="search"
-            className="mb-6 flex flex-wrap gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setCursors([null])
-              setAppliedSearch(search.trim())
-            }}
-          >
-            <Input
-              className="max-w-sm"
-              placeholder="Search groups"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              aria-label="Publishing status"
-              className={fieldClass}
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value)
-                setCursors([null])
-              }}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-            <Button type="submit" size="sm">
-              Search
-            </Button>
+        <ListSearch
+          label={canWrite ? 'Search groups' : 'Search published groups'}
+          onSearch={setAppliedSearch}
+          status={canWrite ? { value: status, onChange: setStatus } : undefined}
+        >
+          {canWrite ? (
             <Button type="button" size="sm" onClick={() => editor.open('new')}>
               Add group
             </Button>
-          </form>
-        ) : (
-          <Input
-            className="mb-6 max-w-sm"
-            placeholder="Search published groups"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        )}
+          ) : null}
+        </ListSearch>
         {editorSession ? (
           <GroupForm
             key={editorSession.key}
@@ -364,8 +321,13 @@ export function GroupsPage() {
             {error}
           </p>
         ) : null}
-        {groupQuery.isLoading ? (
+        {groupQuery.isLoading && !groupQuery.data ? (
           <p>Loading groups…</p>
+        ) : groupQuery.error ? (
+          <RequestError
+            message={groupQuery.error.message}
+            onRetry={() => void groupQuery.refetch()}
+          />
         ) : displayedGroups.length ? (
           <CardGrid minWidth="280px">
             {displayedGroups.map((group) => (
@@ -435,32 +397,7 @@ export function GroupsPage() {
             </CardContent>
           </Card>
         )}
-        {canWrite &&
-        (cursors.length > 1 || groupQuery.data?.page?.nextCursor) ? (
-          <div className="mt-5 flex justify-between">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={cursors.length === 1}
-              onClick={() => setCursors((value) => value.slice(0, -1))}
-            >
-              Previous
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!groupQuery.data?.page?.nextCursor}
-              onClick={() =>
-                setCursors((value) => [
-                  ...value,
-                  groupQuery.data!.page!.nextCursor,
-                ])
-              }
-            >
-              Next
-            </Button>
-          </div>
-        ) : null}
+        <ListPager label="Group pages" {...groupQuery.pager} />
       </Section>
     </PageShell>
   )

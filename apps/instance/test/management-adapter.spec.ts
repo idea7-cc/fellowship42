@@ -30,7 +30,7 @@ import {
 } from '../worker/management/updates'
 import {
   decideSupportSession,
-  listSupportSessions,
+  listActionableSupportSessions,
 } from '../worker/management/support'
 
 const managementEnv = env as ManagementBindings
@@ -437,18 +437,67 @@ describe('optional management adapter', () => {
       output: { requestId: supportRequestId, state: 'revoked' },
     })
     expect(
-      await listSupportSessions(
+      await env.DB.prepare(
+        'SELECT state, decision_reason FROM management_support_sessions WHERE request_id = ?',
+      )
+        .bind(supportRequestId)
+        .first(),
+    ).toEqual({
+      state: 'revoked',
+      decision_reason: 'Diagnostic work is complete',
+    })
+    // A revoked session needs no action, so the owner's list leaves it out.
+    expect(
+      await listActionableSupportSessions(
         env.DB,
         enrolled.challenge.instanceId,
         phaseNow,
       ),
-    ).toMatchObject([
-      {
-        requestId: supportRequestId,
-        state: 'revoked',
-        decisionReason: 'Diagnostic work is complete',
-      },
+    ).toEqual([])
+  })
+
+  it('lists every actionable support session however many newer requests were decided', async () => {
+    const now = Date.now()
+    const instanceId = (await enroll(now)).challenge.instanceId
+    const { connection_id: connectionId } = (await env.DB.prepare(
+      'SELECT connection_id FROM management_connections LIMIT 1',
+    ).first<{ connection_id: string }>())!
+    const insert = (
+      requestId: string,
+      state: 'approved' | 'rejected',
+      requestedAt: number,
+    ) =>
+      env.DB.prepare(
+        `INSERT INTO management_support_sessions (
+           request_id, instance_id, connection_id, source_command_id, reason,
+           requested_minutes, scope, support_operator_id,
+           support_operator_display_name, state, requested_at, decision_due_at,
+           decided_by_user_id, decided_at, expires_at)
+         VALUES (?, ?, ?, ?, 'Diagnostics', 30,
+           'operational-diagnostics', 'operator', 'Operator', ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        requestId,
+        instanceId,
+        connectionId,
+        `command-${requestId}`,
+        state,
+        requestedAt,
+        requestedAt + 60_000,
+        ownerId,
+        requestedAt + 1_000,
+        state === 'approved' ? now + 30 * 60_000 : null,
+      )
+    await env.DB.batch([
+      insert('active-support', 'approved', now - 100_000),
+      ...Array.from({ length: 55 }, (_, index) =>
+        insert(`declined-${index}`, 'rejected', now - 50_000 + index),
+      ),
     ])
+    expect(
+      (await listActionableSupportSessions(env.DB, instanceId, now)).map(
+        ({ requestId }) => requestId,
+      ),
+    ).toEqual(['active-support'])
   })
 
   it('polls outbound, executes only granted status, and returns byte-identical replay results', async () => {

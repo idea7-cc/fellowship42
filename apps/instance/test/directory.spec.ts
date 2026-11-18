@@ -447,4 +447,90 @@ describe('people and household directory', () => {
     ).toBe(true)
     expect(body.page.nextCursor).toBeTruthy()
   })
+
+  it('finds a person and their household by the full name', async () => {
+    const person = await createPerson('Wilhelmina', 'Quarterfield')
+    const household = await request('POST', '/api/households/church_demo', {
+      name: 'Cedar Lane Household',
+      countryCode: 'US',
+      members: [
+        { personId: person.id, relationship: 'other', isPrimary: true },
+      ],
+    })
+    expect(household.status).toBe(201)
+
+    for (const query of ['Wilhelmina Quarterfield', 'mina quarter']) {
+      const people = await request(
+        'GET',
+        `/api/people/church_demo?query=${encodeURIComponent(query)}`,
+      )
+      expect(
+        (await people.json<{ people: Person[] }>()).people.map(({ id }) => id),
+      ).toEqual([person.id])
+      const households = await request(
+        'GET',
+        `/api/households/church_demo?query=${encodeURIComponent(query)}`,
+      )
+      expect(
+        (await households.json<{ households: Household[] }>()).households.map(
+          ({ name }) => name,
+        ),
+      ).toEqual(['Cedar Lane Household'])
+    }
+  })
+
+  it('keeps paging after the boundary person is renamed or deleted', async () => {
+    const scope = 'cursor-boundary.test'
+    const created = []
+    for (const first of ['Ada', 'Bea', 'Cal', 'Dee'])
+      created.push(
+        await createPerson(first, 'Boundary', { email: `${first}@${scope}` }),
+      )
+    const list = (cursor?: string) =>
+      request(
+        'GET',
+        `/api/people/church_demo?limit=2&query=${encodeURIComponent(scope)}` +
+          (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''),
+      ).then((response) =>
+        response.json<{
+          people: Person[]
+          page: { nextCursor: string | null }
+        }>(),
+      )
+    const first = await list()
+    expect(first.people.map(({ firstName }) => firstName)).toEqual([
+      'Ada',
+      'Bea',
+    ])
+    const bea = created[1]!
+    // Renaming the boundary row moves it later; the cursor keeps its place.
+    await request('PATCH', `/api/people/church_demo/${bea.id}`, {
+      version: bea.version,
+      firstName: 'Zed',
+    })
+    const renamed = await list(first.page.nextCursor!)
+    expect(renamed.people.map(({ firstName }) => firstName)).toEqual([
+      'Cal',
+      'Dee',
+    ])
+    await request('DELETE', `/api/people/church_demo/${bea.id}`, {
+      version: bea.version + 1,
+    })
+    const deleted = await list(first.page.nextCursor!)
+    expect(deleted.people.map(({ firstName }) => firstName)).toEqual([
+      'Cal',
+      'Dee',
+    ])
+  })
+
+  it('refuses a cursor from another list or one that was altered', async () => {
+    const response = await request(
+      'GET',
+      '/api/people/church_demo?cursor=not-a-real-cursor',
+    )
+    expect(response.status).toBe(422)
+    expect(
+      (await response.json<{ error: { code: string } }>()).error.code,
+    ).toBe('invalid_cursor')
+  })
 })

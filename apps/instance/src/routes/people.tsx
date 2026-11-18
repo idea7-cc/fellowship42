@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useState, type FormEvent } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -16,6 +16,7 @@ import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
 import { useRequestGuard } from '@/lib/request-guard'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
 import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type {
   Church,
@@ -25,7 +26,10 @@ import type {
   Person,
   PersonDetail,
 } from '@/lib/api-types'
+import { ListPager } from '@/components/list-pager'
 import { PageShell } from '@/components/page-shell'
+import { PersonCombobox, type RecordChoice } from '@/components/record-combobox'
+import { RequestError } from '@/components/request-error'
 import { PageHeader, Toolbar, ToolbarSpacer } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Input, SearchInput } from '@/components/ui/input'
@@ -80,48 +84,6 @@ const relationships = [
 
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
-}
-
-function Pagination({
-  page,
-  hasPrevious,
-  onPrevious,
-  onNext,
-}: {
-  page?: CursorPage
-  hasPrevious: boolean
-  onPrevious: () => void
-  onNext: (cursor: string) => void
-}) {
-  if (!hasPrevious && !page?.nextCursor) return null
-  return (
-    <nav
-      aria-label="Directory pages"
-      className="mt-3 flex items-center justify-between gap-3"
-    >
-      <span className="text-xs text-muted-foreground">
-        Up to {page?.limit ?? 0} results per page
-      </span>
-      <div className="flex gap-2">
-        <Button
-          disabled={!hasPrevious}
-          onClick={onPrevious}
-          size="sm"
-          variant="secondary"
-        >
-          Previous
-        </Button>
-        <Button
-          disabled={!page?.nextCursor}
-          onClick={() => page?.nextCursor && onNext(page.nextCursor)}
-          size="sm"
-          variant="secondary"
-        >
-          Next
-        </Button>
-      </div>
-    </nav>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -473,22 +435,25 @@ function HouseholdForm({
 
 function HouseholdMemberForm({
   household,
-  people,
   onSaved,
 }: {
   household: Household
-  people: Person[]
   onSaved: () => Promise<void>
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
+  const [person, setPerson] = useState<RecordChoice | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     const form = new FormData(event.currentTarget)
-    const personId = String(form.get('personId') ?? '')
-    if (!personId) return
+    if (!person) {
+      setError('Choose a person to add.')
+      return
+    }
+    const personId = person.id
+    setError(null)
     try {
       await apiRequest(
         `/api/households/${encodeURIComponent(churchId)}/${encodeURIComponent(household.id)}/members/${encodeURIComponent(personId)}`,
@@ -517,18 +482,16 @@ function HouseholdMemberForm({
       onSubmit={submit}
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Person" required>
-          <Select defaultValue="" name="personId" required selectSize="sm">
-            <option disabled value="">
-              Select a person
-            </option>
-            {people.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.firstName} {person.lastName}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {churchId ? (
+          <PersonCombobox
+            churchId={churchId}
+            label="Person"
+            name="personId"
+            onChange={setPerson}
+            required
+            value={person}
+          />
+        ) : null}
         <Field label="Relationship">
           <Select defaultValue="other" name="relationship" selectSize="sm">
             {relationships.map((option) => (
@@ -566,12 +529,6 @@ export function PeoplePage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
-  const [peopleCursors, setPeopleCursors] = useState<Array<string | null>>([
-    null,
-  ])
-  const [householdCursors, setHouseholdCursors] = useState<
-    Array<string | null>
-  >([null])
   const personEditor = useRecordEditor<PersonDetail>()
   const personSession = personEditor.session
   const householdEditor = useRecordEditor<Household>()
@@ -594,44 +551,28 @@ export function PeoplePage() {
   const churchQuery = useApiQuery<{ church: Church }>(
     churchId ? `/api/churches/${encodeURIComponent(churchId)}` : null,
   )
-  const peopleCursor = peopleCursors.at(-1)
-  const householdCursor = householdCursors.at(-1)
-  const peopleParams = new URLSearchParams({ limit: '12' })
-  if (appliedSearch) peopleParams.set('query', appliedSearch)
-  if (status) peopleParams.set('status', status)
-  if (peopleCursor) peopleParams.set('cursor', peopleCursor)
-  const householdParams = new URLSearchParams({ limit: '12' })
-  if (appliedSearch) householdParams.set('query', appliedSearch)
-  if (householdCursor) householdParams.set('cursor', householdCursor)
-
-  const peopleQuery = useApiQuery<{ people: Person[]; page: CursorPage }>(
+  const peopleQuery = usePagedQuery<{ people: Person[]; page: CursorPage }>(
     isSignedIn && churchId
-      ? `/api/people/${encodeURIComponent(churchId)}?${peopleParams}`
+      ? `/api/people/${encodeURIComponent(churchId)}`
       : null,
+    { limit: 12, query: appliedSearch, status },
   )
-  const householdQuery = useApiQuery<{
+  const householdQuery = usePagedQuery<{
     households: Household[]
     page: CursorPage
   }>(
     isSignedIn && canReadHouseholds && churchId
-      ? `/api/households/${encodeURIComponent(churchId)}?${householdParams}`
+      ? `/api/households/${encodeURIComponent(churchId)}`
       : null,
+    { limit: 12, query: appliedSearch },
   )
-  const peopleOptionsQuery = useApiQuery<{ people: Person[] }>(
-    isSignedIn && canWriteHouseholds && churchId
-      ? `/api/people/${encodeURIComponent(churchId)}?limit=100`
-      : null,
-  )
-
-  useEffect(() => {
-    setPeopleCursors([null])
-    setHouseholdCursors([null])
-  }, [appliedSearch, status])
 
   const loading =
     authLoading ||
-    (view === 'people' && peopleQuery.isLoading) ||
-    (view === 'households' && householdQuery.isLoading)
+    // Only a first load replaces the table: a refresh keeps rows, and any
+    // editor open inside them, on screen until the new data arrives.
+    (view === 'people' && peopleQuery.isLoading && !peopleQuery.data) ||
+    (view === 'households' && householdQuery.isLoading && !householdQuery.data)
   const hasFilters = Boolean(appliedSearch || status)
 
   function choosePersonEditor(next: PersonDetail | 'new' | null) {
@@ -844,10 +785,7 @@ export function PeoplePage() {
                   onCancel={() => choosePersonEditor(null)}
                   onSaved={async () => {
                     personEditor.closeIf(personSession.key)
-                    await Promise.all([
-                      peopleQuery.refetch(),
-                      peopleOptionsQuery.refetch(),
-                    ])
+                    await peopleQuery.refetch()
                   }}
                 />
               ) : null}
@@ -861,6 +799,11 @@ export function PeoplePage() {
                   description="Ask an administrator for the people.read permission on this church."
                   icon={Users}
                   title="No directory access"
+                />
+              ) : peopleQuery.error ? (
+                <RequestError
+                  message={peopleQuery.error.message}
+                  onRetry={() => void peopleQuery.refetch()}
                 />
               ) : peopleQuery.data?.people.length ? (
                 <TableContainer>
@@ -1007,16 +950,7 @@ export function PeoplePage() {
                 />
               )}
 
-              <Pagination
-                hasPrevious={peopleCursors.length > 1}
-                onNext={(cursor) =>
-                  setPeopleCursors((value) => [...value, cursor])
-                }
-                onPrevious={() =>
-                  setPeopleCursors((value) => value.slice(0, -1))
-                }
-                page={peopleQuery.data?.page}
-              />
+              <ListPager label="Directory pages" {...peopleQuery.pager} />
             </>
           ) : (
             <>
@@ -1040,6 +974,11 @@ export function PeoplePage() {
                 <TableContainer>
                   <SkeletonTable columns={3} rows={5} />
                 </TableContainer>
+              ) : householdQuery.error ? (
+                <RequestError
+                  message={householdQuery.error.message}
+                  onRetry={() => void householdQuery.refetch()}
+                />
               ) : householdQuery.data?.households.length ? (
                 <TableContainer>
                   <Table>
@@ -1187,10 +1126,8 @@ export function PeoplePage() {
                                   {canWriteHouseholds ? (
                                     <HouseholdMemberForm
                                       household={household}
+                                      key={household.id}
                                       onSaved={householdQuery.refetch}
-                                      people={
-                                        peopleOptionsQuery.data?.people ?? []
-                                      }
                                     />
                                   ) : null}
                                 </TableCell>
@@ -1233,16 +1170,7 @@ export function PeoplePage() {
                 />
               )}
 
-              <Pagination
-                hasPrevious={householdCursors.length > 1}
-                onNext={(cursor) =>
-                  setHouseholdCursors((value) => [...value, cursor])
-                }
-                onPrevious={() =>
-                  setHouseholdCursors((value) => value.slice(0, -1))
-                }
-                page={householdQuery.data?.page}
-              />
+              <ListPager label="Household pages" {...householdQuery.pager} />
             </>
           )}
         </>

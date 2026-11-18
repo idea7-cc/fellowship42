@@ -16,6 +16,10 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
@@ -214,7 +218,6 @@ export function CoursesPage() {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'courses.write')
-  const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
   const editor = useRecordEditor<Course>()
@@ -224,15 +227,13 @@ export function CoursesPage() {
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(publicBase)
-  const params = new URLSearchParams({ limit: '100' })
-  if (appliedSearch) params.set('query', appliedSearch)
-  if (status) params.set('status', status)
-  const courseQuery = useApiQuery<{ courses: Course[]; page?: CursorPage }>(
+  const courseQuery = usePagedQuery<{ courses: Course[]; page?: CursorPage }>(
     churchId
       ? canWrite
-        ? `/api/courses/${encodeURIComponent(churchId)}?${params}`
+        ? `/api/courses/${encodeURIComponent(churchId)}`
         : `${publicBase}/courses`
       : null,
+    { limit: 24, query: appliedSearch, status: canWrite ? status : undefined },
   )
   async function remove(course: Course) {
     if (!churchId || !window.confirm(`Delete ${course.title}?`)) return
@@ -250,15 +251,7 @@ export function CoursesPage() {
       )
     }
   }
-  const courses = courseQuery.data?.courses ?? []
-  const displayed = canWrite
-    ? courses
-    : courses.filter((course) =>
-        [course.title, course.summary, course.courseType]
-          .join(' ')
-          .toLowerCase()
-          .includes(search.trim().toLowerCase()),
-      )
+  const displayed = courseQuery.data?.courses ?? []
   return (
     <PageShell>
       <PageHeader
@@ -271,47 +264,17 @@ export function CoursesPage() {
         title="Courses &amp; studies"
       />
       <Section>
-        {canWrite ? (
-          <form
-            role="search"
-            className="mb-6 flex flex-wrap gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setAppliedSearch(search.trim())
-            }}
-          >
-            <Input
-              className="max-w-sm"
-              placeholder="Search courses"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              aria-label="Publishing status"
-              className={fieldClass}
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-            <Button type="submit" size="sm">
-              Search
-            </Button>
-            <Button type="button" size="sm" onClick={() => editor.open('new')}>
+        <ListSearch
+          label={canWrite ? 'Search courses' : 'Search published courses'}
+          onSearch={setAppliedSearch}
+          status={canWrite ? { value: status, onChange: setStatus } : undefined}
+        >
+          {canWrite ? (
+            <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add course
             </Button>
-          </form>
-        ) : (
-          <Input
-            className="mb-6 max-w-sm"
-            placeholder="Search published courses"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        )}
+          ) : null}
+        </ListSearch>
         {editorSession ? (
           <CourseForm
             key={editorSession.key}
@@ -328,8 +291,13 @@ export function CoursesPage() {
             {error}
           </p>
         ) : null}
-        {courseQuery.isLoading ? (
+        {courseQuery.isLoading && !courseQuery.data ? (
           <p>Loading courses…</p>
+        ) : courseQuery.error ? (
+          <RequestError
+            message={courseQuery.error.message}
+            onRetry={() => void courseQuery.refetch()}
+          />
         ) : displayed.length ? (
           <CardGrid minWidth="280px">
             {displayed.map((course) => (
@@ -382,6 +350,7 @@ export function CoursesPage() {
             </CardContent>
           </Card>
         )}
+        <ListPager label="Course pages" {...courseQuery.pager} />
       </Section>
     </PageShell>
   )

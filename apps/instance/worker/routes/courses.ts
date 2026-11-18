@@ -15,6 +15,7 @@ import {
 } from '../lib/content'
 import { AppError } from '../lib/errors'
 import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
+import { cursorInput, listKeyset } from '../lib/list-cursor'
 import {
   mapCourse,
   mapCourseEnrollment,
@@ -113,7 +114,7 @@ const lessonUpdateInput = z
 const listInput = z.object({
   query: z.string().trim().max(100).optional(),
   status: publishStatusSchema.optional(),
-  cursor: z.string().trim().min(1).max(128).optional(),
+  cursor: cursorInput.optional(),
   limit: z.coerce.number().int().min(1).max(100).default(25),
 })
 
@@ -312,39 +313,35 @@ courseRoutes.get('/:churchId', async (c) => {
     conditions.push('c.status = ?')
     bindings.push(parsed.data.status)
   }
-  if (parsed.data.cursor) {
-    const cursor = await c.env.DB.prepare(
-      'SELECT title, id FROM courses WHERE church_id = ? AND id = ? AND deleted_at IS NULL',
-    )
-      .bind(churchId, parsed.data.cursor)
-      .first<{ title: string; id: string }>()
-    if (!cursor)
-      throw new AppError(422, 'invalid_cursor', 'The course cursor is invalid')
-    conditions.push(
-      '(c.title COLLATE NOCASE > ? COLLATE NOCASE OR (c.title = ? COLLATE NOCASE AND c.id > ?))',
-    )
-    bindings.push(cursor.title, cursor.title, cursor.id)
+  const keyset = listKeyset(
+    'courses',
+    {
+      column: 'c.title',
+      key: 'title',
+      type: 'text',
+      direction: 'asc',
+      idColumn: 'c.id',
+    },
+    parsed.data.cursor,
+  )
+  if (keyset.condition) {
+    conditions.push(keyset.condition)
+    bindings.push(...keyset.bindings)
   }
   const result = await c.env.DB.prepare(
     `${courseSelect}
       WHERE ${conditions.join(' AND ')}
       GROUP BY c.id
-      ORDER BY c.title COLLATE NOCASE, c.id
+      ORDER BY ${keyset.orderBy}
       LIMIT ?
     `,
   )
     .bind(...bindings, parsed.data.limit + 1)
     .all<CourseRow>()
-  const hasMore = result.results.length > parsed.data.limit
-  const rows = hasMore
-    ? result.results.slice(0, parsed.data.limit)
-    : result.results
+  const { rows, page } = keyset.page(result.results, parsed.data.limit)
   return c.json({
     courses: rows.map(mapCourse),
-    page: {
-      limit: parsed.data.limit,
-      nextCursor: hasMore ? rows.at(-1)!.id : null,
-    },
+    page,
   })
 })
 

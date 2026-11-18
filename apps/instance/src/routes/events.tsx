@@ -15,6 +15,10 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
@@ -288,7 +292,6 @@ export function EventsPage() {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'events.write')
-  const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [status, setStatus] = useState('')
   const editor = useRecordEditor<EventRecord>()
@@ -298,15 +301,16 @@ export function EventsPage() {
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(publicBase)
-  const params = new URLSearchParams({ limit: '100' })
-  if (appliedSearch) params.set('query', appliedSearch)
-  if (status) params.set('status', status)
-  const eventQuery = useApiQuery<{ events: EventRecord[]; page?: CursorPage }>(
+  const eventQuery = usePagedQuery<{
+    events: EventRecord[]
+    page?: CursorPage
+  }>(
     churchId
       ? canWrite
-        ? `/api/events/${encodeURIComponent(churchId)}?${params}`
+        ? `/api/events/${encodeURIComponent(churchId)}`
         : `${publicBase}/events`
       : null,
+    { limit: 24, query: appliedSearch, status: canWrite ? status : undefined },
   )
   async function remove(event: EventRecord) {
     if (!churchId || !window.confirm(`Delete ${event.title}?`)) return
@@ -324,15 +328,7 @@ export function EventsPage() {
       )
     }
   }
-  const events = eventQuery.data?.events ?? []
-  const displayed = canWrite
-    ? events
-    : events.filter((event) =>
-        [event.title, event.summary, event.location]
-          .join(' ')
-          .toLowerCase()
-          .includes(search.trim().toLowerCase()),
-      )
+  const displayed = eventQuery.data?.events ?? []
   return (
     <PageShell>
       <PageHeader
@@ -345,47 +341,17 @@ export function EventsPage() {
         title="Events &amp; services"
       />
       <Section>
-        {canWrite ? (
-          <form
-            role="search"
-            className="mb-6 flex flex-wrap gap-3"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setAppliedSearch(search.trim())
-            }}
-          >
-            <Input
-              className="max-w-sm"
-              placeholder="Search events"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              aria-label="Publishing status"
-              className={fieldClass}
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option value="">All statuses</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
-            </select>
-            <Button size="sm" type="submit">
-              Search
-            </Button>
+        <ListSearch
+          label={canWrite ? 'Search events' : 'Search events'}
+          onSearch={setAppliedSearch}
+          status={canWrite ? { value: status, onChange: setStatus } : undefined}
+        >
+          {canWrite ? (
             <Button size="sm" type="button" onClick={() => editor.open('new')}>
               Add event
             </Button>
-          </form>
-        ) : (
-          <Input
-            className="mb-6 max-w-sm"
-            placeholder="Search events"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        )}
+          ) : null}
+        </ListSearch>
         {editorSession ? (
           <EventForm
             key={editorSession.key}
@@ -403,8 +369,13 @@ export function EventsPage() {
             {error}
           </p>
         ) : null}
-        {eventQuery.isLoading ? (
+        {eventQuery.isLoading && !eventQuery.data ? (
           <p>Loading events…</p>
+        ) : eventQuery.error ? (
+          <RequestError
+            message={eventQuery.error.message}
+            onRetry={() => void eventQuery.refetch()}
+          />
         ) : displayed.length ? (
           <CardGrid minWidth="280px">
             {displayed.map((event) => (
@@ -464,6 +435,7 @@ export function EventsPage() {
             </CardContent>
           </Card>
         )}
+        <ListPager label="Event pages" {...eventQuery.pager} />
       </Section>
     </PageShell>
   )

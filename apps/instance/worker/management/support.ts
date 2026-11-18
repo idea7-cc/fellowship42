@@ -221,7 +221,12 @@ export async function requestSupportSession(
   return output(created)
 }
 
-export async function listSupportSessions(
+/**
+ * Sessions the owner can still act on: awaiting approval, or approved and
+ * revocable. Filtered here, not in the browser, so a long history of decided
+ * requests cannot push an active session out of view.
+ */
+export async function listActionableSupportSessions(
   db: D1Database,
   instanceId: string,
   now = Date.now(),
@@ -235,8 +240,8 @@ export async function listSupportSessions(
            support_operator_display_name, state, requested_at, decision_due_at,
            decided_at, expires_at, revoked_at, decision_reason
     FROM management_support_sessions
-    WHERE instance_id = ?
-    ORDER BY requested_at DESC, request_id DESC LIMIT 50
+    WHERE instance_id = ? AND state IN ('awaiting-local-approval', 'approved')
+    ORDER BY requested_at DESC, request_id DESC
   `,
     )
     .bind(instanceId)

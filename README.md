@@ -109,6 +109,11 @@ supports only TypeScript below 6.1, and Vitest stays on 4.1 because
    pnpm db:seed
    ```
 
+   Optionally, to see lists and pickers past their first page, also run
+   `pnpm db:seed:large`. It adds 250 synthetic people in households, 150
+   contributions, three groups with rosters over 100 and 150 small media files,
+   to local state only.
+
 3. Start the instance at `http://localhost:5173` and leave it running.
 
    ```bash

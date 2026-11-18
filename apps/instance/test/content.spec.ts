@@ -627,4 +627,183 @@ describe('ministry and publishing workflows', () => {
       Date.UTC(2026, 9, 11, 12),
     )
   })
+
+  it('filters media on the server before paging', async () => {
+    const marker = `filter-${crypto.randomUUID()}`
+    const bytes = () => new TextEncoder().encode(crypto.randomUUID())
+    const first = await uploadMedia(
+      bytes(),
+      'audio/mpeg',
+      'public',
+      `${marker} one`,
+    )
+    await uploadMedia(bytes(), 'audio/mpeg', 'private', `${marker} private`)
+    await uploadMedia(bytes(), 'image/png', 'public', `${marker} image`)
+    const second = await uploadMedia(
+      bytes(),
+      'audio/mpeg',
+      'public',
+      `${marker} two`,
+    )
+
+    const ids: string[] = []
+    let cursor: string | null = null
+    do {
+      const params = new URLSearchParams({
+        visibility: 'public',
+        mediaType: 'audio',
+        query: marker,
+        limit: '1',
+      })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/media/church_demo?${params}`,
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json<{
+        media: MediaRecord[]
+        page: { nextCursor: string | null }
+      }>()
+      expect(body.media).toHaveLength(1)
+      ids.push(body.media[0].id)
+      cursor = body.page.nextCursor
+    } while (cursor)
+    expect(ids.sort()).toEqual([first.id, second.id].sort())
+
+    // An editor can name a file it references by reading it by id.
+    const one = await jsonRequest('GET', `/api/media/church_demo/${first.id}`)
+    expect(one.status).toBe(200)
+    expect((await one.json<{ media: MediaRecord }>()).media).toMatchObject({
+      id: first.id,
+      altText: `${marker} one`,
+    })
+    expect(
+      (await jsonRequest('GET', '/api/media/church_demo/media_missing')).status,
+    ).toBe(404)
+  })
+
+  it('pages and searches published lists on the server for readers', async () => {
+    const marker = `reader${crypto.randomUUID().slice(0, 8)}`
+    for (const [index, status] of [
+      'published',
+      'published',
+      'published',
+      'draft',
+    ].entries()) {
+      const response = await jsonRequest('POST', '/api/groups/church_demo', {
+        slug: `${marker}-${index}`,
+        title: `${marker} group ${index}`,
+        groupType: 'small-group',
+        status,
+      })
+      expect(response.status).toBe(201)
+    }
+    const titles: string[] = []
+    let cursor: string | null = null
+    do {
+      const params = new URLSearchParams({ query: marker, limit: '2' })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/churches/church_demo/groups?${params}`,
+        undefined,
+        true,
+      )
+      expect(response.status).toBe(200)
+      const body = await response.json<{
+        groups: Group[]
+        page: { nextCursor: string | null }
+      }>()
+      titles.push(...body.groups.map(({ title }) => title))
+      cursor = body.page.nextCursor
+    } while (cursor)
+    expect(titles).toEqual([0, 1, 2].map((index) => `${marker} group ${index}`))
+  })
+
+  it('keeps paging a published list after the boundary row is unpublished', async () => {
+    const marker = `boundary${crypto.randomUUID().slice(0, 8)}`
+    const groups: Group[] = []
+    for (const index of [0, 1, 2]) {
+      const response = await jsonRequest('POST', '/api/groups/church_demo', {
+        slug: `${marker}-${index}`,
+        title: `${marker} group ${index}`,
+        groupType: 'small-group',
+        status: 'published',
+      })
+      groups.push((await response.json<{ group: Group }>()).group)
+    }
+    const page = async (cursor?: string) => {
+      const params = new URLSearchParams({ query: marker, limit: '1' })
+      if (cursor) params.set('cursor', cursor)
+      const response = await jsonRequest(
+        'GET',
+        `/api/churches/church_demo/groups?${params}`,
+        undefined,
+        true,
+      )
+      expect(response.status).toBe(200)
+      return response.json<{
+        groups: Group[]
+        page: { nextCursor: string | null }
+      }>()
+    }
+    const first = await page()
+    expect(first.groups[0]!.id).toBe(groups[0]!.id)
+    await jsonRequest('PATCH', `/api/groups/church_demo/${groups[0]!.id}`, {
+      version: groups[0]!.version,
+      status: 'draft',
+    })
+    const next = await page(first.page.nextCursor!)
+    expect(next.groups[0]!.id).toBe(groups[1]!.id)
+  })
+
+  it('counts published records in the database, not from a capped list', async () => {
+    const response = await jsonRequest(
+      'GET',
+      '/api/churches/church_demo/counts',
+      undefined,
+      true,
+    )
+    expect(response.status).toBe(200)
+    const expected = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM groups WHERE church_id = 'church_demo'
+            AND status = 'published' AND deleted_at IS NULL) AS groups,
+         (SELECT COUNT(*) FROM courses WHERE church_id = 'church_demo'
+            AND status = 'published' AND deleted_at IS NULL) AS courses`,
+    ).first<{ groups: number; courses: number }>()
+    const { counts } = await response.json<{
+      counts: { groups: number; courses: number; upcomingEvents: number }
+    }>()
+    expect(counts).toMatchObject(expected!)
+    // More than one list page: 201 published groups count as 201.
+    const extra = 201 - counts.groups
+    if (extra > 0) {
+      const now = Date.now()
+      await env.DB.batch(
+        Array.from({ length: extra }, (_, index) =>
+          env.DB.prepare(
+            `INSERT INTO groups (id, church_id, slug, title, status, group_type, created_at, updated_at)
+             VALUES (?, 'church_demo', ?, ?, 'published', 'small-group', ?, ?)`,
+          ).bind(
+            `group_count_${index}`,
+            `count-group-${index}`,
+            `Count group ${index}`,
+            now,
+            now,
+          ),
+        ),
+      )
+    }
+    const after = await jsonRequest(
+      'GET',
+      '/api/churches/church_demo/counts',
+      undefined,
+      true,
+    )
+    expect(
+      (await after.json<{ counts: { groups: number } }>()).counts.groups,
+    ).toBe(201)
+  })
 })

@@ -15,7 +15,7 @@ import {
 } from '@fellowship42/management-protocol'
 import { z } from 'zod'
 import { AppError } from '../lib/errors'
-import { listSupportSessions } from './support'
+import { listActionableSupportSessions } from './support'
 
 export type ManagementBindings = Env & {
   MANAGEMENT_KEY_ENCRYPTION_KEY?: string
@@ -867,7 +867,7 @@ export async function managementStatus(db: D1Database, now = Date.now()) {
           requires_local_approval: number
         }>()
     : { results: [] }
-  const supportSessions = await listSupportSessions(
+  const supportSessions = await listActionableSupportSessions(
     db,
     installed.instanceId,
     now,
