@@ -30,7 +30,9 @@ siteRoutes.get('/', async (c) => {
       'site_unpublished',
       'This website is not published yet',
     )
-  return c.json(await readSite(c.env.DB, instance.id))
+  return c.json(
+    await readSite(c.env.DB, instance.id, { requirePublished: true }),
+  )
 })
 
 churchSettingsRoutes.use('/:churchId/*', async (c, next) => {

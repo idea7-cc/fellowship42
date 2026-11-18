@@ -10,6 +10,7 @@ import {
   siteRoutes,
 } from '../worker/features/church/routes'
 import { mediaManagementRoutes, mediaRoutes } from '../worker/routes/media'
+import { interleaveAfterRead, interleaveBeforeBatch } from './interleave'
 import { churchRoutes } from '../worker/routes/churches'
 import { mutateChurch } from '../worker/features/church/service'
 import { bootstrapInstance } from '../worker/routes/bootstrap'
@@ -31,6 +32,7 @@ function request(
   path: string,
   body?: unknown,
   method = body ? 'POST' : 'GET',
+  bindings: Env = env,
 ) {
   const app = new Hono<{
     Bindings: Env
@@ -67,7 +69,7 @@ function request(
           }
         : {}),
     }),
-    env,
+    bindings,
     {
       waitUntil() {},
       passThroughOnException() {},
@@ -262,6 +264,59 @@ describe('church settings and publication', () => {
       expect(response.status).toBe(200)
       expect(await response.text()).not.toContain('Never public')
     }
+  })
+  it('never serves public content read across an unpublish', async () => {
+    const now = Date.now()
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO courses (id, church_id, slug, title, status, course_type, delivery_mode, created_at, updated_at)
+         VALUES ('course_snapshot', 'church_demo', 'snapshot-course', 'Snapshot', 'published', 'formation', 'cohort', ?, ?)`,
+      ).bind(now, now),
+      env.DB.prepare(
+        `INSERT INTO lessons (id, church_id, course_id, title, content, sort_order, created_at, updated_at)
+         VALUES ('lesson_snapshot_1', 'church_demo', 'course_snapshot', 'Public lesson', 'Shown', 0, ?, ?)`,
+      ).bind(now, now),
+    ])
+    // The course goes back to draft and gains a lesson while it is read.
+    const draftWithLesson = interleaveAfterRead('FROM courses c', () =>
+      env.DB.batch([
+        env.DB.prepare(
+          "UPDATE courses SET status = 'draft' WHERE id = 'course_snapshot'",
+        ),
+        env.DB.prepare(
+          `INSERT INTO lessons (id, church_id, course_id, title, content, sort_order, created_at, updated_at)
+           VALUES ('lesson_snapshot_2', 'church_demo', 'course_snapshot', 'Draft-only lesson', 'Hidden', 1, ?, ?)`,
+        ).bind(now, now),
+      ]),
+    )
+    const course = await request(
+      null,
+      '/api/churches/church_demo/courses/snapshot-course',
+      undefined,
+      'GET',
+      draftWithLesson,
+    )
+    expect(await course.text()).not.toContain('Draft-only lesson')
+
+    // The church is unpublished after the site's status was checked.
+    const unpublishing = interleaveBeforeBatch(() =>
+      env.DB.prepare(
+        "UPDATE churches SET status = 'draft' WHERE id = 'church_demo'",
+      ).run(),
+    )
+    const site = await request(
+      null,
+      '/api/site',
+      undefined,
+      'GET',
+      unpublishing,
+    )
+    expect(site.status).toBe(404)
+    // Staff preview of the unpublished church keeps working.
+    expect((await request(owner, `${base}/preview`)).status).toBe(200)
+    await env.DB.prepare(
+      "UPDATE churches SET status = 'published' WHERE id = 'church_demo'",
+    ).run()
   })
   it('supports a freshly bootstrapped church without seed profile or service rows', async () => {
     await env.DB.prepare('DELETE FROM instance_metadata').run()

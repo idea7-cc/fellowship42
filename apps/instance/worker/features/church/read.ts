@@ -23,9 +23,8 @@ import {
   type SermonRow,
 } from '../../lib/records'
 
-export async function readChurch(db: D1Database, churchId: string) {
-  // Read the profile, its version, and gatherings in one D1 snapshot.
-  const [profile, times] = await db.batch([
+function churchStatements(db: D1Database, churchId: string) {
+  return [
     db
       .prepare(`${churchSelect} WHERE c.id = ? AND c.deleted_at IS NULL`)
       .bind(churchId),
@@ -34,13 +33,22 @@ export async function readChurch(db: D1Database, churchId: string) {
         'SELECT id, label, day_of_week, local_time FROM service_times WHERE church_id = ? ORDER BY sort_order, id',
       )
       .bind(churchId),
-  ])
+  ]
+}
+
+function mapChurchResults(profile: D1Result, times: D1Result) {
   const row = profile.results[0] as unknown as ChurchRow | undefined
   if (!row) throw new AppError(404, 'church_not_found', 'Church not found')
   return {
     row,
     church: mapChurch(row, times.results as unknown as ServiceTimeRow[]),
   }
+}
+
+export async function readChurch(db: D1Database, churchId: string) {
+  // Read the profile, its version, and gatherings in one D1 snapshot.
+  const [profile, times] = await db.batch(churchStatements(db, churchId))
+  return mapChurchResults(profile, times)
 }
 
 export async function readSettings(
@@ -144,42 +152,52 @@ export function draftChurch(
   }
 }
 
+/**
+ * The church profile and its published content in one D1 snapshot. With
+ * `requirePublished`, the church's published status is checked in that same
+ * snapshot, so a public read never mixes content from either side of an
+ * unpublish; staff previews leave it off.
+ */
 export async function readSite(
   db: D1Database,
   churchId: string,
+  { requirePublished = false }: { requirePublished?: boolean } = {},
 ): Promise<ChurchSite> {
-  const { church } = await readChurch(db, churchId)
-  const [groups, courses, events, sermons] = await Promise.all([
+  const [profile, times, groups, courses, events, sermons] = await db.batch([
+    ...churchStatements(db, churchId),
     db
       .prepare(
         `SELECT * FROM groups WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY featured DESC, title LIMIT 200`,
       )
-      .bind(churchId)
-      .all<GroupRow>(),
+      .bind(churchId),
     db
       .prepare(
         `SELECT c.*, COUNT(l.id) AS lesson_count FROM courses c LEFT JOIN lessons l ON l.church_id = c.church_id AND l.course_id = c.id WHERE c.church_id = ? AND c.status = 'published' AND c.deleted_at IS NULL GROUP BY c.id ORDER BY c.featured DESC, c.title LIMIT 200`,
       )
-      .bind(churchId)
-      .all<CourseRow>(),
+      .bind(churchId),
     db
       .prepare(
         `SELECT * FROM events WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL AND starts_at >= ? ORDER BY starts_at LIMIT 200`,
       )
-      .bind(churchId, Date.now())
-      .all<EventRow>(),
+      .bind(churchId, Date.now()),
     db
       .prepare(
         `SELECT * FROM sermons WHERE church_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY preached_at DESC LIMIT 200`,
       )
-      .bind(churchId)
-      .all<SermonRow>(),
+      .bind(churchId),
   ])
+  const { row, church } = mapChurchResults(profile, times)
+  if (requirePublished && row.status !== 'published')
+    throw new AppError(
+      404,
+      'site_unpublished',
+      'This website is not published yet',
+    )
   return {
     church,
-    groups: groups.results.map(mapGroup),
-    courses: courses.results.map(mapCourse),
-    events: events.results.map(mapEvent),
-    sermons: sermons.results.map(mapSermon),
+    groups: (groups.results as unknown as GroupRow[]).map(mapGroup),
+    courses: (courses.results as unknown as CourseRow[]).map(mapCourse),
+    events: (events.results as unknown as EventRow[]).map(mapEvent),
+    sermons: (sermons.results as unknown as SermonRow[]).map(mapSermon),
   }
 }
