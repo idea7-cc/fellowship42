@@ -61,9 +61,17 @@ statement in the batch, so a losing concurrent request writes no role rows,
 audit event, or outbox event.
 
 The same guarded statement refuses any change that would leave the church with
-no active membership holding the `owner` role. That includes demoting, suspending,
-or removing the only owner, and the owner doing it to themselves. The response
-is `409 last_owner_required`; add a second owner first.
+no owner who can sign in: another active membership holding the `owner` role
+whose account is active and linked to an identity from a sign-in provider the
+deployment has configured (Cloudflare Access or instance passkeys). That
+includes demoting, suspending, or removing the only such owner, and the owner
+doing it to themselves. The response is `409 last_owner_required`; add a
+second owner and let them finish enrolling first.
+
+Suspending or removing a member, or a role change that leaves them without the
+`*` permission, also deletes enrollment links the member issued and links for
+their own account that are still unused, so reinstating them later does not
+revive those links.
 
 ## Evidence
 
