@@ -5,6 +5,7 @@ import {
   syncCurrentUser,
   type AccessIdentity,
 } from '../worker/lib/auth'
+import { interleaveBeforeBatch } from './interleave'
 
 async function get(path: string) {
   return exports.default.fetch(new Request(`https://fellowship42.test${path}`))
@@ -198,8 +199,8 @@ describe('Fellowship42 edge API', () => {
     )
       .bind(now, now)
       .run()
-    const claim = (subject: string) =>
-      syncCurrentUser(env.DB, {
+    const claim = (db: D1Database, subject: string) =>
+      syncCurrentUser(db, {
         provider: 'cloudflare-access',
         subject,
         email: 'contested@example.test',
@@ -207,17 +208,21 @@ describe('Fellowship42 edge API', () => {
         lastName: 'Claim',
       })
 
-    const outcomes = await Promise.allSettled([
-      claim('contested-subject-a'),
-      claim('contested-subject-b'),
-    ])
-    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual([
-      'fulfilled',
-      'rejected',
-    ])
-    expect(
-      outcomes.find((outcome) => outcome.status === 'rejected')?.reason,
-    ).toMatchObject({ status: 403, code: 'identity_link_required' })
+    // Claim A has read the invited account when claim B runs to completion,
+    // so both read it as unclaimed before either writes.
+    let second: Promise<unknown> | undefined
+    const first = claim(
+      interleaveBeforeBatch(() => {
+        second = claim(env.DB, 'contested-subject-b')
+        return second.catch(() => undefined)
+      }).DB,
+      'contested-subject-a',
+    )
+    await expect(first).rejects.toMatchObject({
+      status: 403,
+      code: 'identity_link_required',
+    })
+    await expect(second).resolves.toMatchObject({ id: 'user_contested' })
     const identities = await env.DB.prepare(
       'SELECT COUNT(*) AS total FROM auth_identities WHERE user_id = ?',
     )
