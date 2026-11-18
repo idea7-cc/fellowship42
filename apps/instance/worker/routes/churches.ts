@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { CursorPage } from '../../contracts/api'
+import type { CursorPage, PublishedCounts } from '../../contracts/api'
 import { escapeLike, validationError } from '../lib/content'
 import { AppError } from '../lib/errors'
 import { cursorInput, listKeyset, type ListOrder } from '../lib/list-cursor'
@@ -195,6 +195,27 @@ churchRoutes.get('/:identifier', async (c) => {
   return c.json({
     church: mapChurch(church, await serviceTimes(c.env.DB, church.id)),
   })
+})
+
+// Totals for the overview, counted in the database so they are not capped
+// by a list page. Same visibility as the published lists below.
+churchRoutes.get('/:identifier/counts', async (c) => {
+  const church = await findVisibleChurch(c, c.req.param('identifier'))
+  const counts = await c.env.DB.prepare(
+    `
+      SELECT
+        (SELECT COUNT(*) FROM groups WHERE church_id = ?1
+           AND status = 'published' AND deleted_at IS NULL) AS groups,
+        (SELECT COUNT(*) FROM courses WHERE church_id = ?1
+           AND status = 'published' AND deleted_at IS NULL) AS courses,
+        (SELECT COUNT(*) FROM events WHERE church_id = ?1
+           AND status = 'published' AND deleted_at IS NULL
+           AND starts_at >= ?2) AS upcomingEvents
+    `,
+  )
+    .bind(church.id, Date.now())
+    .first<PublishedCounts>()
+  return c.json({ counts: counts! })
 })
 
 churchRoutes.get('/:identifier/ministries', async (c) => {

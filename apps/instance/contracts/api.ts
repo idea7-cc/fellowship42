@@ -328,6 +328,13 @@ export interface Household {
   version: number
 }
 
+/** Published totals for a church's overview, counted in the database. */
+export interface PublishedCounts {
+  groups: number
+  courses: number
+  upcomingEvents: number
+}
+
 export interface CursorPage {
   limit: number
   nextCursor: string | null

@@ -746,4 +746,53 @@ describe('ministry and publishing workflows', () => {
     const next = await page(first.page.nextCursor!)
     expect(next.groups[0]!.id).toBe(groups[1]!.id)
   })
+
+  it('counts published records in the database, not from a capped list', async () => {
+    const response = await jsonRequest(
+      'GET',
+      '/api/churches/church_demo/counts',
+      undefined,
+      true,
+    )
+    expect(response.status).toBe(200)
+    const expected = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM groups WHERE church_id = 'church_demo'
+            AND status = 'published' AND deleted_at IS NULL) AS groups,
+         (SELECT COUNT(*) FROM courses WHERE church_id = 'church_demo'
+            AND status = 'published' AND deleted_at IS NULL) AS courses`,
+    ).first<{ groups: number; courses: number }>()
+    const { counts } = await response.json<{
+      counts: { groups: number; courses: number; upcomingEvents: number }
+    }>()
+    expect(counts).toMatchObject(expected!)
+    // More than one list page: 201 published groups count as 201.
+    const extra = 201 - counts.groups
+    if (extra > 0) {
+      const now = Date.now()
+      await env.DB.batch(
+        Array.from({ length: extra }, (_, index) =>
+          env.DB.prepare(
+            `INSERT INTO groups (id, church_id, slug, title, status, group_type, created_at, updated_at)
+             VALUES (?, 'church_demo', ?, ?, 'published', 'small-group', ?, ?)`,
+          ).bind(
+            `group_count_${index}`,
+            `count-group-${index}`,
+            `Count group ${index}`,
+            now,
+            now,
+          ),
+        ),
+      )
+    }
+    const after = await jsonRequest(
+      'GET',
+      '/api/churches/church_demo/counts',
+      undefined,
+      true,
+    )
+    expect(
+      (await after.json<{ counts: { groups: number } }>()).counts.groups,
+    ).toBe(201)
+  })
 })

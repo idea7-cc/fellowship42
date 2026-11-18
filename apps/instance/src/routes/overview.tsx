@@ -26,13 +26,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useApiQuery } from '@/lib/api'
 import { useChurch } from '@/lib/church-context'
-import type {
-  Church,
-  Course,
-  EventRecord,
-  Group,
-  ServiceTime,
-} from '@/lib/api-types'
+import type { Church, PublishedCounts, ServiceTime } from '@/lib/api-types'
 
 const dayNames = [
   'Sunday',
@@ -50,19 +44,13 @@ export function OverviewPage() {
     ? `/api/churches/${encodeURIComponent(churchId)}`
     : null
   const churchQuery = useApiQuery<{ church: Church }>(basePath)
-  const groupQuery = useApiQuery<{ groups: Group[] }>(
-    basePath ? `${basePath}/groups` : null,
-  )
-  const courseQuery = useApiQuery<{ courses: Course[] }>(
-    basePath ? `${basePath}/courses` : null,
-  )
-  const eventQuery = useApiQuery<{ events: EventRecord[] }>(
-    basePath ? `${basePath}/events` : null,
+  const countsQuery = useApiQuery<{ counts: PublishedCounts }>(
+    basePath ? `${basePath}/counts` : null,
   )
 
   const church = churchQuery.data?.church
-  const countsLoading =
-    groupQuery.isLoading || courseQuery.isLoading || eventQuery.isLoading
+  const counts = countsQuery.data?.counts
+  const countsLoading = countsQuery.isLoading
 
   if (churchQuery.isLoading) {
     return (
@@ -161,21 +149,19 @@ export function OverviewPage() {
             hint="Visible to members"
             icon={UsersRound}
             label="Published groups"
-            value={countsLoading ? '—' : (groupQuery.data?.groups.length ?? 0)}
+            value={countsLoading ? '—' : (counts?.groups ?? '—')}
           />
           <Metric
             hint="Open for enrollment"
             icon={GraduationCap}
             label="Published courses"
-            value={
-              countsLoading ? '—' : (courseQuery.data?.courses.length ?? 0)
-            }
+            value={countsLoading ? '—' : (counts?.courses ?? '—')}
           />
           <Metric
             hint="On the public calendar"
             icon={CalendarDays}
             label="Upcoming events"
-            value={countsLoading ? '—' : (eventQuery.data?.events.length ?? 0)}
+            value={countsLoading ? '—' : (counts?.upcomingEvents ?? '—')}
           />
         </MetricRow>
       </Section>
