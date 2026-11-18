@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { Section } from '@/components/section'
@@ -269,6 +269,20 @@ export function GroupsPage() {
   const editorSession = editor.session
   const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
   const [sessionsGroup, setSessionsGroup] = useState<Group | null>(null)
+  // The roster and sessions panels open above the list. On a phone the
+  // group's button can be screens below, so bring the panel into view and
+  // move focus to it.
+  const panel = useRef<HTMLDivElement>(null)
+  const openPanel = rosterGroup
+    ? `roster:${rosterGroup.id}`
+    : sessionsGroup
+      ? `sessions:${sessionsGroup.id}`
+      : null
+  useEffect(() => {
+    if (!openPanel) return
+    panel.current?.focus({ preventScroll: true })
+    panel.current?.scrollIntoView?.({ block: 'start' })
+  }, [openPanel])
   const [error, setError] = useState<string | null>(null)
   const publicBase = churchId
     ? `/api/churches/${encodeURIComponent(churchId)}`
@@ -334,23 +348,25 @@ export function GroupsPage() {
             onRefresh={groupQuery.refetch}
           />
         ) : null}
-        {rosterGroup && churchId ? (
-          <GroupRosterPanel
-            key={rosterGroup.id}
-            churchId={churchId}
-            group={rosterGroup}
-            onClose={() => setRosterGroup(null)}
-          />
-        ) : null}
-        {sessionsGroup && churchId ? (
-          <GroupSessionsPanel
-            key={sessionsGroup.id}
-            churchId={churchId}
-            group={sessionsGroup}
-            timeZone={churchQuery.data?.church.timezone}
-            onClose={() => setSessionsGroup(null)}
-          />
-        ) : null}
+        <div className="scroll-mt-20 outline-none" ref={panel} tabIndex={-1}>
+          {rosterGroup && churchId ? (
+            <GroupRosterPanel
+              key={rosterGroup.id}
+              churchId={churchId}
+              group={rosterGroup}
+              onClose={() => setRosterGroup(null)}
+            />
+          ) : null}
+          {sessionsGroup && churchId ? (
+            <GroupSessionsPanel
+              key={sessionsGroup.id}
+              churchId={churchId}
+              group={sessionsGroup}
+              timeZone={churchQuery.data?.church.timezone}
+              onClose={() => setSessionsGroup(null)}
+            />
+          ) : null}
+        </div>
         {error ? (
           <p role="alert" className="mb-4 text-sm text-destructive">
             {error}

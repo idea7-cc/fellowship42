@@ -207,9 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Sidebar ────────────────────────────────────────────────────── */}
       <aside
         aria-label="Main navigation"
-        aria-modal={drawerOpen || undefined}
         inert={!desktop && !sidebarOpen}
-        role={drawerOpen ? 'dialog' : undefined}
         className={cn(
           'fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar-background',
           SIDEBAR_WIDTH,

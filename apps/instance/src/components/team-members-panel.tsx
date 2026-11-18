@@ -267,7 +267,7 @@ export function TeamMembersPanel({
             <TableHeader>
               <TableRow>
                 <TableHead>Person</TableHead>
-                <TableHead>Roles</TableHead>
+                <TableHead className="hidden sm:table-cell">Roles</TableHead>
                 <TableHead className="hidden sm:table-cell">Status</TableHead>
                 <TableHead className="hidden md:table-cell">
                   Last seen
@@ -299,7 +299,10 @@ export function TeamMembersPanel({
                           <TableMeta className="block truncate">
                             {member.email}
                           </TableMeta>
-                          <div className="mt-1 sm:hidden">
+                          {/* Phones fold roles and status in here, so the
+                              row actions keep their room. */}
+                          <div className="mt-1 flex flex-wrap gap-1.5 sm:hidden">
+                            <RoleBadges keys={member.roleKeys} roles={roles} />
                             <StatusBadge
                               size="sm"
                               status={displayStatus(member)}
@@ -308,18 +311,9 @@ export function TeamMembersPanel({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <div className="flex flex-wrap gap-1.5">
-                        {member.roleKeys.map((key) => (
-                          <Badge
-                            key={key}
-                            size="sm"
-                            variant={key === 'owner' ? 'brand' : 'outline'}
-                          >
-                            {roles.find((role) => role.key === key)?.name ??
-                              key}
-                          </Badge>
-                        ))}
+                        <RoleBadges keys={member.roleKeys} roles={roles} />
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
@@ -511,4 +505,12 @@ function RoleEditor({
       </form>
     </Card>
   )
+}
+
+function RoleBadges({ keys, roles }: { keys: string[]; roles: TeamRole[] }) {
+  return keys.map((key) => (
+    <Badge key={key} size="sm" variant={key === 'owner' ? 'brand' : 'outline'}>
+      {roles.find((role) => role.key === key)?.name ?? key}
+    </Badge>
+  ))
 }

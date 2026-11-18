@@ -65,8 +65,6 @@ it('moves focus into the open drawer, holds the page behind it, and returns focu
   opener.focus()
   await ui!.click(opener)
   expect(inert(drawer)).toBe(false)
-  expect(drawer.getAttribute('role')).toBe('dialog')
-  expect(drawer.getAttribute('aria-modal')).toBe('true')
   expect(document.activeElement).toBe(ui!.button('Close navigation'))
   // The page and the top bar behind the scrim cannot take focus.
   expect(inert(main)).toBe(true)
