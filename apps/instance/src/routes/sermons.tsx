@@ -312,7 +312,7 @@ export function SermonsPage() {
             {error}
           </p>
         ) : null}
-        {sermonQuery.isLoading ? (
+        {sermonQuery.isLoading && !sermonQuery.data ? (
           <p>Loading sermons…</p>
         ) : sermonQuery.error ? (
           <RequestError

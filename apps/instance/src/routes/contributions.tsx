@@ -244,7 +244,7 @@ export function ContributionsPage() {
                 options: contributionStatuses,
               }}
             />
-            {contributionsQuery.isLoading ? (
+            {contributionsQuery.isLoading && !contributionsQuery.data ? (
               <p>Loading contributions…</p>
             ) : contributionsQuery.error ? (
               <RequestError

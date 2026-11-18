@@ -321,7 +321,7 @@ export function GroupsPage() {
             {error}
           </p>
         ) : null}
-        {groupQuery.isLoading ? (
+        {groupQuery.isLoading && !groupQuery.data ? (
           <p>Loading groups…</p>
         ) : groupQuery.error ? (
           <RequestError

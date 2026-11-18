@@ -240,7 +240,7 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
   }
   return (
     <PageShell>
-      {courseQuery.isLoading ? (
+      {courseQuery.isLoading && !courseQuery.data ? (
         <Section>
           <p>Loading course…</p>
         </Section>

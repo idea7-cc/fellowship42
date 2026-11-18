@@ -1095,3 +1095,76 @@ async function flushHeld() {
   await flush()
   await flush()
 }
+
+describe('a realtime refresh keeps open editors', () => {
+  const refresh = async () => {
+    window.dispatchEvent(new CustomEvent('f42:invalidate'))
+    await flush()
+  }
+
+  it('lessons: unsaved input survives a refresh of the course', async () => {
+    let courseReads = 0
+    const api = stubApi((call) => {
+      if (call.path === '/api/courses/church/course-a')
+        return ++courseReads > 1
+          ? 'defer'
+          : Response.json({
+              course: course('course-a', 'Course A'),
+              lessons: [lesson('l1', 'L1')],
+            })
+      if (call.path.endsWith('/enrollments'))
+        return Response.json({ enrollments: [] })
+      return Response.json(church)
+    })
+    ui = await mountStaff(<CourseDetailPage />, {
+      path: '/app/courses/course-a',
+      route: '/app/courses/:slug',
+    })
+    await ui.click(ui.button('Edit'))
+    const title = () => ui!.field('title', ui!.formWith('sortOrder'))
+    await ui.type(title(), 'Unsaved lesson title')
+    await refresh()
+    expect(title().value).toBe('Unsaved lesson title')
+    api.held('GET', '/api/courses/church/course-a').resolve(
+      Response.json({
+        course: course('course-a', 'Course A'),
+        lessons: [lesson('l1', 'L1')],
+      }),
+    )
+    await flush()
+    expect(title().value).toBe('Unsaved lesson title')
+  })
+
+  it('households: a chosen member survives a refresh of the household list', async () => {
+    let householdReads = 0
+    const api = stubApi((call) => {
+      if (call.path.startsWith('/api/households/church?'))
+        return ++householdReads > 1
+          ? 'defer'
+          : Response.json({
+              households: [household('h1', 'Lee Household', 'Raleigh', 2)],
+              page: { limit: 12, nextCursor: null },
+            })
+      if (call.path.startsWith('/api/people/church?'))
+        return Response.json({
+          people: [ann],
+          page: { limit: 20, nextCursor: null },
+        })
+      return Response.json(church)
+    })
+    ui = await mountStaff(<PeoplePage />)
+    await ui.click(ui.button('Households'))
+    await ui.click(ui.button('Lee Household'))
+    await ui.choose('Person', 'Ann', 'Ann Doe')
+    await refresh()
+    expect(ui.combobox('Person').value).toBe('Ann Doe')
+    api.held('GET', '/api/households/church?').resolve(
+      Response.json({
+        households: [household('h1', 'Lee Household', 'Raleigh', 2)],
+        page: { limit: 12, nextCursor: null },
+      }),
+    )
+    await flush()
+    expect(ui.combobox('Person').value).toBe('Ann Doe')
+  })
+})

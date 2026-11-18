@@ -215,7 +215,7 @@ export function MediaPage() {
                 ],
               }}
             />
-            {mediaQuery.isLoading ? (
+            {mediaQuery.isLoading && !mediaQuery.data ? (
               <p>Loading media…</p>
             ) : mediaQuery.error ? (
               <RequestError

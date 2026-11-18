@@ -569,8 +569,10 @@ export function PeoplePage() {
 
   const loading =
     authLoading ||
-    (view === 'people' && peopleQuery.isLoading) ||
-    (view === 'households' && householdQuery.isLoading)
+    // Only a first load replaces the table: a refresh keeps rows, and any
+    // editor open inside them, on screen until the new data arrives.
+    (view === 'people' && peopleQuery.isLoading && !peopleQuery.data) ||
+    (view === 'households' && householdQuery.isLoading && !householdQuery.data)
   const hasFilters = Boolean(appliedSearch || status)
 
   function choosePersonEditor(next: PersonDetail | 'new' | null) {

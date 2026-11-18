@@ -369,7 +369,7 @@ export function EventsPage() {
             {error}
           </p>
         ) : null}
-        {eventQuery.isLoading ? (
+        {eventQuery.isLoading && !eventQuery.data ? (
           <p>Loading events…</p>
         ) : eventQuery.error ? (
           <RequestError

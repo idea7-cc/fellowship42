@@ -291,7 +291,7 @@ export function CoursesPage() {
             {error}
           </p>
         ) : null}
-        {courseQuery.isLoading ? (
+        {courseQuery.isLoading && !courseQuery.data ? (
           <p>Loading courses…</p>
         ) : courseQuery.error ? (
           <RequestError
