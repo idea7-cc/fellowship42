@@ -65,8 +65,6 @@ function providerOptions(
     clientRegistrationTTL: undefined,
     accessTokenTTL: 15 * 60,
     refreshTokenTTL: 30 * 24 * 60 * 60,
-    allowPlainPKCE: false,
-    allowImplicitFlow: false,
     allowTokenExchangeGrant: false,
     onError: ({ status, code }) => {
       console.warn(
@@ -79,10 +77,10 @@ function providerOptions(
       )
     },
     scopesSupported: agentScopes,
+    requiredScopes: agentScopes,
     resourceMetadata: {
       resource: `${origin}/mcp`,
       authorization_servers: [origin],
-      scopes_supported: agentScopes,
       bearer_methods_supported: ['header'],
       resource_name: 'Fellowship42 church',
     },

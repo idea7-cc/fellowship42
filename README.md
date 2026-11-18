@@ -89,7 +89,10 @@ pre-alpha surface needs operator setup and a client supporting MCP
 ## Run locally
 
 You need Node.js 26 (26.9.0 or later, per `.node-version` and `engines`) and
-pnpm 12.4.2 (`packageManager` in `package.json`). From a clean checkout:
+pnpm 12.4.2 (`packageManager` in `package.json`). Two dependencies are held
+below their latest major: TypeScript stays on 6.0 because `typescript-eslint`
+supports only TypeScript below 6.1, and Vitest stays on 4.1 because
+`@emdash-cms/plugin-test` requires Vitest 4.1. From a clean checkout:
 
 1. Install dependencies and turn on local passkey sign-in. The example
    configuration sets `SIGN_IN_ORIGIN=http://localhost:5173` and nothing else.
