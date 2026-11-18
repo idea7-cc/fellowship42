@@ -186,6 +186,45 @@ describe('Fellowship42 edge API', () => {
       }),
     ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
   })
+
+  it('lets only one of two concurrent identities claim an invited account', async () => {
+    const now = Date.now()
+    await env.DB.prepare(
+      `
+        INSERT INTO users (
+          id, email, first_name, last_name, status, created_at, updated_at
+        ) VALUES ('user_contested', 'contested@example.test', '', '', 'invited', ?, ?)
+      `,
+    )
+      .bind(now, now)
+      .run()
+    const claim = (subject: string) =>
+      syncCurrentUser(env.DB, {
+        provider: 'cloudflare-access',
+        subject,
+        email: 'contested@example.test',
+        firstName: 'Contested',
+        lastName: 'Claim',
+      })
+
+    const outcomes = await Promise.allSettled([
+      claim('contested-subject-a'),
+      claim('contested-subject-b'),
+    ])
+    expect(outcomes.map((outcome) => outcome.status).sort()).toEqual([
+      'fulfilled',
+      'rejected',
+    ])
+    expect(
+      outcomes.find((outcome) => outcome.status === 'rejected')?.reason,
+    ).toMatchObject({ status: 403, code: 'identity_link_required' })
+    const identities = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM auth_identities WHERE user_id = ?',
+    )
+      .bind('user_contested')
+      .first<{ total: number }>()
+    expect(identities?.total).toBe(1)
+  })
 })
 
 it('rejects a malformed Access assertion as an authentication failure', async () => {

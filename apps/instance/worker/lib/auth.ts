@@ -235,6 +235,9 @@ export async function syncCurrentUser(
         now,
         now,
       ),
+    // Only the request that claims the account links its identity. A
+    // concurrent claim by another subject, Access or passkey, has already
+    // linked one by the time this batch runs, so this inserts nothing.
     db
       .prepare(
         `
@@ -244,6 +247,7 @@ export async function syncCurrentUser(
         SELECT ?, u.id, ?, ?, ?, ?, ?
         FROM users u
         WHERE u.id = ? AND u.email = ? COLLATE NOCASE
+          AND NOT EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id = u.id)
         ON CONFLICT(provider, subject) DO UPDATE SET
           email_at_provider = excluded.email_at_provider,
           updated_at = excluded.updated_at
