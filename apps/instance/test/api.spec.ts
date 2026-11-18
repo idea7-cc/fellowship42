@@ -188,6 +188,36 @@ describe('Fellowship42 edge API', () => {
     ).rejects.toMatchObject({ status: 403, code: 'identity_link_required' })
   })
 
+  it('claims an account an invitation created after the first sign-in read it', async () => {
+    const identity: AccessIdentity = {
+      provider: 'cloudflare-access',
+      subject: 'raced-invitation-subject',
+      email: 'raced-invitation@example.test',
+      firstName: 'Raced',
+      lastName: 'Invitee',
+    }
+    // The sign-in found no account for the email; the invitation then
+    // creates one under its own id before the sign-in writes.
+    const user = await syncCurrentUser(
+      interleaveBeforeBatch(() =>
+        env.DB.prepare(
+          `INSERT INTO users (id, email, status, created_at, updated_at)
+           VALUES ('user_raced_invitation', 'raced-invitation@example.test', 'invited', 1, 1)`,
+        ).run(),
+      ).DB,
+      identity,
+    )
+    expect(user.id).toBe('user_raced_invitation')
+    const stored = await env.DB.prepare(
+      `SELECT u.status, ai.subject FROM users u
+       JOIN auth_identities ai ON ai.user_id = u.id WHERE u.id = 'user_raced_invitation'`,
+    ).first()
+    expect(stored).toEqual({
+      status: 'active',
+      subject: 'raced-invitation-subject',
+    })
+  })
+
   it('lets only one of two concurrent identities claim an invited account', async () => {
     const now = Date.now()
     await env.DB.prepare(

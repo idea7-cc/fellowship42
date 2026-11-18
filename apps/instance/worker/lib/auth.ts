@@ -209,29 +209,25 @@ export async function syncCurrentUser(
     )
   }
 
-  const userId = userWithEmail?.id ?? crypto.randomUUID()
+  // The account is resolved by email inside the batch, not by an id read
+  // above: an invitation may create the row after that read. The row starts
+  // as `invited`, this identity links to it only while it has none, and it
+  // becomes active only if this identity is the one linked to it.
   await db.batch([
     db
       .prepare(
         `
         INSERT INTO users (
-          id, email, first_name, last_name, status, created_at, updated_at, last_seen_at
-        ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
-        ON CONFLICT(email) DO UPDATE SET
-          first_name = excluded.first_name,
-          last_name = excluded.last_name,
-          status = 'active',
-          last_seen_at = excluded.last_seen_at,
-          updated_at = excluded.updated_at
-        WHERE users.status = 'invited'
+          id, email, first_name, last_name, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'invited', ?, ?)
+        ON CONFLICT(email) DO NOTHING
       `,
       )
       .bind(
-        userId,
+        crypto.randomUUID(),
         identity.email,
         identity.firstName,
         identity.lastName,
-        now,
         now,
         now,
       ),
@@ -246,7 +242,7 @@ export async function syncCurrentUser(
         )
         SELECT ?, u.id, ?, ?, ?, ?, ?
         FROM users u
-        WHERE u.id = ? AND u.email = ? COLLATE NOCASE
+        WHERE u.email = ? COLLATE NOCASE AND u.status = 'invited'
           AND NOT EXISTS (SELECT 1 FROM auth_identities ai WHERE ai.user_id = u.id)
         ON CONFLICT(provider, subject) DO UPDATE SET
           email_at_provider = excluded.email_at_provider,
@@ -260,8 +256,29 @@ export async function syncCurrentUser(
         identity.email,
         now,
         now,
-        userId,
         identity.email,
+      ),
+    db
+      .prepare(
+        `
+        UPDATE users SET
+          first_name = ?, last_name = ?, status = 'active',
+          last_seen_at = ?, updated_at = ?
+        WHERE email = ? COLLATE NOCASE AND status = 'invited'
+          AND EXISTS (
+            SELECT 1 FROM auth_identities ai
+            WHERE ai.user_id = users.id AND ai.provider = ? AND ai.subject = ?
+          )
+      `,
+      )
+      .bind(
+        identity.firstName,
+        identity.lastName,
+        now,
+        now,
+        identity.email,
+        identity.provider,
+        identity.subject,
       ),
   ])
 
