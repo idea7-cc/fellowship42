@@ -211,6 +211,45 @@ describe('public website contract v1', () => {
     })
   })
 
+  it('returns unpublished, not a list, when the site is unpublished mid-request', async () => {
+    // The site's status is read first; unpublish lands right after that read.
+    let pending = true
+    const db = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === 'prepare') {
+          return (sql: string) => {
+            const statement = target.prepare(sql)
+            if (!pending || !sql.includes('FROM instance_metadata'))
+              return statement
+            return Object.assign(Object.create(statement), {
+              first: async <T>() => {
+                const row = await statement.first<T>()
+                pending = false
+                await env.DB.prepare(
+                  "UPDATE churches SET status = 'draft' WHERE id = 'church_demo'",
+                ).run()
+                return row
+              },
+            })
+          }
+        }
+        const value: unknown = Reflect.get(target, property)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    for (const path of ['events', 'sermons', 'groups', 'courses']) {
+      pending = true
+      await env.DB.prepare(
+        "UPDATE churches SET status = 'published' WHERE id = 'church_demo'",
+      ).run()
+      const response = await call(`/api/website/v1/${path}`, {}, { DB: db })
+      expect(response.status).toBe(404)
+      expect(await response.json()).toMatchObject({
+        error: { code: 'site_unpublished' },
+      })
+    }
+  })
+
   it('pages large lists without silent truncation', async () => {
     const now = Date.now()
     const statements = Array.from({ length: 230 }, (_, index) =>

@@ -411,4 +411,40 @@ describe('people and household directory', () => {
       'households.deleted',
     ])
   })
+
+  it('lists a full page of 100 households with their members', async () => {
+    const now = Date.now()
+    const person = await createPerson('Paged', 'Member')
+    await env.DB.batch(
+      Array.from({ length: 101 }, (_, index) => {
+        const id = `household_page_${String(index).padStart(3, '0')}`
+        return [
+          env.DB.prepare(
+            `INSERT INTO households (id, church_id, name, country_code, version, created_at, updated_at)
+             VALUES (?, 'church_demo', ?, 'US', 1, ?, ?)`,
+          ).bind(id, `Paged ${id}`, now, now),
+          env.DB.prepare(
+            `INSERT INTO household_people (church_id, household_id, person_id, relationship, is_primary, created_at)
+             VALUES ('church_demo', ?, ?, 'member', 1, ?)`,
+          ).bind(id, person.id, now),
+        ]
+      }).flat(),
+    )
+    const response = await request(
+      'GET',
+      '/api/households/church_demo?limit=100&query=Paged',
+    )
+    expect(response.status).toBe(200)
+    const body = await response.json<{
+      households: Household[]
+      page: { nextCursor: string | null }
+    }>()
+    expect(body.households).toHaveLength(100)
+    expect(
+      body.households.every(
+        (household) => household.members[0]?.personId === person.id,
+      ),
+    ).toBe(true)
+    expect(body.page.nextCursor).toBeTruthy()
+  })
 })

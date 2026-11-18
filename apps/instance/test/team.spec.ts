@@ -11,6 +11,7 @@ import type { AccessIdentity } from '../worker/lib/auth'
 import { AppError } from '../worker/lib/errors'
 import { sessionRoutes } from '../worker/routes/session'
 import { teamRoutes } from '../worker/routes/team'
+import { interleaveBeforeBatch } from './interleave'
 
 const owner: AccessIdentity = {
   provider: 'cloudflare-access',
@@ -70,7 +71,22 @@ const executionContext = {
   props: {},
 } as unknown as ExecutionContext
 
-function requestAs(identity: AccessIdentity | null) {
+// The identities in this file are Cloudflare Access identities, which count
+// toward the owner guard only while Access is configured.
+const accessConfigured = {
+  ACCESS_TEAM_DOMAIN: 'https://team-test.cloudflareaccess.com',
+  ACCESS_AUD: 'team-test-audience',
+}
+const withAccess = (bindings: Env = env) =>
+  Object.create(bindings, {
+    ACCESS_TEAM_DOMAIN: { value: accessConfigured.ACCESS_TEAM_DOMAIN },
+    ACCESS_AUD: { value: accessConfigured.ACCESS_AUD },
+  }) as Env
+
+function requestAs(
+  identity: AccessIdentity | null,
+  bindings: Env = withAccess(),
+) {
   const app = teamApp(identity)
   return (method: string, pathname: string, body?: unknown) =>
     app.fetch(
@@ -82,7 +98,7 @@ function requestAs(identity: AccessIdentity | null) {
             : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
-      env,
+      bindings,
       executionContext,
     )
 }
@@ -450,6 +466,66 @@ describe('team membership management', () => {
     ])
   })
 
+  it('applies an owner change only to the membership version it was judged on', async () => {
+    // Owner B is suspended when the pending edit reads them, so demoting B
+    // looks harmless. Meanwhile A reinstates B and leaves; B's version now
+    // matches what the edit sent, and applying it would leave no owner.
+    const b = await invite(inviteeEmail, ['owner'])
+    expect((await requestAs(invitee)('GET', '/api/session')).status).toBe(200)
+    const bPath = `${team}/${b.membershipId}`
+    expect(
+      (await asOwner('PATCH', bPath, { version: 1, status: 'suspended' }))
+        .status,
+    ).toBe(200)
+    const asB = requestAs(invitee)
+    const racing = requestAs(
+      owner,
+      withAccess(
+        interleaveBeforeBatch(async () => {
+          await asOwner('PATCH', bPath, { version: 2, status: 'active' })
+          await asB('DELETE', `${team}/membership_demo_owner`, { version: 1 })
+        }),
+      ),
+    )
+    // Sent by a tab that already saw B at version 3.
+    const demote = await racing('PATCH', bPath, {
+      version: 3,
+      roleKeys: ['member'],
+    })
+    expect(demote.status).toBe(409)
+    const owners = await env.DB.prepare(
+      `SELECT COUNT(*) AS total FROM church_memberships cm
+       JOIN membership_roles mr ON mr.church_id = cm.church_id AND mr.membership_id = cm.id
+       JOIN roles r ON r.id = mr.role_id
+       WHERE cm.church_id = 'church_demo' AND cm.status = 'active' AND r.key = 'owner'`,
+    ).first<{ total: number }>()
+    expect(owners?.total).toBeGreaterThanOrEqual(1)
+
+    // Restore the bootstrapped owner for the cases that follow.
+    const now = Date.now()
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE church_memberships SET status = 'active', version = 1 WHERE id = 'membership_demo_owner'",
+      ),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO membership_roles (church_id, membership_id, role_id, assigned_at, assigned_by_user_id)
+         VALUES ('church_demo', 'membership_demo_owner', 'role_demo_owner', ?, 'user_demo_owner')`,
+      ).bind(now),
+      env.DB.prepare(
+        "UPDATE church_memberships SET status = 'left' WHERE id = ?",
+      ).bind(b.membershipId),
+      env.DB.prepare(
+        'DELETE FROM membership_roles WHERE membership_id = ?',
+      ).bind(b.membershipId),
+      env.DB.prepare(
+        "DELETE FROM audit_events WHERE entity_id = 'membership_demo_owner'",
+      ),
+      env.DB.prepare(
+        "DELETE FROM outbox_events WHERE aggregate_id = 'membership_demo_owner'",
+      ),
+    ])
+  })
+
   it('never leaves the church without an active owner', async () => {
     const ownerPath = `${team}/membership_demo_owner`
     const demote = await asOwner('PATCH', ownerPath, {
@@ -474,7 +550,37 @@ describe('team membership management', () => {
 
     // A second owner unlocks every change to the first. This case runs last
     // because the bootstrapped owner loses their membership here.
+    // An invited owner who has not signed in yet does not count: removing
+    // the only usable owner would leave nobody who can issue enrollment links.
     const second = await invite(inviteeEmail, ['owner'])
+    const pending = await asOwner('DELETE', ownerPath, { version: 1 })
+    expect(pending.status).toBe(409)
+    const pendingError = (
+      (await pending.json()) as {
+        error: { code: string; message: string }
+      }
+    ).error
+    expect(pendingError.code).toBe('last_owner_required')
+    expect(pendingError.message).toContain('must finish enrolling')
+    expect(
+      (await asOwner('PATCH', ownerPath, { version: 1, roleKeys: ['member'] }))
+        .status,
+    ).toBe(409)
+    expect(await membershipEvidence('membership_demo_owner')).toEqual({
+      audit: [],
+      outbox: [],
+    })
+
+    expect((await requestAs(invitee)('GET', '/api/session')).status).toBe(200)
+    // An owner whose only identity belongs to a provider this deployment no
+    // longer accepts cannot sign in either.
+    const accessDisabled = await requestAs(owner, env)('DELETE', ownerPath, {
+      version: 1,
+    })
+    expect(accessDisabled.status).toBe(409)
+    expect(
+      ((await accessDisabled.json()) as { error: { code: string } }).error.code,
+    ).toBe('last_owner_required')
     const removed = await asOwner('DELETE', ownerPath, { version: 1 })
     expect(removed.status).toBe(204)
 

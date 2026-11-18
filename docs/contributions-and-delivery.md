@@ -27,9 +27,9 @@ The request hash covers a fixed-order list of normalized fields, so an omitted
 `personId`, an explicit `null`, or the same instant written with another UTC
 offset is still the same request.
 
-People, households, group sessions, and media uploads use the same
-`Idempotency-Key` handling through `worker/lib/idempotency.ts`; the header is
-optional on those routes. Their staff forms also offer **Start a new entry**
+People, households, group sessions, media uploads, and the slug-keyed creates
+(groups, courses, sermons, and events) use the same `Idempotency-Key` handling
+through `worker/lib/idempotency.ts`; the header is optional on those routes. Their staff forms also offer **Start a new entry**
 (**Start a new upload** for media) after a failed create. Media uploads check
 the key before storing bytes in R2, so a retried upload stores one object, and
 an upload that loses a race to a concurrent twin with the same key removes the

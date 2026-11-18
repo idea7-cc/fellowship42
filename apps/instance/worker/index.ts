@@ -99,12 +99,20 @@ app.use('*', async (c, next) => {
     : ((await resolveLocalIdentity(c.req.raw, c.env)) ??
       (await resolveAccessIdentity(c.req.raw, c.env)))
   c.set('identity', identity)
+  // Browsers attach session cookies and Access assertions to requests other
+  // sites trigger. State-changing requests and upgrades must come from this
+  // instance. A passkey session is browser-only, so it must say so; an Access
+  // caller that sends no Origin is a script or service token, not a browser.
+  const requestOrigin = c.req.header('Origin')
   if (
-    identity?.provider === 'passkey' &&
+    identity &&
     c.req.path.startsWith('/api/') &&
     (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) ||
       c.req.header('Upgrade')?.toLowerCase() === 'websocket') &&
-    c.req.header('Origin') !== signInOrigin(c.env).origin
+    (identity.provider === 'passkey'
+      ? requestOrigin !== signInOrigin(c.env).origin
+      : requestOrigin !== undefined &&
+        requestOrigin !== new URL(c.req.url).origin)
   ) {
     throw new AppError(403, 'wrong_origin', 'Reload this page and try again.')
   }

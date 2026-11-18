@@ -23,7 +23,15 @@ const KEY_PATTERN = /^[\x21-\x7e]{8,128}$/
 
 /** Tables whose freshly created row proves the batch did its work. */
 export type IdempotentTable =
-  'contributions' | 'people' | 'households' | 'group_sessions' | 'media'
+  | 'contributions'
+  | 'people'
+  | 'households'
+  | 'group_sessions'
+  | 'media'
+  | 'groups'
+  | 'courses'
+  | 'sermons'
+  | 'events'
 
 export interface IdempotencyClaim {
   readonly scope: string

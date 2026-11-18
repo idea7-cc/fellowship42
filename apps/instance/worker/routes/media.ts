@@ -34,9 +34,20 @@ interface MediaRow {
   version: number
 }
 
-const noPublishedChurchReference = `NOT EXISTS (
+// Checked inside the delete and privatize writes, so media cannot leave a
+// published church profile, sermon or course that a concurrent write just
+// published with it. The publishing writes check the media the same way.
+const noPublishedReference = `NOT EXISTS (
   SELECT 1 FROM church_profiles p JOIN churches c ON c.id = p.church_id
   WHERE p.church_id = media.church_id AND (p.logo_media_id = media.id OR p.cover_media_id = media.id)
+    AND c.status = 'published' AND c.deleted_at IS NULL
+) AND NOT EXISTS (
+  SELECT 1 FROM sermons s
+  WHERE s.church_id = media.church_id AND s.audio_media_id = media.id
+    AND s.status = 'published' AND s.deleted_at IS NULL
+) AND NOT EXISTS (
+  SELECT 1 FROM lessons l JOIN courses c ON c.church_id = l.church_id AND c.id = l.course_id
+  WHERE l.church_id = media.church_id AND l.media_id = media.id
     AND c.status = 'published' AND c.deleted_at IS NULL
 )`
 
@@ -536,9 +547,6 @@ mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {
     )
   }
   const nextVisibility = parsed.data.visibility ?? current.visibility
-  if (nextVisibility === 'private' && current.visibility === 'public') {
-    await requireNotPublished(c.env.DB, churchId, mediaId)
-  }
   const operationId = crypto.randomUUID()
   const now = Date.now()
   const results = await c.env.DB.batch([
@@ -547,7 +555,7 @@ mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {
         UPDATE media SET alt_text = ?, visibility = ?, version = version + 1,
           updated_at = ?, last_operation_id = ?
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
-          ${nextVisibility === 'public' ? '' : `AND ${noPublishedChurchReference}`}
+          ${nextVisibility === 'public' ? '' : `AND ${noPublishedReference}`}
       `,
     ).bind(
       parsed.data.altText ?? current.alt_text,
@@ -577,6 +585,8 @@ mediaManagementRoutes.patch('/:churchId/:mediaId', async (c) => {
     }),
   ])
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    if (nextVisibility === 'private')
+      await requireNotPublished(c.env.DB, churchId, mediaId)
     throw new AppError(
       409,
       'version_conflict',
@@ -596,14 +606,13 @@ mediaManagementRoutes.delete('/:churchId/:mediaId', async (c) => {
   const parsed = versionInputSchema.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
   const current = await findMedia(c.env.DB, churchId, mediaId)
-  await requireNotPublished(c.env.DB, churchId, mediaId)
   const operationId = crypto.randomUUID()
   const now = Date.now()
   const results = await c.env.DB.batch([
     c.env.DB.prepare(
       `
         UPDATE media SET deleted_at = ?, updated_at = ?, version = version + 1, last_operation_id = ?
-        WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ? AND ${noPublishedChurchReference}
+        WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ? AND ${noPublishedReference}
       `,
     ).bind(now, now, operationId, churchId, mediaId, parsed.data.version),
     ...mutationEvidence(c.env.DB, {
@@ -620,6 +629,7 @@ mediaManagementRoutes.delete('/:churchId/:mediaId', async (c) => {
     }),
   ])
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    await requireNotPublished(c.env.DB, churchId, mediaId)
     throw new AppError(
       409,
       'version_conflict',

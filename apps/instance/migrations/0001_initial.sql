@@ -277,6 +277,10 @@ CREATE TABLE groups (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   deleted_at INTEGER, version INTEGER NOT NULL DEFAULT 1 CHECK (version > 0), last_operation_id TEXT,
+  -- Advanced by every roster and leader write. A re-added member or leader
+  -- starts at this value, so a stale tab's version for the removed row
+  -- cannot match its replacement.
+  roster_sequence INTEGER NOT NULL DEFAULT 0,
   UNIQUE(church_id, slug),
   UNIQUE(church_id, id),
   FOREIGN KEY(church_id, ministry_id) REFERENCES ministries(church_id, id) ON DELETE RESTRICT

@@ -109,26 +109,31 @@ async function createGroup(slug: string) {
   return (await response.json<{ group: { id: string } }>()).group.id
 }
 
-async function setMember(
-  groupId: string,
-  personId: string,
-  status: string,
-  version = 0,
-) {
+/** The member's current roster version, or 0 when they are not on it. */
+async function memberVersion(groupId: string, personId: string) {
+  const roster = await (
+    await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+  ).json<GroupRoster>()
+  return (
+    roster.members.find((member) => member.personId === personId)?.version ?? 0
+  )
+}
+
+async function setMember(groupId: string, personId: string, status: string) {
   const response = await request(
     'PUT',
     `/api/groups/church_demo/${groupId}/members/${personId}`,
-    { status, version },
+    { status, version: await memberVersion(groupId, personId) },
   )
   expect(response.status).toBe(200)
   return response.json<GroupRoster>()
 }
 
-async function removeMember(groupId: string, personId: string, version = 1) {
+async function removeMember(groupId: string, personId: string) {
   const response = await request(
     'DELETE',
     `/api/groups/church_demo/${groupId}/members/${personId}`,
-    { version },
+    { version: await memberVersion(groupId, personId) },
   )
   expect(response.status).toBe(200)
 }
@@ -191,7 +196,7 @@ async function attendanceAudits(groupId: string, personId: string) {
 describe('attendance history after roster changes', () => {
   it('keeps a completed member on the register with their mark and notes', async () => {
     const { groupId, leaves, register } = await markedSession('hist-completed')
-    await setMember(groupId, leaves.id, 'completed', 1)
+    await setMember(groupId, leaves.id, 'completed')
     const after = await readRegister(register)
     expect(after).toMatchObject({ presentCount: 2, recordedCount: 2 })
     expect(
@@ -208,7 +213,7 @@ describe('attendance history after roster changes', () => {
       const { groupId, leaves, register } = await markedSession(
         `hist-${status}`,
       )
-      await setMember(groupId, leaves.id, status, 1)
+      await setMember(groupId, leaves.id, status)
       const after = await readRegister(register)
       expect(after).toMatchObject({ presentCount: 2, recordedCount: 2 })
       expect(

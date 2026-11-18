@@ -13,6 +13,7 @@ import { AppError } from '../worker/lib/errors'
 import { courseRoutes } from '../worker/routes/courses'
 import { groupRoutes } from '../worker/routes/groups'
 import { peopleRoutes } from '../worker/routes/people'
+import { interleaveBeforeBatch } from './interleave'
 
 const owner: AccessIdentity = {
   provider: 'cloudflare-access',
@@ -67,7 +68,7 @@ const executionContext = {
   props: {},
 } as unknown as ExecutionContext
 
-function requestAs(identity: AccessIdentity) {
+function requestAs(identity: AccessIdentity, bindings: Env = env) {
   const app = participationApp(identity)
   return (method: string, pathname: string, body?: unknown) =>
     app.fetch(
@@ -79,7 +80,7 @@ function requestAs(identity: AccessIdentity) {
             : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
-      env,
+      bindings,
       executionContext,
     )
 }
@@ -192,7 +193,7 @@ describe('group rosters', () => {
     const removedLeader = await request(
       'DELETE',
       `/api/groups/church_demo/${groupId}/leaders/${bob}`,
-      { version: 1 },
+      { version: leaderRoster.leaders[0].version },
     )
     expect((await removedLeader.json<GroupRoster>()).leaders).toHaveLength(0)
   })
@@ -234,6 +235,36 @@ describe('group rosters', () => {
     const roster = await waiting.json<GroupRoster>()
     expect(roster.members).toHaveLength(2)
     expect(roster.activeCount).toBe(1)
+  })
+
+  it('explains a capacity below the active members instead of a stale edit', async () => {
+    const groupId = await createGroup('Shrinking Group', 'shrinking-group')
+    for (const name of ['One', 'Two']) {
+      const personId = await createPerson(name, 'Shrinking')
+      await request(
+        'PUT',
+        `/api/groups/church_demo/${groupId}/members/${personId}`,
+        { status: 'active' },
+      )
+    }
+    const shrink = await request(
+      'PATCH',
+      `/api/groups/church_demo/${groupId}`,
+      {
+        version: 1,
+        capacity: 1,
+      },
+    )
+    expect(shrink.status).toBe(409)
+    expect((await shrink.json<{ error: { code: string } }>()).error.code).toBe(
+      'capacity_below_active_members',
+    )
+    const stored = await env.DB.prepare(
+      'SELECT capacity, version FROM groups WHERE id = ?',
+    )
+      .bind(groupId)
+      .first<{ capacity: number | null; version: number }>()
+    expect(stored).toEqual({ capacity: null, version: 1 })
   })
 
   it('rejects a person from outside the church', async () => {
@@ -705,6 +736,152 @@ describe('participation concurrency regressions', () => {
       version: 2,
       notes: 'Keep',
     })
+  })
+
+  it('rejects a stale roster or leader write after the person is removed and re-added', async () => {
+    const groupId = await createGroup('Readded Roster', 'readded-roster')
+    const personId = await createPerson('Readded', 'Member')
+    const roster = async () =>
+      (
+        await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+      ).json<GroupRoster>()
+    for (const kind of ['members', 'leaders'] as const) {
+      const path = `/api/groups/church_demo/${groupId}/${kind}/${personId}`
+      expect((await request('PUT', path, {})).status).toBe(200)
+      const stale = (await roster())[kind][0].version
+      expect((await request('DELETE', path, { version: stale })).status).toBe(
+        200,
+      )
+      expect((await request('PUT', path, {})).status).toBe(200)
+      const replacement = (await roster())[kind][0]
+      expect(replacement.version).not.toBe(stale)
+
+      const staleEdit =
+        kind === 'members'
+          ? { version: stale, status: 'paused' }
+          : { version: stale, role: 'host' }
+      expect((await request('PUT', path, staleEdit)).status).toBe(409)
+      expect((await request('DELETE', path, { version: stale })).status).toBe(
+        409,
+      )
+      expect((await roster())[kind][0]).toEqual(replacement)
+    }
+  })
+
+  it('keeps a session with recorded attendance and points staff to cancelling it', async () => {
+    const groupId = await createGroup('Recorded Sessions', 'recorded-sessions')
+    const personId = await createPerson('Recorded', 'Attendee')
+    await request(
+      'PUT',
+      `/api/groups/church_demo/${groupId}/members/${personId}`,
+      { status: 'active' },
+    )
+    const base = `/api/groups/church_demo/${groupId}/sessions`
+    const session = (
+      await (
+        await request('POST', base, { title: 'Marked', startsAt: Date.now() })
+      ).json<{ sessions: GroupSession[] }>()
+    ).sessions[0]
+    const path = `${base}/${session.id}`
+    expect(
+      (
+        await request('PUT', `${path}/attendance/${personId}`, {
+          status: 'present',
+        })
+      ).status,
+    ).toBe(200)
+
+    const refused = await request('DELETE', path, { version: session.version })
+    expect(refused.status).toBe(409)
+    expect((await refused.json<{ error: { code: string } }>()).error.code).toBe(
+      'session_has_attendance',
+    )
+    const attendance = await (
+      await request('GET', `${path}/attendance`)
+    ).json<SessionAttendance>()
+    expect(attendance.entries[0]).toMatchObject({ status: 'present' })
+    const removals = await env.DB.prepare(
+      "SELECT COUNT(*) AS total FROM audit_events WHERE entity_id = ? AND action = 'groups.session.removed'",
+    )
+      .bind(groupId)
+      .first<{ total: number }>()
+    expect(removals?.total).toBe(0)
+
+    expect(
+      (
+        await request('PATCH', path, {
+          version: session.version,
+          status: 'cancelled',
+        })
+      ).status,
+    ).toBe(200)
+  })
+
+  it('does not enroll a person or group deleted after it was checked', async () => {
+    const courseId = await createCourse(
+      'Vanishing Subject',
+      'vanishing-subject',
+    )
+    const personId = await createPerson('Vanishing', 'Subject')
+    const groupId = await createGroup('Vanishing Group', 'vanishing-group')
+    for (const [table, id, body, code] of [
+      ['people', personId, { personId }, 'invalid_person'],
+      ['groups', groupId, { groupId }, 'invalid_group'],
+    ] as const) {
+      const racing = requestAs(
+        owner,
+        interleaveBeforeBatch(() =>
+          env.DB.prepare(`UPDATE ${table} SET deleted_at = ? WHERE id = ?`)
+            .bind(Date.now(), id)
+            .run(),
+        ),
+      )
+      const response = await racing(
+        'POST',
+        `/api/courses/church_demo/${courseId}/enrollments`,
+        body,
+      )
+      expect(response.status).toBe(422)
+      expect(
+        (await response.json<{ error: { code: string } }>()).error.code,
+      ).toBe(code)
+    }
+    const stored = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM course_enrollments WHERE course_id = ?) AS enrollments,
+         (SELECT COUNT(*) FROM audit_events WHERE entity_id = ? AND action = 'courses.enrollment.created') AS audits`,
+    )
+      .bind(courseId, courseId)
+      .first()
+    expect(stored).toEqual({ enrollments: 0, audits: 0 })
+  })
+
+  it('does not report an enrollment in a course deleted after it was read', async () => {
+    const courseId = await createCourse('Vanishing Course', 'vanishing-course')
+    const personId = await createPerson('Vanishing', 'Student')
+    const racing = requestAs(
+      owner,
+      interleaveBeforeBatch(() =>
+        env.DB.prepare('UPDATE courses SET deleted_at = ? WHERE id = ?')
+          .bind(Date.now(), courseId)
+          .run(),
+      ),
+    )
+    const response = await racing(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { personId },
+    )
+    expect(response.status).toBe(404)
+    expect(
+      (await response.json<{ error: { code: string } }>()).error.code,
+    ).toBe('course_not_found')
+    const stored = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM course_enrollments WHERE course_id = ?',
+    )
+      .bind(courseId)
+      .first<{ total: number }>()
+    expect(stored?.total).toBe(0)
   })
 
   it('clears enrollment notes explicitly and rejects a stale edit or delete', async () => {

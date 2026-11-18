@@ -19,6 +19,7 @@ import { eventRoutes } from '../worker/routes/events'
 import { groupRoutes } from '../worker/routes/groups'
 import { mediaManagementRoutes, mediaRoutes } from '../worker/routes/media'
 import { sermonRoutes } from '../worker/routes/sermons'
+import { interleaveBeforeBatch } from './interleave'
 
 const identity: AccessIdentity = {
   provider: 'cloudflare-access',
@@ -76,6 +77,7 @@ async function jsonRequest(
   pathname: string,
   body?: unknown,
   asPublic = false,
+  bindings: Env = env,
 ) {
   return (asPublic ? publicApp : app).fetch(
     new Request(`https://fellowship42.test${pathname}`, {
@@ -84,9 +86,27 @@ async function jsonRequest(
         body === undefined ? undefined : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
-    env,
+    bindings,
     executionContext,
   )
+}
+
+/** The request runs with `change` landing between its reads and its write. */
+function racing(
+  change: string,
+  ...values: unknown[]
+): (method: string, pathname: string, body?: unknown) => Promise<Response> {
+  const bindings = interleaveBeforeBatch(() =>
+    env.DB.prepare(change)
+      .bind(...values)
+      .run(),
+  )
+  return (method, pathname, body) =>
+    jsonRequest(method, pathname, body, false, bindings)
+}
+
+async function errorCode(response: Response) {
+  return (await response.json<{ error: { code: string } }>()).error.code
 }
 
 async function uploadMedia(
@@ -124,6 +144,138 @@ beforeEach(async () => {
   )
     .bind(identity.provider, identity.subject, identity.email, now, now)
     .run()
+})
+
+describe('publishing and media removal races', () => {
+  async function draftSermon(audioId: string) {
+    const response = await jsonRequest('POST', '/api/sermons/church_demo', {
+      slug: `race-sermon-${crypto.randomUUID()}`,
+      title: 'Race Sermon',
+      status: 'draft',
+      speaker: 'Jordan Lee',
+      summary: '',
+      audioMediaId: audioId,
+      preachedAt: Date.now(),
+    })
+    expect(response.status).toBe(201)
+    return (await response.json<{ sermon: Sermon }>()).sermon
+  }
+
+  async function draftCourseWithLesson(mediaId: string) {
+    const response = await jsonRequest('POST', '/api/courses/church_demo', {
+      slug: `race-course-${crypto.randomUUID()}`,
+      title: 'Race Course',
+      status: 'draft',
+      courseType: 'discipleship',
+      deliveryMode: 'self-paced',
+    })
+    const course = (await response.json<{ course: Course }>()).course
+    const lesson = await jsonRequest(
+      'POST',
+      `/api/courses/church_demo/${course.id}/lessons`,
+      { title: 'Lesson', content: 'Body', mediaId, sortOrder: 0 },
+    )
+    expect(lesson.status).toBe(201)
+    return course
+  }
+
+  async function stored(table: 'sermons' | 'courses' | 'media', id: string) {
+    return env.DB.prepare(
+      `SELECT ${table === 'media' ? "CASE WHEN deleted_at IS NULL THEN visibility ELSE 'deleted' END" : 'status'} AS state FROM ${table} WHERE id = ?`,
+    )
+      .bind(id)
+      .first()
+  }
+
+  it('does not publish a sermon whose audio is removed or made private meanwhile', async () => {
+    for (const change of [
+      "UPDATE media SET visibility = 'private' WHERE id = ?",
+      'UPDATE media SET deleted_at = 1 WHERE id = ?',
+    ]) {
+      const audio = await uploadMedia(
+        new TextEncoder().encode('race audio'),
+        'audio/mpeg',
+        'public',
+        'Race audio',
+      )
+      const sermon = await draftSermon(audio.id)
+      const response = await racing(change, audio.id)(
+        'PATCH',
+        `/api/sermons/church_demo/${sermon.id}`,
+        { version: sermon.version, status: 'published' },
+      )
+      expect(response.status).toBe(422)
+      expect(await stored('sermons', sermon.id)).toEqual({ state: 'draft' })
+    }
+  })
+
+  it('does not publish a course whose lesson media is removed meanwhile', async () => {
+    const media = await uploadMedia(
+      new TextEncoder().encode('race handout'),
+      'application/pdf',
+      'public',
+      'Race handout',
+    )
+    const course = await draftCourseWithLesson(media.id)
+    const response = await racing(
+      'UPDATE media SET deleted_at = 1 WHERE id = ?',
+      media.id,
+    )('PATCH', `/api/courses/church_demo/${course.id}`, {
+      version: course.version,
+      status: 'published',
+    })
+    expect(response.status).toBe(422)
+    expect(await errorCode(response)).toBe('private_published_media')
+    expect(await stored('courses', course.id)).toEqual({ state: 'draft' })
+  })
+
+  it('does not remove or privatize media that was published meanwhile', async () => {
+    const audio = await uploadMedia(
+      new TextEncoder().encode('kept audio'),
+      'audio/mpeg',
+      'public',
+      'Kept audio',
+    )
+    const sermon = await draftSermon(audio.id)
+    const handout = await uploadMedia(
+      new TextEncoder().encode('kept handout'),
+      'application/pdf',
+      'public',
+      'Kept handout',
+    )
+    const course = await draftCourseWithLesson(handout.id)
+    for (const [media, publish, owner] of [
+      [
+        audio,
+        "UPDATE sermons SET status = 'published' WHERE id = ?",
+        sermon.id,
+      ],
+      [
+        handout,
+        "UPDATE courses SET status = 'published' WHERE id = ?",
+        course.id,
+      ],
+    ] as const) {
+      const path = `/api/media/church_demo/${media.id}`
+      const deleted = await racing(publish, owner)('DELETE', path, {
+        version: media.version,
+      })
+      expect(deleted.status).toBe(409)
+      expect(await errorCode(deleted)).toBe('media_is_published')
+      await env.DB.prepare(
+        `UPDATE ${media === audio ? 'sermons' : 'courses'} SET status = 'draft' WHERE id = ?`,
+      )
+        .bind(owner)
+        .run()
+      const privatized = await racing(publish, owner)('PATCH', path, {
+        version: media.version,
+        visibility: 'private',
+      })
+      expect(privatized.status).toBe(409)
+      expect(await errorCode(privatized)).toBe('media_is_published')
+      expect(await stored('media', media.id)).toEqual({ state: 'public' })
+    }
+  })
 })
 
 describe('ministry and publishing workflows', () => {

@@ -528,10 +528,19 @@ export async function readWebsiteList<K extends ListResource>(
     ...(after ? plan.after(after) : []),
     input.limit + 1,
   ]
-  const { results } = await db
-    .prepare(plan.sql(after !== null))
-    .bind(...binds)
-    .all<Record<string, unknown>>()
+  // One batch reads the page and the church's published status together, so
+  // a site unpublished after the route's first read never returns a page.
+  const [site, list] = await db.batch<Record<string, unknown>>([
+    db
+      .prepare(
+        "SELECT 1 AS published FROM churches WHERE id = ? AND status = 'published' AND deleted_at IS NULL",
+      )
+      .bind(input.churchId),
+    db.prepare(plan.sql(after !== null)).bind(...binds),
+  ])
+  if (site.results.length === 0)
+    throw new AppError(404, 'site_unpublished', 'This website is not published')
+  const results = list.results
   const page = results.slice(0, input.limit)
   const last = page.at(-1)
   return {

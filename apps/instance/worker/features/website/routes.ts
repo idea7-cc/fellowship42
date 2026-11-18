@@ -129,6 +129,9 @@ for (const resource of LIST_RESOURCES) {
       const body: PageResponse<unknown> = { ...site.envelope, ...page }
       return c.json(body)
     } catch (error) {
+      // Unpublished between the two reads.
+      if (error instanceof AppError && error.code === 'site_unpublished')
+        return unpublished(c, site)
       if (error instanceof AppError && error.code === 'invalid_cursor')
         return contractError(
           c,

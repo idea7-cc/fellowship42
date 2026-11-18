@@ -170,8 +170,15 @@ churchRoutes.get('/:identifier/courses', async (c) => {
 
 churchRoutes.get('/:identifier/courses/:slug', async (c) => {
   const church = await findVisibleChurch(c, c.req.param('identifier'))
-  const row = await c.env.DB.prepare(
-    `
+  // One snapshot: the church's visibility, the course's published status and
+  // its lessons are read together, so a lesson added after the course or
+  // church was unpublished is never served.
+  const [visibility, course, lessons] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      'SELECT status FROM churches WHERE id = ? AND deleted_at IS NULL',
+    ).bind(church.id),
+    c.env.DB.prepare(
+      `
       SELECT c.id, c.church_id, c.ministry_id, c.slug, c.title, c.status,
              c.course_type, c.delivery_mode, c.audience, c.duration, c.featured,
              c.certificate_offered, c.summary, c.version, COUNT(l.id) AS lesson_count
@@ -181,25 +188,28 @@ churchRoutes.get('/:identifier/courses/:slug', async (c) => {
         AND c.status = 'published' AND c.deleted_at IS NULL
       GROUP BY c.id
     `,
-  )
-    .bind(church.id, c.req.param('slug'))
-    .first<CourseRow>()
-  if (!row) throw new AppError(404, 'course_not_found', 'Course not found')
-
-  const lessonResult = await c.env.DB.prepare(
-    `
-      SELECT id, course_id, title, summary, content, media_id,
-             estimated_minutes, required, sort_order, version
-      FROM lessons
-      WHERE church_id = ? AND course_id = ?
-      ORDER BY sort_order
+    ).bind(church.id, c.req.param('slug')),
+    c.env.DB.prepare(
+      `
+      SELECT l.id, l.course_id, l.title, l.summary, l.content, l.media_id,
+             l.estimated_minutes, l.required, l.sort_order, l.version
+      FROM lessons l
+      JOIN courses c ON c.church_id = l.church_id AND c.id = l.course_id
+      WHERE l.church_id = ? AND c.slug = ? COLLATE NOCASE
+        AND c.status = 'published' AND c.deleted_at IS NULL
+      ORDER BY l.sort_order
     `,
-  )
-    .bind(church.id, row.id)
-    .all<LessonRow>()
+    ).bind(church.id, c.req.param('slug')),
+  ])
+  const status = (visibility.results[0] as { status: string } | undefined)
+    ?.status
+  if (!status) throw new AppError(404, 'church_not_found', 'Church not found')
+  if (status !== 'published') await requireChurchMembership(c, church.id)
+  const row = course.results[0] as CourseRow | undefined
+  if (!row) throw new AppError(404, 'course_not_found', 'Course not found')
   return c.json({
     course: mapCourse(row),
-    lessons: lessonResult.results.map(mapLesson),
+    lessons: (lessons.results as LessonRow[]).map(mapLesson),
   })
 })
 

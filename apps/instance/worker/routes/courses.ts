@@ -1,5 +1,6 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
+import type { CourseDetailResponse, CreateOutcome } from '../../contracts/api'
 import { requirePermission } from '../lib/auth'
 import {
   broadcastContent,
@@ -13,6 +14,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import {
   mapCourse,
   mapCourseEnrollment,
@@ -236,6 +238,30 @@ async function requireMedia(
   }
 }
 
+/**
+ * The lesson-media rules `requireMedia` and `requirePublishableLessons`
+ * report, checked again inside the write so media removed or made private
+ * after those reads cannot end up in a published course.
+ */
+// Binds churchId, courseId. True when no lesson of the course has media that
+// a published course cannot show.
+const lessonsPublishable = `NOT EXISTS (
+  SELECT 1 FROM lessons l
+  LEFT JOIN media m ON m.church_id = l.church_id AND m.id = l.media_id
+  WHERE l.church_id = ? AND l.course_id = ? AND l.media_id IS NOT NULL
+    AND (m.id IS NULL OR m.deleted_at IS NOT NULL OR m.visibility != 'public')
+)`
+// Binds mediaId, churchId, mediaId, churchId, courseId. True when the lesson
+// has no media, or media that exists and is public if the course is published.
+const lessonMediaEligible = `(? IS NULL OR EXISTS (
+  SELECT 1 FROM media m
+  WHERE m.church_id = ? AND m.id = ? AND m.deleted_at IS NULL
+    AND (m.visibility = 'public' OR NOT EXISTS (
+      SELECT 1 FROM courses c
+      WHERE c.church_id = ? AND c.id = ? AND c.status = 'published'
+    ))
+))`
+
 async function requirePublishableLessons(
   db: D1Database,
   churchId: string,
@@ -322,56 +348,101 @@ courseRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdCourse = z.object({ courseId: z.string() })
+
+async function respondWithCourse(
+  c: Context<AppEnv>,
+  churchId: string,
+  courseId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      course: mapCourse(await findCourse(c.env.DB, churchId, courseId)),
+      lessons: await lessonsFor(c.env.DB, churchId, courseId),
+      replayed,
+    } satisfies CourseDetailResponse & CreateOutcome,
+    201,
+  )
+}
+
 courseRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'courses.write')
   const parsed = courseCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'courses:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.ministryId,
+      parsed.data.slug,
+      parsed.data.title,
+      parsed.data.status,
+      parsed.data.courseType,
+      parsed.data.deliveryMode,
+      parsed.data.audience,
+      parsed.data.duration,
+      parsed.data.featured,
+      parsed.data.certificateOffered,
+      parsed.data.summary,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdCourse))
+  if (replay) return respondWithCourse(c, churchId, replay.courseId, true)
   await requireMinistry(c.env.DB, churchId, parsed.data.ministryId)
   const courseId = `course_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { courseId },
+      outcomeSchema: createdCourse,
+      proof: { table: 'courses', churchId, id: courseId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
           INSERT INTO courses (
             id, church_id, ministry_id, slug, title, status, course_type,
             delivery_mode, audience, duration, featured, certificate_offered,
             summary, version, created_at, updated_at, last_operation_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
         `,
-      ).bind(
-        courseId,
-        churchId,
-        parsed.data.ministryId,
-        parsed.data.slug,
-        parsed.data.title,
-        parsed.data.status,
-        parsed.data.courseType,
-        parsed.data.deliveryMode,
-        parsed.data.audience,
-        parsed.data.duration,
-        parsed.data.featured ? 1 : 0,
-        parsed.data.certificateOffered ? 1 : 0,
-        parsed.data.summary,
-        now,
-        now,
-        operationId,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'course',
-        entityId: courseId,
-        eventName: 'courses.created',
-        operationId,
-        table: 'courses',
-        now,
-        metadata: { status: parsed.data.status },
-      }),
-    ])
+        ).bind(
+          courseId,
+          churchId,
+          parsed.data.ministryId,
+          parsed.data.slug,
+          parsed.data.title,
+          parsed.data.status,
+          parsed.data.courseType,
+          parsed.data.deliveryMode,
+          parsed.data.audience,
+          parsed.data.duration,
+          parsed.data.featured ? 1 : 0,
+          parsed.data.certificateOffered ? 1 : 0,
+          parsed.data.summary,
+          now,
+          now,
+          operationId,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'course',
+          entityId: courseId,
+          eventName: 'courses.created',
+          operationId,
+          table: 'courses',
+          now,
+          metadata: { status: parsed.data.status },
+        }),
+      ],
+    })
   } catch (error) {
     if (isSlugConflict(error, 'courses')) {
       throw new AppError(
@@ -382,14 +453,11 @@ courseRoutes.post('/:churchId', async (c) => {
     }
     throw error
   }
+  if (committed.replayed) {
+    return respondWithCourse(c, churchId, committed.outcome.courseId, true)
+  }
   broadcastContent(c, churchId, 'course', courseId, 'created')
-  return c.json(
-    {
-      course: mapCourse(await findCourse(c.env.DB, churchId, courseId)),
-      lessons: [],
-    },
-    201,
-  )
+  return respondWithCourse(c, churchId, courseId, false)
 })
 
 courseRoutes.get('/:churchId/:courseId', async (c) => {
@@ -458,6 +526,7 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
             certificate_offered = ?, summary = ?, version = version + 1,
             updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND version = ?
+            AND (? <> 'published' OR ${lessonsPublishable})
         `,
       ).bind(
         next.ministryId,
@@ -476,6 +545,9 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
         churchId,
         courseId,
         current.version,
+        next.status,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -506,6 +578,8 @@ courseRoutes.patch('/:churchId/:courseId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    if (next.status === 'published')
+      await requirePublishableLessons(c.env.DB, churchId, courseId)
     throw new AppError(
       409,
       'version_conflict',
@@ -576,15 +650,17 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
   const lessonId = `lesson_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let results: D1Result[]
   try {
-    await c.env.DB.batch([
+    results = await c.env.DB.batch([
       c.env.DB.prepare(
         `
           INSERT INTO lessons (
             id, church_id, course_id, title, summary, content, media_id,
             estimated_minutes, required, sort_order, version,
             created_at, updated_at, last_operation_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+          ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?
+          WHERE ${lessonMediaEligible}
         `,
       ).bind(
         lessonId,
@@ -600,6 +676,11 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
         now,
         now,
         operationId,
+        parsed.data.mediaId,
+        churchId,
+        parsed.data.mediaId,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -626,6 +707,21 @@ courseRoutes.post('/:churchId/:courseId/lessons', async (c) => {
       )
     }
     throw error
+  }
+  if ((results[0]?.meta.changes ?? 0) !== 1) {
+    // The media or the course's status changed after they were read.
+    const latest = await findCourse(c.env.DB, churchId, courseId)
+    await requireMedia(
+      c.env.DB,
+      churchId,
+      parsed.data.mediaId,
+      latest.status === 'published',
+    )
+    throw new AppError(
+      422,
+      'invalid_media',
+      'The selected media changed while saving. Choose it again.',
+    )
   }
   broadcastContent(c, churchId, 'lesson', lessonId, 'created')
   return c.json(
@@ -695,6 +791,7 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
             required = ?, sort_order = ?, version = version + 1,
             updated_at = ?, last_operation_id = ?
           WHERE church_id = ? AND course_id = ? AND id = ? AND version = ?
+            AND ${lessonMediaEligible}
         `,
       ).bind(
         next.title,
@@ -710,6 +807,11 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
         courseId,
         lessonId,
         current.version,
+        next.mediaId,
+        churchId,
+        next.mediaId,
+        churchId,
+        courseId,
       ),
       ...mutationEvidence(c.env.DB, {
         churchId,
@@ -743,6 +845,13 @@ courseRoutes.patch('/:churchId/:courseId/lessons/:lessonId', async (c) => {
     throw error
   }
   if ((results[0]?.meta.changes ?? 0) !== 1) {
+    const latest = await findCourse(c.env.DB, churchId, courseId)
+    await requireMedia(
+      c.env.DB,
+      churchId,
+      next.mediaId,
+      latest.status === 'published',
+    )
     throw new AppError(
       409,
       'version_conflict',
@@ -848,6 +957,8 @@ function touchCourse(
   now: number,
   operationId: string,
   enrollment?: { id: string; version: number },
+  // A new enrollment's person or group, which must still be live.
+  subject?: { personId?: string; groupId?: string },
 ) {
   return db
     .prepare(
@@ -856,6 +967,10 @@ function touchCourse(
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL
           AND (? IS NULL OR EXISTS (SELECT 1 FROM course_enrollments
             WHERE church_id = ? AND course_id = ? AND id = ? AND version = ?))
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM people
+            WHERE church_id = ? AND id = ? AND deleted_at IS NULL))
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM groups
+            WHERE church_id = ? AND id = ? AND deleted_at IS NULL))
       `,
     )
     .bind(
@@ -868,6 +983,12 @@ function touchCourse(
       courseId,
       enrollment?.id ?? null,
       enrollment?.version ?? null,
+      subject?.personId ?? null,
+      churchId,
+      subject?.personId ?? null,
+      subject?.groupId ?? null,
+      churchId,
+      subject?.groupId ?? null,
     )
 }
 
@@ -956,9 +1077,18 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
   const enrollmentId = `enrollment_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let results: D1Result[]
   try {
-    await c.env.DB.batch([
-      touchCourse(c.env.DB, churchId, courseId, now, operationId),
+    results = await c.env.DB.batch([
+      touchCourse(
+        c.env.DB,
+        churchId,
+        courseId,
+        now,
+        operationId,
+        undefined,
+        parsed.data,
+      ),
       c.env.DB.prepare(
         `
             INSERT INTO course_enrollments (
@@ -1025,6 +1155,12 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
       )
     }
     throw error
+  }
+  // The course, person or group was deleted after it was read; the gated
+  // touch and insert did nothing. Report which one.
+  if (results[1]?.meta.changes !== 1) {
+    await requireEnrollmentSubject(c.env.DB, churchId, parsed.data)
+    throw new AppError(404, 'course_not_found', 'Course not found')
   }
   broadcastContent(c, churchId, 'course', courseId, 'updated')
   return c.json(
