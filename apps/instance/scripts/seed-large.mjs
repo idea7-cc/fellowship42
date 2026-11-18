@@ -283,6 +283,9 @@ process.env.WRANGLER_LOG ??= 'error'
 const { getPlatformProxy } = await import('wrangler')
 const proxy = await getPlatformProxy({
   configPath: fileURLToPath(new URL('../wrangler.jsonc', import.meta.url)),
+  // Local state only, even if a binding is ever marked remote in the config.
+  remoteBindings: false,
+  persist: true,
 })
 try {
   const { DB, MEDIA } = proxy.env
