@@ -1,4 +1,11 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { SignInButton, SignOutButton, useAuthState } from '@/lib/auth-provider'
 import {
   ApiError,
@@ -171,11 +178,20 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
   )
 }
 
+const ConnectionContext = createContext<{
+  lost: boolean
+  retry: () => void
+}>({ lost: false, retry: () => {} })
+
 /**
  * Shown over working screens while the connection is down. The screens stay
- * mounted, so typed input and a pending entry's retry key are kept.
+ * mounted, so typed input and a pending entry's retry key are kept. Render it
+ * inside the screen's main region, so it becomes inert with the rest of the
+ * page while a modal (such as the mobile navigation drawer) is open.
  */
-function ConnectionNotice({ onRetry }: { onRetry: () => void }) {
+export function ConnectionNotice() {
+  const { lost, retry } = useContext(ConnectionContext)
+  if (!lost) return null
   return (
     <div
       className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4"
@@ -185,7 +201,7 @@ function ConnectionNotice({ onRetry }: { onRetry: () => void }) {
         <span className="min-w-0 flex-1">
           Connection lost. Retrying… Your work on this page is kept.
         </span>
-        <Button onClick={onRetry} size="xs" variant="secondary">
+        <Button onClick={retry} size="xs" variant="secondary">
           Retry now
         </Button>
       </div>
@@ -233,15 +249,18 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     // The church is ambient from here down; routes no longer carry it.
     return (
       <ChurchProvider instance={data.instance}>
-        {children}
-        {connectionLost || auth.connectionLost ? (
-          <ConnectionNotice
-            onRetry={() => {
+        <ConnectionContext.Provider
+          value={{
+            // Only a user who is in: the access screen reports its own.
+            lost: connectionLost || (auth.connectionLost && auth.isSignedIn),
+            retry: () => {
               void refetch()
               void auth.refetch()
-            }}
-          />
-        ) : null}
+            },
+          }}
+        >
+          {children}
+        </ConnectionContext.Provider>
       </ChurchProvider>
     )
   }

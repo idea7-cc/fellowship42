@@ -1,5 +1,13 @@
-/** Reconnect after transient loss and refresh queries to recover missed events. */
-export function connectRealtime(url: string, invalidate: () => void) {
+/**
+ * Reconnect after transient loss and refresh queries to recover missed
+ * events. `onDrop` runs each time an open or opening socket closes
+ * unexpectedly.
+ */
+export function connectRealtime(
+  url: string,
+  invalidate: () => void,
+  onDrop: () => void = () => {},
+) {
   let stopped = false
   let delay = 1_000
   let retry: ReturnType<typeof setTimeout> | undefined
@@ -19,6 +27,7 @@ export function connectRealtime(url: string, invalidate: () => void) {
     socket.addEventListener('error', () => currentSocket.close())
     socket.addEventListener('close', () => {
       if (stopped) return
+      onDrop()
       retry = setTimeout(connect, delay)
       delay = Math.min(delay * 2, 30_000)
     })

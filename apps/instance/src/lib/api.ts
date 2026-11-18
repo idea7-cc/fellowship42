@@ -80,19 +80,25 @@ export function useApiQuery<T>(path: string | null) {
       }
     } catch (caught) {
       if (currentRequest === requestNumber.current && !abort.signal.aborted) {
-        // A failed refresh keeps what was last loaded for this path; callers
-        // decide whether to show it beside the error or the error alone.
+        const error =
+          caught instanceof ApiError
+            ? caught
+            : new ApiError(
+                'Unexpected request failure',
+                500,
+                'unexpected_error',
+              )
+        // A refresh that failed on the network or server keeps what was last
+        // loaded for this path; callers decide whether to show it beside the
+        // error. A refusal discards it: data the server now refuses must not
+        // stay on screen or come back while the next attempt is in flight.
         setResult((previous) => ({
           path,
-          data: previous.path === path ? previous.data : undefined,
-          error:
-            caught instanceof ApiError
-              ? caught
-              : new ApiError(
-                  'Unexpected request failure',
-                  500,
-                  'unexpected_error',
-                ),
+          data:
+            previous.path === path && isTransientFailure(error)
+              ? previous.data
+              : undefined,
+          error,
           loading: false,
         }))
       }
@@ -143,28 +149,39 @@ export function isTransientFailure(error: ApiError | null) {
 
 const reconnectDelayMs = 5_000
 
+/** Asks the app shell's own queries to check the connection again. */
+export function checkConnection() {
+  window.dispatchEvent(new CustomEvent('f42:connection-check'))
+}
+
 /**
- * A query whose last answer stays in use while the connection is down. The
- * app shell rests on these (bootstrap and session), so a refresh that fails
- * on a dropped connection must not unmount the staff screens or the entry a
- * user is retrying. A transient failure after a successful load keeps `data`,
+ * A query the app shell rests on (bootstrap and session). A refresh that
+ * fails on a dropped connection must not unmount the staff screens or the
+ * entry a user is retrying, so a transient failure keeps the last answer,
  * reports `connectionLost` until a later attempt succeeds, and tries again
- * every few seconds. A refusal (4xx) is reported as usual and not retried.
+ * every few seconds, including when the very first load failed. A refusal
+ * (4xx) discards the answer and is not retried. `checkConnection()` (sent
+ * when the realtime socket drops or a create goes unanswered) makes it check
+ * at once.
  */
 export function useReconnectingQuery<T>(path: string) {
   const query = useApiQuery<T>(path)
-  const { data, error, isLoading, refetch } = query
+  const { error, isLoading, refetch } = query
   const [connectionLost, setConnectionLost] = useState(false)
   useEffect(() => {
-    if (error)
-      setConnectionLost(data !== undefined && isTransientFailure(error))
+    if (error) setConnectionLost(isTransientFailure(error))
     else if (!isLoading) setConnectionLost(false)
-  }, [data, error, isLoading])
+  }, [error, isLoading])
   useEffect(() => {
     if (!connectionLost || !error) return
     const timer = setTimeout(() => void refetch(), reconnectDelayMs)
     return () => clearTimeout(timer)
   }, [connectionLost, error, refetch])
+  useEffect(() => {
+    const check = () => void refetch()
+    window.addEventListener('f42:connection-check', check)
+    return () => window.removeEventListener('f42:connection-check', check)
+  }, [refetch])
   return { ...query, connectionLost }
 }
 
@@ -175,6 +192,8 @@ export function useChurchRealtime(churchId: string | null) {
     return connectRealtime(
       `${protocol}//${window.location.host}/api/churches/${encodeURIComponent(churchId)}/live`,
       () => window.dispatchEvent(new CustomEvent('f42:invalidate')),
+      // A dropped socket may be a dropped connection: let the shell notice.
+      checkConnection,
     )
   }, [churchId])
 }

@@ -1,5 +1,6 @@
 import { ArrowLeft, Church as ChurchIcon } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+import { ConnectionNotice } from '@/components/bootstrap-gate'
 import type { ChurchSite } from '../../contracts/church-settings'
 import type { CourseDetailResponse } from '@/lib/api-types'
 import { useApiQuery } from '@/lib/api'
@@ -82,6 +83,7 @@ export function SitePreviewPage() {
           {query.error?.message ?? 'Preview unavailable'}
         </div>
       )}
+      <ConnectionNotice />
     </>
   )
 }

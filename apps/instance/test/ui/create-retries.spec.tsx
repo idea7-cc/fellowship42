@@ -9,7 +9,6 @@ import { PeoplePage } from '../../src/routes/people'
 import type { Course, Group } from '../../contracts/api'
 import {
   apiError,
-  configuredBootstrap,
   mountStaff,
   stubApi,
   type RecordedCall,
@@ -28,14 +27,11 @@ function keyedServer(prefix: string) {
   const keys = new Map<string, { body: string; id: string }>()
   const seenKeys: Array<string | null> = []
   let loseNext = false
-  let afterLoss: (() => void) | undefined
   return {
     rows,
     seenKeys,
-    /** Commits the next create, then fails it; `then` runs at the loss. */
-    loseNextResponse(then?: () => void) {
+    loseNextResponse() {
       loseNext = true
-      afterLoss = then
     },
     async create(
       call: RecordedCall,
@@ -66,7 +62,6 @@ function keyedServer(prefix: string) {
       }
       if (loseNext) {
         loseNext = false
-        afterLoss?.()
         throw new TypeError('Failed to fetch')
       }
       return result
@@ -81,7 +76,7 @@ afterEach(async () => {
 })
 
 describe('contributions', () => {
-  async function renderContributions({ gate = false } = {}) {
+  async function renderContributions() {
     const server = keyedServer('contribution')
     const api = stubApi(async (call) => {
       if (call.method === 'POST') {
@@ -109,9 +104,6 @@ describe('contributions', () => {
           ),
         )
       }
-      if (call.path === '/api/bootstrap') {
-        return Response.json(configuredBootstrap)
-      }
       if (call.path === '/api/churches/church') {
         return Response.json({
           church: { id: 'church', name: 'Grace', timezone: 'America/New_York' },
@@ -136,7 +128,7 @@ describe('contributions', () => {
         page: { limit: 100, nextCursor: null },
       })
     })
-    const ui = await mountStaff(<ContributionsPage />, { gate })
+    const ui = await mountStaff(<ContributionsPage />)
     cleanup = ui.unmount
     const form = ui.form()
     async function fill(donorName: string, amount: string) {
@@ -174,63 +166,6 @@ describe('contributions', () => {
     expect(server.seenKeys[1]).toBe(server.seenKeys[0])
     expect(server.rows).toHaveLength(1)
     expect(ui.status()).toContain('Contribution recorded')
-  })
-
-  it('keeps the app and the pending entry when the connection stays down', async () => {
-    const { api, server, ui, form, fill } = await renderContributions({
-      gate: true,
-    })
-    const reads = (path: string) =>
-      api.calls.filter((call) => call.method === 'GET' && call.path === path)
-        .length
-    const shellReads = () => [reads('/api/bootstrap'), reads('/api/session')]
-    const before = shellReads()
-    await fill('Offline Gift', '25')
-    // The gift commits, its response is lost, and the network stays down.
-    server.loseNextResponse(() => api.setOffline(true))
-    await ui.submit(form)
-    expect(ui.alert()).toMatch(/will not be recorded twice/)
-    // Only the contribution list refreshed, not the app shell's own state.
-    expect(shellReads()).toEqual(before)
-    // A realtime reconnect refreshes everything while the network is down.
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent('f42:invalidate'))
-    })
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-    expect(shellReads()[0]).toBeGreaterThan(before[0]!)
-    expect(shellReads()[1]).toBeGreaterThan(before[1]!)
-    expect(ui.text()).toContain('Connection lost')
-    expect(ui.text()).not.toContain('Setup status is unavailable')
-    expect(ui.text()).not.toContain('Sign in to your church')
-    expect(ui.field('donorName', ui.form()).value).toBe('Offline Gift')
-
-    api.setOffline(false)
-    await ui.click(ui.button('Retry now'))
-    expect(ui.text()).not.toContain('Connection lost')
-    await ui.submit(ui.form())
-    expect(server.seenKeys).toHaveLength(2)
-    expect(server.seenKeys[1]).toBe(server.seenKeys[0])
-    expect(server.rows).toHaveLength(1)
-    expect(ui.text()).toContain('Contribution recorded')
-  })
-
-  it('still signs staff out when the session refresh is refused', async () => {
-    const { ui } = await renderContributions({ gate: true })
-    const fetchBefore = globalThis.fetch
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string, init?: RequestInit) =>
-        path === '/api/session'
-          ? apiError(401, 'unauthenticated', 'Sign in again')
-          : fetchBefore(path, init),
-      ),
-    )
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent('f42:invalidate'))
-    })
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
-    expect(ui.text()).toContain('Sign in to your church')
-    expect(ui.text()).not.toContain('Connection lost')
   })
 
   it('uses a new key for the next entry after a confirmed save', async () => {

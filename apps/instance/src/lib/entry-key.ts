@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { ApiError } from './api'
+import { ApiError, checkConnection } from './api'
 
 /**
  * One `Idempotency-Key` per thing the user is entering.
@@ -47,8 +47,8 @@ export interface EntryFailure {
  * Describes a failed create honestly. A network failure or server error does
  * not mean nothing was saved, so it says so and reassures that a retry of the
  * same entry is safe. It refreshes the list the entry belongs to (`refresh`),
- * so staff can see whether the entry landed, and nothing else: a refresh of
- * the whole app on a connection that is still down would gain nothing.
+ * so staff can see whether the entry landed, and asks the app shell to check
+ * the connection, so a connection that is still down is reported as such.
  */
 export function describeEntryFailure(
   error: unknown,
@@ -67,6 +67,7 @@ export function describeEntryFailure(
     }
   }
   void refresh()
+  checkConnection()
   return {
     message: `We could not confirm whether the ${noun} was ${verb}. Check the list, or submit again: this entry will not be ${verb} twice.`,
     uncertain: true,

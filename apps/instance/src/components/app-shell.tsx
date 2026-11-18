@@ -29,6 +29,7 @@ import { cn } from '@/lib/cn'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ChurchTheme } from '@/components/church-theme'
+import { ConnectionNotice } from '@/components/bootstrap-gate'
 import { useChurch } from '@/lib/church-context'
 
 // ---------------------------------------------------------------------------
@@ -261,6 +262,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* ── Main content ───────────────────────────────────────────────── */}
       <main className="lg:pl-60" inert={drawerOpen}>
         {children}
+        <ConnectionNotice />
       </main>
     </div>
   )
