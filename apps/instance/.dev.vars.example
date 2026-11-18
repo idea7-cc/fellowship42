@@ -1,31 +1,37 @@
 # Copy to .dev.vars for local-only overrides. Do not commit .dev.vars.
+# Copied unchanged, this enables local passkey sign-in and nothing else.
+# Restart `pnpm dev` after changing it.
 ENVIRONMENT=development
 
-# Optional: protect the app with Cloudflare Access locally via a forwarded JWT.
-ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
-ACCESS_AUD=your-access-application-aud
-
-# One-time production-bootstrap selector. Use the exact email in the validated
-# Access JWT, and remove the deployed secret after bootstrap succeeds.
-BOOTSTRAP_OWNER_EMAIL=owner@example.test
-
-# Optional normalized payment webhook adapter. The provider name is normally a
-# non-secret Wrangler variable; keep the signing key only in .dev.vars/secrets.
-PAYMENT_WEBHOOK_PROVIDER=testpay
-PAYMENT_WEBHOOK_SECRET=replace-with-a-unique-random-local-secret
-
-# Optional management enrollment. Use an independently generated 32-byte
-# base64url secret. Leave unset when this instance is not managed.
-MANAGEMENT_KEY_ENCRYPTION_KEY=replace-with-32-random-base64url-bytes
-# MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS=old-key-during-rotation-only
-
-# Optional instance-owned staff sign-in (never commit real setup keys).
+# Instance-owned staff sign-in. Passkeys are bound to this exact origin.
 SIGN_IN_ORIGIN=http://localhost:5173
+
+# First owner setup, for an empty instance only (not the seeded demo church).
+# Use a random 32-byte base64url key and never commit a real one.
+# BOOTSTRAP_OWNER_EMAIL=owner@example.test
 # BOOTSTRAP_ENROLLMENT_TOKEN=<random-32-byte-base64url-value>
 
 # Optional church website (apps/website). The instance homepage redirects to
 # WEBSITE_ORIGIN, and owners can claim the website's first EmDash
 # administrator with WEBSITE_SETUP_SECRET (the same value in both Workers, at
-# least 32 characters; delete it from both after setup).
-WEBSITE_ORIGIN=http://www.localhost:4322
+# least 32 characters; delete it from both after setup). Uncomment both when
+# you run `pnpm dev:website`.
+# WEBSITE_ORIGIN=http://www.localhost:4322
 # WEBSITE_SETUP_SECRET=<same random value as apps/website/.dev.vars>
+
+# Optional Cloudflare Access instead of, or beside, passkeys. Set real values
+# only: when both are set, sign-in offers Access and sign-out goes through
+# /cdn-cgi/access/logout, which does not exist on localhost.
+# ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+# ACCESS_AUD=your-access-application-aud
+
+# Optional normalized payment webhook adapter. The provider name is normally a
+# non-secret Wrangler variable; keep the signing key (32+ characters) only in
+# .dev.vars/secrets.
+# PAYMENT_WEBHOOK_PROVIDER=testpay
+# PAYMENT_WEBHOOK_SECRET=<unique-random-local-secret>
+
+# Optional management enrollment. Use an independently generated 32-byte
+# base64url secret. Leave unset when this instance is not managed.
+# MANAGEMENT_KEY_ENCRYPTION_KEY=<random-32-byte-base64url-value>
+# MANAGEMENT_KEY_ENCRYPTION_KEY_PREVIOUS=old-key-during-rotation-only

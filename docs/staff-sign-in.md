@@ -51,6 +51,9 @@ file must not already exist. It is created with mode 0600 and contains a link
 valid for ten minutes. Share it privately and delete the file afterward. A
 failure can leave credentials revoked; inspect the exact target before retrying.
 The script never prints the link, provider output, or SQL containing identifiers.
+For the seeded local demo church only, `pnpm dev:owner-link` runs it for
+`owner@example.test` and prints the link, which opens nothing but that local,
+synthetic instance.
 
 After a restore, keep the instance closed to traffic and use the
 [agent credential reset command](agent-operator.md#reset-after-restore). It verifies

@@ -116,7 +116,7 @@ Staff passkeys, first-owner setup, team roles, people/households, ministry and
 publishing workflows, manual contributions, normalized payment-event ingestion,
 and durable outbox delivery exist. The EmDash website and both setup journeys
 have local synthetic acceptance evidence and an independent review; public
-distribution is still pending. See the [website build handoff](emdash-build-handoff.md).
+distribution is still pending. See the [website review evidence](emdash-build-handoff.md).
 
 Management enrollment, scoped grants, rotation, disconnect, health, update
 authorization, and diagnostic support approval exist. Export/import, restore,

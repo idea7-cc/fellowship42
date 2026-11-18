@@ -6,6 +6,7 @@
   "scripts": {
     "prepare": "pnpm build:contracts && pnpm --filter @fellowship42/f42ctl build",
     "dev": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
+    "dev:owner-link": "node apps/instance/scripts/local-owner-link.mjs",
     "dev:instance": "pnpm build:contracts && pnpm --filter @fellowship42/instance dev",
     "dev:site": "pnpm --filter @fellowship42/project-site dev",
     "dev:website": "pnpm build:contracts && pnpm --filter @fellowship42/website dev",

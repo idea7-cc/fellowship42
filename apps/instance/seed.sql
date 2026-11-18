@@ -260,8 +260,8 @@ INSERT OR IGNORE INTO events (
   registration_url, capacity, featured, created_at, updated_at
 ) VALUES
   ('event_demo_baptism','church_demo','baptism-sunday','Baptism Sunday','published','Celebrating baptisms during both morning gatherings.',(unixepoch()+1209600)*1000,(unixepoch()+1219200)*1000,'America/New_York','Sanctuary',NULL,NULL,1,unixepoch()*1000,unixepoch()*1000),
-  ('event_demo_serve','church_demo','neighborhood-serve-day','Neighborhood Serve Day','published','Projects with partner organizations across the city.',(unixepoch()+1814400)*1000,(unixepoch()+1839600)*1000,'America/New_York','Meet at Fellowship Hall','https://example.test/register',120,0,unixepoch()*1000,unixepoch()*1000),
-  ('event_demo_womens','church_demo','womens-retreat','Women''s Fall Retreat','published','An overnight retreat of teaching, rest, and conversation.',(unixepoch()+3628800)*1000,(unixepoch()+3801600)*1000,'America/New_York','Camp Willow','https://example.test/retreat',60,0,unixepoch()*1000,unixepoch()*1000),
+  ('event_demo_serve','church_demo','neighborhood-serve-day','Neighborhood Serve Day','published','Projects with partner organizations across the city.',(unixepoch()+1814400)*1000,(unixepoch()+1839600)*1000,'America/New_York','Meet at Fellowship Hall',NULL,120,0,unixepoch()*1000,unixepoch()*1000),
+  ('event_demo_womens','church_demo','womens-retreat','Women''s Fall Retreat','published','An overnight retreat of teaching, rest, and conversation.',(unixepoch()+3628800)*1000,(unixepoch()+3801600)*1000,'America/New_York','Camp Willow',NULL,60,0,unixepoch()*1000,unixepoch()*1000),
   ('event_demo_membership','church_demo','membership-lunch','Membership Lunch','draft','Lunch and conversation for prospective members.',(unixepoch()+2419200)*1000,(unixepoch()+2430000)*1000,'America/New_York','Room 120',NULL,40,0,unixepoch()*1000,unixepoch()*1000),
   -- Past event: exercises date formatting for elapsed dates
   ('event_demo_christmas','church_demo','christmas-eve','Christmas Eve Services','archived','Candlelight services at 4:00 and 6:00 PM.',(unixepoch()-5184000)*1000,(unixepoch()-5173200)*1000,'America/New_York','Sanctuary',NULL,NULL,0,unixepoch()*1000,unixepoch()*1000);
@@ -271,9 +271,9 @@ INSERT OR IGNORE INTO sermons (
   id, church_id, slug, title, status, speaker, series, summary, video_url, preached_at,
   featured, created_at, updated_at
 ) VALUES
-  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.','https://example.test/watch/cornerstone',((unixepoch()/86400-10)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_cornerstone','church_demo','the-cornerstone','The Cornerstone','published','Jordan Lee','Rooted','What it means to build on something that does not move.',NULL,((unixepoch()/86400-10)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
   ('sermon_demo_household','church_demo','a-household-of-faith','A Household of Faith','published','Amara Osei','Rooted','Belonging as the shape of Christian life.',NULL,((unixepoch()/86400-17)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
-  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.','https://example.test/watch/welcome-table',((unixepoch()/86400-24)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
+  ('sermon_demo_welcome','church_demo','the-welcome-table','The Welcome Table','published','Jordan Lee','Table Manners','Hospitality as a practice, not a personality.',NULL,((unixepoch()/86400-24)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
   ('sermon_demo_lament','church_demo','learning-to-lament','Learning to Lament','published','Ruth Delacroix',NULL,'Grief that stays honest and still prays.',NULL,((unixepoch()/86400-31)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000),
   ('sermon_demo_draft','church_demo','the-long-obedience','The Long Obedience','draft','Jordan Lee','Table Manners','Faithfulness measured in decades, not moments.',NULL,((unixepoch()/86400+3)*86400+43200)*1000,0,unixepoch()*1000,unixepoch()*1000);
 

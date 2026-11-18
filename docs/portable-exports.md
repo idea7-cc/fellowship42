@@ -27,9 +27,9 @@ capture part of the same transaction.
    database, the underlying supported command is:
 
    ```bash
-   pnpm wrangler d1 export <database-name> \
+   pnpm --filter @fellowship42/instance exec wrangler d1 export <database-name> \
      --remote \
-     --output ./database.sql
+     --output "$PWD/database.sql"
    ```
 
 3. Stream every authorized R2 object into a local source directory and create

@@ -4,6 +4,7 @@ import { spawn, execFileSync } from 'node:child_process'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import {
   appendFileSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -20,6 +21,21 @@ export const root = path.resolve(
 export const instanceDir = path.join(root, 'apps/instance')
 export const websiteDir = path.join(root, 'apps/website')
 const bin = (dir, name) => path.join(dir, 'node_modules/.bin', name)
+
+/**
+ * The browser the journeys drive. Called before any build or server start so
+ * a missing browser fails at once with an instruction instead of minutes in.
+ */
+export function chromiumPath() {
+  const executable = process.env.CHROMIUM_PATH ?? '/usr/bin/chromium'
+  if (!existsSync(executable)) {
+    console.error(
+      `Chromium was not found at ${executable}. Install Chromium, or set CHROMIUM_PATH to a Chromium or Chrome executable.`,
+    )
+    process.exit(1)
+  }
+  return executable
+}
 
 export function sh(command, args, options = {}) {
   return execFileSync(command, args, {

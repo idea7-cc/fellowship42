@@ -1,9 +1,12 @@
-# EmDash church websites: build handoff
+# EmDash church websites: review evidence
 
-Prepared 2026-09-30 by the builder (Claude Opus 5.5) for Codex's independent
-review. Plan: [emdash-website-plan.md](emdash-website-plan.md). Decision:
-[ADR 0027](adr/0027-emdash-church-websites.md). Nothing here is published or
-deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
+The acceptance evidence and independent review of the EmDash church website
+change, recorded 2026-09-30 and reviewed 2026-10-21. Plan:
+[emdash-website-plan.md](emdash-website-plan.md). Decision:
+[ADR 0027](adr/0027-emdash-church-websites.md). How it works today:
+[EmDash church websites](emdash-church-websites.md). Nothing here is published
+or deployed; all evidence is **local** (see [Evidence scope](#evidence-scope)).
+Results describe the evidence revision below, not later source.
 
 **Review outcome (2026-10-21).** GPT-6.1 Sol (Codex, xhigh) reviewed
 `61d4ff7...ef9ee59` in pull request #57 and found no blocking authority,
@@ -13,33 +16,15 @@ earlier, is fixed in `6b4191b` with a regression test. A deliberately entered
 time in that repeated hour still resolves to its first occurrence, as
 `fromZonedInputValue` documents.
 
-## Revision under review
+## Reviewed revision
 
-- Branch `build/emdash-church-websites`, based on `61d4ff7` (the plan commit).
-- Review the whole change with `git diff 61d4ff7...build/emdash-church-websites`
-  and the history with `git log --oneline 61d4ff7..build/emdash-church-websites`.
-- The branch merges two reviewed work branches: `build/emdash-defects`
-  (reliability defects) and `build/emdash-lifecycle` (lifecycle inventory).
+- The change is `61d4ff7...ef9ee59`, merged to main by pull request #57
+  (`441f9ff`).
 - An independent multi-lens review of the branch confirmed 48 findings. All
   are fixed in the `review/stream-*` merges (`a7d2909`, `3db7116`, `5387a00`)
   and the commits after them, and each fix was re-verified.
 - Evidence revision: `9d2e4e3`, a clean tree. Both acceptance journeys ran
-  there. `pnpm verify` passed at `202f4b9`; `9d2e4e3` adds only this handoff
-  and the checklist. Later commits change only this file.
-
-## What changed
-
-| Area                    | Change                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Reliability             | Retry-safe creates with per-entry idempotency keys (contributions, people, households, group sessions, media); honest success/uncertain-outcome reporting; record editors and panels scoped to one record with stale-response guards; attendance registers keep marks across roster changes with `rosterStatus`; course completion dates kept; event times entered and listed in the event's zone; sermon dates as calendar dates |
-| Public website contract | `/api/website/v1` (descriptor, church, events, sermons, groups, courses): anonymous, identity-independent, published-only allowlists, keyset cursors, absolute URLs, UTC instants with IANA zones, `no-store`, CORS `*`, CORP `cross-origin`. Package `@fellowship42/website-contract`                                                                                                                                            |
-| Instance                | Cross-origin public media; media returns 200 for plain GETs and 304 for revalidation; http(s)-only sermon video links; `/` redirects to `WEBSITE_ORIGIN`; owner-only website setup claim (audited); Settings **Website** card                                                                                                                                                                                                     |
-| Integration             | `@fellowship42/emdash` (trusted): six church Portable Text blocks and Astro renderers, theme components, Block Kit status page, home-page JSON-LD, deployment-pinned or Administrator-set connection, service-binding transport. `fellowship42-connect` (sandboxed registry artifact): connection, status, public data routes, JSON-LD                                                                                            |
-| Website                 | `apps/website`: EmDash 1.0.1 on Cloudflare with its own D1, R2, and session KV; church preset theme; seeded church pages, article, and menu with built-in church-page fallbacks; setup gate requiring the owner claim; uncached public HTML                                                                                                                                                                                       |
-| Lifecycle               | Optional `website` component across the manifest, plan, doctor, reconciliation, export/import, restore conformance, exit packets, and rehearsal; website and instance-only rehearsal fixtures                                                                                                                                                                                                                                     |
-| Gates                   | Boundaries and manifest for the new app and packages; `verify` builds, typechecks, tests, and dry-run-deploys the website; deterministic Worker typegen                                                                                                                                                                                                                                                                           |
-| Docs                    | ADR 0027; [EmDash church websites](emdash-church-websites.md); [public website contract](website-contract.md); architecture, deployment, security, AGENTS, README, lifecycle runbooks                                                                                                                                                                                                                                             |
-| Evidence                | `scripts/acceptance/fellowship42-first.mjs`, `scripts/acceptance/emdash-first.mjs`, `scripts/acceptance/local-dev-journey.mjs`                                                                                                                                                                                                                                                                                                    |
+  there. `pnpm verify` passed at `202f4b9`; `9d2e4e3` adds only documentation.
 
 ## Key decisions
 
@@ -80,25 +65,10 @@ Astro 7.3.3 (repository site) and 7.3.5 (independent EmDash-first site),
 
 ## Reproduce
 
-```bash
-pnpm install --frozen-lockfile
-pnpm verify                              # repository gate (about 4 minutes)
-pnpm acceptance:fellowship42-first       # browser journey, production builds
-pnpm acceptance:emdash-first             # independent EmDash site from packed tarballs
-pnpm --filter @fellowship42/emdash-connect test   # sandbox tests + registry bundle check
-```
-
-The acceptance scripts need Chromium (`CHROMIUM_PATH`, default
-`/usr/bin/chromium`) and network access to install the independent site's
-dependencies. They use ports 8787/8788 and 8797/8799 and isolated state under
-`/tmp/f42-acceptance`. The Fellowship42-first journey writes
-`/tmp/f42-acceptance/fellowship42-first/evidence.json` and screenshots beside
-it. The EmDash-first proof writes `/tmp/f42-acceptance/emdash-first.json`.
-
-The documented local evaluation in
-[EmDash church websites](emdash-church-websites.md#local-evaluation) runs
-against `pnpm dev` and `pnpm dev:website`. After following its commands, run
-`node scripts/acceptance/local-dev-journey.mjs` to drive its browser steps.
+Follow [Local evaluation](emdash-church-websites.md#local-evaluation). It lists
+the acceptance commands, their Chromium prerequisite, and where they write
+evidence. `pnpm --filter @fellowship42/emdash-connect test` runs the sandbox
+tests and registry bundle check.
 
 ## Acceptance evidence
 
