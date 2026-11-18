@@ -22,7 +22,8 @@ import { controlClass } from '@/components/ui/control'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { RequestError } from '@/components/request-error'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
 import type { Church, CourseDetailResponse, Lesson } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -34,19 +35,26 @@ function can(permissions: string[], permission: string) {
 function LessonForm({
   courseId,
   lesson: record,
+  nextOrder,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   courseId: string
   lesson: Lesson | null
+  /** The order a new lesson starts with: after every loaded lesson. */
+  nextOrder: number
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the course, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The lesson as shown when this editor opened; the save is checked against it.
   const [lesson] = useState(record)
+  const describeFailure = useSaveFailure('lesson', onRefresh)
   // Controlled, so the saved choice survives a media list that loads later.
   const [media, setMedia] = useSavedMediaChoice(churchId, lesson?.mediaId)
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -80,9 +88,7 @@ function LessonForm({
       )
       await onSaved()
     } catch (caught) {
-      setError(
-        describeSaveFailure(caught, 'lesson', 'The lesson could not be saved.'),
-      )
+      setError(describeFailure(caught))
       setSaving(false)
     }
   }
@@ -113,7 +119,7 @@ function LessonForm({
                 required
                 min={0}
                 max={10000}
-                defaultValue={lesson?.sortOrder ?? 0}
+                defaultValue={lesson?.sortOrder ?? nextOrder}
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
@@ -240,6 +246,13 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
         <Section>
           <p>Loading course…</p>
         </Section>
+      ) : !course && courseQuery.error?.status !== 404 && courseQuery.error ? (
+        <Section>
+          <RequestError
+            error={courseQuery.error}
+            onRetry={() => void courseQuery.refetch()}
+          />
+        </Section>
       ) : !course ? (
         <Section>
           <Card>
@@ -274,6 +287,13 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
             }
             title={course.title}
           />
+          {courseQuery.error ? (
+            <RequestError
+              className="mb-4"
+              error={courseQuery.error}
+              onRetry={() => void courseQuery.refetch()}
+            />
+          ) : null}
           {canWrite && churchId ? (
             <Section
               title="Who is taking this"
@@ -310,10 +330,17 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
                   editorSession.value === 'new' ? null : editorSession.value
                 }
                 onCancel={editor.close}
+                nextOrder={
+                  lessons.reduce(
+                    (highest, entry) => Math.max(highest, entry.sortOrder),
+                    -1,
+                  ) + 1
+                }
                 onSaved={async () => {
                   editor.closeIf(editorSession.key)
                   await courseQuery.refetch()
                 }}
+                onRefresh={courseQuery.refetch}
               />
             ) : null}
             {error ? (

@@ -13,7 +13,7 @@ import {
 
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
 import { useRequestGuard } from '@/lib/request-guard'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { usePagedQuery } from '@/lib/paged-query'
@@ -94,10 +94,13 @@ function PersonForm({
   person: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   person: PersonDetail | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   // The person as shown when this editor opened; the save is checked against it.
@@ -107,6 +110,7 @@ function PersonForm({
   const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('person')
+  const describeEditFailure = useSaveFailure('person', onRefresh)
 
   function startNewEntry(form: HTMLFormElement | null) {
     entryKey.reset()
@@ -152,12 +156,8 @@ function PersonForm({
     } catch (caught) {
       setError(
         person
-          ? describeSaveFailure(
-              caught,
-              'person',
-              'The person could not be saved.',
-            )
-          : describeEntryFailure(caught, 'person').message,
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'person', onRefresh).message,
       )
       setEntryFailed(!person)
       setSaving(false)
@@ -276,10 +276,13 @@ function HouseholdForm({
   household: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   household: Household | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   // The household as shown when this editor opened; the save is checked against it.
@@ -289,6 +292,7 @@ function HouseholdForm({
   const [entryFailed, setEntryFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const entryKey = useEntryKey('household')
+  const describeEditFailure = useSaveFailure('household', onRefresh)
 
   function startNewEntry(form: HTMLFormElement | null) {
     entryKey.reset()
@@ -335,12 +339,8 @@ function HouseholdForm({
     } catch (caught) {
       setError(
         household
-          ? describeSaveFailure(
-              caught,
-              'household',
-              'The household could not be saved.',
-            )
-          : describeEntryFailure(caught, 'household').message,
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'household', onRefresh).message,
       )
       setEntryFailed(!household)
       setSaving(false)
@@ -787,6 +787,7 @@ export function PeoplePage() {
                     personEditor.closeIf(personSession.key)
                     await peopleQuery.refetch()
                   }}
+                  onRefresh={peopleQuery.refetch}
                 />
               ) : null}
 
@@ -802,7 +803,7 @@ export function PeoplePage() {
                 />
               ) : peopleQuery.error ? (
                 <RequestError
-                  message={peopleQuery.error.message}
+                  error={peopleQuery.error}
                   onRetry={() => void peopleQuery.refetch()}
                 />
               ) : peopleQuery.data?.people.length ? (
@@ -967,6 +968,7 @@ export function PeoplePage() {
                     householdEditor.closeIf(householdSession.key)
                     await householdQuery.refetch()
                   }}
+                  onRefresh={householdQuery.refetch}
                 />
               ) : null}
 
@@ -976,7 +978,7 @@ export function PeoplePage() {
                 </TableContainer>
               ) : householdQuery.error ? (
                 <RequestError
-                  message={householdQuery.error.message}
+                  error={householdQuery.error}
                   onRetry={() => void householdQuery.refetch()}
                 />
               ) : householdQuery.data?.households.length ? (

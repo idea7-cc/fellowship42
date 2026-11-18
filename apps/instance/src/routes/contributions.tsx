@@ -12,7 +12,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, useApiQuery } from '@/lib/api'
+import { formatInTimeZone, fromZonedInputValue } from '@/lib/time-zone'
 import { usePagedQuery } from '@/lib/paged-query'
 import { ListPager } from '@/components/list-pager'
 import { ListSearch } from '@/components/list-search'
@@ -24,7 +25,7 @@ import {
 } from '@/lib/entry-key'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import type { Contribution, CursorPage } from '@/lib/api-types'
+import type { Church, Contribution, CursorPage } from '@/lib/api-types'
 
 function can(permissions: string[], permission: string) {
   return permissions.includes('*') || permissions.includes(permission)
@@ -69,6 +70,12 @@ export function ContributionsPage() {
       : null,
     { limit: 25, query: appliedSearch, status },
   )
+  // Gift times are entered and shown in the church's timezone, not the zone
+  // of whichever device staff use.
+  const churchQuery = useApiQuery<{ church: Church }>(
+    `/api/churches/${encodeURIComponent(churchId)}`,
+  )
+  const timeZone = churchQuery.data?.church.timezone
   const [error, setError] = useState<EntryFailure | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -76,7 +83,7 @@ export function ContributionsPage() {
 
   async function createContribution(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!churchId) return
+    if (!churchId || !timeZone) return
     // React clears currentTarget once the handler awaits; keep the form.
     const formElement = event.currentTarget
     const form = new FormData(formElement)
@@ -94,7 +101,9 @@ export function ContributionsPage() {
           fund: String(form.get('fund') ?? ''),
           paymentMethod: String(form.get('paymentMethod') ?? 'cash'),
           recurring: form.get('recurring') === 'on',
-          donatedAt: new Date(String(form.get('donatedAt'))).toISOString(),
+          donatedAt: new Date(
+            fromZonedInputValue(String(form.get('donatedAt')), timeZone),
+          ).toISOString(),
         }),
       })
       entryKey.reset()
@@ -102,7 +111,14 @@ export function ContributionsPage() {
       setNotice('Contribution recorded.')
       void contributionsQuery.refetch()
     } catch (caught) {
-      setError(describeEntryFailure(caught, 'contribution', 'recorded'))
+      setError(
+        describeEntryFailure(
+          caught,
+          'contribution',
+          contributionsQuery.refetch,
+          'recorded',
+        ),
+      )
     } finally {
       setSaving(false)
     }
@@ -188,10 +204,19 @@ export function ContributionsPage() {
                       <label className="grid gap-1 text-sm font-semibold">
                         Donated at
                         <Input
+                          aria-describedby="donated-at-zone"
                           name="donatedAt"
                           type="datetime-local"
                           required
                         />
+                        <span
+                          className="text-xs font-normal text-muted-foreground"
+                          id="donated-at-zone"
+                        >
+                          {timeZone
+                            ? `In ${timeZone}, the church's timezone.`
+                            : "Loading the church's timezone…"}
+                        </span>
                       </label>
                     </div>
                     <label className="flex items-center gap-2 text-sm font-semibold">
@@ -212,7 +237,11 @@ export function ContributionsPage() {
                       </p>
                     ) : null}
                     <div className="flex flex-wrap gap-2">
-                      <Button type="submit" size="sm" disabled={saving}>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={saving || !timeZone}
+                      >
                         {saving ? 'Recording…' : 'Record contribution'}
                       </Button>
                       {error ? (
@@ -248,7 +277,7 @@ export function ContributionsPage() {
               <p>Loading contributions…</p>
             ) : contributionsQuery.error ? (
               <RequestError
-                message={contributionsQuery.error.message}
+                error={contributionsQuery.error}
                 onRetry={() => void contributionsQuery.refetch()}
               />
             ) : contributionsQuery.data?.contributions.length ? (
@@ -261,7 +290,9 @@ export function ContributionsPage() {
                           <CardTitle>{contribution.donorName}</CardTitle>
                           <CardDescription>
                             {contribution.fund} ·{' '}
-                            {new Date(contribution.donatedAt).toLocaleString()}
+                            {timeZone
+                              ? `${formatInTimeZone(contribution.donatedAt, timeZone)} (${timeZone})`
+                              : null}
                           </CardDescription>
                         </div>
                         <div className="text-right">

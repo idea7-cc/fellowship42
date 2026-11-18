@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Pencil, Plus, UserCheck, UserMinus, UserX, X } from 'lucide-react'
+import { RequestError } from '@/components/request-error'
 
 import { EnrollmentLink } from './enrollment-link'
 import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
@@ -14,7 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
   CheckboxField,
   Field,
@@ -257,9 +257,9 @@ export function TeamMembersPanel({
           <SkeletonTable columns={4} rows={3} />
         </TableContainer>
       ) : teamQuery.error ? (
-        <EmptyState
-          description={teamQuery.error.message}
-          title="The team could not be loaded"
+        <RequestError
+          error={teamQuery.error}
+          onRetry={() => void teamQuery.refetch()}
         />
       ) : (
         <TableContainer>

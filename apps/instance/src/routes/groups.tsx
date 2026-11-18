@@ -23,7 +23,8 @@ import { ListSearch } from '@/components/list-search'
 import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type { Church, CursorPage, Group } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
@@ -36,21 +37,35 @@ function GroupForm({
   group: record,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   group: Group | null
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The group as shown when this editor opened; the save is checked against it.
   const [group] = useState(record)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const entryKey = useEntryKey('group')
+  const describeEditFailure = useSaveFailure('group', onRefresh)
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setError(null)
+    setEntryFailed(false)
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(event.currentTarget)
     const value = {
       slug: String(form.get('slug') ?? ''),
@@ -72,16 +87,23 @@ function GroupForm({
           : `/api/groups/${encodeURIComponent(churchId)}`,
         {
           method: group ? 'PATCH' : 'POST',
+          headers: group
+            ? undefined
+            : { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(
             group ? { version: group.version, ...value } : value,
           ),
         },
       )
+      if (!group) entryKey.reset()
       await onSaved()
     } catch (caught) {
       setError(
-        describeSaveFailure(caught, 'group', 'The group could not be saved.'),
+        group
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'group', onRefresh).message,
       )
+      setEntryFailed(!group)
       setSaving(false)
     }
   }
@@ -208,6 +230,17 @@ function GroupForm({
             <Button type="submit" size="sm" disabled={saving}>
               {saving ? 'Saving…' : 'Save group'}
             </Button>
+            {entryFailed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={saving}
+                onClick={(click) => startNewEntry(click.currentTarget.form)}
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
@@ -298,6 +331,7 @@ export function GroupsPage() {
               editor.closeIf(editorSession.key)
               await groupQuery.refetch()
             }}
+            onRefresh={groupQuery.refetch}
           />
         ) : null}
         {rosterGroup && churchId ? (
@@ -313,6 +347,7 @@ export function GroupsPage() {
             key={sessionsGroup.id}
             churchId={churchId}
             group={sessionsGroup}
+            timeZone={churchQuery.data?.church.timezone}
             onClose={() => setSessionsGroup(null)}
           />
         ) : null}
@@ -325,7 +360,7 @@ export function GroupsPage() {
           <p>Loading groups…</p>
         ) : groupQuery.error ? (
           <RequestError
-            message={groupQuery.error.message}
+            error={groupQuery.error}
             onRetry={() => void groupQuery.refetch()}
           />
         ) : displayedGroups.length ? (

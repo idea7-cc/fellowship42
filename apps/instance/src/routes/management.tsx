@@ -23,6 +23,7 @@ import type {
 } from '@/lib/api-types'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
+import { RequestError } from '@/components/request-error'
 
 const capabilityDetails: Record<
   ManagementCapability,
@@ -312,14 +313,13 @@ export function ManagementPage() {
               Church-owner management permission is required.
             </CardContent>
           </Card>
-        ) : status.isLoading ? (
+        ) : status.isLoading && !status.data ? (
           <p>Loading management state…</p>
-        ) : status.error ? (
-          <Card className="border-destructive/30">
-            <CardContent className="p-6 text-destructive">
-              {status.error.message}
-            </CardContent>
-          </Card>
+        ) : status.error && !status.data ? (
+          <RequestError
+            error={status.error}
+            onRetry={() => void status.refetch()}
+          />
         ) : status.data ? (
           <div className="grid gap-6">
             {error ? (

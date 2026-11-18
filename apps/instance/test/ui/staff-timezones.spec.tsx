@@ -12,7 +12,15 @@ const browserZone = vi.hoisted(() => {
   return { previous }
 })
 
-import type { EventRecord, Sermon } from '../../contracts/api'
+import type {
+  Contribution,
+  EventRecord,
+  Group,
+  GroupSession,
+  Sermon,
+} from '../../contracts/api'
+import { GroupSessionsPanel } from '../../src/components/group-sessions-panel'
+import { ContributionsPage } from '../../src/routes/contributions'
 import { EventsPage } from '../../src/routes/events'
 import { SermonsPage } from '../../src/routes/sermons'
 import { mountStaff, stubApi } from './staff-harness'
@@ -202,5 +210,85 @@ it('stores a new sermon date at noon UTC of the chosen day', async () => {
   await ui!.submit(form)
   expect(api.requests('POST')[0]!.body).toMatchObject({
     preachedAt: Date.UTC(2026, 10, 29, 12),
+  })
+})
+
+it('records and shows a manual contribution in the church timezone', async () => {
+  // 23:00 on Sep 20 in New York (EDT, UTC-4) is 03:00 UTC on Sep 21.
+  const gift: Contribution = {
+    id: 'gift',
+    churchId: 'church',
+    donorName: 'Late Donor',
+    amountMinor: 2500,
+    currency: 'USD',
+    fund: 'General',
+    paymentMethod: 'cash',
+    status: 'succeeded',
+    recurring: false,
+    donatedAt: Date.UTC(2026, 8, 21, 3),
+    createdAt: 0,
+    updatedAt: 0,
+    version: 1,
+  } as Contribution
+  const api = stubApi((call) => {
+    if (call.method === 'POST')
+      return Response.json(
+        { contribution: gift, replayed: false },
+        { status: 201 },
+      )
+    if (call.path === '/api/churches/church')
+      return Response.json({
+        church: { ...church.church, timezone: 'America/New_York' },
+      })
+    return Response.json({
+      contributions: [gift],
+      page: { limit: 25, nextCursor: null },
+    })
+  })
+  ui = await mountStaff(<ContributionsPage />)
+  expect(ui.text()).toContain('Sep 20, 2026, 11:00 PM (America/New_York)')
+  expect(ui.text()).toContain("In America/New_York, the church's timezone.")
+  const form = ui.form()
+  await ui.type(ui.field('donorName', form), 'Late Donor')
+  await ui.type(ui.field('amountMinor', form), '2500')
+  await ui.type(ui.field('donatedAt', form), '2026-09-20T23:00')
+  await ui.submit(form)
+  expect(api.requests('POST')[0]!.body).toMatchObject({
+    donatedAt: '2026-09-21T03:00:00.000Z',
+  })
+})
+
+it('enters and shows group meeting times in the church timezone', async () => {
+  const meeting: GroupSession = {
+    id: 'session',
+    groupId: 'group',
+    title: 'Harvest night',
+    status: 'planned',
+    // 19:00 in Chicago (CDT, UTC-5).
+    startsAt: Date.UTC(2026, 8, 21, 0),
+    version: 1,
+  }
+  const api = stubApi((call) => {
+    if (call.method === 'POST')
+      return Response.json({ sessions: [], replayed: false }, { status: 201 })
+    return Response.json({ sessions: [meeting] })
+  })
+  ui = await mountStaff(
+    <GroupSessionsPanel
+      churchId="church"
+      group={{ id: 'group', title: 'Midtown', location: 'Hall' } as Group}
+      timeZone="America/Chicago"
+      onClose={() => {}}
+    />,
+  )
+  expect(ui.text()).toContain('Sep 20, 2026, 7:00 PM')
+  expect(ui.text()).toContain('times in America/Chicago')
+  await ui.click(ui.button('Add session'))
+  const form = ui.form()
+  expect(ui.text()).toContain("Times are in America/Chicago, the church's")
+  await ui.type(ui.field('startsAt', form), '2026-09-27T19:00')
+  await ui.submit(form)
+  expect(api.requests('POST')[0]!.body).toMatchObject({
+    startsAt: Date.UTC(2026, 8, 28, 0),
   })
 })

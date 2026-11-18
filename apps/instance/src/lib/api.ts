@@ -80,8 +80,11 @@ export function useApiQuery<T>(path: string | null) {
       }
     } catch (caught) {
       if (currentRequest === requestNumber.current && !abort.signal.aborted) {
-        setResult({
+        // A failed refresh keeps what was last loaded for this path; callers
+        // decide whether to show it beside the error or the error alone.
+        setResult((previous) => ({
           path,
+          data: previous.path === path ? previous.data : undefined,
           error:
             caught instanceof ApiError
               ? caught
@@ -91,7 +94,7 @@ export function useApiQuery<T>(path: string | null) {
                   'unexpected_error',
                 ),
           loading: false,
-        })
+        }))
       }
     }
   }, [path])
@@ -128,6 +131,41 @@ export function useApiQuery<T>(path: string | null) {
     isLoading: current.loading,
     refetch: load,
   }
+}
+
+/**
+ * A failure that another attempt may not repeat: the network or the server,
+ * not a refusal. Network failures surface as `unexpected_error` with 500.
+ */
+export function isTransientFailure(error: ApiError | null) {
+  return Boolean(error && error.status >= 500)
+}
+
+const reconnectDelayMs = 5_000
+
+/**
+ * A query whose last answer stays in use while the connection is down. The
+ * app shell rests on these (bootstrap and session), so a refresh that fails
+ * on a dropped connection must not unmount the staff screens or the entry a
+ * user is retrying. A transient failure after a successful load keeps `data`,
+ * reports `connectionLost` until a later attempt succeeds, and tries again
+ * every few seconds. A refusal (4xx) is reported as usual and not retried.
+ */
+export function useReconnectingQuery<T>(path: string) {
+  const query = useApiQuery<T>(path)
+  const { data, error, isLoading, refetch } = query
+  const [connectionLost, setConnectionLost] = useState(false)
+  useEffect(() => {
+    if (error)
+      setConnectionLost(data !== undefined && isTransientFailure(error))
+    else if (!isLoading) setConnectionLost(false)
+  }, [data, error, isLoading])
+  useEffect(() => {
+    if (!connectionLost || !error) return
+    const timer = setTimeout(() => void refetch(), reconnectDelayMs)
+    return () => clearTimeout(timer)
+  }, [connectionLost, error, refetch])
+  return { ...query, connectionLost }
 }
 
 export function useChurchRealtime(churchId: string | null) {

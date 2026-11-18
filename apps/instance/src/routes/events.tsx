@@ -21,7 +21,8 @@ import { ListSearch } from '@/components/list-search'
 import { RequestError } from '@/components/request-error'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
-import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
+import { useRecordEditor, useSaveFailure } from '@/lib/record-editor'
+import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import type { Church, CursorPage, EventRecord } from '@/lib/api-types'
 import {
   formatInTimeZone,
@@ -65,18 +66,32 @@ function EventForm({
   churchTimezone,
   onCancel,
   onSaved,
+  onRefresh,
 }: {
   event: EventRecord | null
   /** Undefined until the church loads; a new event defaults to it. */
   churchTimezone: string | undefined
   onCancel: () => void
   onSaved: () => Promise<void>
+  /** Reloads the list, so staff can see whether an unconfirmed save landed. */
+  onRefresh: () => unknown
 }) {
   const { churchId } = useChurch()
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   // The event as shown when this editor opened; the save is checked against it.
   const [event] = useState(record)
+  // A failed create offers a fresh entry: its key may belong to another save.
+  const [entryFailed, setEntryFailed] = useState(false)
+  const entryKey = useEntryKey('event')
+  const describeEditFailure = useSaveFailure('event', onRefresh)
+  function startNewEntry(form: HTMLFormElement | null) {
+    entryKey.reset()
+    form?.reset()
+    setTypedTimezone(null)
+    setError(null)
+    setEntryFailed(false)
+  }
   // Null until staff type a zone, so a new event follows the church's zone
   // even when the church loads after the editor opened.
   const [typedTimezone, setTypedTimezone] = useState<string | null>(null)
@@ -86,6 +101,7 @@ function EventForm({
     if (!churchId) return
     setSaving(true)
     setError(null)
+    setEntryFailed(false)
     const form = new FormData(formEvent.currentTarget)
     // Times are wall-clock values in the event's own zone, never the zone of
     // the browser that happens to be editing.
@@ -125,16 +141,23 @@ function EventForm({
           : `/api/events/${encodeURIComponent(churchId)}`,
         {
           method: event ? 'PATCH' : 'POST',
+          headers: event
+            ? undefined
+            : { 'Idempotency-Key': entryKey.current() },
           body: JSON.stringify(
             event ? { version: event.version, ...value } : value,
           ),
         },
       )
+      if (!event) entryKey.reset()
       await onSaved()
     } catch (caught) {
       setError(
-        describeSaveFailure(caught, 'event', 'The event could not be saved.'),
+        event
+          ? describeEditFailure(caught)
+          : describeEntryFailure(caught, 'event', onRefresh).message,
       )
+      setEntryFailed(!event)
       setSaving(false)
     }
   }
@@ -270,6 +293,17 @@ function EventForm({
             <Button size="sm" type="submit" disabled={saving}>
               {saving ? 'Saving…' : 'Save event'}
             </Button>
+            {entryFailed ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={saving}
+                onClick={(click) => startNewEntry(click.currentTarget.form)}
+              >
+                Start a new entry
+              </Button>
+            ) : null}
             <Button
               size="sm"
               type="button"
@@ -362,6 +396,7 @@ export function EventsPage() {
               editor.closeIf(editorSession.key)
               await eventQuery.refetch()
             }}
+            onRefresh={eventQuery.refetch}
           />
         ) : null}
         {error ? (
@@ -373,7 +408,7 @@ export function EventsPage() {
           <p>Loading events…</p>
         ) : eventQuery.error ? (
           <RequestError
-            message={eventQuery.error.message}
+            error={eventQuery.error}
             onRetry={() => void eventQuery.refetch()}
           />
         ) : displayed.length ? (

@@ -89,7 +89,9 @@ export function ChurchImagePicker({
       if (active.current) choose(result.media.id)
     } catch (reason) {
       if (active.current)
-        setError(describeEntryFailure(reason, 'image upload').message)
+        setError(
+          describeEntryFailure(reason, 'image upload', query.refetch).message,
+        )
     } finally {
       if (active.current) setBusy(false)
     }

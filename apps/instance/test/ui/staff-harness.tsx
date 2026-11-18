@@ -8,6 +8,8 @@ import {
   type NavigateFunction,
 } from 'react-router-dom'
 import { vi } from 'vitest'
+import { BootstrapGate } from '../../src/components/bootstrap-gate'
+import { StaffAccess } from '../../src/components/staff-access'
 import { AuthProvider } from '../../src/lib/auth-provider'
 import { ChurchProvider } from '../../src/lib/church-context'
 
@@ -70,6 +72,7 @@ function parseBody(body: BodyInit | null | undefined) {
 export function stubApi(route: Route, permissions?: string[]) {
   const calls: RecordedCall[] = []
   const pending: Deferred[] = []
+  let offline = false
   vi.stubGlobal(
     'fetch',
     vi.fn(async (path: string, init?: RequestInit) => {
@@ -80,6 +83,7 @@ export function stubApi(route: Route, permissions?: string[]) {
         body: parseBody(init?.body),
       }
       calls.push(call)
+      if (offline) throw new TypeError('Failed to fetch')
       if (path === '/api/session') return session(permissions)
       const answer = await route(call)
       if (answer === 'defer') {
@@ -94,6 +98,10 @@ export function stubApi(route: Route, permissions?: string[]) {
   return {
     calls,
     pending,
+    /** While offline, every request fails as a dropped connection does. */
+    setOffline(value: boolean) {
+      offline = value
+    },
     /** Calls with the given method whose path contains `fragment`. */
     requests(method: string, fragment = '') {
       return calls.filter(
@@ -135,15 +143,33 @@ function NavigationProbe({
   return null
 }
 
+/** What `/api/bootstrap` answers for the configured test church. */
+export const configuredBootstrap = {
+  state: 'configured',
+  instance: { churchId: 'church', churchName: 'Grace', churchSlug: 'grace' },
+}
+
 export async function mountStaff(
   node: ReactNode,
-  options: { path?: string; route?: string } = {},
+  /**
+   * `gate` mounts the real bootstrap and access gates instead of providing
+   * the church directly; the stub must then answer `/api/bootstrap`.
+   */
+  options: { path?: string; route?: string; gate?: boolean } = {},
 ) {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root: Root = createRoot(container)
   let navigateTo: NavigateFunction | null = null
+  const routed = (inner: ReactNode) =>
+    options.route ? (
+      <Routes>
+        <Route path={options.route} element={inner} />
+      </Routes>
+    ) : (
+      inner
+    )
   const tree = (path: string) => (
     <MemoryRouter initialEntries={[path]}>
       <NavigationProbe
@@ -152,21 +178,15 @@ export async function mountStaff(
         }}
       />
       <AuthProvider>
-        <ChurchProvider
-          instance={{
-            churchId: 'church',
-            churchName: 'Grace',
-            churchSlug: 'grace',
-          }}
-        >
-          {options.route ? (
-            <Routes>
-              <Route path={options.route} element={node} />
-            </Routes>
-          ) : (
-            node
-          )}
-        </ChurchProvider>
+        {options.gate ? (
+          <BootstrapGate>
+            <StaffAccess>{routed(node)}</StaffAccess>
+          </BootstrapGate>
+        ) : (
+          <ChurchProvider instance={configuredBootstrap.instance}>
+            {routed(node)}
+          </ChurchProvider>
+        )}
       </AuthProvider>
     </MemoryRouter>
   )

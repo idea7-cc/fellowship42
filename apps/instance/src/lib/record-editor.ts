@@ -52,22 +52,34 @@ export function useRecordEditor<T extends { id: string; version: number }>() {
 }
 
 /**
- * What a record editor says when saving an existing record fails. After a
- * version conflict it tells staff how to continue and asks open lists to
- * refresh, so choosing Edit on the record again opens its latest version.
+ * What a record editor says when saving an existing record fails. Keep one per
+ * editor: it remembers whether an earlier attempt of this save ended without
+ * an answer.
+ *
+ * A network failure or server error does not mean the edit was refused, so it
+ * says the outcome is unknown. A version conflict refreshes the record's list
+ * (`refresh`) and keeps the typed input. After an unconfirmed attempt the
+ * conflict may be that attempt's own success, so it says so and asks staff to
+ * compare before redoing the edit; otherwise it explains that someone else
+ * changed the record and how to load the latest version.
  */
-export function describeSaveFailure(
-  error: unknown,
-  noun: string,
-  fallback: string,
-) {
-  if (
-    error instanceof ApiError &&
-    error.status === 409 &&
-    error.code === 'version_conflict'
-  ) {
-    window.dispatchEvent(new CustomEvent('f42:invalidate'))
-    return `This ${noun} changed after you opened it, so your changes were not saved. Choose Edit on the ${noun} again to load the latest version, then make your changes again.`
-  }
-  return error instanceof ApiError ? error.message : fallback
+export function useSaveFailure(noun: string, refresh: () => unknown) {
+  const unconfirmed = useRef(false)
+  return useCallback(
+    (error: unknown) => {
+      if (!(error instanceof ApiError) || error.status >= 500) {
+        unconfirmed.current = true
+        return `We could not confirm whether your changes to this ${noun} were saved. Save again to retry, or cancel and check the ${noun}.`
+      }
+      if (error.status === 409 && error.code === 'version_conflict') {
+        void refresh()
+        if (unconfirmed.current) {
+          return `This ${noun} has changed since you opened it, possibly because your earlier save went through. The latest version has been reloaded in the list. Compare it with your changes: if they are there, cancel; if not, choose Edit on the ${noun} again and redo them.`
+        }
+        return `This ${noun} changed after you opened it, so your changes were not saved. Choose Edit on the ${noun} again to load the latest version, then make your changes again.`
+      }
+      return error.message
+    },
+    [noun, refresh],
+  )
 }

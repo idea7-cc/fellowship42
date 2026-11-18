@@ -1,6 +1,11 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { SignInButton, SignOutButton } from '@/lib/auth-provider'
-import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { SignInButton, SignOutButton, useAuthState } from '@/lib/auth-provider'
+import {
+  ApiError,
+  apiRequest,
+  isTransientFailure,
+  useReconnectingQuery,
+} from '@/lib/api'
 import type {
   BootstrapResponse,
   BootstrapStatusResponse,
@@ -166,9 +171,32 @@ function BootstrapForm({ refetch }: { refetch: () => Promise<void> }) {
   )
 }
 
+/**
+ * Shown over working screens while the connection is down. The screens stay
+ * mounted, so typed input and a pending entry's retry key are kept.
+ */
+function ConnectionNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4"
+      role="status"
+    >
+      <div className="flex max-w-md flex-wrap items-center gap-2 rounded-md border border-border bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground shadow-md">
+        <span className="min-w-0 flex-1">
+          Connection lost. Retrying… Your work on this page is kept.
+        </span>
+        <Button onClick={onRetry} size="xs" variant="secondary">
+          Retry now
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function BootstrapGate({ children }: { children: ReactNode }) {
-  const { data, error, isLoading, refetch } =
-    useApiQuery<BootstrapStatusResponse>('/api/bootstrap')
+  const { data, error, isLoading, refetch, connectionLost } =
+    useReconnectingQuery<BootstrapStatusResponse>('/api/bootstrap')
+  const auth = useAuthState()
 
   if (isLoading && !data) {
     return (
@@ -182,7 +210,8 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
     )
   }
 
-  if (error || !data) {
+  // A transient failure after a successful load keeps the app mounted.
+  if (!data || (error && !isTransientFailure(error))) {
     return (
       <Page>
         <Card>
@@ -202,7 +231,19 @@ export function BootstrapGate({ children }: { children: ReactNode }) {
 
   if (data.state === 'configured') {
     // The church is ambient from here down; routes no longer carry it.
-    return <ChurchProvider instance={data.instance}>{children}</ChurchProvider>
+    return (
+      <ChurchProvider instance={data.instance}>
+        {children}
+        {connectionLost || auth.connectionLost ? (
+          <ConnectionNotice
+            onRetry={() => {
+              void refetch()
+              void auth.refetch()
+            }}
+          />
+        ) : null}
+      </ChurchProvider>
+    )
   }
 
   if (!data.ownerConfigured) {

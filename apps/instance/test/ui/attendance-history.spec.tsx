@@ -65,7 +65,12 @@ async function openRegister(attendance: SessionAttendance) {
     return Response.json({ sessions: [session] })
   })
   ui = await mountStaff(
-    <GroupSessionsPanel churchId="church" group={group} onClose={() => {}} />,
+    <GroupSessionsPanel
+      churchId="church"
+      group={group}
+      timeZone="America/Chicago"
+      onClose={() => {}}
+    />,
   )
   await ui.click(ui.button(/Past week/))
   return api

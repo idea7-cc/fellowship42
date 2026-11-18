@@ -8,7 +8,7 @@ import {
 
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { apiRequest, useApiQuery } from './api'
+import { apiRequest, isTransientFailure, useReconnectingQuery } from './api'
 import { useLocation } from 'react-router-dom'
 import type { SessionResponse, SessionUser } from './api-types'
 
@@ -16,6 +16,8 @@ interface AuthState {
   isSignedIn: boolean
   isLoading: boolean
   user: SessionUser | null
+  /** The session could not be refreshed; the last known user is kept. */
+  connectionLost: boolean
   refetch: () => Promise<void>
 }
 
@@ -25,19 +27,26 @@ const AuthStateContext = createContext<AuthState | null>(null)
  * An instance session or a configured Access adapter authenticates the request.
  * The session endpoint synchronizes that identity into D1 and returns scoped
  * church roles and permissions for the UI.
+ *
+ * A refresh that fails on the network or server keeps the last known user, so
+ * a dropped connection does not sign staff out of the screen they are using.
+ * A refusal (such as 401 or 403) does drop it.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, error, isLoading, refetch } =
-    useApiQuery<SessionResponse>('/api/session')
+  const { data, error, isLoading, refetch, connectionLost } =
+    useReconnectingQuery<SessionResponse>('/api/session')
+  const refused = Boolean(error && !isTransientFailure(error))
+  const user = refused ? null : (data?.user ?? null)
 
   const value = useMemo<AuthState>(
     () => ({
-      isSignedIn: Boolean(data?.user),
+      isSignedIn: Boolean(user),
       isLoading,
-      user: data?.user ?? null,
+      user,
+      connectionLost,
       refetch,
     }),
-    [data, isLoading, refetch],
+    [user, isLoading, connectionLost, refetch],
   )
 
   if (error && error.status >= 500) {

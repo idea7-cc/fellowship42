@@ -33,6 +33,7 @@ import { Tab, Tabs } from '@/components/ui/tabs'
 import { ChurchImagePicker } from '@/components/church-image-picker'
 import { days } from '@/components/church-site'
 import { DraftReview } from '@/components/draft-review'
+import { RequestError } from '@/components/request-error'
 import {
   WEBSITE_PREVIEW_NOTE_ID,
   WebsiteCard,
@@ -62,10 +63,10 @@ export function ChurchSettingsPage() {
       <PageShell>
         <PageHeader title="Church settings" />
         {query.error ? (
-          <>
-            <p role="alert">{query.error.message}</p>
-            <Button onClick={() => void query.refetch()}>Try again</Button>
-          </>
+          <RequestError
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
         ) : (
           <Skeleton className="h-96" />
         )}

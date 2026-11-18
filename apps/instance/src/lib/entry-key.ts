@@ -46,12 +46,14 @@ export interface EntryFailure {
 /**
  * Describes a failed create honestly. A network failure or server error does
  * not mean nothing was saved, so it says so and reassures that a retry of the
- * same entry is safe. It also asks open lists to refresh, so staff can see
- * whether the entry landed.
+ * same entry is safe. It refreshes the list the entry belongs to (`refresh`),
+ * so staff can see whether the entry landed, and nothing else: a refresh of
+ * the whole app on a connection that is still down would gain nothing.
  */
 export function describeEntryFailure(
   error: unknown,
   noun: string,
+  refresh: () => unknown,
   verb = 'saved',
 ): EntryFailure {
   if (error instanceof ApiError && error.status < 500) {
@@ -64,7 +66,7 @@ export function describeEntryFailure(
       keyConflict,
     }
   }
-  window.dispatchEvent(new CustomEvent('f42:invalidate'))
+  void refresh()
   return {
     message: `We could not confirm whether the ${noun} was ${verb}. Check the list, or submit again: this entry will not be ${verb} twice.`,
     uncertain: true,

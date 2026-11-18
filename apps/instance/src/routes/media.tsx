@@ -71,7 +71,9 @@ export function MediaPage() {
       formElement.reset()
       await mediaQuery.refetch()
     } catch (caught) {
-      setError(describeEntryFailure(caught, 'upload').message)
+      setError(
+        describeEntryFailure(caught, 'upload', mediaQuery.refetch).message,
+      )
     } finally {
       setUploading(false)
     }
@@ -219,7 +221,7 @@ export function MediaPage() {
               <p>Loading media…</p>
             ) : mediaQuery.error ? (
               <RequestError
-                message={mediaQuery.error.message}
+                error={mediaQuery.error}
                 onRetry={() => void mediaQuery.refetch()}
               />
             ) : (

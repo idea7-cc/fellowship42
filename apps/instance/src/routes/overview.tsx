@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RequestError } from '@/components/request-error'
 import { useApiQuery } from '@/lib/api'
 import { useChurch } from '@/lib/church-context'
 import type { Church, PublishedCounts, ServiceTime } from '@/lib/api-types'
@@ -52,7 +53,7 @@ export function OverviewPage() {
   const counts = countsQuery.data?.counts
   const countsLoading = countsQuery.isLoading
 
-  if (churchQuery.isLoading) {
+  if (churchQuery.isLoading && !church) {
     return (
       <PageShell>
         <Skeleton className="h-8 w-64" />
@@ -62,6 +63,17 @@ export function OverviewPage() {
             <Skeleton className="h-[5.25rem]" key={index} />
           ))}
         </MetricRow>
+      </PageShell>
+    )
+  }
+
+  if (churchQuery.error) {
+    return (
+      <PageShell>
+        <RequestError
+          error={churchQuery.error}
+          onRetry={() => void churchQuery.refetch()}
+        />
       </PageShell>
     )
   }

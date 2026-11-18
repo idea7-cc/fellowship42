@@ -29,7 +29,7 @@ interface Results<T> {
   nextCursor: string | null
   loading: boolean
   /** The cursor whose load failed (`null` for the first page). */
-  failed?: { cursor: string | null; message: string }
+  failed?: { cursor: string | null; error: Error }
 }
 
 /**
@@ -139,10 +139,10 @@ export function RecordCombobox<T>({
           loading: false,
           failed: {
             cursor,
-            message:
+            error:
               caught instanceof ApiError
-                ? caught.message
-                : `${label} options could not be loaded.`,
+                ? caught
+                : new Error(`${label} options could not be loaded.`),
           },
         }))
       }
@@ -335,7 +335,7 @@ export function RecordCombobox<T>({
               </p>
               {loaded?.failed ? (
                 <RequestError
-                  message={loaded.failed.message}
+                  error={loaded.failed.error}
                   onRetry={() => void load(loaded.failed!.cursor)}
                 />
               ) : loaded?.nextCursor && !loaded.loading ? (
