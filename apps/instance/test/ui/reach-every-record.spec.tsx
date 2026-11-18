@@ -238,6 +238,15 @@ describe('paged lists', () => {
     expect(latest).toContain('query=Donor+003')
     expect(latest).not.toContain('cursor=')
     expect(ui.text()).not.toContain('Page 2')
+
+    // Clearing the search is a new list too: it starts at page 1, not at the
+    // page the unfiltered list was on before.
+    await ui.type(search, '')
+    await ui.submit(search.form!)
+    const cleared = api.requests('GET', '/api/contributions/').at(-1)!.path
+    expect(cleared).not.toContain('cursor=')
+    expect(cleared).not.toContain('query=')
+    expect(ui.text()).toContain('Page 1')
   })
 
   it('shows a failed list load with a retry', async () => {

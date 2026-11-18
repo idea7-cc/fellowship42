@@ -16,7 +16,7 @@ export interface PagerState {
  * One page of a cursor-paged list endpoint. The cursor trail belongs to the
  * path and filters it was built for: changing a search or filter starts again
  * at the first page in the same render, so no request goes out with a cursor
- * from a different result set.
+ * from a different result set, and the old trail is discarded.
  */
 export function usePagedQuery<T extends { page?: CursorPage }>(
   path: string | null,
@@ -32,6 +32,9 @@ export function usePagedQuery<T extends { page?: CursorPage }>(
     key: string
     cursors: string[]
   }>({ key: listKey, cursors: [] })
+  // A different path or filter set drops the trail outright, so returning to
+  // earlier filters starts at page 1 rather than the page left behind.
+  if (trail.key !== listKey) setTrail({ key: listKey, cursors: [] })
   const cursors = trail.key === listKey ? trail.cursors : []
   const cursor = cursors.at(-1)
   if (cursor) params.set('cursor', cursor)
