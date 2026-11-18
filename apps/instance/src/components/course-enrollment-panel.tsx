@@ -7,7 +7,6 @@ import type {
   CourseEnrollment,
   CourseEnrollmentStatus,
   Group,
-  Person,
 } from '@/lib/api-types'
 import { StatusBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +21,12 @@ import { Field } from '@/components/ui/field'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tab, Tabs } from '@/components/ui/tabs'
+import {
+  PersonCombobox,
+  RecordCombobox,
+  type RecordChoice,
+} from '@/components/record-combobox'
+import { RequestError } from '@/components/request-error'
 
 const enrollmentStatuses: Array<{
   value: CourseEnrollmentStatus
@@ -52,19 +57,18 @@ export function CourseEnrollmentPanel({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [subject, setSubject] = useState<'person' | 'group'>('person')
+  const [choice, setChoice] = useState<RecordChoice | null>(null)
 
   const base = `/api/courses/${encodeURIComponent(churchId)}/${encodeURIComponent(courseId)}`
   const enrollmentQuery = useApiQuery<{ enrollments: CourseEnrollment[] }>(
     `${base}/enrollments`,
   )
-  const peopleQuery = useApiQuery<{ people: Person[] }>(
-    `/api/people/${encodeURIComponent(churchId)}?limit=100`,
-  )
-  const groupQuery = useApiQuery<{ groups: Group[] }>(
-    `/api/groups/${encodeURIComponent(churchId)}?limit=100`,
-  )
 
   const enrollments = enrollmentQuery.data?.enrollments ?? []
+  // Someone already enrolled has a status control on their row.
+  const enrolledIds = new Set(
+    enrollments.map((entry) => entry.personId ?? entry.groupId),
+  )
   const activeCount = enrollments.filter(
     (entry) => entry.status === 'active',
   ).length
@@ -95,8 +99,11 @@ export function CourseEnrollmentPanel({
     event.preventDefault()
     const formElement = event.currentTarget
     const form = new FormData(formElement)
-    const subjectId = String(form.get('subjectId') ?? '')
-    if (!subjectId) return
+    if (!choice) {
+      setError(`Choose a ${subject} to enroll.`)
+      return
+    }
+    const subjectId = choice.id
     const status = String(form.get('status') ?? 'invited')
     const saved = await run(() =>
       apiRequest(`${base}/enrollments`, {
@@ -108,7 +115,10 @@ export function CourseEnrollmentPanel({
         ),
       }),
     )
-    if (saved) formElement.reset()
+    if (saved) {
+      formElement.reset()
+      setChoice(null)
+    }
   }
 
   return (
@@ -136,6 +146,11 @@ export function CourseEnrollmentPanel({
           <Skeleton className="h-9" />
           <Skeleton className="h-9" />
         </div>
+      ) : enrollmentQuery.error && !enrollmentQuery.data ? (
+        <RequestError
+          message={enrollmentQuery.error.message}
+          onRetry={() => void enrollmentQuery.refetch()}
+        />
       ) : (
         <div className="grid gap-4">
           {enrollments.length ? (
@@ -235,43 +250,44 @@ export function CourseEnrollmentPanel({
             <Tabs
               className="mb-3"
               label="Enroll a person or a group"
-              onValueChange={(next) => setSubject(next as 'person' | 'group')}
+              onValueChange={(next) => {
+                setSubject(next as 'person' | 'group')
+                // A person cannot be submitted as a group, or the reverse.
+                setChoice(null)
+              }}
               value={subject}
             >
               <Tab value="person">Person</Tab>
               <Tab value="group">Group</Tab>
             </Tabs>
             <form className="flex flex-wrap items-end gap-2" onSubmit={enroll}>
-              <Field
-                className="min-w-48 flex-1"
-                label={subject === 'person' ? 'Person' : 'Group'}
-              >
-                {/* Remount on tab change so the previous selection cannot be submitted. */}
-                <Select
-                  defaultValue=""
-                  key={subject}
+              {subject === 'person' ? (
+                <PersonCombobox
+                  churchId={churchId}
+                  className="min-w-48 flex-1"
+                  isExcluded={(person) => enrolledIds.has(person.id)}
+                  label="Person"
                   name="subjectId"
+                  onChange={setChoice}
                   required
-                  selectSize="sm"
-                >
-                  <option disabled value="">
-                    {subject === 'person'
-                      ? 'Select a person'
-                      : 'Select a group'}
-                  </option>
-                  {subject === 'person'
-                    ? (peopleQuery.data?.people ?? []).map((person) => (
-                        <option key={person.id} value={person.id}>
-                          {person.firstName} {person.lastName}
-                        </option>
-                      ))
-                    : (groupQuery.data?.groups ?? []).map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.title}
-                        </option>
-                      ))}
-                </Select>
-              </Field>
+                  value={choice}
+                />
+              ) : (
+                <RecordCombobox<Group>
+                  className="min-w-48 flex-1"
+                  collection="groups"
+                  describe={(group) => group.schedule || undefined}
+                  isExcluded={(group) => enrolledIds.has(group.id)}
+                  label="Group"
+                  name="subjectId"
+                  onChange={setChoice}
+                  path={`/api/groups/${encodeURIComponent(churchId)}`}
+                  placeholder="Search groups"
+                  required
+                  toChoice={(group) => ({ id: group.id, label: group.title })}
+                  value={choice}
+                />
+              )}
               <Field className="w-36" label="Status">
                 <Select defaultValue="invited" name="status" selectSize="sm">
                   {enrollmentStatuses.map((status) => (

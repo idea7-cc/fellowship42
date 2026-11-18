@@ -118,6 +118,14 @@ export async function flush() {
   })
 }
 
+/** Lets a debounced search (such as a combobox's) fire, then settles. */
+export async function waitForSearch() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  })
+  await flush()
+}
+
 function NavigationProbe({
   onReady,
 }: {
@@ -254,6 +262,33 @@ export async function mountStaff(
         )
       })
       await flush()
+    },
+    /** The combobox input labelled `label`. */
+    combobox(label: string) {
+      const element = Array.from(container.querySelectorAll('label')).find(
+        (candidate) => candidate.textContent?.replace('*', '').trim() === label,
+      )
+      const input = element?.htmlFor
+        ? document.getElementById(element.htmlFor)
+        : null
+      if (!(input instanceof HTMLInputElement))
+        throw new Error(`No combobox ${label}`)
+      return input
+    },
+    options() {
+      return Array.from(
+        container.querySelectorAll<HTMLElement>('[role="option"]'),
+      )
+    },
+    /** Types a search into a combobox and picks the option with this text. */
+    async choose(label: string, search: string, optionText: string) {
+      await ui.type(ui.combobox(label), search)
+      await waitForSearch()
+      const option = ui
+        .options()
+        .find((candidate) => candidate.textContent?.includes(optionText))
+      if (!option) throw new Error(`No option ${optionText} for ${label}`)
+      await ui.click(option)
     },
     alert() {
       return container.querySelector('[role="alert"]')?.textContent ?? null

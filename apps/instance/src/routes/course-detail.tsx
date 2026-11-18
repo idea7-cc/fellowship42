@@ -3,6 +3,10 @@ import { useParams } from 'react-router-dom'
 import { PageShell } from '@/components/page-shell'
 import { PageHeader } from '@/components/page-header'
 import { CourseEnrollmentPanel } from '@/components/course-enrollment-panel'
+import {
+  PublicMediaCombobox,
+  type RecordChoice,
+} from '@/components/record-combobox'
 import { Section } from '@/components/section'
 import {
   Card,
@@ -19,12 +23,7 @@ import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
 import { describeSaveFailure, useRecordEditor } from '@/lib/record-editor'
-import type {
-  Church,
-  CourseDetailResponse,
-  Lesson,
-  MediaRecord,
-} from '@/lib/api-types'
+import type { Church, CourseDetailResponse, Lesson } from '@/lib/api-types'
 
 // Selects and textareas in this route share the one control treatment.
 const fieldClass = `${controlClass} min-h-9 px-3 py-1.5`
@@ -35,13 +34,11 @@ function can(permissions: string[], permission: string) {
 function LessonForm({
   courseId,
   lesson: record,
-  media,
   onCancel,
   onSaved,
 }: {
   courseId: string
   lesson: Lesson | null
-  media: MediaRecord[]
   onCancel: () => void
   onSaved: () => Promise<void>
 }) {
@@ -51,8 +48,11 @@ function LessonForm({
   // The lesson as shown when this editor opened; the save is checked against it.
   const [lesson] = useState(record)
   // Controlled, so the saved choice survives a media list that loads later.
-  const [mediaId, setMediaId] = useState(lesson?.mediaId ?? '')
-  const mediaOptions = media.filter((item) => item.visibility === 'public')
+  const [media, setMedia] = useState<RecordChoice | null>(
+    lesson?.mediaId
+      ? { id: lesson.mediaId, label: 'Current media file' }
+      : null,
+  )
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!churchId) return
@@ -129,28 +129,16 @@ function LessonForm({
                 defaultValue={lesson?.estimatedMinutes}
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Public media
-              <select
+            {churchId ? (
+              <PublicMediaCombobox
+                churchId={churchId}
+                label="Public media"
                 name="mediaId"
-                className={fieldClass}
-                value={mediaId}
-                onChange={(event) => setMediaId(event.target.value)}
-              >
-                <option value="">No media</option>
-                {lesson?.mediaId &&
-                !mediaOptions.some((item) => item.id === lesson.mediaId) ? (
-                  <option value={lesson.mediaId}>
-                    Current media ({lesson.mediaId})
-                  </option>
-                ) : null}
-                {mediaOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.altText || item.id} · {item.contentType}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={setMedia}
+                placeholder="No media · search by description"
+                value={media}
+              />
+            ) : null}
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input
                 name="required"
@@ -229,11 +217,6 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
       ? canWrite
         ? `/api/courses/${encodeURIComponent(churchId)}/${encodeURIComponent(slug)}`
         : `${publicBase}/courses/${encodeURIComponent(slug)}`
-      : null,
-  )
-  const mediaQuery = useApiQuery<{ media: MediaRecord[] }>(
-    churchId && canWrite
-      ? `/api/media/${encodeURIComponent(churchId)}?limit=100`
       : null,
   )
   const course = courseQuery.data?.course
@@ -330,7 +313,6 @@ function CourseDetail({ slug }: { slug: string | undefined }) {
                 lesson={
                   editorSession.value === 'new' ? null : editorSession.value
                 }
-                media={mediaQuery.data?.media ?? []}
                 onCancel={editor.close}
                 onSaved={async () => {
                   editor.closeIf(editorSession.key)

@@ -974,13 +974,12 @@ describe('editor fields that depend on later data', () => {
     })
     ui = await mountStaff(<SermonsPage />)
     await ui.click(ui.button('Edit'))
+    await ui.click(ui.combobox('Public audio'))
     api
       .held('GET', '/api/media/')
       .resolve(Response.json({ media: [audio('aud-1'), audio('aud-2')] }))
     await flushHeld()
-    expect(ui.field<HTMLSelectElement>('audioMediaId', ui.form()).value).toBe(
-      'aud-1',
-    )
+    expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-1')
     await ui.submit(ui.form())
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       audioMediaId: 'aud-1',
@@ -1000,9 +999,7 @@ describe('editor fields that depend on later data', () => {
     })
     ui = await mountStaff(<SermonsPage />)
     await ui.click(ui.button('Edit'))
-    expect(ui.field<HTMLSelectElement>('audioMediaId', ui.form()).value).toBe(
-      'aud-old',
-    )
+    expect(ui.field('audioMediaId', ui.form()).value).toBe('aud-old')
     await ui.submit(ui.form())
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       audioMediaId: 'aud-old',
@@ -1031,6 +1028,7 @@ describe('editor fields that depend on later data', () => {
       route: '/app/courses/:slug',
     })
     await ui.click(ui.button('Edit'))
+    await ui.click(ui.combobox('Public media'))
     api.held('GET', '/api/media/').resolve(
       Response.json({
         media: [
@@ -1040,9 +1038,7 @@ describe('editor fields that depend on later data', () => {
       }),
     )
     await flushHeld()
-    expect(
-      ui.field<HTMLSelectElement>('mediaId', ui.formWith('mediaId')).value,
-    ).toBe('doc-1')
+    expect(ui.field('mediaId', ui.formWith('mediaId')).value).toBe('doc-1')
     await ui.submit(ui.formWith('mediaId'))
     expect(api.requests('PATCH')[0]!.body).toMatchObject({ mediaId: 'doc-1' })
   })
@@ -1072,9 +1068,7 @@ describe('editor fields that depend on later data', () => {
       route: '/app/courses/:slug',
     })
     await ui.click(ui.button('Edit'))
-    expect(
-      ui.field<HTMLSelectElement>('mediaId', ui.formWith('mediaId')).value,
-    ).toBe('doc-old')
+    expect(ui.field('mediaId', ui.formWith('mediaId')).value).toBe('doc-old')
     await ui.submit(ui.formWith('mediaId'))
     expect(api.requests('PATCH')[0]!.body).toMatchObject({
       mediaId: 'doc-old',

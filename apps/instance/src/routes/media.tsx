@@ -12,7 +12,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ApiError, apiRequest, useApiQuery } from '@/lib/api'
+import { ApiError, apiRequest } from '@/lib/api'
+import { usePagedQuery } from '@/lib/paged-query'
+import { ListPager } from '@/components/list-pager'
+import { ListSearch } from '@/components/list-search'
+import { RequestError } from '@/components/request-error'
 import { describeEntryFailure, useEntryKey } from '@/lib/entry-key'
 import { useAuthState } from '@/lib/auth-provider'
 import { useChurch } from '@/lib/church-context'
@@ -29,10 +33,11 @@ export function MediaPage() {
     user?.memberships.find((entry) => entry.churchId === churchId)
       ?.permissions ?? []
   const canWrite = can(permissions, 'media.write')
-  const mediaQuery = useApiQuery<{ media: MediaRecord[]; page: CursorPage }>(
-    churchId && canWrite
-      ? `/api/media/${encodeURIComponent(churchId)}?limit=100`
-      : null,
+  const [appliedSearch, setAppliedSearch] = useState('')
+  const [visibility, setVisibility] = useState('')
+  const mediaQuery = usePagedQuery<{ media: MediaRecord[]; page: CursorPage }>(
+    churchId && canWrite ? `/api/media/${encodeURIComponent(churchId)}` : null,
+    { limit: 24, query: appliedSearch, visibility },
   )
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -197,8 +202,26 @@ export function MediaPage() {
                 </form>
               </CardContent>
             </Card>
+            <ListSearch
+              label="Search media descriptions"
+              onSearch={setAppliedSearch}
+              status={{
+                value: visibility,
+                onChange: setVisibility,
+                label: 'Visibility',
+                options: [
+                  { value: 'public', label: 'Public' },
+                  { value: 'private', label: 'Private' },
+                ],
+              }}
+            />
             {mediaQuery.isLoading ? (
               <p>Loading media…</p>
+            ) : mediaQuery.error ? (
+              <RequestError
+                message={mediaQuery.error.message}
+                onRetry={() => void mediaQuery.refetch()}
+              />
             ) : (
               <div className="grid gap-4">
                 {(mediaQuery.data?.media ?? []).map((media) => (
@@ -251,12 +274,15 @@ export function MediaPage() {
                 {!mediaQuery.data?.media.length ? (
                   <Card className="border-dashed">
                     <CardContent className="p-8 text-center text-muted-foreground">
-                      No media uploaded yet.
+                      {appliedSearch || visibility
+                        ? 'No media matches this search.'
+                        : 'No media uploaded yet.'}
                     </CardContent>
                   </Card>
                 ) : null}
               </div>
             )}
+            <ListPager label="Media pages" {...mediaQuery.pager} />
           </>
         )}
       </Section>
