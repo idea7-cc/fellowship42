@@ -20,6 +20,7 @@ import {
   otherActiveOwnerGuard,
   readTeam,
   resolveRoleIds,
+  revokePendingEnrollment,
   splitKeys,
   teamMutationEvidence,
 } from './shared'
@@ -274,6 +275,9 @@ teamMemberRoutes.patch('/:churchId/:membershipId', async (c) => {
       churchId,
       membershipId,
     ),
+    ...(nextStatus === 'suspended'
+      ? [revokePendingEnrollment(c.env.DB, churchId, membershipId, operationId)]
+      : []),
     ...(roleIds
       ? roleAssignments(
           c.env.DB,
@@ -356,6 +360,7 @@ teamMemberRoutes.delete('/:churchId/:membershipId', async (c) => {
           )
       `,
     ).bind(churchId, membershipId, churchId, membershipId, operationId),
+    revokePendingEnrollment(c.env.DB, churchId, membershipId, operationId),
     ...teamMutationEvidence(c.env.DB, {
       churchId,
       actorId: actor.id,

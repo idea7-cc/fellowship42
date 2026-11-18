@@ -219,6 +219,30 @@ export async function hasPendingOwner(
   return row !== null
 }
 
+/**
+ * Burns any unconsumed enrollment link for this membership's account when the
+ * membership operation wins. Removal and suspension end access; a later
+ * re-invitation or reinstatement must not revive a link issued before them.
+ */
+export function revokePendingEnrollment(
+  db: D1Database,
+  churchId: string,
+  membershipId: string,
+  operationId: string,
+) {
+  return db
+    .prepare(
+      `
+        DELETE FROM local_auth_enrollments
+        WHERE church_id = ? AND consumed_by IS NULL AND user_id = (
+          SELECT user_id FROM church_memberships
+          WHERE church_id = ? AND id = ? AND last_operation_id = ?
+        )
+      `,
+    )
+    .bind(churchId, churchId, membershipId, operationId)
+}
+
 /** Audit and outbox rows conditioned on the membership operation winning. */
 export function teamMutationEvidence(
   db: D1Database,

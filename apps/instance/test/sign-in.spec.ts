@@ -57,11 +57,12 @@ async function request(
   body?: unknown,
   session = '',
   requestOrigin: string | undefined = origin,
+  method = body === undefined ? 'GET' : 'POST',
 ) {
   const ctx = createExecutionContext()
   const response = await worker.fetch(
     new Request(origin + path, {
-      method: body === undefined ? 'GET' : 'POST',
+      method,
       headers: {
         'content-type': 'application/json',
         ...(session ? { cookie: session } : {}),
@@ -115,10 +116,10 @@ beforeEach(async () => {
     ),
   ])
 })
-async function invite() {
+async function invite(version = 1) {
   const response = await request(
     `/api/auth/invitations/church_demo/${memberId}`,
-    { version: 1 },
+    { version },
     ownerCookie,
   )
   expect(response.status).toBe(200)
@@ -371,6 +372,40 @@ it('rejects revoked invitations, stale issuing versions, and non-owner issuance 
       .bind(userId)
       .first(),
   ).toBeNull()
+})
+it('revokes a pending enrollment link when the member is removed or suspended', async () => {
+  const team = (path: string, method: string, body: unknown) =>
+    request(`/api/team/church_demo${path}`, body, ownerCookie, origin, method)
+  const removedLink = await invite()
+  expect((await team(`/${memberId}`, 'DELETE', { version: 1 })).status).toBe(
+    204,
+  )
+  expect(
+    (
+      await team('/invitations', 'POST', {
+        email,
+        roleKeys: ['member'],
+      })
+    ).status,
+  ).toBe(201)
+  expect(
+    (await request('/api/auth/enroll/start', { token: removedLink })).status,
+  ).toBe(400)
+
+  const suspendedLink = await invite(3)
+  expect(
+    (await team(`/${memberId}`, 'PATCH', { version: 3, status: 'suspended' }))
+      .status,
+  ).toBe(200)
+  expect(
+    (await team(`/${memberId}`, 'PATCH', { version: 4, status: 'active' }))
+      .status,
+  ).toBe(200)
+  expect(
+    (await request('/api/auth/enroll/start', { token: suspendedLink })).status,
+  ).toBe(400)
+  // A fresh link still works for the reinstated member.
+  expect((await enroll(await invite(5))).response.status).toBe(200)
 })
 it('requires user verification and rejects forged origin, signature and challenge', async () => {
   const value = await invite()
