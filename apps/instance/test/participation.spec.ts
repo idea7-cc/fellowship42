@@ -215,7 +215,7 @@ describe('group rosters', () => {
     const removedLeader = await request(
       'DELETE',
       `/api/groups/church_demo/${groupId}/leaders/${bob}`,
-      { version: 1 },
+      { version: leaderRoster.leaders[0].version },
     )
     expect((await removedLeader.json<GroupRoster>()).leaders).toHaveLength(0)
   })
@@ -728,6 +728,36 @@ describe('participation concurrency regressions', () => {
       version: 2,
       notes: 'Keep',
     })
+  })
+
+  it('rejects a stale roster or leader write after the person is removed and re-added', async () => {
+    const groupId = await createGroup('Readded Roster', 'readded-roster')
+    const personId = await createPerson('Readded', 'Member')
+    const roster = async () =>
+      (
+        await request('GET', `/api/groups/church_demo/${groupId}/roster`)
+      ).json<GroupRoster>()
+    for (const kind of ['members', 'leaders'] as const) {
+      const path = `/api/groups/church_demo/${groupId}/${kind}/${personId}`
+      expect((await request('PUT', path, {})).status).toBe(200)
+      const stale = (await roster())[kind][0].version
+      expect((await request('DELETE', path, { version: stale })).status).toBe(
+        200,
+      )
+      expect((await request('PUT', path, {})).status).toBe(200)
+      const replacement = (await roster())[kind][0]
+      expect(replacement.version).not.toBe(stale)
+
+      const staleEdit =
+        kind === 'members'
+          ? { version: stale, status: 'paused' }
+          : { version: stale, role: 'host' }
+      expect((await request('PUT', path, staleEdit)).status).toBe(409)
+      expect((await request('DELETE', path, { version: stale })).status).toBe(
+        409,
+      )
+      expect((await roster())[kind][0]).toEqual(replacement)
+    }
   })
 
   it('keeps a session with recorded attendance and points staff to cancelling it', async () => {

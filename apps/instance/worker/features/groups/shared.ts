@@ -30,7 +30,11 @@ export async function findGroup(
   return row
 }
 
-/** Stamps the group so `mutationEvidence` can attach audit and outbox rows. */
+/**
+ * Stamps the group so `mutationEvidence` can attach audit and outbox rows.
+ * Roster and leader writes pass `roster: true` to advance the group's roster
+ * sequence, which numbers re-added rows (see `nextRosterVersion`).
+ */
 export function touchGroup(
   db: D1Database,
   churchId: string,
@@ -39,16 +43,27 @@ export function touchGroup(
   operationId: string,
   condition = '1 = 1',
   bindings: (string | number | null)[] = [],
+  { roster = false }: { roster?: boolean } = {},
 ) {
   return db
     .prepare(
       `
         UPDATE groups SET updated_at = ?, last_operation_id = ?
+          ${roster ? ', roster_sequence = roster_sequence + 1' : ''}
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL AND (${condition})
       `,
     )
     .bind(now, operationId, churchId, groupId, ...bindings)
 }
+
+/**
+ * SQL for the version of a newly inserted roster or leader row; binds
+ * churchId and groupId. Every roster write advances the sequence and every
+ * edit advances a row's version by one, so a row's version never exceeds the
+ * sequence. A re-added row therefore starts above any version a stale tab
+ * could hold for the row it replaces.
+ */
+export const nextRosterVersion = `(SELECT roster_sequence FROM groups WHERE church_id = ? AND id = ?)`
 
 export function requireParticipationChange(results: D1Result[]) {
   if (results[0]?.meta.changes !== 1) {

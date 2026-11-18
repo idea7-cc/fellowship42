@@ -12,6 +12,7 @@ import {
 import {
   type AppEnv,
   findGroup,
+  nextRosterVersion,
   touchGroup,
   requireParticipationChange,
 } from './shared'
@@ -177,14 +178,15 @@ groupRosterRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
         parsed.data.status,
         personId,
       ],
+      { roster: true },
     ),
     c.env.DB.prepare(
       `
           INSERT INTO group_memberships (
             id, church_id, group_id, person_id, status, joined_at, notes,
-            created_at, updated_at
+            created_at, updated_at, version
           )
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ${nextRosterVersion}
           WHERE EXISTS (
             SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
@@ -205,6 +207,8 @@ groupRosterRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
       parsed.data.notes,
       now,
       now,
+      churchId,
+      groupId,
       churchId,
       groupId,
       operationId,
@@ -247,6 +251,7 @@ groupRosterRoutes.delete('/:churchId/:groupId/members/:personId', async (c) => {
       operationId,
       `COALESCE((SELECT version FROM group_memberships WHERE church_id = ? AND group_id = ? AND person_id = ?), 0) = ? AND (1 = 1)`,
       [churchId, groupId, personId, parsed.data.version],
+      { roster: true },
     ),
     c.env.DB.prepare(
       `DELETE FROM group_memberships WHERE church_id = ? AND group_id = ? AND person_id = ?
@@ -291,11 +296,12 @@ groupRosterRoutes.put('/:churchId/:groupId/leaders/:personId', async (c) => {
       operationId,
       `COALESCE((SELECT version FROM group_leaders WHERE church_id = ? AND group_id = ? AND person_id = ?), 0) = ? AND (EXISTS (SELECT 1 FROM people WHERE church_id = ? AND id = ? AND deleted_at IS NULL))`,
       [churchId, groupId, personId, parsed.data.version, churchId, personId],
+      { roster: true },
     ),
     c.env.DB.prepare(
       `
-          INSERT INTO group_leaders (church_id, group_id, person_id, role, created_at)
-          SELECT ?, ?, ?, ?, ?
+          INSERT INTO group_leaders (church_id, group_id, person_id, role, created_at, version)
+          SELECT ?, ?, ?, ?, ?, ${nextRosterVersion}
           WHERE EXISTS (
             SELECT 1 FROM groups WHERE church_id = ? AND id = ? AND last_operation_id = ?
           )
@@ -307,6 +313,8 @@ groupRosterRoutes.put('/:churchId/:groupId/leaders/:personId', async (c) => {
       personId,
       parsed.data.role,
       now,
+      churchId,
+      groupId,
       churchId,
       groupId,
       operationId,
@@ -349,6 +357,7 @@ groupRosterRoutes.delete('/:churchId/:groupId/leaders/:personId', async (c) => {
       operationId,
       `COALESCE((SELECT version FROM group_leaders WHERE church_id = ? AND group_id = ? AND person_id = ?), 0) = ? AND (1 = 1)`,
       [churchId, groupId, personId, parsed.data.version],
+      { roster: true },
     ),
     c.env.DB.prepare(
       `DELETE FROM group_leaders WHERE church_id = ? AND group_id = ? AND person_id = ?
