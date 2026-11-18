@@ -165,10 +165,15 @@ export function ChurchSettingsEditor({
       !window.confirm('Publish this page and its selected images?')
     )
       return
+    // With a connected website, unpublishing withdraws only the church
+    // information served through the website contract; the website's own
+    // pages and articles stay public.
     if (
       action === 'unpublish' &&
       !window.confirm(
-        'Take the church website offline? Your content will be kept.',
+        hasWebsite
+          ? 'Unpublish church information? The church details, service times, events, sermons, groups and courses will no longer be served to the connected website. Its own pages and articles stay public. Your content will be kept.'
+          : 'Take the church website offline? Your content will be kept.',
       )
     )
       return
@@ -194,7 +199,9 @@ export function ChurchSettingsEditor({
             ? 'Previous draft restored'
             : action === 'publish'
               ? 'Website published'
-              : 'Website unpublished',
+              : hasWebsite
+                ? 'Church information unpublished; website pages and articles remain public'
+                : 'Website unpublished',
       )
       window.dispatchEvent(new CustomEvent('f42:invalidate'))
     } catch (reason) {
@@ -679,7 +686,7 @@ export function ChurchSettingsEditor({
                 disabled={busy !== null || dirty || conflict}
                 onClick={() => void mutate('unpublish')}
               >
-                Unpublish
+                {hasWebsite ? 'Unpublish church information' : 'Unpublish'}
               </Button>
             )}
             <Button
