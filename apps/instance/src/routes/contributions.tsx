@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { apiRequest, useApiQuery } from '@/lib/api'
 import { formatInTimeZone, fromZonedInputValue } from '@/lib/time-zone'
+import { formatMoney, parseAmount } from '@/lib/money'
 import { usePagedQuery } from '@/lib/paged-query'
 import { ListPager } from '@/components/list-pager'
 import { ListSearch } from '@/components/list-search'
@@ -37,43 +38,6 @@ const contributionStatuses = [
   { value: 'refunded', label: 'Refunded' },
   { value: 'failed', label: 'Failed' },
 ]
-
-/** Decimal places of a currency's amounts, or undefined for an unknown code. */
-function currencyDigits(currency: string) {
-  try {
-    return (
-      new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency,
-      }).resolvedOptions().maximumFractionDigits ?? 2
-    )
-  } catch {
-    return undefined
-  }
-}
-
-function formatMoney(amountMinor: number, currency: string) {
-  const digits = currencyDigits(currency)
-  if (digits === undefined) return `${amountMinor} ${currency}`
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(amountMinor / 10 ** digits)
-}
-
-/**
- * Staff type an amount as written (25.00); the API stores it in the
- * currency's smallest unit (2500 cents). Undefined when it cannot be stored.
- */
-function toMinorUnits(amount: string, currency: string) {
-  const digits = currencyDigits(currency)
-  const value = Number(amount)
-  if (digits === undefined || !Number.isFinite(value)) return undefined
-  const minor = Math.round(value * 10 ** digits)
-  return minor >= 1 && Math.abs(minor - value * 10 ** digits) < 1e-6
-    ? minor
-    : undefined
-}
 
 export function ContributionsPage() {
   const { churchId } = useChurch()
@@ -114,18 +78,16 @@ export function ContributionsPage() {
     const currency = String(form.get('currency') ?? 'USD')
       .trim()
       .toUpperCase()
-    const amountMinor = toMinorUnits(String(form.get('amount') ?? ''), currency)
-    if (amountMinor === undefined) {
+    const amount = parseAmount(String(form.get('amount') ?? ''), currency)
+    if (!amount.ok) {
       setError({
-        message:
-          currencyDigits(currency) === undefined
-            ? 'Enter a three-letter currency code, such as USD.'
-            : `Enter an amount above zero with no more decimal places than ${currency} uses.`,
+        message: amount.message,
         uncertain: false,
         keyConflict: false,
       })
       return
     }
+    const { amountMinor } = amount
     setSaving(true)
     setError(null)
     setNotice(null)
