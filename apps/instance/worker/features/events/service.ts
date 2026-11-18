@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { eventCreateInput } from '../../../contracts/events'
 import { AppError } from '../../lib/errors'
 import {
@@ -7,7 +8,19 @@ import {
 } from '../../lib/content'
 import { mapEvent } from '../../lib/records'
 import { membershipPermissionGate } from '../../lib/permission-gate'
+import {
+  commitOnce,
+  findReplay,
+  type IdempotencyClaim,
+} from '../../lib/idempotency'
 import { findEvent, validateTimezone } from './read'
+
+const createdEvent = z.object({ eventId: z.string() })
+
+/**
+ * Creates an event for staff or an agent. Agents dedupe by `requestKey`;
+ * staff entry forms pass an `Idempotency-Key` claim.
+ */
 export async function createEvent(
   db: D1Database,
   churchId: string,
@@ -19,6 +32,7 @@ export async function createEvent(
   },
   input: unknown,
   requestKey?: string,
+  claim: IdempotencyClaim | null = null,
 ) {
   const parsed = eventCreateInput.safeParse(input)
   if (!parsed.success) throw validationError(parsed.error)
@@ -86,93 +100,106 @@ export async function createEvent(
     )
   const previous = await prior()
   if (previous) return previous
+  const replayed = async (eventId: string) => ({
+    event: mapEvent(await findEvent(db, churchId, eventId)),
+    replayed: true,
+  })
+  const replay = claim && (await findReplay(db, claim, createdEvent))
+  if (replay) return replayed(replay.eventId)
   const eventId = `event_${crypto.randomUUID()}`,
     operationId = crypto.randomUUID(),
     now = Date.now()
   try {
-    const result = await db.batch([
-      db
-        .prepare(
-          `INSERT INTO events (id,church_id,slug,title,status,summary,starts_at,ends_at,timezone,location,registration_url,capacity,featured,version,created_at,updated_at,last_operation_id)
+    const committed = await commitOnce(db, claim, {
+      outcome: { eventId },
+      outcomeSchema: createdEvent,
+      proof: { table: 'events', churchId, id: eventId },
+      now,
+      statements: [
+        db
+          .prepare(
+            `INSERT INTO events (id,church_id,slug,title,status,summary,starts_at,ends_at,timezone,location,registration_url,capacity,featured,version,created_at,updated_at,last_operation_id)
       SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?,? WHERE ${membershipPermissionGate('?', 'events.write')}
       AND EXISTS (SELECT 1 FROM instance_metadata i JOIN churches c ON c.id=i.primary_church_id WHERE i.singleton=1 AND c.id=? AND c.deleted_at IS NULL)
       AND (? IS NULL OR EXISTS (SELECT 1 FROM agent_connections ac WHERE ac.id=? AND ac.church_id=? AND ac.user_id=? AND ac.client_id=? AND ac.revoked_at IS NULL AND ac.expires_at>? AND EXISTS (SELECT 1 FROM json_each(ac.scopes_json) WHERE value='events:write')))
       AND (? IS NULL OR NOT EXISTS (SELECT 1 FROM agent_event_creations WHERE church_id=? AND connection_id=? AND request_key=?))
       AND (? IS NULL OR (SELECT count(*) FROM agent_event_creations WHERE church_id=? AND connection_id=?) < 100)`,
-        )
-        .bind(
-          eventId,
+          )
+          .bind(
+            eventId,
+            churchId,
+            data.slug,
+            data.title,
+            data.status,
+            data.summary,
+            data.startsAt,
+            data.endsAt,
+            data.timezone,
+            data.location,
+            data.registrationUrl,
+            data.capacity,
+            Number(data.featured),
+            now,
+            now,
+            operationId,
+            churchId,
+            actor.userId,
+            churchId,
+            actor.connectionId ?? null,
+            actor.connectionId ?? null,
+            churchId,
+            actor.userId,
+            actor.clientId ?? null,
+            now,
+            actor.connectionId ?? null,
+            churchId,
+            actor.connectionId ?? null,
+            requestKey ?? null,
+            actor.connectionId ?? null,
+            churchId,
+            actor.connectionId ?? null,
+          ),
+        ...mutationEvidence(db, {
           churchId,
-          data.slug,
-          data.title,
-          data.status,
-          data.summary,
-          data.startsAt,
-          data.endsAt,
-          data.timezone,
-          data.location,
-          data.registrationUrl,
-          data.capacity,
-          Number(data.featured),
-          now,
-          now,
+          actorId: actor.userId,
+          requestId: actor.requestId,
+          entityType: 'event',
+          entityId: eventId,
+          eventName: 'events.created',
           operationId,
-          churchId,
-          actor.userId,
-          churchId,
-          actor.connectionId ?? null,
-          actor.connectionId ?? null,
-          churchId,
-          actor.userId,
-          actor.clientId ?? null,
+          table: 'events',
           now,
-          actor.connectionId ?? null,
-          churchId,
-          actor.connectionId ?? null,
-          requestKey ?? null,
-          actor.connectionId ?? null,
-          churchId,
-          actor.connectionId ?? null,
-        ),
-      ...mutationEvidence(db, {
-        churchId,
-        actorId: actor.userId,
-        requestId: actor.requestId,
-        entityType: 'event',
-        entityId: eventId,
-        eventName: 'events.created',
-        operationId,
-        table: 'events',
-        now,
-        metadata: {
-          status: data.status,
-          startsAt: data.startsAt,
-          ...(actor.connectionId
-            ? { connectionId: actor.connectionId, clientId: actor.clientId }
-            : {}),
-        },
-      }),
-      ...(actor.connectionId
-        ? [
-            db
-              .prepare(
-                `INSERT INTO agent_event_creations(church_id,connection_id,request_key,input_hash,event_id,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM events WHERE church_id=? AND id=? AND last_operation_id=?)`,
-              )
-              .bind(
-                churchId,
-                actor.connectionId,
-                requestKey!,
-                hash,
-                eventId,
-                now,
-                churchId,
-                eventId,
-                operationId,
-              ),
-          ]
-        : []),
-    ])
-    if (result[0].meta.changes !== 1) {
+          metadata: {
+            status: data.status,
+            startsAt: data.startsAt,
+            ...(actor.connectionId
+              ? { connectionId: actor.connectionId, clientId: actor.clientId }
+              : {}),
+          },
+        }),
+        ...(actor.connectionId
+          ? [
+              db
+                .prepare(
+                  `INSERT INTO agent_event_creations(church_id,connection_id,request_key,input_hash,event_id,created_at) SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM events WHERE church_id=? AND id=? AND last_operation_id=?)`,
+                )
+                .bind(
+                  churchId,
+                  actor.connectionId,
+                  requestKey!,
+                  hash,
+                  eventId,
+                  now,
+                  churchId,
+                  eventId,
+                  operationId,
+                ),
+            ]
+          : []),
+      ],
+    })
+    if (committed.replayed) return replayed(committed.outcome.eventId)
+    if (committed.results[0].meta.changes !== 1) {
       const retry = await prior()
       if (retry) return retry
       if (actor.connectionId) {

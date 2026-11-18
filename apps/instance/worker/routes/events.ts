@@ -1,4 +1,9 @@
-import { eventListInput, eventUpdateInput } from '../../contracts/events'
+import {
+  eventCreateInput,
+  eventListInput,
+  eventUpdateInput,
+} from '../../contracts/events'
+import type { CreateOutcome, EventRecord } from '../../contracts/api'
 import {
   findEvent,
   listEvents,
@@ -16,6 +21,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { idempotencyClaim } from '../lib/idempotency'
 import { mapEvent } from '../lib/records'
 
 type AppEnv = {
@@ -38,14 +44,44 @@ eventRoutes.get('/:churchId', async (c) => {
 eventRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'events.write')
+  const body = await jsonBody(c)
+  const parsed = eventCreateInput.safeParse(body)
+  if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'events:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.slug,
+      parsed.data.title,
+      parsed.data.status,
+      parsed.data.summary,
+      parsed.data.startsAt,
+      parsed.data.endsAt,
+      parsed.data.timezone,
+      parsed.data.location,
+      parsed.data.registrationUrl,
+      parsed.data.capacity,
+      parsed.data.featured,
+    ],
+  })
   const result = await createEvent(
     c.env.DB,
     churchId,
     { userId: actor.id, requestId: c.get('requestId') },
-    await jsonBody(c),
+    body,
+    undefined,
+    claim,
   )
-  broadcastContent(c, churchId, 'event', result.event.id, 'created')
-  return c.json({ event: result.event }, 201)
+  if (!result.replayed)
+    broadcastContent(c, churchId, 'event', result.event.id, 'created')
+  return c.json(
+    {
+      event: result.event,
+      replayed: result.replayed,
+    } satisfies { event: EventRecord } & CreateOutcome,
+    201,
+  )
 })
 
 eventRoutes.get('/:churchId/:eventId', async (c) => {

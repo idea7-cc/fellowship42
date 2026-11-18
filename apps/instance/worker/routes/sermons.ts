@@ -1,5 +1,6 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
+import type { CreateOutcome, Sermon } from '../../contracts/api'
 import { requirePermission } from '../lib/auth'
 import {
   broadcastContent,
@@ -13,6 +14,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import { mapSermon, type SermonRow } from '../lib/records'
 
 type AppEnv = {
@@ -204,11 +206,47 @@ sermonRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdSermon = z.object({ sermonId: z.string() })
+
+async function respondWithSermon(
+  c: Context<AppEnv>,
+  churchId: string,
+  sermonId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      sermon: mapSermon(await findSermon(c.env.DB, churchId, sermonId)),
+      replayed,
+    } satisfies { sermon: Sermon } & CreateOutcome,
+    201,
+  )
+}
+
 sermonRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'sermons.write')
   const parsed = sermonCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'sermons:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.slug,
+      parsed.data.title,
+      parsed.data.status,
+      parsed.data.speaker,
+      parsed.data.series,
+      parsed.data.summary,
+      parsed.data.videoUrl,
+      parsed.data.audioMediaId,
+      parsed.data.preachedAt,
+      parsed.data.featured,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdSermon))
+  if (replay) return respondWithSermon(c, churchId, replay.sermonId, true)
   await requireAudioMedia(
     c.env.DB,
     churchId,
@@ -218,11 +256,16 @@ sermonRoutes.post('/:churchId', async (c) => {
   const sermonId = `sermon_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
-  let results: D1Result[]
+  let committed
   try {
-    results = await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { sermonId },
+      outcomeSchema: createdSermon,
+      proof: { table: 'sermons', churchId, id: sermonId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
           INSERT INTO sermons (
             id, church_id, slug, title, status, speaker, series, summary,
             video_url, audio_media_id, preached_at, featured,
@@ -230,43 +273,44 @@ sermonRoutes.post('/:churchId', async (c) => {
           ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?
           WHERE ${audioEligible}
         `,
-      ).bind(
-        sermonId,
-        churchId,
-        parsed.data.slug,
-        parsed.data.title,
-        parsed.data.status,
-        parsed.data.speaker,
-        parsed.data.series,
-        parsed.data.summary,
-        parsed.data.videoUrl,
-        parsed.data.audioMediaId,
-        parsed.data.preachedAt,
-        parsed.data.featured ? 1 : 0,
-        now,
-        now,
-        operationId,
-        parsed.data.audioMediaId,
-        churchId,
-        parsed.data.audioMediaId,
-        parsed.data.status,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'sermon',
-        entityId: sermonId,
-        eventName: 'sermons.created',
-        operationId,
-        table: 'sermons',
-        now,
-        metadata: {
-          status: parsed.data.status,
-          preachedAt: parsed.data.preachedAt,
-        },
-      }),
-    ])
+        ).bind(
+          sermonId,
+          churchId,
+          parsed.data.slug,
+          parsed.data.title,
+          parsed.data.status,
+          parsed.data.speaker,
+          parsed.data.series,
+          parsed.data.summary,
+          parsed.data.videoUrl,
+          parsed.data.audioMediaId,
+          parsed.data.preachedAt,
+          parsed.data.featured ? 1 : 0,
+          now,
+          now,
+          operationId,
+          parsed.data.audioMediaId,
+          churchId,
+          parsed.data.audioMediaId,
+          parsed.data.status,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'sermon',
+          entityId: sermonId,
+          eventName: 'sermons.created',
+          operationId,
+          table: 'sermons',
+          now,
+          metadata: {
+            status: parsed.data.status,
+            preachedAt: parsed.data.preachedAt,
+          },
+        }),
+      ],
+    })
   } catch (error) {
     if (isSlugConflict(error, 'sermons')) {
       throw new AppError(
@@ -277,7 +321,10 @@ sermonRoutes.post('/:churchId', async (c) => {
     }
     throw error
   }
-  if ((results[0]?.meta.changes ?? 0) !== 1) {
+  if (committed.replayed) {
+    return respondWithSermon(c, churchId, committed.outcome.sermonId, true)
+  }
+  if ((committed.results[0]?.meta.changes ?? 0) !== 1) {
     // The audio changed after it was checked; report what is wrong with it now.
     await requireAudioMedia(
       c.env.DB,
@@ -292,10 +339,7 @@ sermonRoutes.post('/:churchId', async (c) => {
     )
   }
   broadcastContent(c, churchId, 'sermon', sermonId, 'created')
-  return c.json(
-    { sermon: mapSermon(await findSermon(c.env.DB, churchId, sermonId)) },
-    201,
-  )
+  return respondWithSermon(c, churchId, sermonId, false)
 })
 
 sermonRoutes.get('/:churchId/:sermonId', async (c) => {

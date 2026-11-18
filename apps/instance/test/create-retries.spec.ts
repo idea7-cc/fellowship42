@@ -12,10 +12,13 @@ import type {
 import type { AccessIdentity } from '../worker/lib/auth'
 import { AppError } from '../worker/lib/errors'
 import { contributionRoutes } from '../worker/routes/contributions'
+import { courseRoutes } from '../worker/routes/courses'
+import { eventRoutes } from '../worker/routes/events'
 import { groupRoutes } from '../worker/routes/groups'
 import { householdRoutes } from '../worker/routes/households'
 import { mediaManagementRoutes } from '../worker/routes/media'
 import { peopleRoutes } from '../worker/routes/people'
+import { sermonRoutes } from '../worker/routes/sermons'
 
 /*
  * A create whose response is lost leaves the client unsure whether it was
@@ -67,6 +70,9 @@ app.route('/api/people', peopleRoutes)
 app.route('/api/households', householdRoutes)
 app.route('/api/groups', groupRoutes)
 app.route('/api/media', mediaManagementRoutes)
+app.route('/api/courses', courseRoutes)
+app.route('/api/events', eventRoutes)
+app.route('/api/sermons', sermonRoutes)
 
 async function post(path: string, body: unknown, key?: string) {
   return app.fetch(
@@ -515,6 +521,119 @@ describe('group session create retries', () => {
         otherId,
       ),
     ).toBe(0)
+  })
+})
+
+describe('slug-keyed create retries', () => {
+  const creates = [
+    {
+      kind: 'group',
+      table: 'groups',
+      action: 'groups.created',
+      body: (slug: string) => ({ slug, title: 'Retry', groupType: 'small' }),
+    },
+    {
+      kind: 'course',
+      table: 'courses',
+      action: 'courses.created',
+      body: (slug: string) => ({
+        slug,
+        title: 'Retry',
+        courseType: 'formation',
+        deliveryMode: 'cohort',
+      }),
+    },
+    {
+      kind: 'sermon',
+      table: 'sermons',
+      action: 'sermons.created',
+      body: (slug: string) => ({
+        slug,
+        title: 'Retry',
+        speaker: 'Jordan Lee',
+        preachedAt: Date.UTC(2026, 8, 20, 12),
+      }),
+    },
+    {
+      kind: 'event',
+      table: 'events',
+      action: 'events.created',
+      body: (slug: string) => ({
+        slug,
+        title: 'Retry',
+        startsAt: Date.UTC(2027, 0, 10, 18),
+        timezone: 'America/New_York',
+      }),
+    },
+  ] as const
+
+  it('returns the original record when a create is retried after it succeeded', async () => {
+    for (const create of creates) {
+      const path = `/api/${create.table}/church_demo`
+      const slug = `retry-${create.kind}`
+      const key = `entry-${create.kind}-01`
+      const first = await post(path, create.body(slug), key)
+      expect(first.status).toBe(201)
+      const created = (await first.json<Record<string, { id: string }>>())[
+        create.kind
+      ]
+      const retried = await post(path, create.body(slug), key)
+      expect(retried.status).toBe(201)
+      const replay = await retried.json<
+        Record<string, { id: string }> & { replayed: boolean }
+      >()
+      expect(replay.replayed).toBe(true)
+      expect(replay[create.kind].id).toBe(created.id)
+      expect(await evidenceCount(create.action, created.id)).toEqual({
+        audit: 1,
+        outbox: 1,
+      })
+
+      const changed = await post(
+        path,
+        { ...create.body(slug), title: 'Changed' },
+        key,
+      )
+      expect(changed.status).toBe(409)
+      expect(
+        (await changed.json<{ error: { code: string } }>()).error.code,
+      ).toBe('idempotency_key_conflict')
+      // Without a key, the same slug is still a conflict, not a duplicate.
+      const unkeyed = await post(path, create.body(slug))
+      expect(unkeyed.status).toBe(409)
+      expect(
+        (await unkeyed.json<{ error: { code: string } }>()).error.code,
+      ).toBe(`${create.kind}_slug_exists`)
+      expect(
+        await count(
+          `SELECT COUNT(*) AS total FROM ${create.table} WHERE slug = ?`,
+          slug,
+        ),
+      ).toBe(1)
+    }
+  })
+
+  it('creates one record when twin attempts race with the same key', async () => {
+    for (const create of creates) {
+      const path = `/api/${create.table}/church_demo`
+      const slug = `twin-${create.kind}`
+      const key = `entry-${create.kind}-twin`
+      const replies = await Promise.all([
+        post(path, create.body(slug), key),
+        post(path, create.body(slug), key),
+      ])
+      expect(replies.map((reply) => reply.status)).toEqual([201, 201])
+      const bodies = await Promise.all(
+        replies.map((reply) =>
+          reply.json<Record<string, { id: string }> & { replayed: boolean }>(),
+        ),
+      )
+      expect(bodies[0][create.kind].id).toBe(bodies[1][create.kind].id)
+      expect(bodies.map((body) => body.replayed).sort()).toEqual([false, true])
+      expect(
+        await evidenceCount(create.action, bodies[0][create.kind].id),
+      ).toEqual({ audit: 1, outbox: 1 })
+    }
   })
 })
 

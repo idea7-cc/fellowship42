@@ -1,5 +1,6 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
+import type { CourseDetailResponse, CreateOutcome } from '../../contracts/api'
 import { requirePermission } from '../lib/auth'
 import {
   broadcastContent,
@@ -13,6 +14,7 @@ import {
   versionInputSchema,
 } from '../lib/content'
 import { AppError } from '../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../lib/idempotency'
 import {
   mapCourse,
   mapCourseEnrollment,
@@ -346,56 +348,101 @@ courseRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdCourse = z.object({ courseId: z.string() })
+
+async function respondWithCourse(
+  c: Context<AppEnv>,
+  churchId: string,
+  courseId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      course: mapCourse(await findCourse(c.env.DB, churchId, courseId)),
+      lessons: await lessonsFor(c.env.DB, churchId, courseId),
+      replayed,
+    } satisfies CourseDetailResponse & CreateOutcome,
+    201,
+  )
+}
+
 courseRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'courses.write')
   const parsed = courseCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'courses:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.ministryId,
+      parsed.data.slug,
+      parsed.data.title,
+      parsed.data.status,
+      parsed.data.courseType,
+      parsed.data.deliveryMode,
+      parsed.data.audience,
+      parsed.data.duration,
+      parsed.data.featured,
+      parsed.data.certificateOffered,
+      parsed.data.summary,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdCourse))
+  if (replay) return respondWithCourse(c, churchId, replay.courseId, true)
   await requireMinistry(c.env.DB, churchId, parsed.data.ministryId)
   const courseId = `course_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { courseId },
+      outcomeSchema: createdCourse,
+      proof: { table: 'courses', churchId, id: courseId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
           INSERT INTO courses (
             id, church_id, ministry_id, slug, title, status, course_type,
             delivery_mode, audience, duration, featured, certificate_offered,
             summary, version, created_at, updated_at, last_operation_id
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
         `,
-      ).bind(
-        courseId,
-        churchId,
-        parsed.data.ministryId,
-        parsed.data.slug,
-        parsed.data.title,
-        parsed.data.status,
-        parsed.data.courseType,
-        parsed.data.deliveryMode,
-        parsed.data.audience,
-        parsed.data.duration,
-        parsed.data.featured ? 1 : 0,
-        parsed.data.certificateOffered ? 1 : 0,
-        parsed.data.summary,
-        now,
-        now,
-        operationId,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'course',
-        entityId: courseId,
-        eventName: 'courses.created',
-        operationId,
-        table: 'courses',
-        now,
-        metadata: { status: parsed.data.status },
-      }),
-    ])
+        ).bind(
+          courseId,
+          churchId,
+          parsed.data.ministryId,
+          parsed.data.slug,
+          parsed.data.title,
+          parsed.data.status,
+          parsed.data.courseType,
+          parsed.data.deliveryMode,
+          parsed.data.audience,
+          parsed.data.duration,
+          parsed.data.featured ? 1 : 0,
+          parsed.data.certificateOffered ? 1 : 0,
+          parsed.data.summary,
+          now,
+          now,
+          operationId,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'course',
+          entityId: courseId,
+          eventName: 'courses.created',
+          operationId,
+          table: 'courses',
+          now,
+          metadata: { status: parsed.data.status },
+        }),
+      ],
+    })
   } catch (error) {
     if (isSlugConflict(error, 'courses')) {
       throw new AppError(
@@ -406,14 +453,11 @@ courseRoutes.post('/:churchId', async (c) => {
     }
     throw error
   }
+  if (committed.replayed) {
+    return respondWithCourse(c, churchId, committed.outcome.courseId, true)
+  }
   broadcastContent(c, churchId, 'course', courseId, 'created')
-  return c.json(
-    {
-      course: mapCourse(await findCourse(c.env.DB, churchId, courseId)),
-      lessons: [],
-    },
-    201,
-  )
+  return respondWithCourse(c, churchId, courseId, false)
 })
 
 courseRoutes.get('/:churchId/:courseId', async (c) => {

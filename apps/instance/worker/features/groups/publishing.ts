@@ -1,5 +1,6 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { z } from 'zod'
+import type { CreateOutcome, Group } from '../../../contracts/api'
 import { requirePermission } from '../../lib/auth'
 import {
   broadcastContent,
@@ -13,6 +14,7 @@ import {
   versionInputSchema,
 } from '../../lib/content'
 import { AppError } from '../../lib/errors'
+import { commitOnce, findReplay, idempotencyClaim } from '../../lib/idempotency'
 import { mapGroup, type GroupRow } from '../../lib/records'
 
 import { type AppEnv, groupSelect, findGroup } from './shared'
@@ -153,58 +155,103 @@ groupPublishingRoutes.get('/:churchId', async (c) => {
   })
 })
 
+const createdGroup = z.object({ groupId: z.string() })
+
+async function respondWithGroup(
+  c: Context<AppEnv>,
+  churchId: string,
+  groupId: string,
+  replayed: boolean,
+) {
+  return c.json(
+    {
+      group: mapGroup(await findGroup(c.env.DB, churchId, groupId)),
+      replayed,
+    } satisfies { group: Group } & CreateOutcome,
+    201,
+  )
+}
+
 groupPublishingRoutes.post('/:churchId', async (c) => {
   const churchId = c.req.param('churchId')
   const actor = await requirePermission(c, churchId, 'groups.write')
   const parsed = groupCreateInput.safeParse(await jsonBody(c))
   if (!parsed.success) throw validationError(parsed.error)
+  const claim = await idempotencyClaim(c, {
+    operation: 'groups:create',
+    churchId,
+    actorId: actor.id,
+    fields: [
+      parsed.data.ministryId,
+      parsed.data.slug,
+      parsed.data.title,
+      parsed.data.status,
+      parsed.data.groupType,
+      parsed.data.audience,
+      parsed.data.schedule,
+      parsed.data.location,
+      parsed.data.enrollmentPolicy,
+      parsed.data.capacity,
+      parsed.data.featured,
+      parsed.data.summary,
+    ],
+  })
+  const replay = claim && (await findReplay(c.env.DB, claim, createdGroup))
+  if (replay) return respondWithGroup(c, churchId, replay.groupId, true)
   await requireMinistry(c.env.DB, churchId, parsed.data.ministryId)
 
   const groupId = `group_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let committed
   try {
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        `
-          INSERT INTO groups (
-            id, church_id, ministry_id, slug, title, status, group_type, audience,
-            schedule, location, enrollment_policy, capacity, featured, summary,
-            version, created_at, updated_at, last_operation_id
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-        `,
-      ).bind(
-        groupId,
-        churchId,
-        parsed.data.ministryId,
-        parsed.data.slug,
-        parsed.data.title,
-        parsed.data.status,
-        parsed.data.groupType,
-        parsed.data.audience,
-        parsed.data.schedule,
-        parsed.data.location,
-        parsed.data.enrollmentPolicy,
-        parsed.data.capacity,
-        parsed.data.featured ? 1 : 0,
-        parsed.data.summary,
-        now,
-        now,
-        operationId,
-      ),
-      ...mutationEvidence(c.env.DB, {
-        churchId,
-        actorId: actor.id,
-        requestId: c.get('requestId'),
-        entityType: 'group',
-        entityId: groupId,
-        eventName: 'groups.created',
-        operationId,
-        table: 'groups',
-        now,
-        metadata: { status: parsed.data.status },
-      }),
-    ])
+    committed = await commitOnce(c.env.DB, claim, {
+      outcome: { groupId },
+      outcomeSchema: createdGroup,
+      proof: { table: 'groups', churchId, id: groupId },
+      now,
+      statements: [
+        c.env.DB.prepare(
+          `
+            INSERT INTO groups (
+              id, church_id, ministry_id, slug, title, status, group_type, audience,
+              schedule, location, enrollment_policy, capacity, featured, summary,
+              version, created_at, updated_at, last_operation_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+          `,
+        ).bind(
+          groupId,
+          churchId,
+          parsed.data.ministryId,
+          parsed.data.slug,
+          parsed.data.title,
+          parsed.data.status,
+          parsed.data.groupType,
+          parsed.data.audience,
+          parsed.data.schedule,
+          parsed.data.location,
+          parsed.data.enrollmentPolicy,
+          parsed.data.capacity,
+          parsed.data.featured ? 1 : 0,
+          parsed.data.summary,
+          now,
+          now,
+          operationId,
+        ),
+        ...mutationEvidence(c.env.DB, {
+          churchId,
+          actorId: actor.id,
+          requestId: c.get('requestId'),
+          entityType: 'group',
+          entityId: groupId,
+          eventName: 'groups.created',
+          operationId,
+          table: 'groups',
+          now,
+          metadata: { status: parsed.data.status },
+        }),
+      ],
+    })
   } catch (error) {
     if (isSlugConflict(error, 'groups')) {
       throw new AppError(
@@ -215,11 +262,11 @@ groupPublishingRoutes.post('/:churchId', async (c) => {
     }
     throw error
   }
+  if (committed.replayed) {
+    return respondWithGroup(c, churchId, committed.outcome.groupId, true)
+  }
   broadcastContent(c, churchId, 'group', groupId, 'created')
-  return c.json(
-    { group: mapGroup(await findGroup(c.env.DB, churchId, groupId)) },
-    201,
-  )
+  return respondWithGroup(c, churchId, groupId, false)
 })
 
 groupPublishingRoutes.get('/:churchId/:groupId', async (c) => {
