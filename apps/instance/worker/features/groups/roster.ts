@@ -38,7 +38,8 @@ const memberUpsertInput = z
   .object({
     version: z.number().int().nonnegative().default(0),
     status: membershipStatusSchema.default('active'),
-    notes: z.string().trim().max(4_000).nullable().default(null),
+    // Omitted keeps the stored note; null clears it.
+    notes: z.string().trim().max(4_000).nullable().optional(),
   })
   .strict()
 
@@ -193,7 +194,7 @@ groupRosterRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
           ON CONFLICT(group_id, person_id) DO UPDATE SET
             version = group_memberships.version + 1,
             status = excluded.status,
-            notes = excluded.notes,
+            notes = CASE WHEN ? THEN excluded.notes ELSE group_memberships.notes END,
             joined_at = COALESCE(group_memberships.joined_at, excluded.joined_at),
             updated_at = excluded.updated_at
         `,
@@ -204,7 +205,7 @@ groupRosterRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
       personId,
       parsed.data.status,
       parsed.data.status === 'active' ? now : null,
-      parsed.data.notes,
+      parsed.data.notes ?? null,
       now,
       now,
       churchId,
@@ -212,6 +213,7 @@ groupRosterRoutes.put('/:churchId/:groupId/members/:personId', async (c) => {
       churchId,
       groupId,
       operationId,
+      parsed.data.notes !== undefined ? 1 : 0,
     ),
     ...mutationEvidence(c.env.DB, {
       churchId,
