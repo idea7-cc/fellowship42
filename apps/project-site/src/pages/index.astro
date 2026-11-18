@@ -1,10 +1,9 @@
 ---
 /**
- * Fellowship42 Marketing Homepage
+ * Fellowship42 project homepage
  *
- * This page is built with Astro — static HTML, zero JS by default.
- * Interactive elements (e.g. signup forms, demos) use React islands.
- * All styling comes from the shared brand token layer.
+ * Static HTML built with Astro. All styling comes from the shared brand token
+ * layer. Keep every claim here backed by the working source on main.
  */
 import Base from '../layouts/Base.astro'
 import Hero from '../components/Hero.astro'
@@ -17,19 +16,19 @@ const features = [
   },
   {
     title: 'Ministry publishing',
-    body: 'Create groups, courses, lessons, events, sermons, and checksummed media while keeping drafts private and public content intentional.',
+    body: 'Create groups, courses, lessons, events, sermons, and checksummed media. Drafts stay private; published records appear on the church’s EmDash website.',
   },
   {
     title: 'Contributions & delivery',
-    body: 'Keep contribution access finance-scoped, normalize signed payment events, reject replay, and recover durable outbox delivery.',
+    body: 'Record gifts with finance-scoped access, accept signed payment events from a provider adapter, reject replay, and recover durable outbox delivery. No payment provider is connected yet.',
   },
   {
     title: 'One church, one instance',
     body: 'Run a dedicated Worker, D1 database, R2 bucket, Durable Object namespace, and Queue as one portable ownership boundary.',
   },
   {
-    title: 'Tested portability',
-    body: 'Use public manifests, doctor checks, verified exports, staged imports, cutover approval, recovery drills, and exit evidence.',
+    title: 'Portability tooling',
+    body: 'Use public manifests, doctor checks, verified exports, staged imports, and cutover approval. Restore and exit are rehearsed with deterministic, synthetic data; no live restore or exit has been demonstrated.',
   },
   {
     title: 'Optional management',
@@ -46,16 +45,22 @@ const features = [
     <Hero
       eyebrow="Open source. Managed when wanted. Portable by design."
       headline="Church software that remains yours."
-      body="Fellowship42 is an Apache-2.0 church management system. Each church runs an independent Cloudflare application that can be self-hosted, professionally operated, optionally managed, exported, and moved without a private service dependency."
+      body="Fellowship42 is an Apache-2.0 church management system. Each church runs its own Cloudflare application, hosted by the church or an operator it chooses, with optional management and an export path that needs no private service."
     >
-      <a class="f42-button f42-button--primary" href="https://github.com/idea7-cc/fellowship42">View the source</a>
-      <a class="f42-button f42-button--secondary" href="https://github.com/idea7-cc/fellowship42/blob/main/docs/deployment.md">Deploy an instance</a>
+      <a class="f42-button f42-button--primary" href="https://github.com/idea7-cc/fellowship42#run-locally">Run the local evaluation</a>
+      <a class="f42-button f42-button--secondary" href="https://github.com/idea7-cc/fellowship42">View the source</a>
     </Hero>
+
+    <p class="status">
+      Pre-alpha. The working source is being prepared for a working alpha.
+      Evaluate it on your own machine with the synthetic demo church; it is not
+      ready for real church records or live donations.
+    </p>
 
     <section class="f42-section">
       <div class="f42-section-heading">
-        <h2>The current public release</h2>
-        <p>Complete public workflows and lifecycle contracts, with service claims kept separate from software evidence.</p>
+        <h2>What the working source does</h2>
+        <p>Features on the main branch, tested locally with synthetic data. The latest tagged release, v0.26.0, is an earlier reference snapshot without the EmDash website, and working source does not upgrade from it.</p>
       </div>
       <div class="f42-card-grid">
         {features.map((f) => (
@@ -71,5 +76,9 @@ const features = [
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem 1.25rem 4rem;
+  }
+  .status {
+    max-width: 52rem;
+    margin: -2rem 0 3rem;
   }
 </style>
