@@ -447,4 +447,35 @@ describe('people and household directory', () => {
     ).toBe(true)
     expect(body.page.nextCursor).toBeTruthy()
   })
+
+  it('finds a person and their household by the full name', async () => {
+    const person = await createPerson('Wilhelmina', 'Quarterfield')
+    const household = await request('POST', '/api/households/church_demo', {
+      name: 'Cedar Lane Household',
+      countryCode: 'US',
+      members: [
+        { personId: person.id, relationship: 'other', isPrimary: true },
+      ],
+    })
+    expect(household.status).toBe(201)
+
+    for (const query of ['Wilhelmina Quarterfield', 'mina quarter']) {
+      const people = await request(
+        'GET',
+        `/api/people/church_demo?query=${encodeURIComponent(query)}`,
+      )
+      expect(
+        (await people.json<{ people: Person[] }>()).people.map(({ id }) => id),
+      ).toEqual([person.id])
+      const households = await request(
+        'GET',
+        `/api/households/church_demo?query=${encodeURIComponent(query)}`,
+      )
+      expect(
+        (await households.json<{ households: Household[] }>()).households.map(
+          ({ name }) => name,
+        ),
+      ).toEqual(['Cedar Lane Household'])
+    }
+  })
 })

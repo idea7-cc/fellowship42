@@ -180,10 +180,11 @@ peopleRoutes.get('/:churchId', async (c) => {
     conditions.push(`(
       p.first_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR
       p.last_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR
+      p.first_name || ' ' || p.last_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR
       p.email LIKE ? ESCAPE '\\' COLLATE NOCASE OR
       p.phone LIKE ? ESCAPE '\\' COLLATE NOCASE
     )`)
-    bindings.push(pattern, pattern, pattern, pattern)
+    bindings.push(pattern, pattern, pattern, pattern, pattern)
   }
   if (parsed.data.status) {
     conditions.push('p.membership_status = ?')

@@ -302,10 +302,11 @@ householdRoutes.get('/:churchId', async (c) => {
         JOIN people p ON p.church_id = hp.church_id AND p.id = hp.person_id
         WHERE hp.church_id = h.church_id AND hp.household_id = h.id
           AND p.deleted_at IS NULL
-          AND (p.first_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR p.last_name LIKE ? ESCAPE '\\' COLLATE NOCASE)
+          AND (p.first_name LIKE ? ESCAPE '\\' COLLATE NOCASE OR p.last_name LIKE ? ESCAPE '\\' COLLATE NOCASE
+            OR p.first_name || ' ' || p.last_name LIKE ? ESCAPE '\\' COLLATE NOCASE)
       )
     )`)
-    bindings.push(pattern, pattern, pattern, pattern, pattern)
+    bindings.push(pattern, pattern, pattern, pattern, pattern, pattern)
   }
   if (parsed.data.cursor) {
     const cursor = await c.env.DB.prepare(
