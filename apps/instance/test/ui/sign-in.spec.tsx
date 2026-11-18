@@ -133,6 +133,58 @@ it('offers the existing passkey when a lost enrollment answer is retried on a sp
   expect(posts.slice(-2)).toEqual(['/api/auth/start', '/api/auth/finish'])
   expect(assign).toHaveBeenCalledWith('/app')
 })
+it.each([
+  ['start', 429, 'sign_in_rate_limited', 'Please wait a minute and try again.'],
+  ['start', 503, 'unavailable', 'Sign-in is temporarily unavailable.'],
+] as const)(
+  'keeps a valid link retryable when enrollment %s answers %i',
+  async (_step, status, code, message) => {
+    window.history.replaceState(null, '', `/sign-in#enroll=${'C'.repeat(43)}`)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) =>
+        path.endsWith('/status')
+          ? Response.json({ local: true, access: false })
+          : Response.json({ error: { code, message } }, { status }),
+      ),
+    )
+    await act(async () => root.render(<SignInPage />))
+    await click('Create passkey')
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(message)
+    const labels = [...container.querySelectorAll('button')].map(
+      (button) => button.textContent,
+    )
+    expect(labels).toContain('Create passkey')
+    expect(labels).not.toContain('Use existing passkey')
+  },
+)
+it('treats a server error at enrollment finish as an unconfirmed outcome', async () => {
+  window.history.replaceState(null, '', `/sign-in#enroll=${'D'.repeat(43)}`)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (path: string) => {
+      if (path.endsWith('/status'))
+        return Response.json({ local: true, access: false })
+      if (path === '/api/auth/enroll/finish')
+        return Response.json(
+          { error: { code: 'unavailable', message: 'Try again' } },
+          { status: 503 },
+        )
+      return Response.json({ challenge: 'test' })
+    }),
+  )
+  vi.mocked(startRegistration).mockResolvedValue({} as never)
+  await act(async () => root.render(<SignInPage />))
+  await click('Create passkey')
+  expect(container.querySelector('[role="alert"]')?.textContent).toMatch(
+    /could not confirm that your passkey was saved/,
+  )
+  const labels = [...container.querySelectorAll('button')].map(
+    (button) => button.textContent,
+  )
+  expect(labels).toContain('Use existing passkey')
+  expect(labels).toContain('Create passkey again')
+})
 it('does not finish a registration after the screen has unmounted', async () => {
   window.history.replaceState(null, '', '/sign-in#enroll=' + 'B'.repeat(43))
   const fetchMock = vi.fn(async (path: string) =>

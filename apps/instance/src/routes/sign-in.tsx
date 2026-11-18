@@ -66,7 +66,8 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
     if (busy) return
     setBusy(true)
     setError(null)
-    let finishing = false
+    // Which step failed decides what a failure can mean for a setup link.
+    let step: 'start' | 'ceremony' | 'finish' = 'start'
     try {
       if (enrollToken) {
         const optionsJSON =
@@ -78,9 +79,10 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
             },
           )
         if (!active.current) return
+        step = 'ceremony'
         const credential = await startRegistration({ optionsJSON })
         if (!active.current) return
-        finishing = true
+        step = 'finish'
         await apiRequest('/api/auth/enroll/finish', {
           method: 'POST',
           body: JSON.stringify(credential),
@@ -102,17 +104,28 @@ export function SignInPage({ navigation }: { navigation?: { hash: string } }) {
       if (active.current) window.location.assign(destination())
     } catch (caught) {
       if (!active.current) return
-      if (enrollToken && caught instanceof ApiError) {
+      const answered = caught instanceof ApiError && caught.status < 500
+      if (
+        enrollToken &&
+        step === 'start' &&
+        caught instanceof ApiError &&
+        caught.status === 400 &&
+        caught.code === 'sign_in_failed'
+      ) {
+        // The Worker's answer for a link that is used, expired or unknown.
         setLinkSpent('refused')
         setError(
           'This setup link can no longer be used. If you already created a passkey with it, use that passkey to sign in. If setup never finished, ask your church administrator for a fresh link.',
         )
-      } else if (enrollToken && finishing) {
+      } else if (enrollToken && step === 'finish' && !answered) {
+        // The passkey may have been saved even though no answer arrived.
         setLinkSpent('unconfirmed')
         setError(
           'We could not confirm that your passkey was saved. Try signing in with it first; if it is not offered, create it again.',
         )
       } else {
+        // Rate limits, outages before the passkey exists, a cancelled
+        // ceremony or a refused finish: the link is still worth retrying.
         setError(
           caught instanceof ApiError
             ? caught.message
