@@ -337,6 +337,18 @@ INSERT OR IGNORE INTO group_memberships (
   ('groupmember_demo_19','church_demo','group_demo_mens','person_demo_08','active',unixepoch()*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   ('groupmember_demo_20','church_demo','group_demo_mens','person_demo_13','active',unixepoch()*1000,NULL,unixepoch()*1000,unixepoch()*1000);
 
+-- Roster and leader rows above start at version 1. A group's roster
+-- sequence numbers re-added rows and must never trail a row's version (see
+-- nextRosterVersion in worker/features/groups/shared.ts).
+UPDATE groups SET roster_sequence = MAX(
+  roster_sequence,
+  COALESCE((SELECT MAX(m.version) FROM group_memberships m
+    WHERE m.church_id = groups.church_id AND m.group_id = groups.id), 0),
+  COALESCE((SELECT MAX(l.version) FROM group_leaders l
+    WHERE l.church_id = groups.church_id AND l.group_id = groups.id), 0)
+)
+WHERE church_id = 'church_demo';
+
 INSERT OR IGNORE INTO course_enrollments (
   id, church_id, course_id, person_id, group_id, status, started_at, completed_at, notes, created_at, updated_at
 ) VALUES
