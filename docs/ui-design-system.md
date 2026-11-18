@@ -270,7 +270,7 @@ Owned source code. Modify freely.
 | `ListSearch` | `list-search.tsx` | Search row and status filter above a paged list |
 | `ListPager` | `list-pager.tsx` | Previous/next for a list loaded with `usePagedQuery` (`lib/paged-query.ts`), which restarts at page 1 when a search or filter changes |
 | `RecordCombobox`, `PersonCombobox`, `PublicMediaCombobox` | `record-combobox.tsx` | Choose one record by server-side search, with **Show more results** for further pages. Use it instead of a `<select>` of a capped list |
-| `RequestError` | `request-error.tsx` | A failed load with **Try again**, so a failure never reads as an empty list |
+| `RequestError` | `request-error.tsx` | A failed load with **Try again**, rendered before any empty state so a failure never reads as an empty list. A 403 shows as denied access, with nothing to retry |
 
 ---
 
