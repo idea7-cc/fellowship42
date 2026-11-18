@@ -51,14 +51,17 @@ describe('deleting a meeting', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     let stored = meeting
     const api = await renderPanel((call) => {
-      if (call.method === 'DELETE')
+      if (call.method === 'DELETE') {
+        // Someone else edited the meeting since the panel last loaded it.
+        stored = { ...stored, version: 5 }
         return apiError(
           409,
           'session_has_attendance',
           'This session has recorded attendance, so it cannot be deleted.',
         )
+      }
       if (call.method === 'PATCH') {
-        stored = { ...stored, status: 'cancelled', version: 3 }
+        stored = { ...stored, status: 'cancelled', version: 6 }
         return Response.json({ session: stored })
       }
       return Response.json({ sessions: [stored] })
@@ -68,9 +71,10 @@ describe('deleting a meeting', () => {
       /has recorded attendance, so it cannot be deleted\. Cancel the meeting instead/,
     )
     await ui!.click(ui!.button('Cancel Harvest night'))
+    // The cancellation is built from the row refreshed after the refusal.
     expect(api.requests('PATCH')[0]!.body).toEqual({
       status: 'cancelled',
-      version: 2,
+      version: 5,
     })
     expect(ui!.alert()).toBeNull()
     expect(

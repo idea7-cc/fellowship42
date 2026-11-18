@@ -85,13 +85,15 @@ export function GroupSessionsPanel({
   const [entryFailed, setEntryFailed] = useState(false)
   const sessionEntry = useEntryKey('session')
   // A meeting with recorded attendance cannot be deleted; offer to cancel it.
-  const [undeletable, setUndeletable] = useState<GroupSession | null>(null)
+  // Kept by id: the cancel action uses the row as refreshed after the refusal.
+  const [undeletableId, setUndeletableId] = useState<string | null>(null)
 
   const base = `/api/groups/${encodeURIComponent(churchId)}/${encodeURIComponent(group.id)}`
   const sessionQuery = useApiQuery<{ sessions: GroupSession[] }>(
     `${base}/sessions`,
   )
   const sessions = sessionQuery.data?.sessions ?? []
+  const undeletable = sessions.find((session) => session.id === undeletableId)
 
   async function run(
     action: () => Promise<unknown>,
@@ -102,7 +104,7 @@ export function GroupSessionsPanel({
   ) {
     setBusy(true)
     setError(null)
-    setUndeletable(null)
+    setUndeletableId(null)
     try {
       await action()
       await sessionQuery.refetch()
@@ -193,7 +195,7 @@ export function GroupSessionsPanel({
           : 'The session could not be deleted.'
       },
     )
-    if (refusedForAttendance) setUndeletable(session)
+    if (refusedForAttendance) setUndeletableId(session.id)
   }
 
   function toggleCreating(open: boolean) {
@@ -255,9 +257,8 @@ export function GroupSessionsPanel({
             <Button
               disabled={busy}
               onClick={() => {
-                const session = undeletable
-                setUndeletable(null)
-                void setStatus(session, 'cancelled')
+                setUndeletableId(null)
+                void setStatus(undeletable, 'cancelled')
               }}
               size="xs"
               variant="secondary"
