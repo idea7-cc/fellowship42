@@ -398,3 +398,75 @@ INSERT OR IGNORE INTO attendance_records (
   ('attendance_demo_08','church_demo','groupsession_demo_02','person_demo_04','present',(unixepoch()-604800)*1000,NULL,unixepoch()*1000,unixepoch()*1000),
   -- The women's study: a mark for a member who has since completed the cohort.
   ('attendance_demo_10','church_demo','groupsession_demo_04','person_demo_16','present',(unixepoch()-259200)*1000,'Final session before completing',unixepoch()*1000,unixepoch()*1000);
+
+-- ---------------------------------------------------------------------------
+-- CHURCH-LOCAL TIMES
+--
+-- The inserts above place records relative to when the seed runs, so they
+-- would carry its time of day (often the small hours in New York). These
+-- updates keep the same relative days but snap each record to a sensible
+-- wall-clock time in the church's zone, America/New_York: gatherings on
+-- their usual weekday morning or evening, gifts during the day, and
+-- Christmas Eve on December 24.
+--
+-- SQLite has no time zones, so the offset follows the US rule: daylight time
+-- (UTC-4) from the second Sunday of March to the first Sunday of November,
+-- standard time (UTC-5) otherwise. No seeded time falls in the 1-3 AM
+-- change-over hours, where that day-level rule would be an hour off.
+-- ---------------------------------------------------------------------------
+
+WITH local(id, starts_local, ends_local) AS (VALUES
+  ('event_demo_picnic', date('now', '+7 days', 'weekday 6') || ' 12:00', date('now', '+7 days', 'weekday 6') || ' 16:00'),
+  ('event_demo_baptism', date('now', '+14 days', 'weekday 0') || ' 10:00', date('now', '+14 days', 'weekday 0') || ' 11:30'),
+  ('event_demo_serve', date('now', '+21 days', 'weekday 6') || ' 09:00', date('now', '+21 days', 'weekday 6') || ' 14:00'),
+  ('event_demo_membership', date('now', '+28 days', 'weekday 0') || ' 12:15', date('now', '+28 days', 'weekday 0') || ' 13:30'),
+  ('event_demo_womens', date('now', '+42 days', 'weekday 5') || ' 18:00', date('now', '+42 days', 'weekday 5', '+2 days') || ' 12:00'),
+  -- The most recent Christmas Eve that has passed.
+  ('event_demo_christmas',
+    (CASE WHEN date('now') > strftime('%Y', 'now') || '-12-24' THEN strftime('%Y', 'now') ELSE strftime('%Y', 'now') - 1 END) || '-12-24 16:00',
+    (CASE WHEN date('now') > strftime('%Y', 'now') || '-12-24' THEN strftime('%Y', 'now') ELSE strftime('%Y', 'now') - 1 END) || '-12-24 19:00')
+)
+UPDATE events
+SET starts_at = (unixepoch(local.starts_local) + 3600 * CASE WHEN substr(local.starts_local, 1, 10) >= date(substr(local.starts_local, 1, 4) || '-03-01', 'weekday 0', '+7 days') AND substr(local.starts_local, 1, 10) < date(substr(local.starts_local, 1, 4) || '-11-01', 'weekday 0') THEN 4 ELSE 5 END) * 1000,
+  ends_at = (unixepoch(local.ends_local) + 3600 * CASE WHEN substr(local.ends_local, 1, 10) >= date(substr(local.ends_local, 1, 4) || '-03-01', 'weekday 0', '+7 days') AND substr(local.ends_local, 1, 10) < date(substr(local.ends_local, 1, 4) || '-11-01', 'weekday 0') THEN 4 ELSE 5 END) * 1000
+FROM local
+WHERE events.church_id = 'church_demo' AND events.id = local.id;
+
+-- Midtown meets on Tuesdays at 7:00 PM, the women's study on Mondays.
+WITH local(id, starts_local, ends_local) AS (VALUES
+  ('groupsession_demo_01', date('now', '-14 days', 'weekday 2') || ' 19:00', date('now', '-14 days', 'weekday 2') || ' 21:00'),
+  ('groupsession_demo_02', date('now', '-7 days', 'weekday 2') || ' 19:00', date('now', '-7 days', 'weekday 2') || ' 21:00'),
+  ('groupsession_demo_03', date('now', '+1 days', 'weekday 2') || ' 19:00', date('now', '+1 days', 'weekday 2') || ' 21:00'),
+  ('groupsession_demo_04', date('now', '-7 days', 'weekday 1') || ' 19:00', NULL)
+)
+UPDATE group_sessions
+SET starts_at = (unixepoch(local.starts_local) + 3600 * CASE WHEN substr(local.starts_local, 1, 10) >= date(substr(local.starts_local, 1, 4) || '-03-01', 'weekday 0', '+7 days') AND substr(local.starts_local, 1, 10) < date(substr(local.starts_local, 1, 4) || '-11-01', 'weekday 0') THEN 4 ELSE 5 END) * 1000,
+  ends_at = CASE WHEN local.ends_local IS NULL THEN NULL ELSE (unixepoch(local.ends_local) + 3600 * CASE WHEN substr(local.ends_local, 1, 10) >= date(substr(local.ends_local, 1, 4) || '-03-01', 'weekday 0', '+7 days') AND substr(local.ends_local, 1, 10) < date(substr(local.ends_local, 1, 4) || '-11-01', 'weekday 0') THEN 4 ELSE 5 END) * 1000 END
+FROM local
+WHERE group_sessions.church_id = 'church_demo' AND group_sessions.id = local.id;
+
+UPDATE attendance_records
+SET checked_in_at = (
+  SELECT s.starts_at FROM group_sessions s
+  WHERE s.church_id = attendance_records.church_id AND s.id = attendance_records.session_id
+)
+WHERE church_id = 'church_demo' AND checked_in_at IS NOT NULL;
+
+WITH local(id, donated_local) AS (VALUES
+  ('contribution_demo_01', date('now', '-3 days') || ' 09:30'),
+  ('contribution_demo_02', date('now', '-4 days') || ' 10:45'),
+  ('contribution_demo_03', date('now', '-5 days') || ' 11:20'),
+  ('contribution_demo_04', date('now', '-6 days') || ' 13:05'),
+  ('contribution_demo_05', date('now', '-7 days') || ' 11:40'),
+  ('contribution_demo_06', date('now', '-1 days') || ' 12:10'),
+  ('contribution_demo_07', date('now', '-2 days') || ' 16:15'),
+  ('contribution_demo_08', date('now', '-8 days') || ' 10:05'),
+  ('contribution_demo_09', date('now', '-9 days') || ' 15:30'),
+  ('contribution_demo_10', date('now', '-10 days') || ' 11:50'),
+  ('contribution_demo_11', date('now', '-11 days') || ' 09:55'),
+  ('contribution_demo_12', date('now', '-12 days') || ' 13:35')
+)
+UPDATE contributions
+SET donated_at = (unixepoch(local.donated_local) + 3600 * CASE WHEN substr(local.donated_local, 1, 10) >= date(substr(local.donated_local, 1, 4) || '-03-01', 'weekday 0', '+7 days') AND substr(local.donated_local, 1, 10) < date(substr(local.donated_local, 1, 4) || '-11-01', 'weekday 0') THEN 4 ELSE 5 END) * 1000
+FROM local
+WHERE contributions.church_id = 'church_demo' AND contributions.id = local.id;

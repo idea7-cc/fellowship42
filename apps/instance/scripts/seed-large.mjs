@@ -118,6 +118,23 @@ for (let household = 0; household < 100; household += 1) {
   }
 }
 
+/**
+ * The UTC instant of a wall-clock time in the church's zone. The offset is
+ * read at the matching UTC instant, which is right except within hours of a
+ * daylight-saving change; gifts are seeded only during the day.
+ */
+function churchTime(dayMs, hour, minute) {
+  const guess = dayMs + (hour * 60 + minute) * 60_000
+  const offset = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    timeZoneName: 'shortOffset',
+  })
+    .formatToParts(guess)
+    .find((part) => part.type === 'timeZoneName')
+    .value.replace('GMT', '')
+  return guess - Number(offset) * 3_600_000
+}
+
 const funds = ['General', 'Missions', 'Building', 'Benevolence']
 for (let index = 0; index < 150; index += 1) {
   const person = people[(index * 7) % people.length]
@@ -135,7 +152,8 @@ for (let index = 0; index < 150; index += 1) {
     index % 2 ? 'check' : 'cash',
     index % 17 === 0 ? 'refunded' : 'succeeded',
     index % 5 === 0 ? 1 : 0,
-    BASE - index * DAY,
+    // One gift a day, between 9:00 AM and 4:45 PM in the church's zone.
+    churchTime(BASE - index * DAY, 9 + (index % 8), (index * 15) % 60),
     BASE,
     BASE,
   )
