@@ -67,7 +67,7 @@ const executionContext = {
   props: {},
 } as unknown as ExecutionContext
 
-function requestAs(identity: AccessIdentity) {
+function requestAs(identity: AccessIdentity, bindings: Env = env) {
   const app = participationApp(identity)
   return (method: string, pathname: string, body?: unknown) =>
     app.fetch(
@@ -79,12 +79,35 @@ function requestAs(identity: AccessIdentity) {
             : { 'content-type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
-      env,
+      bindings,
       executionContext,
     )
 }
 
 const request = requestAs(owner)
+
+/**
+ * Bindings whose D1 runs `beforeBatch` once, just before the route's first
+ * write batch: a concurrent change that lands after the route's reads.
+ */
+function interleaveBeforeBatch(beforeBatch: () => Promise<unknown>) {
+  let pending: (() => Promise<unknown>) | null = beforeBatch
+  const db = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === 'batch') {
+        return async (statements: D1PreparedStatement[]) => {
+          const run = pending
+          pending = null
+          await run?.()
+          return target.batch(statements)
+        }
+      }
+      const value: unknown = Reflect.get(target, property)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+  return Object.assign(Object.create(env) as Env, { DB: db })
+}
 
 // The seed creates the owner user but no Access identity, because the worker
 // deliberately refuses to auto-link a new subject to an existing active user.
@@ -705,6 +728,34 @@ describe('participation concurrency regressions', () => {
       version: 2,
       notes: 'Keep',
     })
+  })
+
+  it('does not report an enrollment in a course deleted after it was read', async () => {
+    const courseId = await createCourse('Vanishing Course', 'vanishing-course')
+    const personId = await createPerson('Vanishing', 'Student')
+    const racing = requestAs(
+      owner,
+      interleaveBeforeBatch(() =>
+        env.DB.prepare('UPDATE courses SET deleted_at = ? WHERE id = ?')
+          .bind(Date.now(), courseId)
+          .run(),
+      ),
+    )
+    const response = await racing(
+      'POST',
+      `/api/courses/church_demo/${courseId}/enrollments`,
+      { personId },
+    )
+    expect(response.status).toBe(404)
+    expect(
+      (await response.json<{ error: { code: string } }>()).error.code,
+    ).toBe('course_not_found')
+    const stored = await env.DB.prepare(
+      'SELECT COUNT(*) AS total FROM course_enrollments WHERE course_id = ?',
+    )
+      .bind(courseId)
+      .first<{ total: number }>()
+    expect(stored?.total).toBe(0)
   })
 
   it('clears enrollment notes explicitly and rejects a stale edit or delete', async () => {

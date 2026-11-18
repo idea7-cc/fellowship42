@@ -956,8 +956,9 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
   const enrollmentId = `enrollment_${crypto.randomUUID()}`
   const operationId = crypto.randomUUID()
   const now = Date.now()
+  let results: D1Result[]
   try {
-    await c.env.DB.batch([
+    results = await c.env.DB.batch([
       touchCourse(c.env.DB, churchId, courseId, now, operationId),
       c.env.DB.prepare(
         `
@@ -1025,6 +1026,10 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
       )
     }
     throw error
+  }
+  // The course was deleted after it was read; the gated insert did nothing.
+  if (results[1]?.meta.changes !== 1) {
+    throw new AppError(404, 'course_not_found', 'Course not found')
   }
   broadcastContent(c, churchId, 'course', courseId, 'updated')
   return c.json(
