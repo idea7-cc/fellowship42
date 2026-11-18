@@ -957,6 +957,8 @@ function touchCourse(
   now: number,
   operationId: string,
   enrollment?: { id: string; version: number },
+  // A new enrollment's person or group, which must still be live.
+  subject?: { personId?: string; groupId?: string },
 ) {
   return db
     .prepare(
@@ -965,6 +967,10 @@ function touchCourse(
         WHERE church_id = ? AND id = ? AND deleted_at IS NULL
           AND (? IS NULL OR EXISTS (SELECT 1 FROM course_enrollments
             WHERE church_id = ? AND course_id = ? AND id = ? AND version = ?))
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM people
+            WHERE church_id = ? AND id = ? AND deleted_at IS NULL))
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM groups
+            WHERE church_id = ? AND id = ? AND deleted_at IS NULL))
       `,
     )
     .bind(
@@ -977,6 +983,12 @@ function touchCourse(
       courseId,
       enrollment?.id ?? null,
       enrollment?.version ?? null,
+      subject?.personId ?? null,
+      churchId,
+      subject?.personId ?? null,
+      subject?.groupId ?? null,
+      churchId,
+      subject?.groupId ?? null,
     )
 }
 
@@ -1068,7 +1080,15 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
   let results: D1Result[]
   try {
     results = await c.env.DB.batch([
-      touchCourse(c.env.DB, churchId, courseId, now, operationId),
+      touchCourse(
+        c.env.DB,
+        churchId,
+        courseId,
+        now,
+        operationId,
+        undefined,
+        parsed.data,
+      ),
       c.env.DB.prepare(
         `
             INSERT INTO course_enrollments (
@@ -1136,8 +1156,10 @@ courseRoutes.post('/:churchId/:courseId/enrollments', async (c) => {
     }
     throw error
   }
-  // The course was deleted after it was read; the gated insert did nothing.
+  // The course, person or group was deleted after it was read; the gated
+  // touch and insert did nothing. Report which one.
   if (results[1]?.meta.changes !== 1) {
+    await requireEnrollmentSubject(c.env.DB, churchId, parsed.data)
     throw new AppError(404, 'course_not_found', 'Course not found')
   }
   broadcastContent(c, churchId, 'course', courseId, 'updated')

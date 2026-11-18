@@ -817,6 +817,45 @@ describe('participation concurrency regressions', () => {
     ).toBe(200)
   })
 
+  it('does not enroll a person or group deleted after it was checked', async () => {
+    const courseId = await createCourse(
+      'Vanishing Subject',
+      'vanishing-subject',
+    )
+    const personId = await createPerson('Vanishing', 'Subject')
+    const groupId = await createGroup('Vanishing Group', 'vanishing-group')
+    for (const [table, id, body, code] of [
+      ['people', personId, { personId }, 'invalid_person'],
+      ['groups', groupId, { groupId }, 'invalid_group'],
+    ] as const) {
+      const racing = requestAs(
+        owner,
+        interleaveBeforeBatch(() =>
+          env.DB.prepare(`UPDATE ${table} SET deleted_at = ? WHERE id = ?`)
+            .bind(Date.now(), id)
+            .run(),
+        ),
+      )
+      const response = await racing(
+        'POST',
+        `/api/courses/church_demo/${courseId}/enrollments`,
+        body,
+      )
+      expect(response.status).toBe(422)
+      expect(
+        (await response.json<{ error: { code: string } }>()).error.code,
+      ).toBe(code)
+    }
+    const stored = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM course_enrollments WHERE course_id = ?) AS enrollments,
+         (SELECT COUNT(*) FROM audit_events WHERE entity_id = ? AND action = 'courses.enrollment.created') AS audits`,
+    )
+      .bind(courseId, courseId)
+      .first()
+    expect(stored).toEqual({ enrollments: 0, audits: 0 })
+  })
+
   it('does not report an enrollment in a course deleted after it was read', async () => {
     const courseId = await createCourse('Vanishing Course', 'vanishing-course')
     const personId = await createPerson('Vanishing', 'Student')
