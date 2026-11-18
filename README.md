@@ -106,6 +106,11 @@ pnpm 12.4.2 (`packageManager` in `package.json`). From a clean checkout:
    pnpm db:seed
    ```
 
+   Optionally, to see lists and pickers past their first page, also run
+   `pnpm db:seed:large`. It adds 250 synthetic people in households, 150
+   contributions, three groups with rosters over 100 and 150 small media files,
+   to local state only.
+
 3. Start the instance at `http://localhost:5173` and leave it running.
 
    ```bash

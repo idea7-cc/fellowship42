@@ -23,6 +23,7 @@
     "db:migrate": "pnpm --filter @fellowship42/instance db:migrate",
     "db:migrate:remote": "pnpm --filter @fellowship42/instance db:migrate:remote",
     "db:seed": "pnpm --filter @fellowship42/instance db:seed",
+    "db:seed:large": "pnpm --filter @fellowship42/instance db:seed:large",
     "deploy:dry-run": "pnpm --filter @fellowship42/instance deploy:dry-run",
     "deploy": "pnpm --filter @fellowship42/instance deploy",
     "deploy:site:dry-run": "pnpm --filter @fellowship42/project-site deploy:dry-run",
