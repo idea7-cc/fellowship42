@@ -574,10 +574,14 @@ try {
     }
   }
   const saveEntry = async (target) => {
-    await target.getByRole('button', { name: 'Save', exact: true }).click()
+    // A new entry is saved with "Save draft"; an existing entry autosaves.
+    // Either way the editor's status region reads "Saved" once it is stored.
+    const saveDraft = target.getByRole('button', { name: 'Save draft' })
+    if (await saveDraft.isVisible()) await saveDraft.click()
     await target
-      .getByRole('button', { name: 'Saved' })
-      .waitFor({ timeout: 15_000 })
+      .getByRole('status')
+      .filter({ hasText: /^Saved$/ })
+      .waitFor({ state: 'attached', timeout: 15_000 })
   }
   const publishEntry = async (target) => {
     // "Publish now" for a draft, "Publish changes" for a live page's draft.
@@ -604,7 +608,8 @@ try {
   }
   const openPreview = async (target) => {
     const popup = target.context().waitForEvent('page', { timeout: 15_000 })
-    await target.getByRole('button', { name: 'Preview' }).click()
+    // "Preview draft" while the entry has unpublished changes.
+    await target.getByRole('button', { name: /^Preview( draft)?$/ }).click()
     const tab = await popup
     await tab.waitForLoadState()
     const url = tab.url()

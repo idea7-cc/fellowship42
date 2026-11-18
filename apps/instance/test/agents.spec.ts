@@ -315,6 +315,7 @@ describe('church-owned agent connections', () => {
       ['redirect_uri', 'https://attacker.example/callback'],
       ['resource', 'https://other.example/mcp'],
       ['code_challenge_method', 'plain'],
+      ['response_type', 'token'],
       ['scope', 'people:read'],
       ['scope', 'draft:write'],
     ]) {

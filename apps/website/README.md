@@ -1,6 +1,6 @@
 # Fellowship42 church website
 
-The EmDash 1.0.1 site a Fellowship42 installation deploys beside the instance.
+The EmDash 1.5.0 site a Fellowship42 installation deploys beside the instance.
 EmDash owns pages, articles, menus, and presentation; church records come from
 the instance through the [public website contract](../../docs/website-contract.md)
 using [`@fellowship42/emdash`](../../packages/emdash).
