@@ -423,6 +423,7 @@ export interface ManagementStatusResponse {
     operatorId: string
     disconnectedAt: string
   } | null
+  /** Every session awaiting local approval or approved and revocable. */
   supportSessions: Array<{
     requestId: string
     connectionId: string

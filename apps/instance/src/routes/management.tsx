@@ -562,32 +562,22 @@ export function ManagementPage() {
 
             {status.data.connection ? (
               <>
-                {status.data.supportSessions.some((session) =>
-                  ['awaiting-local-approval', 'approved'].includes(
-                    session.state,
-                  ),
-                ) ? (
+                {status.data.supportSessions.length ? (
                   <Section
                     title="Support sessions"
                     description="Every request names the operator, purpose, scope, and exact time window. Approval is local, automatically expires, and can be revoked here at any time."
                   >
                     <div className="grid gap-4">
-                      {status.data.supportSessions
-                        .filter((session) =>
-                          ['awaiting-local-approval', 'approved'].includes(
-                            session.state,
-                          ),
-                        )
-                        .map((session) => (
-                          <SupportSessionCard
-                            key={session.requestId}
-                            busy={busy !== null}
-                            onDecide={(decision, reason) =>
-                              decideSupport(session.requestId, decision, reason)
-                            }
-                            session={session}
-                          />
-                        ))}
+                      {status.data.supportSessions.map((session) => (
+                        <SupportSessionCard
+                          key={session.requestId}
+                          busy={busy !== null}
+                          onDecide={(decision, reason) =>
+                            decideSupport(session.requestId, decision, reason)
+                          }
+                          session={session}
+                        />
+                      ))}
                     </div>
                   </Section>
                 ) : null}
