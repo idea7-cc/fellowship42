@@ -261,7 +261,7 @@ Owned source code. Modify freely.
 | `AppShell` | `app-shell.tsx` | Sidebar navigation, church chip, theme toggle, user block, mobile drawer |
 | `PageShell` | `page-shell.tsx` | Working-area container. `width="narrow"` for reading-heavy pages. |
 | `PageHeader`, `Toolbar`, `ToolbarSpacer` | `page-header.tsx` | The standard head of every operator page |
-| `Section` | `section.tsx` | Titled region with optional actions |
+| `Section` | `section.tsx` | Titled region with optional actions. Its title is an `h2`, and `CardTitle`s inside a titled section render as `h3` (`h2` elsewhere), so headings under the page `h1` never skip a level |
 | `Metric`, `MetricRow` | `metric.tsx` | Stat tiles |
 | `CardGrid` | `card-grid.tsx` | Auto-fill responsive grid |
 | `Hero`, `HeroActions` | `hero.tsx` | Church-facing hero. Not for operator screens. |
