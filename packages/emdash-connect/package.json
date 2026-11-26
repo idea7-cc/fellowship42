@@ -33,7 +33,7 @@
     "@emdash-cms/registry-verification": "0.3.5",
     "@fellowship42/emdash": "workspace:*",
     "@fellowship42/website-contract": "workspace:*",
-    "emdash": "1.5.0",
+    "emdash": "1.6.0",
     "typescript": "~6.0.3",
     "vitest": "~4.1.12"
   },
