@@ -27,10 +27,10 @@
     "emdash": ">=1.0.1 <2"
   },
   "devDependencies": {
-    "@emdash-cms/blocks": "1.5.0",
-    "@emdash-cms/plugin-cli": "0.13.6",
-    "@emdash-cms/plugin-test": "0.2.12",
-    "@emdash-cms/registry-verification": "0.3.5",
+    "@emdash-cms/blocks": "1.6.0",
+    "@emdash-cms/plugin-cli": "0.13.7",
+    "@emdash-cms/plugin-test": "0.2.13",
+    "@emdash-cms/registry-verification": "0.4.0",
     "@fellowship42/emdash": "workspace:*",
     "@fellowship42/website-contract": "workspace:*",
     "emdash": "1.5.0",
